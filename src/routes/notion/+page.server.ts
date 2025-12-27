@@ -45,9 +45,10 @@ export const load: PageServerLoad = async (event) => {
 			error: null
 		};
 	} catch (err) {
-		const message = err instanceof Error ? err.message : '알 수 없는 오류';
+		console.error('Notion API Error:', err);
+		const errorDetail = JSON.stringify(err, Object.getOwnPropertyNames(err), 2);
 		return {
-			error: `Notion API 오류: ${message}`,
+			error: `Notion API 오류: ${errorDetail}`,
 			columns: [],
 			rows: []
 		};
