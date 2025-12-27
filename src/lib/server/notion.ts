@@ -49,33 +49,62 @@ interface QueryDatabaseResponse {
 
 export async function queryDatabase(databaseId: string): Promise<PageObjectResponse[]> {
 	const notion = getNotionClient();
-	// v5: use request method directly for database query
-	const response = await notion.request<QueryDatabaseResponse>({
-		path: `databases/${databaseId}/query`,
-		method: 'post',
-		body: {}
+
+	console.log('Database ID:', databaseId);
+	console.log('Database ID length:', databaseId.length);
+
+	// v5 client의 request가 문제가 있으므로 fetch로 직접 호출
+	const response = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
+		method: 'POST',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28',
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({})
 	});
 
-	return response.results.filter(
+	if (!response.ok) {
+		const error = await response.json();
+		throw new Error(JSON.stringify(error));
+	}
+
+	const data = await response.json() as QueryDatabaseResponse;
+	console.log('Query results count:', data.results.length);
+	console.log('First result:', JSON.stringify(data.results[0], null, 2));
+
+	return data.results.filter(
 		(page: unknown): page is PageObjectResponse =>
 			typeof page === 'object' && page !== null && 'properties' in page
 	);
 }
 
 export async function getDatabaseSchema(databaseId: string): Promise<Record<string, { type: string }>> {
-	const notion = getNotionClient();
-	const response = await notion.databases.retrieve({
-		database_id: databaseId
+	const response = await fetch(`https://api.notion.com/v1/databases/${databaseId}`, {
+		method: 'GET',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28'
+		}
 	});
 
-	if (!('properties' in response)) {
+	if (!response.ok) {
+		const error = await response.json();
+		throw new Error(JSON.stringify(error));
+	}
+
+	const data = await response.json();
+	console.log('Schema response:', JSON.stringify(data, null, 2));
+
+	if (!('properties' in data)) {
 		return {};
 	}
 
-	const properties = response.properties as Record<string, { type: string }>;
+	const properties = data.properties as Record<string, { type: string }>;
 	const result: Record<string, { type: string }> = {};
 	for (const [key, value] of Object.entries(properties)) {
 		result[key] = { type: value.type };
 	}
+	console.log('Columns:', result);
 	return result;
 }
