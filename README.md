@@ -33,7 +33,9 @@ A secure SvelteKit web application designed to automate membership management an
 
 ```text
 src/
+├── app.d.ts             # Type definitions (App.Locals, App.PageData)
 ├── auth.ts              # Auth.js configuration & Google Provider
+├── hooks.server.ts      # Auth.js handler hook
 ├── lib/
 │   ├── assets/          # Static assets (favicon, instagram logo)
 │   └── server/
@@ -43,6 +45,7 @@ src/
 └── routes/
     ├── +layout.server.ts # Global Context (President info, Admin status)
     ├── +layout.svelte    # Global UI (Header with Logo/Profile/Admin, Footer)
+    ├── +page.server.ts   # Dashboard data fetching
     ├── +page.svelte      # User Dashboard (Stats, Linked Activity Summary)
     ├── admin/            # Admin Dashboard (Applications, Events, Attendance Review)
     ├── events/           # Public Event Pages (Attend/Leave actions)
