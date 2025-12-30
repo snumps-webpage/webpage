@@ -417,3 +417,107 @@ export async function getActivities(startDate: string, endDate: string) {
 			};
 		});
 }
+
+export async function getUserActivities(memberId: string) {
+	const dbId = env.NOTION_DB_ACTIVITIES;
+	if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
+
+	let allResults: PageObjectResponse[] = [];
+	let hasMore = true;
+	let nextCursor: string | null = null;
+
+	while (hasMore) {
+		const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
+			method: 'POST',
+			headers: {
+				'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+				'Notion-Version': '2022-06-28',
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				filter: {
+					property: '출석',
+					relation: {
+						contains: memberId
+					}
+				},
+				sorts: [
+					{
+						property: '일정',
+						direction: 'descending'
+					}
+				],
+				start_cursor: nextCursor ?? undefined
+			})
+		});
+
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(JSON.stringify(error));
+		}
+
+		const data = await response.json() as QueryDatabaseResponse;
+		
+		const pages = data.results.filter((page: unknown): page is PageObjectResponse => 
+			typeof page === 'object' && page !== null && 'properties' in page
+		);
+		
+		allResults = [...allResults, ...pages];
+		hasMore = data.has_more;
+		nextCursor = data.next_cursor;
+	}
+	
+	return allResults.map(page => {
+		const props = page.properties;
+		return {
+			id: page.id,
+			name: props['활동명']?.type === 'title' ? props['활동명'].title[0]?.plain_text ?? '' : '',
+			date: props['일정']?.type === 'date' ? props['일정'].date?.start ?? '' : '',
+			type: props['활동 종류']?.type === 'select' ? props['활동 종류'].select?.name ?? '' : ''
+		};
+	});
+}
+
+export async function updatePrivateInfo(pageId: string, data: { phone?: string; bio?: string; background?: string }) {
+	const props: Record<string, any> = {};
+	if (data.phone !== undefined) props['전화번호'] = { phone_number: data.phone };
+	if (data.bio !== undefined) props['자기 소개'] = { rich_text: [{ text: { content: data.bio } }] };
+	if (data.background !== undefined) props['배경 지식'] = { rich_text: [{ text: { content: data.background } }] };
+
+	const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+		method: 'PATCH',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28',
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({ properties: props })
+	});
+
+	if (!response.ok) {
+		const error = await response.json();
+		throw new Error(JSON.stringify(error));
+	}
+}
+
+export async function getPrivateInfo(pageId: string) {
+	const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+		method: 'GET',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28'
+		}
+	});
+
+	if (!response.ok) return null;
+	const page = await response.json() as PageObjectResponse;
+	const props = page.properties;
+
+	return {
+		email: props['이메일']?.type === 'email' ? props['이메일'].email : '',
+		name: props['이름']?.type === 'title' ? props['이름'].title[0]?.plain_text : '',
+		phone: props['전화번호']?.type === 'phone_number' ? props['전화번호'].phone_number : '',
+		bio: props['자기 소개']?.type === 'rich_text' ? props['자기 소개'].rich_text[0]?.plain_text : '',
+		background: props['배경 지식']?.type === 'rich_text' ? props['배경 지식'].rich_text[0]?.plain_text : ''
+	};
+}

@@ -16,7 +16,9 @@
 				<p class="welcome">환영합니다, {session.user.name}님!</p>
 			</div>
 			<div class="user-actions">
-				<span class="email">{session.user.email}</span>
+				<a href="/profile" class="profile-btn" aria-label="내 프로필">
+					<img src="https://ui-avatars.com/api/?name={session.user.name}&background=random" alt="Profile" />
+				</a>
 				<button class="logout-btn" onclick={() => signOut()}>로그아웃</button>
 			</div>
 		</div>
@@ -157,13 +159,6 @@
 		text-align: right;
 	}
 
-	.email {
-		display: block;
-		font-size: 0.875rem;
-		color: #6b7280;
-		margin-bottom: 0.5rem;
-	}
-
 	.logout-btn {
 		font-size: 0.875rem;
 		padding: 0.4rem 0.8rem;
@@ -177,6 +172,27 @@
 	.logout-btn:hover {
 		background: #f3f4f6;
 		color: #1f2937;
+	}
+
+	.profile-btn {
+		display: block;
+		width: 40px;
+		height: 40px;
+		border-radius: 50%;
+		overflow: hidden;
+		border: 2px solid white;
+		box-shadow: 0 0 0 1px #e5e7eb;
+		transition: transform 0.2s;
+	}
+	
+	.profile-btn:hover {
+		transform: scale(1.05);
+	}
+
+	.profile-btn img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
 	}
 
 	/* Footer */
