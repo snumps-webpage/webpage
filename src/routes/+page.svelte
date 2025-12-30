@@ -11,14 +11,9 @@
 <div class="container">
 	{#if session?.user}
 		<div class="header">
-			<div class="header-left">
-				<a href="/" class="logo-link" aria-label="Home">
-					<img src="/src/lib/assets/favicon.svg" alt="SNUMPS Logo" class="logo" />
-				</a>
-				<div>
-					<h1>SNUMPS 활동 현황</h1>
-					<p class="welcome">환영합니다, {session.user.name}님!</p>
-				</div>
+			<div>
+				<h1>SNUMPS 활동 현황</h1>
+				<p class="welcome">환영합니다, {session.user.name}님!</p>
 			</div>
 			<div class="user-actions">
 				<a href="/profile" class="profile-btn" aria-label="내 프로필">
@@ -153,30 +148,6 @@
 		font-size: 1.75rem;
 		color: #1a1a2e;
 		margin: 0 0 0.5rem 0;
-	}
-
-	.header-left {
-		display: flex;
-		align-items: center;
-		gap: 1.5rem;
-	}
-
-	.logo-link {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 48px;
-		height: 48px;
-		transition: transform 0.2s;
-	}
-
-	.logo-link:hover {
-		transform: scale(1.1);
-	}
-
-	.logo {
-		width: 100%;
-		height: 100%;
 	}
 
 	.welcome {
