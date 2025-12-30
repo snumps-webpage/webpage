@@ -39,7 +39,13 @@
 
 <footer>
 	<div class="footer-info">
-		<p>회장: {$page.data.presidentName} | <a href="mailto:snumps0@gmail.com">snumps0@gmail.com</a></p>
+		<p>
+			회장: {$page.data.presidentName} | 
+			<a href="mailto:snumps0@gmail.com">snumps0@gmail.com</a> |
+			<a href="https://instagram.com/snu_mps" target="_blank" rel="noopener noreferrer" class="social-link" aria-label="Instagram">
+				<img src="/src/lib/assets/instagram.svg" alt="Instagram" class="social-icon" />
+			</a>
+		</p>
 	</div>
 </footer>
 
@@ -175,5 +181,24 @@
 
 	.footer-info a:hover {
 		text-decoration: underline;
+	}
+
+	.social-link {
+		display: inline-flex;
+		align-items: center;
+		vertical-align: middle;
+		margin-left: 0.5rem;
+		opacity: 0.7;
+		transition: opacity 0.2s;
+	}
+
+	.social-link:hover {
+		opacity: 1;
+		text-decoration: none !important;
+	}
+
+	.social-icon {
+		width: 18px;
+		height: 18px;
 	}
 </style>
