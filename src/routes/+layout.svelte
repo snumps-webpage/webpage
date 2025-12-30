@@ -1,10 +1,10 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.svg';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { signOut } from '@auth/sveltekit/client';
 
 	let { children } = $props();
-	const session = $derived($page.data.session);
+	const session = $derived(page.data.session);
 </script>
 
 <svelte:head>
@@ -23,7 +23,7 @@
 				<a href="/profile" class="profile-btn" aria-label="내 프로필">
 					<img src={favicon} alt="Profile" />
 				</a>
-				{#if $page.data.isAdmin}
+				{#if page.data.isAdmin}
 					<a href="/admin" class="circle-btn">Admin</a>
 					<a href="/notion" class="circle-btn">DB</a>
 				{/if}
@@ -40,7 +40,7 @@
 <footer>
 	<div class="footer-info">
 		<p>
-			회장: {$page.data.presidentName} | 
+			회장: {page.data.presidentName} | 
 			<a href="mailto:snumps0@gmail.com">snumps0@gmail.com</a> |
 			<a href="https://instagram.com/snu_mps" target="_blank" rel="noopener noreferrer" class="social-link" aria-label="Instagram">
 				<img src="/src/lib/assets/instagram.svg" alt="Instagram" class="social-icon" />

@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { signIn } from '@auth/sveltekit/client';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 
-	const error = $derived($page.url.searchParams.get('error'));
+	const error = $derived(page.url.searchParams.get('error'));
 
 	function getErrorMessage(errorCode: string | null): string | null {
 		if (!errorCode) return null;
@@ -18,7 +18,7 @@
 	}
 
 	const errorMessage = $derived(getErrorMessage(error));
-	const redirectTo = $derived($page.url.searchParams.get('redirect') || '/');
+	const redirectTo = $derived(page.url.searchParams.get('redirect') || '/');
 </script>
 
 <div class="login-container">
