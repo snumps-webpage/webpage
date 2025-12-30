@@ -1,6 +1,15 @@
 import { redirect } from '@sveltejs/kit';
-import { getApplications, isAdmin, removeApplication, getWithdrawalRequests, removeWithdrawalRequest } from '$lib/server/admin';
-import { createMember, getAllMembers, withdrawMember, getMemberByEmail } from '$lib/server/notion';
+import { 
+    getApplications, isAdmin, removeApplication, getWithdrawalRequests, removeWithdrawalRequest 
+} from '$lib/server/admin';
+import { 
+    createMember, getAllMembers, withdrawMember, getMemberByEmail, 
+    createActivityPage, addAttendeeToActivity 
+} from '$lib/server/notion';
+import { 
+    getEvents, updateEventStatus, deleteEvent, getAttendanceQueue, 
+    updateAttendanceStatus, getEvent 
+} from '$lib/server/events';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -9,16 +18,20 @@ export const load: PageServerLoad = async (event) => {
 		throw redirect(302, '/');
 	}
 
-	const [apps, members, withdrawalRequests] = await Promise.all([
+	const [apps, members, withdrawalRequests, events, attendanceQueue] = await Promise.all([
 		getApplications(),
 		getAllMembers(),
-		getWithdrawalRequests()
+		getWithdrawalRequests(),
+        getEvents(),
+        getAttendanceQueue()
 	]);
 
 	return {
 		applications: apps,
 		members: members,
-		withdrawalRequests: withdrawalRequests
+		withdrawalRequests: withdrawalRequests,
+        events: events.reverse(), // Newest first
+        attendanceQueue: attendanceQueue.filter(r => r.status === 'pending')
 	};
 };
 
@@ -119,5 +132,95 @@ export const actions = {
 
 		await removeWithdrawalRequest(email);
 		return { success: true };
-	}
+	},
+
+    // --- Event Management ---
+
+    activateEvent: async ({ request, locals }) => {
+        const session = await locals.auth();
+        if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
+        
+        const data = await request.formData();
+        const id = data.get('id') as string;
+        
+        // When activating, we could create the Notion Page immediately to ensure it exists.
+        // Or wait until attendance approval. 
+        // Prompt: "activate button creates and activates the page"
+        // Let's create Notion Page now.
+        const event = await getEvent(id);
+        if (!event) return { error: 'Event not found' };
+
+        if (!event.notionPageId) {
+            try {
+                const page = await createActivityPage({
+                    title: event.title,
+                    date: event.date,
+                    type: event.type
+                });
+                await updateEventStatus(id, 'active', page.id);
+            } catch(e) {
+                console.error(e);
+                return { error: 'Failed to create Notion Page' };
+            }
+        } else {
+            await updateEventStatus(id, 'active');
+        }
+        return { success: true };
+    },
+
+    expireEvent: async ({ request, locals }) => {
+        const session = await locals.auth();
+        if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
+        const data = await request.formData();
+        await updateEventStatus(data.get('id') as string, 'expired');
+        return { success: true };
+    },
+
+    deleteEvent: async ({ request, locals }) => {
+        const session = await locals.auth();
+        if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
+        const data = await request.formData();
+        await deleteEvent(data.get('id') as string);
+        return { success: true };
+    },
+
+    // --- Attendance Review ---
+
+    approveAttendance: async ({ request, locals }) => {
+        const session = await locals.auth();
+        if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
+        
+        const data = await request.formData();
+        const recordId = data.get('id') as string;
+        const eventId = data.get('eventId') as string;
+        const userEmail = data.get('userEmail') as string;
+
+        try {
+            // 1. Get Event & Notion Page
+            const event = await getEvent(eventId);
+            if (!event || !event.notionPageId) throw new Error('Event or Notion Page not found');
+
+            // 2. Get Member ID
+            const memberLink = await getMemberByEmail(userEmail);
+            if (!memberLink) throw new Error('Member not found in DB');
+
+            // 3. Add to Notion
+            await addAttendeeToActivity(event.notionPageId, memberLink.memberId);
+
+            // 4. Update Status
+            await updateAttendanceStatus(recordId, 'approved');
+            return { success: true };
+        } catch (e) {
+            console.error(e);
+            return { error: 'Approval failed: ' + (e as Error).message };
+        }
+    },
+
+    rejectAttendance: async ({ request, locals }) => {
+        const session = await locals.auth();
+        if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
+        const data = await request.formData();
+        await updateAttendanceStatus(data.get('id') as string, 'rejected');
+        return { success: true };
+    }
 };
