@@ -52,9 +52,13 @@ export const actions = {
 		const phone = data.get('phone') as string;
 		const bio = data.get('bio') as string;
 		const background = data.get('background') as string;
-		const pageId = data.get('privateInfoId') as string;
-
-		if (!pageId) return fail(400, { error: 'Missing ID' });
+		
+		// Security Fix: Do not trust 'privateInfoId' from client.
+		// Re-fetch member links to ensure user owns the record.
+		const memberLinks = await getMemberByEmail(session.user.email);
+		if (!memberLinks) return fail(404, { error: 'Profile not found' });
+		
+		const pageId = memberLinks.privateInfoId;
 
 		try {
 			await updatePrivateInfo(pageId, { phone, bio, background });
