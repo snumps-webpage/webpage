@@ -48,6 +48,7 @@ export const actions = {
 		}
 
 		const { addApplication } = await import('$lib/server/admin');
+		const { sendSignupNotification } = await import('$lib/server/mail');
 		
 		await addApplication({
 			email: session.user.email,
@@ -57,6 +58,12 @@ export const actions = {
 			bio,
 			background
 		});
+
+		// Notify admins via email using the user's access token
+		const accessToken = (session as any).accessToken;
+		if (accessToken) {
+			await sendSignupNotification(accessToken, name);
+		}
 
 		return { success: true };
 	}
