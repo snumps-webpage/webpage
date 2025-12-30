@@ -3,9 +3,34 @@
 	import type { PageData } from './$types';
 
 	let { data } = $props();
+    
+    // State for editing attendance
+    let editingRecord: any = $state(null);
+    let editDialog: HTMLDialogElement;
+
+    function openEdit(record: any) {
+        editingRecord = record;
+        editDialog.showModal();
+    }
+
+    function closeEdit() {
+        editDialog.close();
+        editingRecord = null;
+    }
+    
+    // Helper to format ISO to datetime-local value (YYYY-MM-DDTHH:MM)
+    function toDateTimeLocal(iso: string) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        // Adjust to local timezone roughly or just use ISO string slice if UTC?
+        // datetime-local expects local time.
+        // Simple hack: new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+        return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    }
 </script>
 
 <div class="admin-container">
+    <!-- ... header ... -->
 	<header>
 		<h1>관리자 대시보드</h1>
 		<div class="header-actions">
@@ -110,6 +135,11 @@
 										<input type="hidden" name="id" value={record.id} />
 										<button class="btn reject small">거절</button>
 									</form>
+                                    <button class="btn edit small" onclick={() => openEdit(record)}>수정</button>
+                                    <form method="POST" action="?/deleteAttendanceRecord" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까?')}>
+                                        <input type="hidden" name="id" value={record.id} />
+                                        <button class="btn delete small">삭제</button>
+                                    </form>
 								</td>
 							</tr>
 						{/each}
@@ -118,6 +148,37 @@
 			</div>
 		{/if}
 	</section>
+
+    <!-- Edit Dialog -->
+    <dialog bind:this={editDialog} class="edit-dialog">
+        {#if editingRecord}
+            <h3>출석 기록 수정</h3>
+            <p><strong>{editingRecord.userName}</strong> ({editingRecord.userEmail})</p>
+            
+            <form method="POST" action="?/updateAttendanceTime" use:enhance={() => {
+                return ({ result }) => {
+                    if (result.type === 'success') closeEdit();
+                };
+            }}>
+                <input type="hidden" name="id" value={editingRecord.id} />
+                
+                <div class="field">
+                    <label for="startTime">시작 시간</label>
+                    <input type="datetime-local" id="startTime" name="startTime" value={toDateTimeLocal(editingRecord.startTime)} required />
+                </div>
+                
+                <div class="field">
+                    <label for="endTime">종료 시간</label>
+                    <input type="datetime-local" id="endTime" name="endTime" value={toDateTimeLocal(editingRecord.endTime)} />
+                </div>
+
+                <div class="dialog-actions">
+                    <button type="button" class="btn cancel" onclick={closeEdit}>취소</button>
+                    <button class="btn submit">저장</button>
+                </div>
+            </form>
+        {/if}
+    </dialog>
 
 	<section class="mt-4">
 		<h2>가입 승인 대기 ({data.applications.length})</h2>
@@ -310,6 +371,7 @@
 	.activate { background: #10b981; color: white; }
 	.expire { background: #fbbf24; color: white; }
 	.delete { background: #6b7280; color: white; }
+    .edit { background: #667eea; color: white; }
 
 	.empty {
 		color: #9ca3af;
@@ -318,6 +380,55 @@
 		background: #f9fafb;
 		border-radius: 8px;
 	}
+
+    .edit-dialog {
+        padding: 2rem;
+        border-radius: 8px;
+        border: none;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        min-width: 300px;
+    }
+    
+    .edit-dialog::backdrop {
+        background: rgba(0,0,0,0.5);
+    }
+    
+    .edit-dialog h3 { margin-top: 0; }
+    
+    .edit-dialog .field { margin-bottom: 1rem; }
+    
+    .edit-dialog label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #374151;
+    }
+    
+    .edit-dialog input {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+    }
+    
+    .dialog-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        margin-top: 1.5rem;
+    }
+    
+    .dialog-actions .btn {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+    }
+    
+    .dialog-actions .submit { background: #10b981; color: white; }
+    .dialog-actions .cancel { background: #e5e7eb; color: #374151; }
 
 	.grid {
 		display: grid;

@@ -8,7 +8,7 @@ import {
 } from '$lib/server/notion';
 import { 
     getEvents, updateEventStatus, deleteEvent, getAttendanceQueue, 
-    updateAttendanceStatus, getEvent 
+    updateAttendanceStatus, getEvent, removeAttendanceRecord, updateAttendanceRecord 
 } from '$lib/server/events';
 import type { PageServerLoad } from './$types';
 
@@ -221,6 +221,34 @@ export const actions = {
         if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
         const data = await request.formData();
         await updateAttendanceStatus(data.get('id') as string, 'rejected');
+        return { success: true };
+    },
+
+    updateAttendanceTime: async ({ request, locals }) => {
+        const session = await locals.auth();
+        if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
+        
+        const data = await request.formData();
+        const id = data.get('id') as string;
+        const startTime = data.get('startTime') as string;
+        const endTime = data.get('endTime') as string;
+
+        // Ensure ISO strings or nulls if empty? 
+        // Input type datetime-local gives "YYYY-MM-DDTHH:MM".
+        // new Date(...) handles it.
+        const updates: { startTime?: string; endTime?: string } = {};
+        if (startTime) updates.startTime = new Date(startTime).toISOString();
+        if (endTime) updates.endTime = new Date(endTime).toISOString();
+        
+        await updateAttendanceRecord(id, updates);
+        return { success: true };
+    },
+
+    deleteAttendanceRecord: async ({ request, locals }) => {
+        const session = await locals.auth();
+        if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
+        const data = await request.formData();
+        await removeAttendanceRecord(data.get('id') as string);
         return { success: true };
     }
 };
