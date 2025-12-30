@@ -84,6 +84,13 @@ export const actions = {
         if (!result.record) return { error: 'Not Attended', message: '출석 기록이 없습니다.' };
         if (!result.updated) return { error: 'Duplicate', message: '이미 퇴장하셨습니다.' };
 
+        // Notify admins via email using the user's access token
+        const { sendAttendanceNotification } = await import('$lib/server/mail');
+        const accessToken = (session as any).accessToken;
+        if (accessToken && session.user.name) {
+            await sendAttendanceNotification(accessToken, session.user.name, event.title);
+        }
+
         return { success: true };
     }
 };
