@@ -1,9 +1,9 @@
 import { redirect } from '@sveltejs/kit';
 import { 
-    getApplications, isAdmin, removeApplication, getWithdrawalRequests, removeWithdrawalRequest 
+    getApplications, isAdmin, removeApplication 
 } from '$lib/server/admin';
 import { 
-    createMember, getAllMembers, withdrawMember, getMemberByEmail, 
+    createMember, getAllMembers, getMemberByEmail, 
     createActivityPage, addAttendeeToActivity 
 } from '$lib/server/notion';
 import { 
@@ -18,10 +18,9 @@ export const load: PageServerLoad = async (event) => {
 		throw redirect(302, '/');
 	}
 
-	const [apps, members, withdrawalRequests, events, attendanceQueue] = await Promise.all([
+	const [apps, members, events, attendanceQueue] = await Promise.all([
 		getApplications(),
 		getAllMembers(),
-		getWithdrawalRequests(),
         getEvents(),
         getAttendanceQueue()
 	]);
@@ -29,7 +28,6 @@ export const load: PageServerLoad = async (event) => {
 	return {
 		applications: apps,
 		members: members,
-		withdrawalRequests: withdrawalRequests,
         events: events.reverse(), // Newest first
         attendanceQueue: attendanceQueue.filter(r => r.status === 'pending')
 	};
@@ -78,59 +76,6 @@ export const actions = {
 		const id = data.get('id') as string;
 
 		await removeApplication(id);
-		return { success: true };
-	},
-
-	withdraw: async ({ request, locals }) => {
-		const session = await locals.auth();
-		if (!session?.user?.email || !isAdmin(session.user.email)) {
-			return { error: 'Forbidden' };
-		}
-
-		const data = await request.formData();
-		const id = data.get('id') as string;
-
-		try {
-			await withdrawMember(id);
-			return { success: true };
-		} catch (e) {
-			console.error(e);
-			return { error: 'Withdrawal failed: ' + (e as Error).message };
-		}
-	},
-
-	approveWithdraw: async ({ request, locals }) => {
-		const session = await locals.auth();
-		if (!session?.user?.email || !isAdmin(session.user.email)) {
-			return { error: 'Forbidden' };
-		}
-
-		const data = await request.formData();
-		const email = data.get('email') as string;
-
-		try {
-			const member = await getMemberByEmail(email);
-			if (!member) throw new Error('Member not found for email: ' + email);
-
-			await withdrawMember(member.memberId);
-			await removeWithdrawalRequest(email);
-			return { success: true };
-		} catch (e) {
-			console.error(e);
-			return { error: 'Withdrawal failed: ' + (e as Error).message };
-		}
-	},
-
-	rejectWithdraw: async ({ request, locals }) => {
-		const session = await locals.auth();
-		if (!session?.user?.email || !isAdmin(session.user.email)) {
-			return { error: 'Forbidden' };
-		}
-
-		const data = await request.formData();
-		const email = data.get('email') as string;
-
-		await removeWithdrawalRequest(email);
 		return { success: true };
 	},
 

@@ -109,29 +109,6 @@ export async function getDatabaseSchema(databaseId: string): Promise<Record<stri
 	return result;
 }
 
-export async function withdrawMember(pageId: string) {
-	const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
-		method: 'PATCH',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			properties: {
-				'탈퇴 여부': {
-					checkbox: true
-				}
-			}
-		})
-	});
-
-	if (!response.ok) {
-		const error = await response.json();
-		throw new Error(JSON.stringify(error));
-	}
-}
-
 export async function createMember(data: {
 	name: string;
 	email: string;
@@ -278,12 +255,6 @@ export async function getAllMembers() {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				filter: {
-					property: '탈퇴 여부',
-					checkbox: {
-						equals: false
-					}
-				},
 				sorts: [
 					{
 						property: '이름',

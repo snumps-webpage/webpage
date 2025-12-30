@@ -1,5 +1,4 @@
 import { getMemberByEmail, getActivities, getPresidentName } from '$lib/server/notion';
-import { addWithdrawalRequest, getWithdrawalRequests } from '$lib/server/admin';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -46,7 +45,6 @@ export const load: PageServerLoad = async (event) => {
 			activities: [],
 			semester: semesterName,
 			myAttendanceStats: { total: 0, attended: 0 },
-			hasPendingWithdrawal: false,
 			presidentName
 		};
 	}
@@ -61,15 +59,11 @@ export const load: PageServerLoad = async (event) => {
 				semester: semesterName,
 				activities: [],
 				myAttendanceStats: { total: 0, attended: 0 },
-				hasPendingWithdrawal: false,
 				presidentName
 			};
 		}
 
-		const [rawActivities, withdrawalRequests] = await Promise.all([
-			getActivities(startDate, endDate),
-			getWithdrawalRequests()
-		]);
+		const rawActivities = await getActivities(startDate, endDate);
 
 		const activities = rawActivities.map(act => ({
 			id: act.id,
@@ -80,7 +74,6 @@ export const load: PageServerLoad = async (event) => {
 		}));
 
 		const attendedCount = activities.filter(a => a.attended).length;
-		const hasPendingWithdrawal = withdrawalRequests.some(r => r.email === session.user?.email);
 
 		return {
 			semester: semesterName,
@@ -89,7 +82,6 @@ export const load: PageServerLoad = async (event) => {
 				total: activities.length,
 				attended: attendedCount
 			},
-			hasPendingWithdrawal,
 			presidentName
 		};
 
@@ -100,20 +92,7 @@ export const load: PageServerLoad = async (event) => {
 			semester: semesterName,
 			activities: [],
 			myAttendanceStats: { total: 0, attended: 0 },
-			hasPendingWithdrawal: false,
 			presidentName
 		};
-	}
-};
-
-export const actions = {
-	requestWithdraw: async ({ locals }) => {
-		const session = await locals.auth();
-		if (!session?.user?.email || !session.user.name) {
-			return { error: 'Unauthorized' };
-		}
-
-		await addWithdrawalRequest(session.user.email, session.user.name);
-		return { success: true };
 	}
 };
