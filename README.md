@@ -12,19 +12,22 @@ A secure SvelteKit web application designed to automate membership management an
 
 ### 👥 Membership System
 - **Signup Flow**: New users are redirected to a registration form. Applications are queued locally for Admin approval before being synced to Notion.
-- **User Profile**: Members can view their cumulative activity history and manage personal details (Phone, Bio, Background).
+- **User Profile**: Members can view their full activity history (with semester filtering) and manage personal details (Phone, Bio, Background).
+- **Search & Filtering**: Admins can search the full member database by **Name** or **Department** with an intuitive toggle.
 
 ### 📅 Event & Attendance System
 - **Event Lifecycle**: Admins can Create (Draft), Activate (Publish), Expire, and Delete events.
 - **Attendance Tracking**:
-  - Users check in/out via time-sensitive links.
-  - Records are queued in a local database (`data/attendance_queue.json`).
-  - **Admin Review**: Admins can approve (syncs to Notion) or reject records, and **edit timestamps** manually if corrections are needed.
+  - Users check in/out via time-sensitive, obfuscated links.
+  - Records are queued locally (`data/attendance_queue.json`) for review.
+  - **Admin Review**: Admins can approve (syncs to Notion), reject, or **manually edit timestamps** if corrections are needed.
 
-### 📝 Notion Integration
-- **Two-Way Sync**: Fetches member data and activity logs; pushes new members and attendance records.
-- **Smart Pagination**: Handles large member lists via recursive fetching.
-- **Dynamic Context**: Automatically calculates the current semester and fetches the current Club President's name. This information is displayed in a **Universal Footer** across all pages.
+### 📝 Notion Integration & UI
+- **Smart Paging**: Handles large member lists via recursive fetching (bypassing the 100-record limit).
+- **Automatic Linking**: Activity titles in the user dashboard automatically link to their published Notion pages.
+- **Global Navigation**:
+  - **Header**: Includes quick-access circle buttons for **Admin** and **DB** management (visible to admins only).
+  - **Universal Footer**: Displays current semester information, the Club President's name, and contact links (Email, Instagram).
 
 ## Project Structure
 
@@ -32,20 +35,20 @@ A secure SvelteKit web application designed to automate membership management an
 src/
 ├── auth.ts              # Auth.js configuration & Google Provider
 ├── lib/
-│   ├── assets/          # Static assets (favicon)
+│   ├── assets/          # Static assets (favicon, instagram logo)
 │   └── server/
 │       ├── admin.ts     # Membership application queue logic (JSON)
 │       ├── events.ts    # Event state & attendance queue management (JSON)
 │       └── notion.ts    # Notion API Wrapper (Client, Pagers, Type Parsers)
 └── routes/
-    ├── +layout.server.ts # Global Context & Gatekeeper (President info, Auth)
-    ├── +layout.svelte    # Global UI (Header with Logo/Profile, Universal Footer)
-    ├── +page.svelte      # User Dashboard (Stats, Summary)
+    ├── +layout.server.ts # Global Context (President info, Admin status)
+    ├── +layout.svelte    # Global UI (Header with Logo/Profile/Admin, Footer)
+    ├── +page.svelte      # User Dashboard (Stats, Linked Activity Summary)
     ├── admin/            # Admin Dashboard (Applications, Events, Attendance Review)
     ├── events/           # Public Event Pages (Attend/Leave actions)
     ├── login/            # Custom styled login page
-    ├── notion/           # Raw Database Viewer (Admin only)
-    ├── profile/          # Member Profile & Edit Form
+    ├── notion/           # Raw Database Viewer with Search (Admin only)
+    ├── profile/          # Member Profile with Semester Filtering
     └── signup/           # Application Form
 ```
 
@@ -54,9 +57,9 @@ src/
 The application uses a hybrid storage model:
 
 1.  **Notion (Primary Source of Truth)**:
-    *   **Members DB**: Stores official member status, join dates, and roles.
-    *   **Activities DB**: Stores published events and linked attendance records.
-    *   **Private Info DB**: Stores sensitive PII (Phone, Bio).
+    *   **Members DB**: Official member status, join dates, and roles.
+    *   **Activities DB**: Published events and linked attendance records.
+    *   **Private Info DB**: Sensitive PII (Phone, Bio).
 
 2.  **Local JSON (Transactional/Temporary)**:
     *   Stored in `data/` (gitignored).
@@ -68,9 +71,9 @@ The application uses a hybrid storage model:
 
 - **Frontend**: **Svelte 5** & **SvelteKit** for a reactive and efficient user interface.
 - **Styling**: Standard **CSS** with a focus on modern, responsive design.
-- **Authentication**: **Auth.js** (@auth/sveltekit) with **Google OAuth** for secure, domain-restricted access.
+- **Authentication**: **Auth.js** (@auth/sveltekit) with **Google OAuth**.
 - **Integration**: **Notion API** (@notionhq/client) for robust club data management.
-- **Backend/Storage**: **SvelteKit Server Routes** for logic, **Notion** as the primary DB, and **Local JSON** for temporary transactional queuing.
+- **Backend/Storage**: **SvelteKit Server Routes**, **Notion**, and **Local JSON**.
 
 ## Setup & Installation
 
