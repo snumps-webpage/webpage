@@ -35,6 +35,8 @@ src/
 │       └── notion.ts    # Notion API integration (fetch wrapper & parsers)
 └── routes/
     ├── +layout.server.ts # Global auth & admin checks
+    ├── +layout.svelte    # Global navigation (Logo) & Header
+    ├── +page.server.ts   # Dashboard data fetching
     ├── +page.svelte      # User Dashboard (Stats, Summary)
     ├── admin/            # Admin Dashboard (Users, Events, Attendance)
     ├── events/           # Dynamic Event Pages (Attend/Leave)
