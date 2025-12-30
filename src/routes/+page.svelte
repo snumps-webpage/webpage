@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
-	const session = $derived($page.data.session);
+	const session = $derived(page.data.session);
 </script>
 
 <div class="container">
