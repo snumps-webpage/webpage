@@ -1,5 +1,5 @@
 import { redirect, fail } from '@sveltejs/kit';
-import { getMemberByEmail } from '$lib/server/notion';
+import { getMemberByEmail, getPresidentName } from '$lib/server/notion';
 import { isAdmin } from '$lib/server/admin';
 import type { LayoutServerLoad } from './$types';
 
@@ -7,6 +7,23 @@ export const load: LayoutServerLoad = async (event) => {
 	const session = await event.locals.auth();
 	const isUserAdmin = session?.user?.email ? isAdmin(session.user.email) : false;
 	
+	// Calculate Semester for Global Context (e.g. Footer)
+	const today = new Date();
+	const month = today.getMonth() + 1;
+	const year = today.getFullYear();
+	let shortSemester = '';
+	if (month >= 3 && month <= 8) shortSemester = `${(year % 100).toString()}-1`;
+	else if (month >= 9) shortSemester = `${(year % 100).toString()}-2`;
+	else shortSemester = `${((year - 1) % 100).toString()}-2`;
+
+	let presidentName = '공석';
+	try {
+		const name = await getPresidentName(shortSemester);
+		if (name) presidentName = name;
+	} catch (e) {
+		console.error('Failed to fetch president name:', e);
+	}
+
 	if (session?.user?.email) {
 		const isSignupPage = event.url.pathname === '/signup';
 		const isLoginPage = event.url.pathname === '/login';
@@ -31,6 +48,7 @@ export const load: LayoutServerLoad = async (event) => {
 
 	return {
 		session,
-		isAdmin: isUserAdmin
+		isAdmin: isUserAdmin,
+		presidentName
 	};
 };

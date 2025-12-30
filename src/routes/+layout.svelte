@@ -33,11 +33,20 @@
 	{@render children()}
 </main>
 
+<footer>
+	<div class="footer-info">
+		<p>회장: {$page.data.presidentName} | <a href="mailto:snumps0@gmail.com">snumps0@gmail.com</a></p>
+	</div>
+</footer>
+
 <style>
 	:global(body) {
 		margin: 0;
 		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 		background: #f9fafb;
+		display: flex;
+		flex-direction: column;
+		min-height: 100vh;
 	}
 
 	.global-nav {
@@ -118,5 +127,26 @@
 	.logout-btn:hover {
 		background: #f3f4f6;
 		color: #1f2937;
+	}
+
+	/* Footer */
+	footer {
+		margin-top: auto;
+		padding: 2rem 1.5rem;
+		border-top: 1px solid #e5e7eb;
+		display: flex;
+		justify-content: center;
+		color: #6b7280;
+		font-size: 0.875rem;
+		background: white;
+	}
+
+	.footer-info a {
+		color: #6b7280;
+		text-decoration: none;
+	}
+
+	.footer-info a:hover {
+		text-decoration: underline;
 	}
 </style>

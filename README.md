@@ -24,7 +24,7 @@ A secure SvelteKit web application designed to automate membership management an
 ### 📝 Notion Integration
 - **Two-Way Sync**: Fetches member data and activity logs; pushes new members and attendance records.
 - **Smart Pagination**: Handles large member lists via recursive fetching.
-- **Dynamic Context**: Automatically calculates the current semester and fetches the current Club President's name from the "Executives" property in Notion.
+- **Dynamic Context**: Automatically calculates the current semester and fetches the current Club President's name. This information is displayed in a **Universal Footer** across all pages.
 
 ## Project Structure
 
@@ -38,8 +38,8 @@ src/
 │       ├── events.ts    # Event state & attendance queue management (JSON)
 │       └── notion.ts    # Notion API Wrapper (Client, Pagers, Type Parsers)
 └── routes/
-    ├── +layout.server.ts # Global Gatekeeper (Redirects non-members to /signup)
-    ├── +layout.svelte    # Global UI (Navigation, Logo)
+    ├── +layout.server.ts # Global Context & Gatekeeper (President info, Auth)
+    ├── +layout.svelte    # Global UI (Header with Logo/Profile, Universal Footer)
     ├── +page.svelte      # User Dashboard (Stats, Summary)
     ├── admin/            # Admin Dashboard (Applications, Events, Attendance Review)
     ├── events/           # Public Event Pages (Attend/Leave actions)
