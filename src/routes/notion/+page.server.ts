@@ -10,11 +10,11 @@ export const load: PageServerLoad = async (event) => {
 		redirect(302, '/login');
 	}
 
-	const databaseId = env.NOTION_DATABASE_ID;
+	const databaseId = env.NOTION_DB_MEMBERS;
 
 	if (!databaseId) {
 		return {
-			error: 'NOTION_DATABASE_ID가 설정되지 않았습니다.',
+			error: 'NOTION_DB_MEMBERS가 설정되지 않았습니다.',
 			columns: [],
 			rows: []
 		};
