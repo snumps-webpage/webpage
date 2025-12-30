@@ -17,14 +17,12 @@
 			<a href="/" class="logo-btn" aria-label="Home">
 				<img src={favicon} alt="SNUMPS" />
 			</a>
+		</div>
+		<div class="nav-right">
 			{#if session?.user}
 				<a href="/profile" class="profile-btn" aria-label="내 프로필">
 					<img src={favicon} alt="Profile" />
 				</a>
-			{/if}
-		</div>
-		<div class="nav-right">
-			{#if session?.user}
 				<button class="logout-btn" onclick={() => signOut()}>로그아웃</button>
 			{/if}
 		</div>
