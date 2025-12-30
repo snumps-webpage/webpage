@@ -489,7 +489,8 @@ export async function getUserActivities(memberId: string) {
 			id: page.id,
 			name: props['활동명']?.type === 'title' ? props['활동명'].title[0]?.plain_text ?? '' : '',
 			date: props['일정']?.type === 'date' ? props['일정'].date?.start ?? '' : '',
-			type: props['활동 종류']?.type === 'select' ? props['활동 종류'].select?.name ?? '' : ''
+			type: props['활동 종류']?.type === 'select' ? props['활동 종류'].select?.name ?? '' : '',
+			url: (page as any).public_url || page.url
 		};
 	});
 }
