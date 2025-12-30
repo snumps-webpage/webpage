@@ -5,6 +5,14 @@
 
 	let { data }: { data: PageData } = $props();
 	const session = $derived(page.data.session);
+
+	let selectedSemester = $state(data.currentSemesterKey || 'all');
+
+	let filteredActivities = $derived(
+		selectedSemester === 'all' 
+			? data.activities 
+			: data.activities.filter((a: any) => a.semester === selectedSemester)
+	);
 </script>
 
 <div class="container">
@@ -46,9 +54,18 @@
 			</section>
 
 			<section class="activities-list">
-				<h3>활동 목록</h3>
-				{#if data.activities.length === 0}
-					<p class="empty-state">이번 학기 활동 내역이 없습니다.</p>
+				<div class="list-header">
+					<h3>활동 목록</h3>
+					<select bind:value={selectedSemester} class="semester-select">
+						<option value="all">전체 활동</option>
+						{#each data.semesters as sem}
+							<option value={sem}>{sem}학기</option>
+						{/each}
+					</select>
+				</div>
+
+				{#if filteredActivities.length === 0}
+					<p class="empty-state">활동 내역이 없습니다.</p>
 				{:else}
 					<div class="table-container">
 						<table>
@@ -61,7 +78,7 @@
 								</tr>
 							</thead>
 							<tbody>
-								{#each data.activities as activity}
+								{#each filteredActivities as activity}
 									<tr class={activity.attended ? 'attended' : 'absent'}>
 										<td class="date">{activity.date}</td>
 										<td class="name">
@@ -175,10 +192,27 @@
 	}
 
 	/* Activities List */
+	.list-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 1rem;
+	}
+
 	.activities-list h3 {
 		font-size: 1.25rem;
-		margin: 0 0 1rem 0;
+		margin: 0;
 		color: #111827;
+	}
+
+	.semester-select {
+		padding: 0.4rem 2rem 0.4rem 0.8rem;
+		border-radius: 6px;
+		border: 1px solid #d1d5db;
+		font-size: 0.875rem;
+		background: white;
+		color: #374151;
+		cursor: pointer;
 	}
 
 	.table-container {
