@@ -1,17 +1,22 @@
-import { error, redirect } from '@sveltejs/kit';
+import { redirect } from '@sveltejs/kit';
 import { getApplications, isAdmin, removeApplication } from '$lib/server/admin';
-import { createMember } from '$lib/server/notion';
+import { createMember, getAllMembers, withdrawMember } from '$lib/server/notion';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
 	const session = await event.locals.auth();
 	if (!session?.user?.email || !isAdmin(session.user.email)) {
-		throw error(403, 'Forbidden');
+		throw redirect(302, '/');
 	}
 
-	const apps = await getApplications();
+	const [apps, members] = await Promise.all([
+		getApplications(),
+		getAllMembers()
+	]);
+
 	return {
-		applications: apps
+		applications: apps,
+		members: members
 	};
 };
 
@@ -59,5 +64,23 @@ export const actions = {
 
 		await removeApplication(id);
 		return { success: true };
+	},
+
+	withdraw: async ({ request, locals }) => {
+		const session = await locals.auth();
+		if (!session?.user?.email || !isAdmin(session.user.email)) {
+			return { error: 'Forbidden' };
+		}
+
+		const data = await request.formData();
+		const id = data.get('id') as string;
+
+		try {
+			await withdrawMember(id);
+			return { success: true };
+		} catch (e) {
+			console.error(e);
+			return { error: 'Withdrawal failed: ' + (e as Error).message };
+		}
 	}
 };

@@ -261,6 +261,55 @@ export async function getMemberByEmail(email: string) {
 	};
 }
 
+export async function getAllMembers() {
+	const dbId = env.NOTION_DB_MEMBERS;
+	if (!dbId) throw new Error('NOTION_DB_MEMBERS is not set');
+
+	const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
+		method: 'POST',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28',
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			filter: {
+				property: '탈퇴 여부',
+				checkbox: {
+					equals: false
+				}
+			},
+			sorts: [
+				{
+					property: '이름',
+					direction: 'ascending'
+				}
+			]
+		})
+	});
+
+	if (!response.ok) {
+		const error = await response.json();
+		throw new Error(JSON.stringify(error));
+	}
+
+	const data = await response.json() as QueryDatabaseResponse;
+	
+	return data.results
+		.filter((page: unknown): page is PageObjectResponse => 
+			typeof page === 'object' && page !== null && 'properties' in page
+		)
+		.map(page => {
+			const props = page.properties;
+			return {
+				id: page.id,
+				name: props['이름']?.type === 'title' ? props['이름'].title[0]?.plain_text ?? '' : '',
+				department: props['학과']?.type === 'rich_text' ? props['학과'].rich_text[0]?.plain_text ?? '' : '',
+				joinDate: props['가입일']?.type === 'date' ? props['가입일'].date?.start ?? '' : ''
+			};
+		});
+}
+
 export async function getActivities(startDate: string, endDate: string) {
 	const dbId = env.NOTION_DB_ACTIVITIES;
 	if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');

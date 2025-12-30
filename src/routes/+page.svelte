@@ -16,20 +16,7 @@
 			</div>
 			<div class="user-actions">
 				<span class="email">{session.user.email}</span>
-				<div class="btn-group">
-					<button class="withdraw-btn" onclick={async () => {
-						if(confirm('정말로 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
-							const res = await fetch('/api/withdraw', { method: 'POST' });
-							if (res.ok) {
-								alert('탈퇴 처리되었습니다.');
-								signOut();
-							} else {
-								alert('탈퇴 처리에 실패했습니다. 관리자에게 문의하세요.');
-							}
-						}
-					}}>탈퇴하기</button>
-					<button class="logout-btn" onclick={() => signOut()}>로그아웃</button>
-				</div>
+				<button class="logout-btn" onclick={() => signOut()}>로그아웃</button>
 			</div>
 		</div>
 
@@ -161,12 +148,6 @@
 		margin-bottom: 0.5rem;
 	}
 
-	.btn-group {
-		display: flex;
-		gap: 0.5rem;
-		justify-content: flex-end;
-	}
-
 	.logout-btn {
 		font-size: 0.875rem;
 		padding: 0.4rem 0.8rem;
@@ -180,20 +161,6 @@
 	.logout-btn:hover {
 		background: #f3f4f6;
 		color: #1f2937;
-	}
-
-	.withdraw-btn {
-		font-size: 0.875rem;
-		padding: 0.4rem 0.8rem;
-		background: transparent;
-		border: 1px solid #fee2e2;
-		border-radius: 6px;
-		color: #dc2626;
-		cursor: pointer;
-	}
-
-	.withdraw-btn:hover {
-		background: #fee2e2;
 	}
 
 	/* Actions Bar */

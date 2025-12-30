@@ -55,9 +55,49 @@
 			</div>
 		{/if}
 	</section>
+
+	<section class="mt-4">
+		<h2>회원 관리 ({data.members.length})</h2>
+		
+		{#if data.members.length === 0}
+			<p class="empty">회원이 없습니다.</p>
+		{:else}
+			<div class="table-container">
+				<table>
+					<thead>
+						<tr>
+							<th>이름</th>
+							<th>학과</th>
+							<th>가입일</th>
+							<th>관리</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each data.members as member}
+							<tr>
+								<td>{member.name}</td>
+								<td>{member.department}</td>
+								<td>{member.joinDate}</td>
+								<td>
+									<form method="POST" action="?/withdraw" use:enhance onsubmit={() => confirm(`정말 ${member.name}님을 탈퇴 처리하시겠습니까?`)}>
+										<input type="hidden" name="id" value={member.id} />
+										<button class="btn reject small">탈퇴</button>
+									</form>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
+	</section>
 </div>
 
 <style>
+	.mt-4 {
+		margin-top: 4rem;
+	}
+	
 	.admin-container {
 		max-width: 1200px;
 		margin: 0 auto;
@@ -169,5 +209,39 @@
 	.reject {
 		background: #ef4444;
 		color: white;
+	}
+
+	.small {
+		padding: 0.25rem 0.5rem;
+		font-size: 0.8rem;
+		width: auto;
+	}
+
+	.table-container {
+		background: white;
+		border: 1px solid #e5e7eb;
+		border-radius: 8px;
+		overflow-x: auto;
+	}
+
+	table {
+		width: 100%;
+		border-collapse: collapse;
+		text-align: left;
+	}
+
+	th, td {
+		padding: 0.75rem 1rem;
+		border-bottom: 1px solid #e5e7eb;
+	}
+
+	th {
+		background: #f9fafb;
+		font-weight: 600;
+		color: #374151;
+	}
+
+	tr:last-child td {
+		border-bottom: none;
 	}
 </style>
