@@ -14,6 +14,7 @@
 				const date = new Date(a.date);
 				const year = date.getFullYear();
 				const month = date.getMonth() + 1;
+				// Match academic semester: 1st (Mar-Aug), 2nd (Sep-Feb next year)
 				const sem = (month >= 3 && month <= 8) ? `${year}-1` : (month >= 9 ? `${year}-2` : `${year - 1}-2`);
 				return sem === selectedSemester;
 			})
