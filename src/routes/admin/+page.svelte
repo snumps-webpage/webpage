@@ -31,19 +31,18 @@
         editingRecord = null;
     }
     
-    // Helper to format ISO to datetime-local value (YYYY-MM-DDTHH:MM)
+    /**
+     * Converts an ISO string to a format compatible with <input type="datetime-local">.
+     * datetime-local expects YYYY-MM-DDTHH:MM in local time.
+     */
     function toDateTimeLocal(iso: string) {
         if (!iso) return '';
         const d = new Date(iso);
-        // Adjust to local timezone roughly or just use ISO string slice if UTC?
-        // datetime-local expects local time.
-        // Simple hack: new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
         return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     }
 </script>
 
 <div class="admin-container">
-    <!-- ... header ... -->
 	<header>
 		<h1>관리자 대시보드</h1>
 		<div class="header-actions">
