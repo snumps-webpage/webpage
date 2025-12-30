@@ -21,9 +21,15 @@
         <form method="POST" action={isAttend ? '?/attend' : '?/leave'} use:enhance={() => {
             return ({ result }) => {
                 if (result.type === 'success') {
-                    alert(isAttend ? '출석이 확인되었습니다.' : '퇴장이 확인되었습니다.');
-                } else {
+                    if (result.data?.error) {
+                        alert(result.data.message || '오류가 발생했습니다.');
+                    } else {
+                        alert(isAttend ? '출석이 확인되었습니다.' : '퇴장이 확인되었습니다.');
+                    }
+                } else if (result.type === 'failure') {
                     alert('처리 중 오류가 발생했습니다.');
+                } else if (result.type === 'error') {
+                    alert('서버 오류가 발생했습니다.');
                 }
             };
         }}>

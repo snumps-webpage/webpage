@@ -54,11 +54,15 @@ export const actions = {
             console.error('Failed to fetch department:', e);
         }
         
-        await recordAttendanceStart(event.id, {
+        const result = await recordAttendanceStart(event.id, {
             email: session.user.email,
             name: session.user.name,
             dept
         });
+
+        if (!result.isNew) {
+            return { error: 'Duplicate', message: '이미 출석하셨습니다.' };
+        }
         
         return { success: true };
     },
@@ -72,7 +76,11 @@ export const actions = {
         
         if (!event || event.status !== 'active') return { error: 'Invalid event' };
 
-        await recordAttendanceEnd(event.id, session.user.email);
+        const result = await recordAttendanceEnd(event.id, session.user.email);
+        
+        if (!result.record) return { error: 'Not Attended', message: '출석 기록이 없습니다.' };
+        if (!result.updated) return { error: 'Duplicate', message: '이미 퇴장하셨습니다.' };
+
         return { success: true };
     }
 };

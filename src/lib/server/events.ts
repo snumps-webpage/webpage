@@ -110,7 +110,7 @@ export async function recordAttendanceStart(eventId: string, user: { email: stri
     // Check if already started?
     const existing = queue.find(r => r.eventId === eventId && r.userEmail === user.email);
     if (existing) {
-        return existing; // Already recorded
+        return { record: existing, isNew: false };
     }
 
 	const newRecord: AttendanceRecord = {
@@ -124,16 +124,31 @@ export async function recordAttendanceStart(eventId: string, user: { email: stri
 	};
 	queue.push(newRecord);
 	await writeJson(ATTENDANCE_QUEUE_PATH, queue);
-	return newRecord;
+	return { record: newRecord, isNew: true };
 }
 
 export async function recordAttendanceEnd(eventId: string, email: string) {
 	const queue = await getAttendanceQueue();
 	const record = queue.find(r => r.eventId === eventId && r.userEmail === email);
 	if (record) {
+		if (record.endTime) return { record, updated: false };
 		record.endTime = new Date().toISOString();
 		await writeJson(ATTENDANCE_QUEUE_PATH, queue);
+		return { record, updated: true };
 	}
+	return { record: null, updated: false };
+}
+
+export async function updateAttendanceRecord(recordId: string, updates: { startTime?: string; endTime?: string }) {
+	const queue = await getAttendanceQueue();
+	const record = queue.find(r => r.id === recordId);
+	if (record) {
+		if (updates.startTime) record.startTime = updates.startTime;
+		if (updates.endTime) record.endTime = updates.endTime;
+		await writeJson(ATTENDANCE_QUEUE_PATH, queue);
+		return record;
+	}
+	return null;
 }
 
 export async function updateAttendanceStatus(recordId: string, status: AttendanceRecord['status']) {
