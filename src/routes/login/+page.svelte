@@ -31,7 +31,7 @@
 			</div>
 		{/if}
 
-		<button class="google-btn" onclick={() => signIn('google')}>
+		<button class="google-btn" onclick={() => signIn('google', { redirectTo: '/' })}>
 			<svg viewBox="0 0 24 24" width="24" height="24">
 				<path
 					fill="#4285F4"
