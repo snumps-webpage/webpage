@@ -16,6 +16,10 @@ A secure SvelteKit web application designed to automate and visualize data from 
   - Dynamically fetches schema and rows to render a data table.
   - **Dashboard**: Shows personal attendance statistics and activity history for the current semester.
   - **Full DB View**: Admins can view the raw Notion database tables directly within the app.
+- **Dynamic Information**:
+  - Automatically determines the current semester.
+  - Fetches the current club president's name from Notion based on the semester.
+  - Displays official contact information in the footer.
 
 ## Project Structure
 
