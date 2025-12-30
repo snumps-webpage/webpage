@@ -20,6 +20,7 @@ A secure SvelteKit web application designed to automate membership management an
 - **Attendance Tracking**:
   - Users check in/out via time-sensitive, obfuscated links.
   - Records are queued locally (`data/attendance_queue.json`) for review.
+  - **Automated Notifications**: Completion of attendance (Attending + Leaving) triggers an **automated email notification** to admins via the Google Gmail API.
   - **Admin Review**: Admins can approve (syncs to Notion), reject, or **manually edit timestamps** if corrections are needed.
 
 ### 📝 Notion Integration & UI
