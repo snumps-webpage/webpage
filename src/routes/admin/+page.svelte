@@ -8,10 +8,118 @@
 <div class="admin-container">
 	<header>
 		<h1>관리자 대시보드</h1>
-		<a href="/" class="home-link">홈으로</a>
+		<div class="header-actions">
+			<a href="/admin/events/new" class="create-event-btn">📅 새 이벤트 만들기</a>
+			<a href="/" class="home-link">홈으로</a>
+		</div>
 	</header>
 
-	<section>
+	<section class="events-section">
+		<h2>이벤트 관리</h2>
+		{#if data.events.length === 0}
+			<p class="empty">생성된 이벤트가 없습니다.</p>
+		{:else}
+			<div class="table-container">
+				<table>
+					<thead>
+						<tr>
+							<th>제목</th>
+							<th>일시</th>
+							<th>종류</th>
+							<th>상태</th>
+							<th>링크</th>
+							<th>관리</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each data.events as event}
+							<tr class={event.status}>
+								<td>{event.title}</td>
+								<td>{new Date(event.date).toLocaleString()}</td>
+								<td><span class="tag">{event.type}</span></td>
+								<td><span class="status-badge {event.status}">{event.status.toUpperCase()}</span></td>
+								<td>
+									{#if event.status !== 'draft'}
+										<div class="links">
+											<button class="copy-btn" onclick={() => navigator.clipboard.writeText(`${window.location.origin}/events/${event.pathId}/attend`)}>Attend 📋</button>
+											<button class="copy-btn" onclick={() => navigator.clipboard.writeText(`${window.location.origin}/events/${event.pathId}/leave`)}>Leave 📋</button>
+										</div>
+									{:else}
+										<span class="hint">Not Published</span>
+									{/if}
+								</td>
+								<td class="actions-cell">
+									{#if event.status === 'draft'}
+										<form method="POST" action="?/activateEvent" use:enhance>
+											<input type="hidden" name="id" value={event.id} />
+											<button class="btn activate small">Activate</button>
+										</form>
+									{:else if event.status === 'active'}
+										<form method="POST" action="?/expireEvent" use:enhance>
+											<input type="hidden" name="id" value={event.id} />
+											<button class="btn expire small">Expire</button>
+										</form>
+									{/if}
+									<form method="POST" action="?/deleteEvent" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까?')}>
+										<input type="hidden" name="id" value={event.id} />
+										<button class="btn delete small">Delete</button>
+									</form>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
+	</section>
+
+	<section class="mt-4">
+		<h2>출석 승인 대기 ({data.attendanceQueue.length})</h2>
+		{#if data.attendanceQueue.length === 0}
+			<p class="empty">대기 중인 출석 요청이 없습니다.</p>
+		{:else}
+			<div class="table-container">
+				<table>
+					<thead>
+						<tr>
+							<th>이름</th>
+							<th>학과</th>
+							<th>이벤트</th>
+							<th>시작 시간</th>
+							<th>종료 시간</th>
+							<th>관리</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each data.attendanceQueue as record}
+							{@const event = data.events.find(e => e.id === record.eventId)}
+							<tr>
+								<td>{record.userName}</td>
+								<td>{record.userDept}</td>
+								<td>{event?.title ?? 'Unknown'}</td>
+								<td>{new Date(record.startTime).toLocaleTimeString()}</td>
+								<td>{record.endTime ? new Date(record.endTime).toLocaleTimeString() : '-'}</td>
+								<td class="actions-cell">
+									<form method="POST" action="?/approveAttendance" use:enhance>
+										<input type="hidden" name="id" value={record.id} />
+										<input type="hidden" name="eventId" value={record.eventId} />
+										<input type="hidden" name="userEmail" value={record.userEmail} />
+										<button class="btn approve small">승인</button>
+									</form>
+									<form method="POST" action="?/rejectAttendance" use:enhance>
+										<input type="hidden" name="id" value={record.id} />
+										<button class="btn reject small">거절</button>
+									</form>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
+	</section>
+
+	<section class="mt-4">
 		<h2>가입 승인 대기 ({data.applications.length})</h2>
 		
 		{#if data.applications.length === 0}
@@ -158,6 +266,50 @@
 		color: #6b7280;
 		text-decoration: none;
 	}
+
+	.header-actions {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.create-event-btn {
+		background: #667eea;
+		color: white;
+		padding: 0.5rem 1rem;
+		border-radius: 6px;
+		text-decoration: none;
+		font-weight: 600;
+		font-size: 0.9rem;
+	}
+
+	.create-event-btn:hover { opacity: 0.9; }
+
+	.status-badge {
+		padding: 0.2rem 0.5rem;
+		border-radius: 4px;
+		font-size: 0.75rem;
+		font-weight: 700;
+	}
+	.status-badge.draft { background: #e5e7eb; color: #374151; }
+	.status-badge.active { background: #d1fae5; color: #059669; }
+	.status-badge.expired { background: #fee2e2; color: #991b1b; }
+
+	.links { display: flex; gap: 0.5rem; flex-direction: column; }
+	.copy-btn {
+		background: white;
+		border: 1px solid #d1d5db;
+		padding: 0.2rem 0.4rem;
+		border-radius: 4px;
+		font-size: 0.75rem;
+		cursor: pointer;
+	}
+	.copy-btn:hover { background: #f9fafb; }
+	.hint { color: #9ca3af; font-size: 0.8rem; }
+
+	.activate { background: #10b981; color: white; }
+	.expire { background: #fbbf24; color: white; }
+	.delete { background: #6b7280; color: white; }
 
 	.empty {
 		color: #9ca3af;

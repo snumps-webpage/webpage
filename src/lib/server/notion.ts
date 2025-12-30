@@ -500,6 +500,72 @@ export async function updatePrivateInfo(pageId: string, data: { phone?: string; 
 	}
 }
 
+export async function createActivityPage(data: { title: string; date: string; type: string }) {
+	const dbId = env.NOTION_DB_ACTIVITIES;
+	if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
+
+	const response = await fetch(`https://api.notion.com/v1/pages`, {
+		method: 'POST',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28',
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			parent: { database_id: dbId },
+			properties: {
+				'활동명': {
+					title: [{ text: { content: data.title } }]
+				},
+				'일정': {
+					date: { start: data.date }
+				},
+				'활동 종류': {
+					select: { name: data.type }
+				}
+			}
+		})
+	});
+
+	if (!response.ok) {
+		const error = await response.json();
+		throw new Error('Failed to create activity page: ' + JSON.stringify(error));
+	}
+
+	return await response.json() as PageObjectResponse;
+}
+
+export async function addAttendeeToActivity(pageId: string, memberId: string) {
+	// 1. Get current relations first to append? Or does PATCH replace?
+	// Notion API: PATCHing a relation property *replaces* the list if you just send IDs.
+	// So we need to fetch, append, and update.
+	// OR, using the v1 API, usually you need to provide the full list.
+	// Let's fetch the current page first.
+	
+	const notionClient = getNotionClient();
+	const page = await notionClient.pages.retrieve({ page_id: pageId }) as PageObjectResponse;
+	
+	const currentRelations = page.properties['출석'];
+	let currentIds: string[] = [];
+	
+	if (currentRelations?.type === 'relation') {
+		currentIds = currentRelations.relation.map(r => r.id);
+	}
+
+	if (currentIds.includes(memberId)) return; // Already added
+
+	const newIds = [...currentIds, memberId].map(id => ({ id }));
+
+	await notionClient.pages.update({
+		page_id: pageId,
+		properties: {
+			'출석': {
+				relation: newIds
+			}
+		}
+	});
+}
+
 export async function getPrivateInfo(pageId: string) {
 	const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
 		method: 'GET',
