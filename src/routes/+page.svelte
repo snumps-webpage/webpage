@@ -85,7 +85,11 @@
 								{#each data.activities as activity}
 									<tr class={activity.attended ? 'attended' : 'absent'}>
 										<td class="date">{activity.date}</td>
-										<td class="name">{activity.name}</td>
+										<td class="name">
+											<a href={activity.url} target="_blank" rel="noopener noreferrer" class="activity-link">
+												{activity.name}
+											</a>
+										</td>
 										<td><span class="tag">{activity.type}</span></td>
 										<td class="status">
 											{#if activity.attended}
@@ -329,6 +333,17 @@
 		white-space: nowrap;
 		color: #6b7280;
 		font-size: 0.9rem;
+	}
+
+	.activity-link {
+		color: inherit;
+		text-decoration: none;
+		transition: color 0.2s;
+	}
+
+	.activity-link:hover {
+		color: #667eea;
+		text-decoration: underline;
 	}
 
 	.tag {
