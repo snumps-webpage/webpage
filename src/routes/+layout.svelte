@@ -23,6 +23,10 @@
 				<a href="/profile" class="profile-btn" aria-label="내 프로필">
 					<img src={favicon} alt="Profile" />
 				</a>
+				{#if $page.data.isAdmin}
+					<a href="/admin" class="circle-btn">Admin</a>
+					<a href="/notion" class="circle-btn">DB</a>
+				{/if}
 				<button class="logout-btn" onclick={() => signOut()}>로그아웃</button>
 			{/if}
 		</div>
@@ -96,8 +100,8 @@
 
 	.profile-btn {
 		display: block;
-		width: 32px;
-		height: 32px;
+		width: 40px;
+		height: 40px;
 		border-radius: 50%;
 		overflow: hidden;
 		border: 1px solid #e5e7eb;
@@ -112,6 +116,29 @@
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
+	}
+
+	.circle-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 40px;
+		height: 40px;
+		border-radius: 50%;
+		background: #f3f4f6;
+		color: #4b5563;
+		text-decoration: none;
+		font-size: 0.65rem;
+		font-weight: 700;
+		border: 1px solid #d1d5db;
+		transition: all 0.2s;
+		text-transform: uppercase;
+	}
+
+	.circle-btn:hover {
+		background: #e5e7eb;
+		color: #111827;
+		transform: scale(1.1);
 	}
 
 	.logout-btn {
