@@ -50,30 +50,35 @@ interface QueryDatabaseResponse {
 export async function queryDatabase(databaseId: string): Promise<PageObjectResponse[]> {
 	const notion = getNotionClient();
 
-	console.log('Database ID:', databaseId);
-	console.log('Database ID length:', databaseId.length);
+	let allResults: any[] = [];
+	let hasMore = true;
+	let nextCursor: string | null = null;
 
-	// v5 client의 request가 문제가 있으므로 fetch로 직접 호출
-	const response = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
-		method: 'POST',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({})
-	});
+	while (hasMore) {
+		const response = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
+			method: 'POST',
+			headers: {
+				'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+				'Notion-Version': '2022-06-28',
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				start_cursor: nextCursor ?? undefined
+			})
+		});
 
-	if (!response.ok) {
-		const error = await response.json();
-		throw new Error(JSON.stringify(error));
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(JSON.stringify(error));
+		}
+
+		const data = await response.json() as QueryDatabaseResponse;
+		allResults = [...allResults, ...data.results];
+		hasMore = data.has_more;
+		nextCursor = data.next_cursor;
 	}
 
-	const data = await response.json() as QueryDatabaseResponse;
-	console.log('Query results count:', data.results.length);
-	console.log('First result:', JSON.stringify(data.results[0], null, 2));
-
-	return data.results.filter(
+	return allResults.filter(
 		(page: unknown): page is PageObjectResponse =>
 			typeof page === 'object' && page !== null && 'properties' in page
 	);
