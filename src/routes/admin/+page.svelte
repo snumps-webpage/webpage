@@ -66,8 +66,8 @@
 								<td>
 									{#if event.status !== 'draft'}
 										<div class="links">
-											<button class="copy-btn" onclick={() => navigator.clipboard.writeText(`${window.location.origin}/events/${event.pathId}/attend`)}>Attend 📋</button>
-											<button class="copy-btn" onclick={() => navigator.clipboard.writeText(`${window.location.origin}/events/${event.pathId}/leave`)}>Leave 📋</button>
+											<button class="copy-btn" onclick={() => navigator.clipboard.writeText(`${window.location.origin}/events/${event.pathId}/${event.attendCode}`)}>Attend 📋</button>
+											<button class="copy-btn" onclick={() => navigator.clipboard.writeText(`${window.location.origin}/events/${event.pathId}/${event.leaveCode}`)}>Leave 📋</button>
 										</div>
 									{:else}
 										<span class="hint">Not Published</span>

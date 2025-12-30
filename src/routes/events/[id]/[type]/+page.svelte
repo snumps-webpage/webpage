@@ -3,7 +3,7 @@
     import { page } from '$app/stores';
 
     let { data } = $props();
-    let isAttend = $derived($page.params.type === 'attend');
+    let isAttend = $derived(data.actionType === 'attend');
 </script>
 
 <div class="container">

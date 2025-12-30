@@ -5,8 +5,7 @@ import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals, url }) => {
 	const session = await locals.auth();
-	// If not logged in, redirect to login with return URL
-    // Construct return URL carefully
+	
 	if (!session?.user?.email) {
         throw redirect(302, `/login?redirect=${encodeURIComponent(url.pathname)}`);
     }
@@ -14,15 +13,22 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
     const event = await getEventByPathId(params.id);
     if (!event) throw error(404, 'Event not found');
     
-    // Status check: users can only access active events
-    // Admins might want to preview? But prompt says "expire button block accesses of regular users".
-    // So 'active' is required.
     if (event.status !== 'active') throw error(403, 'Event is not active');
+
+    // Validate if the type param matches attendCode or leaveCode
+    let actionType: 'attend' | 'leave';
+    if (params.type === event.attendCode) {
+        actionType = 'attend';
+    } else if (params.type === event.leaveCode) {
+        actionType = 'leave';
+    } else {
+        throw error(404, 'Invalid event page code');
+    }
     
     return {
         event,
         user: session.user,
-        type: params.type
+        actionType
     };
 };
 
@@ -34,17 +40,12 @@ export const actions = {
         const event = await getEventByPathId(params.id);
         if (!event || event.status !== 'active') return { error: 'Invalid event' };
 
+        if (params.type !== event.attendCode) return { error: 'Invalid code for attendance' };
+
         // Fetch Department
-        // Optimally we should have a quick lookup, but getAllMembers is cached or fast enough for this prototype?
-        // Or we can assume getMemberByEmail returns Dept if we update it.
-        // For now, let's fetch all members and find.
         let dept = 'Unknown';
         try {
             const members = await getAllMembers();
-            // Match by name? No, getAllMembers returns name/dept.
-            // But we don't have email in getAllMembers result.
-            // We have getMemberByEmail which gives memberId.
-            // Match memberId.
             const memberLink = await getMemberByEmail(session.user.email);
             if (memberLink) {
                 const member = members.find(m => m.id === memberLink.memberId);
@@ -75,6 +76,8 @@ export const actions = {
         const event = await getEventByPathId(params.id);
         
         if (!event || event.status !== 'active') return { error: 'Invalid event' };
+
+        if (params.type !== event.leaveCode) return { error: 'Invalid code for leaving' };
 
         const result = await recordAttendanceEnd(event.id, session.user.email);
         
