@@ -107,15 +107,6 @@
 			<div class="footer-info">
 				<p>회장: {data.presidentName} | <a href="mailto:snumps0@gmail.com">snumps0@gmail.com</a></p>
 			</div>
-			<div class="footer-actions">
-				{#if data.hasPendingWithdrawal}
-					<button class="withdraw-btn pending" disabled>탈퇴 승인 대기중</button>
-				{:else}
-					<form method="POST" action="?/requestWithdraw" use:enhance onsubmit={() => confirm('정말로 탈퇴를 신청하시겠습니까?\n관리자 승인 후 탈퇴 처리됩니다.')}>
-						<button class="withdraw-btn subtle">탈퇴 신청</button>
-					</form>
-				{/if}
-			</div>
 		</footer>
 
 	{:else}
@@ -214,27 +205,6 @@
 
 	.footer-info a:hover {
 		text-decoration: underline;
-	}
-
-	.withdraw-btn {
-		font-size: 0.75rem;
-		padding: 0.25rem 0.5rem;
-		background: transparent;
-		border: 1px solid transparent;
-		border-radius: 4px;
-		color: #9ca3af;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.withdraw-btn.subtle:hover {
-		border-color: #e5e7eb;
-		color: #6b7280;
-	}
-
-	.withdraw-btn.pending {
-		color: #fbbf24;
-		cursor: not-allowed;
 	}
 
 	/* Actions Bar */

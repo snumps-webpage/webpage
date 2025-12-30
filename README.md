@@ -13,7 +13,6 @@ A secure SvelteKit web application designed to automate membership management an
 ### 👥 Membership System
 - **Signup Flow**: New users are redirected to a registration form. Applications are queued locally for Admin approval before being synced to Notion.
 - **User Profile**: Members can view their cumulative activity history and manage personal details (Phone, Bio, Background).
-- **Managed Withdrawal**: Users can request withdrawal via the footer; Admins review and execute these requests to update the Notion database.
 
 ### 📅 Event & Attendance System
 - **Event Lifecycle**: Admins can Create (Draft), Activate (Publish), Expire, and Delete events.
@@ -35,7 +34,7 @@ src/
 ├── lib/
 │   ├── assets/          # Static assets (favicon)
 │   └── server/
-│       ├── admin.ts     # Membership application & withdrawal queue logic (JSON)
+│       ├── admin.ts     # Membership application queue logic (JSON)
 │       ├── events.ts    # Event state & attendance queue management (JSON)
 │       └── notion.ts    # Notion API Wrapper (Client, Pagers, Type Parsers)
 └── routes/
@@ -64,7 +63,6 @@ The application uses a hybrid storage model:
     *   `applications.json`: Pending signup requests.
     *   `events.json`: Event configurations, codes, and draft states.
     *   `attendance_queue.json`: Raw timestamp logs waiting for Admin approval.
-    *   `withdrawal_requests.json`: Pending withdrawal requests.
 
 ## Tech Stack
 
