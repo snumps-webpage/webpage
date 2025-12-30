@@ -70,7 +70,8 @@ export const load: PageServerLoad = async (event) => {
 			name: act.name,
 			date: act.date,
 			type: act.type,
-			attended: act.attendees.includes(member.memberId)
+			attended: act.attendees.includes(member.memberId),
+			url: act.url
 		}));
 
 		const attendedCount = activities.filter(a => a.attended).length;

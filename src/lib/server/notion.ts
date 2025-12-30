@@ -389,7 +389,8 @@ export async function getActivities(startDate: string, endDate: string) {
 				name: props['활동명']?.type === 'title' ? props['활동명'].title[0]?.plain_text ?? '' : '',
 				date: props['일정']?.type === 'date' ? props['일정'].date?.start ?? '' : '',
 				type: props['활동 종류']?.type === 'select' ? props['활동 종류'].select?.name ?? '' : '',
-				attendees: props['출석']?.type === 'relation' ? props['출석'].relation.map(r => r.id) : []
+				attendees: props['출석']?.type === 'relation' ? props['출석'].relation.map(r => r.id) : [],
+				url: (page as any).public_url || page.url
 			};
 		});
 }
