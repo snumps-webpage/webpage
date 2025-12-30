@@ -11,7 +11,7 @@ A secure SvelteKit web application designed to automate membership management an
 - **Input Validation**: Server-side checks prevent IDOR attacks and unauthorized data manipulation.
 
 ### 👥 Membership System
-- **Signup Flow**: New users are redirected to a registration form. Applications are queued locally for Admin approval before being synced to Notion.
+- **Signup Flow**: New users are redirected to a registration form. Upon submission, an **automated email notification** containing the applicant's name is sent to all admins via the Google Gmail API. Applications are then queued locally for review.
 - **User Profile**: Members can view their full activity history (with semester filtering) and manage personal details (Phone, Bio, Background).
 - **Search & Filtering**: Admins can search the full member database by **Name** or **Department** with an intuitive toggle.
 
