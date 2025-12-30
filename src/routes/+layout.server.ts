@@ -4,9 +4,6 @@ import { isAdmin } from '$lib/server/admin';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async (event) => {
-	const session = await event.locals.auth();
-	const isUserAdmin = session?.user?.email ? isAdmin(session.user.email) : false;
-	
 	// Calculate Semester for Global Context (e.g. Footer)
 	const today = new Date();
 	const month = today.getMonth() + 1;
@@ -16,13 +13,16 @@ export const load: LayoutServerLoad = async (event) => {
 	else if (month >= 9) shortSemester = `${(year % 100).toString()}-2`;
 	else shortSemester = `${((year - 1) % 100).toString()}-2`;
 
-	let presidentName = '공석';
-	try {
-		const name = await getPresidentName(shortSemester);
-		if (name) presidentName = name;
-	} catch (e) {
-		console.error('Failed to fetch president name:', e);
-	}
+	// Parallelize session and global context fetching
+	const [session, presidentName] = await Promise.all([
+		event.locals.auth(),
+		getPresidentName(shortSemester).catch(e => {
+			console.error('Failed to fetch president name:', e);
+			return '공석';
+		})
+	]);
+
+	const isUserAdmin = session?.user?.email ? isAdmin(session.user.email) : false;
 
 	if (session?.user?.email) {
 		const isSignupPage = event.url.pathname === '/signup';

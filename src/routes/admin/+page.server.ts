@@ -10,6 +10,7 @@ import {
     getEvents, updateEventStatus, deleteEvent, getAttendanceQueue, 
     updateAttendanceStatus, getEvent, removeAttendanceRecord, updateAttendanceRecord 
 } from '$lib/server/events';
+import { invalidateCache } from '$lib/server/cache';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -58,6 +59,7 @@ export const actions = {
 				background: app.background
 			});
 			
+			invalidateCache(`member_${app.email}`);
 			await removeApplication(id);
 			return { success: true };
 		} catch (e) {

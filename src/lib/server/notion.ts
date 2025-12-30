@@ -5,6 +5,7 @@
 import { Client } from '@notionhq/client';
 import { env } from '$env/dynamic/private';
 import type { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints';
+import { withCache } from './cache';
 
 function getNotionClient() {
 	return new Client({
@@ -101,33 +102,35 @@ export interface DatabasePropertySchema {
  * Retrieves the schema (properties) of a specific Notion database.
  */
 export async function getDatabaseSchema(databaseId: string): Promise<Record<string, DatabasePropertySchema>> {
-	const response = await fetch(`https://api.notion.com/v1/databases/${databaseId}`, {
-		method: 'GET',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28'
+	return withCache(`schema_${databaseId}`, 3600000, async () => {
+		const response = await fetch(`https://api.notion.com/v1/databases/${databaseId}`, {
+			method: 'GET',
+			headers: {
+				'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+				'Notion-Version': '2022-06-28'
+			}
+		});
+
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(JSON.stringify(error));
 		}
+
+		const data = await response.json();
+
+		if (!('properties' in data)) {
+			return {};
+		}
+
+		const properties = data.properties as Record<string, any>;
+		const result: Record<string, { type: string; options?: string[] }> = {};
+		for (const [key, value] of Object.entries(properties)) {
+			const type = value.type;
+			const options = value[type]?.options?.map((o: any) => o.name) || undefined;
+			result[key] = { type, options };
+		}
+		return result;
 	});
-
-	if (!response.ok) {
-		const error = await response.json();
-		throw new Error(JSON.stringify(error));
-	}
-
-	const data = await response.json();
-
-	if (!('properties' in data)) {
-		return {};
-	}
-
-	const properties = data.properties as Record<string, any>;
-	const result: Record<string, { type: string; options?: string[] }> = {};
-	for (const [key, value] of Object.entries(properties)) {
-		const type = value.type;
-		const options = value[type]?.options?.map((o: any) => o.name) || undefined;
-		result[key] = { type, options };
-	}
-	return result;
 }
 
 /**
@@ -198,56 +201,10 @@ export async function createMember(data: {
  * Resolves a user's Private Info ID and Member ID by searching for their email.
  */
 export async function getMemberByEmail(email: string) {
-	const dbId = env.NOTION_DB_PRIVATE_INFO;
-	if (!dbId) throw new Error('NOTION_DB_PRIVATE_INFO is not set');
+	return withCache(`member_${email}`, 300000, async () => {
+		const dbId = env.NOTION_DB_PRIVATE_INFO;
+		if (!dbId) throw new Error('NOTION_DB_PRIVATE_INFO is not set');
 
-	const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
-		method: 'POST',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			filter: {
-				property: '이메일',
-				email: { equals: email }
-			}
-		})
-	});
-
-	if (!response.ok) {
-		const error = await response.json();
-		throw new Error(JSON.stringify(error));
-	}
-
-	const data = await response.json() as QueryDatabaseResponse;
-	if (data.results.length === 0) return null;
-
-	const page = data.results[0] as PageObjectResponse;
-	const relationProp = page.properties['회원 정보'];
-	if (relationProp?.type !== 'relation' || relationProp.relation.length === 0) {
-		return null;
-	}
-
-	return {
-		privateInfoId: page.id,
-		memberId: relationProp.relation[0].id
-	};
-}
-
-/**
- * Fetches all members from the database with pagination.
- */
-export async function getAllMembers() {
-	const dbId = env.NOTION_DB_MEMBERS;
-	if (!dbId) throw new Error('NOTION_DB_MEMBERS is not set');
-
-	let allResults: PageObjectResponse[] = [];
-	let hasMore = true;
-	let nextCursor: string | null = null;
-
-	while (hasMore) {
 		const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
 			method: 'POST',
 			headers: {
@@ -256,8 +213,10 @@ export async function getAllMembers() {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				sorts: [{ property: '이름', direction: 'ascending' }],
-				start_cursor: nextCursor ?? undefined
+				filter: {
+					property: '이메일',
+					email: { equals: email }
+				}
 			})
 		});
 
@@ -267,23 +226,71 @@ export async function getAllMembers() {
 		}
 
 		const data = await response.json() as QueryDatabaseResponse;
-		const pages = data.results.filter((page: unknown): page is PageObjectResponse => 
-			typeof page === 'object' && page !== null && 'properties' in page
-		);
-		
-		allResults = [...allResults, ...pages];
-		hasMore = data.has_more;
-		nextCursor = data.next_cursor;
-	}
-	
-	return allResults.map(page => {
-		const props = page.properties;
+		if (data.results.length === 0) return null;
+
+		const page = data.results[0] as PageObjectResponse;
+		const relationProp = page.properties['회원 정보'];
+		if (relationProp?.type !== 'relation' || relationProp.relation.length === 0) {
+			return null;
+		}
+
 		return {
-			id: page.id,
-			name: props['이름']?.type === 'title' ? props['이름'].title[0]?.plain_text ?? '' : '',
-			department: props['학과']?.type === 'rich_text' ? props['학과'].rich_text[0]?.plain_text ?? '' : '',
-			joinDate: props['가입일']?.type === 'date' ? props['가입일'].date?.start ?? '' : ''
+			privateInfoId: page.id,
+			memberId: relationProp.relation[0].id
 		};
+	});
+}
+
+/**
+ * Fetches all members from the database with pagination.
+ */
+export async function getAllMembers() {
+	return withCache('all_members', 60000, async () => {
+		const dbId = env.NOTION_DB_MEMBERS;
+		if (!dbId) throw new Error('NOTION_DB_MEMBERS is not set');
+
+		let allResults: PageObjectResponse[] = [];
+		let hasMore = true;
+		let nextCursor: string | null = null;
+
+		while (hasMore) {
+			const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+					'Notion-Version': '2022-06-28',
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					sorts: [{ property: '이름', direction: 'ascending' }],
+					start_cursor: nextCursor ?? undefined
+				})
+			});
+
+			if (!response.ok) {
+				const error = await response.json();
+				throw new Error(JSON.stringify(error));
+			}
+
+			const data = await response.json() as QueryDatabaseResponse;
+			const pages = data.results.filter((page: unknown): page is PageObjectResponse => 
+				typeof page === 'object' && page !== null && 'properties' in page
+			);
+			
+			allResults = [...allResults, ...pages];
+			hasMore = data.has_more;
+			nextCursor = data.next_cursor;
+		}
+		
+		return allResults.map(page => {
+			const props = page.properties;
+			return {
+				id: page.id,
+				name: props['이름']?.type === 'title' ? props['이름'].title[0]?.plain_text ?? '' : '',
+				department: props['학과']?.type === 'rich_text' ? props['학과'].rich_text[0]?.plain_text ?? '' : '',
+				joinDate: props['가입일']?.type === 'date' ? props['가입일'].date?.start ?? '' : ''
+			};
+		});
 	});
 }
 
@@ -291,14 +298,66 @@ export async function getAllMembers() {
  * Fetches all activities from the database with pagination.
  */
 export async function getAllActivities() {
-	const dbId = env.NOTION_DB_ACTIVITIES;
-	if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
+	return withCache('all_activities', 60000, async () => {
+		const dbId = env.NOTION_DB_ACTIVITIES;
+		if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
 
-	let allResults: PageObjectResponse[] = [];
-	let hasMore = true;
-	let nextCursor: string | null = null;
+		let allResults: PageObjectResponse[] = [];
+		let hasMore = true;
+		let nextCursor: string | null = null;
 
-	while (hasMore) {
+		while (hasMore) {
+			const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+					'Notion-Version': '2022-06-28',
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					sorts: [{ property: '일정', direction: 'descending' }],
+					start_cursor: nextCursor ?? undefined
+				})
+			});
+
+			if (!response.ok) {
+				const error = await response.json();
+				throw new Error(JSON.stringify(error));
+			}
+
+			const data = await response.json() as QueryDatabaseResponse;
+			const pages = data.results.filter((page: unknown): page is PageObjectResponse => 
+				typeof page === 'object' && page !== null && 'properties' in page
+			);
+			
+			allResults = [...allResults, ...pages];
+			hasMore = data.has_more;
+			nextCursor = data.next_cursor;
+		}
+		
+		return allResults.map(page => {
+			const props = page.properties;
+			return {
+				id: page.id,
+				name: props['활동명']?.type === 'title' ? props['활동명'].title[0]?.plain_text ?? '' : '',
+				date: props['일정']?.type === 'date' ? props['일정'].date?.start ?? '' : '',
+				type: props['활동 종류']?.type === 'select' ? props['활동 종류'].select?.name ?? '' : '',
+				url: (page as any).public_url || page.url
+			};
+		});
+	});
+}
+
+/**
+ * Searches for the president's name for a given semester prefix (e.g., '25-2').
+ */
+export async function getPresidentName(semesterPrefix: string): Promise<string> {
+	return withCache(`president_${semesterPrefix}`, 3600000, async () => {
+		const dbId = env.NOTION_DB_MEMBERS;
+		if (!dbId) return '';
+
+		const roleName = `${semesterPrefix} 회장`;
+
 		const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
 			method: 'POST',
 			headers: {
@@ -307,8 +366,51 @@ export async function getAllActivities() {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				sorts: [{ property: '일정', direction: 'descending' }],
-				start_cursor: nextCursor ?? undefined
+				filter: {
+					property: '임원',
+					multi_select: { contains: roleName }
+				}
+			})
+		});
+
+		if (!response.ok) return '';
+
+		const data = await response.json() as QueryDatabaseResponse;
+		if (data.results.length === 0) return '';
+
+		const page = data.results[0] as PageObjectResponse;
+		const nameProp = page.properties['이름'];
+		if (nameProp?.type === 'title' && nameProp.title.length > 0) {
+			return nameProp.title[0].plain_text;
+		}
+
+		return '';
+	});
+}
+
+/**
+ * Fetches all activities within a specific date range.
+ */
+export async function getActivities(startDate: string, endDate: string) {
+	return withCache(`activities_${startDate}_${endDate}`, 300000, async () => {
+		const dbId = env.NOTION_DB_ACTIVITIES;
+		if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
+
+		const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
+			method: 'POST',
+			headers: {
+				'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+				'Notion-Version': '2022-06-28',
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				filter: {
+					and: [
+						{ property: '일정', date: { on_or_after: startDate } },
+						{ property: '일정', date: { on_or_before: endDate } }
+					]
+				},
+				sorts: [{ property: '일정', direction: 'descending' }]
 			})
 		});
 
@@ -318,112 +420,23 @@ export async function getAllActivities() {
 		}
 
 		const data = await response.json() as QueryDatabaseResponse;
-		const pages = data.results.filter((page: unknown): page is PageObjectResponse => 
-			typeof page === 'object' && page !== null && 'properties' in page
-		);
 		
-		allResults = [...allResults, ...pages];
-		hasMore = data.has_more;
-		nextCursor = data.next_cursor;
-	}
-	
-	return allResults.map(page => {
-		const props = page.properties;
-		return {
-			id: page.id,
-			name: props['활동명']?.type === 'title' ? props['활동명'].title[0]?.plain_text ?? '' : '',
-			date: props['일정']?.type === 'date' ? props['일정'].date?.start ?? '' : '',
-			type: props['활동 종류']?.type === 'select' ? props['활동 종류'].select?.name ?? '' : '',
-			url: (page as any).public_url || page.url
-		};
+		return data.results
+			.filter((page: unknown): page is PageObjectResponse => 
+				typeof page === 'object' && page !== null && 'properties' in page
+			)
+			.map(page => {
+				const props = page.properties;
+				return {
+					id: page.id,
+					name: props['활동명']?.type === 'title' ? props['활동명'].title[0]?.plain_text ?? '' : '',
+					date: props['일정']?.type === 'date' ? props['일정'].date?.start ?? '' : '',
+					type: props['활동 종류']?.type === 'select' ? props['활동 종류'].select?.name ?? '' : '',
+					attendees: props['출석']?.type === 'relation' ? props['출석'].relation.map(r => r.id) : [],
+					url: (page as any).public_url || page.url
+				};
+			});
 	});
-}
-
-/**
- * Searches for the president's name for a given semester prefix (e.g., '25-2').
- */
-export async function getPresidentName(semesterPrefix: string): Promise<string> {
-	const dbId = env.NOTION_DB_MEMBERS;
-	if (!dbId) return '';
-
-	const roleName = `${semesterPrefix} 회장`;
-
-	const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
-		method: 'POST',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			filter: {
-				property: '임원',
-				multi_select: { contains: roleName }
-			}
-		})
-	});
-
-	if (!response.ok) return '';
-
-	const data = await response.json() as QueryDatabaseResponse;
-	if (data.results.length === 0) return '';
-
-	const page = data.results[0] as PageObjectResponse;
-	const nameProp = page.properties['이름'];
-	if (nameProp?.type === 'title' && nameProp.title.length > 0) {
-		return nameProp.title[0].plain_text;
-	}
-
-	return '';
-}
-
-/**
- * Fetches all activities within a specific date range.
- */
-export async function getActivities(startDate: string, endDate: string) {
-	const dbId = env.NOTION_DB_ACTIVITIES;
-	if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
-
-	const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
-		method: 'POST',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			filter: {
-				and: [
-					{ property: '일정', date: { on_or_after: startDate } },
-					{ property: '일정', date: { on_or_before: endDate } }
-				]
-			},
-			sorts: [{ property: '일정', direction: 'descending' }]
-		})
-	});
-
-	if (!response.ok) {
-		const error = await response.json();
-		throw new Error(JSON.stringify(error));
-	}
-
-	const data = await response.json() as QueryDatabaseResponse;
-	
-	return data.results
-		.filter((page: unknown): page is PageObjectResponse => 
-			typeof page === 'object' && page !== null && 'properties' in page
-		)
-		.map(page => {
-			const props = page.properties;
-			return {
-				id: page.id,
-				name: props['활동명']?.type === 'title' ? props['활동명'].title[0]?.plain_text ?? '' : '',
-				date: props['일정']?.type === 'date' ? props['일정'].date?.start ?? '' : '',
-				type: props['활동 종류']?.type === 'select' ? props['활동 종류'].select?.name ?? '' : '',
-				attendees: props['출석']?.type === 'relation' ? props['출석'].relation.map(r => r.id) : [],
-				url: (page as any).public_url || page.url
-			};
-		});
 }
 
 /**
