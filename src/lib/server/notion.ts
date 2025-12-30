@@ -265,6 +265,68 @@ export async function getAllMembers() {
 	const dbId = env.NOTION_DB_MEMBERS;
 	if (!dbId) throw new Error('NOTION_DB_MEMBERS is not set');
 
+	let allResults: PageObjectResponse[] = [];
+	let hasMore = true;
+	let nextCursor: string | null = null;
+
+	while (hasMore) {
+		const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
+			method: 'POST',
+			headers: {
+				'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+				'Notion-Version': '2022-06-28',
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				filter: {
+					property: '탈퇴 여부',
+					checkbox: {
+						equals: false
+					}
+				},
+				sorts: [
+					{
+						property: '이름',
+						direction: 'ascending'
+					}
+				],
+				start_cursor: nextCursor ?? undefined
+			})
+		});
+
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(JSON.stringify(error));
+		}
+
+		const data = await response.json() as QueryDatabaseResponse;
+		
+		const pages = data.results.filter((page: unknown): page is PageObjectResponse => 
+			typeof page === 'object' && page !== null && 'properties' in page
+		);
+		
+		allResults = [...allResults, ...pages];
+		hasMore = data.has_more;
+		nextCursor = data.next_cursor;
+	}
+	
+	return allResults.map(page => {
+			const props = page.properties;
+			return {
+				id: page.id,
+				name: props['이름']?.type === 'title' ? props['이름'].title[0]?.plain_text ?? '' : '',
+				department: props['학과']?.type === 'rich_text' ? props['학과'].rich_text[0]?.plain_text ?? '' : '',
+				joinDate: props['가입일']?.type === 'date' ? props['가입일'].date?.start ?? '' : ''
+			};
+		});
+}
+
+export async function getPresidentName(semesterPrefix: string): Promise<string> {
+	const dbId = env.NOTION_DB_MEMBERS;
+	if (!dbId) return '';
+
+	const roleName = `${semesterPrefix} 회장`;
+
 	const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
 		method: 'POST',
 		headers: {
@@ -274,40 +336,26 @@ export async function getAllMembers() {
 		},
 		body: JSON.stringify({
 			filter: {
-				property: '탈퇴 여부',
-				checkbox: {
-					equals: false
+				property: '임원',
+				multi_select: {
+					contains: roleName
 				}
-			},
-			sorts: [
-				{
-					property: '이름',
-					direction: 'ascending'
-				}
-			]
+			}
 		})
 	});
 
-	if (!response.ok) {
-		const error = await response.json();
-		throw new Error(JSON.stringify(error));
-	}
+	if (!response.ok) return '';
 
 	const data = await response.json() as QueryDatabaseResponse;
-	
-	return data.results
-		.filter((page: unknown): page is PageObjectResponse => 
-			typeof page === 'object' && page !== null && 'properties' in page
-		)
-		.map(page => {
-			const props = page.properties;
-			return {
-				id: page.id,
-				name: props['이름']?.type === 'title' ? props['이름'].title[0]?.plain_text ?? '' : '',
-				department: props['학과']?.type === 'rich_text' ? props['학과'].rich_text[0]?.plain_text ?? '' : '',
-				joinDate: props['가입일']?.type === 'date' ? props['가입일'].date?.start ?? '' : ''
-			};
-		});
+	if (data.results.length === 0) return '';
+
+	const page = data.results[0] as PageObjectResponse;
+	const nameProp = page.properties['이름'];
+	if (nameProp?.type === 'title' && nameProp.title.length > 0) {
+		return nameProp.title[0].plain_text;
+	}
+
+	return '';
 }
 
 export async function getActivities(startDate: string, endDate: string) {

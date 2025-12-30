@@ -103,7 +103,7 @@
 
 		<footer>
 			<div class="footer-info">
-				<p>회장: 이상학 | <a href="mailto:snumps0@gmail.com">snumps0@gmail.com</a></p>
+				<p>회장: {data.presidentName} | <a href="mailto:snumps0@gmail.com">snumps0@gmail.com</a></p>
 			</div>
 			<div class="footer-actions">
 				{#if data.hasPendingWithdrawal}
