@@ -42,8 +42,6 @@
 						}
 					};
 				}}>
-					<input type="hidden" name="privateInfoId" value={data.profile.privateInfoId} />
-					
 					<div class="field">
 						<label for="name">이름 (변경 불가)</label>
 						<input id="name" type="text" value={data.profile.name} disabled />
