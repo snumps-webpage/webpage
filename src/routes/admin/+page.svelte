@@ -49,7 +49,7 @@
 									{/if}
 								</td>
 								<td class="actions-cell">
-									{#if event.status === 'draft'}
+									{#if event.status === 'draft' || event.status === 'expired'}
 										<form method="POST" action="?/activateEvent" use:enhance>
 											<input type="hidden" name="id" value={event.id} />
 											<button class="btn activate small">Activate</button>
