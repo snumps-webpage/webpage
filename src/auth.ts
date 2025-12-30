@@ -16,11 +16,9 @@ export const { handle, signIn, signOut } = SvelteKitAuth({
 	callbacks: {
 		signIn: async ({ user }) => {
 			const email = user.email;
-			if (!email) {
-				return false;
-			}
+			if (!email) return false;
 
-			// @snu.ac.kr 도메인만 허용
+			// Strictly enforce Seoul National University email domain
 			if (!email.endsWith(`@${ALLOWED_DOMAIN}`)) {
 				return `/login?error=InvalidDomain`;
 			}
@@ -28,6 +26,7 @@ export const { handle, signIn, signOut } = SvelteKitAuth({
 			return true;
 		},
 		session: async ({ session, token }) => {
+			// Expose the unique Auth.js user ID to the session object for easier lookups
 			if (session.user && token.sub) {
 				session.user.id = token.sub;
 			}
