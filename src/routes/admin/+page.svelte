@@ -48,6 +48,7 @@
 		<h1>관리자 대시보드</h1>
 		<div class="header-actions">
 			<a href="/admin/events/new" class="create-event-btn">📅 새 이벤트 만들기</a>
+			<a href="/admin/events/connect" class="create-event-btn secondary">🔗 기존 이벤트 연결</a>
 			<a href="/" class="home-link">홈으로</a>
 		</div>
 	</header>
@@ -338,6 +339,7 @@
 	}
 
 	.create-event-btn:hover { opacity: 0.9; }
+	.create-event-btn.secondary { background: #4b5563; }
 
 	.status-badge {
 		padding: 0.2rem 0.5rem;

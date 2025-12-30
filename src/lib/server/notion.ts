@@ -92,10 +92,15 @@ export async function queryDatabase(databaseId: string): Promise<PageObjectRespo
 	);
 }
 
+export interface DatabasePropertySchema {
+	type: string;
+	options?: string[];
+}
+
 /**
  * Retrieves the schema (properties) of a specific Notion database.
  */
-export async function getDatabaseSchema(databaseId: string): Promise<Record<string, { type: string }>> {
+export async function getDatabaseSchema(databaseId: string): Promise<Record<string, DatabasePropertySchema>> {
 	const response = await fetch(`https://api.notion.com/v1/databases/${databaseId}`, {
 		method: 'GET',
 		headers: {
@@ -115,10 +120,12 @@ export async function getDatabaseSchema(databaseId: string): Promise<Record<stri
 		return {};
 	}
 
-	const properties = data.properties as Record<string, { type: string }>;
-	const result: Record<string, { type: string }> = {};
+	const properties = data.properties as Record<string, any>;
+	const result: Record<string, { type: string; options?: string[] }> = {};
 	for (const [key, value] of Object.entries(properties)) {
-		result[key] = { type: value.type };
+		const type = value.type;
+		const options = value[type]?.options?.map((o: any) => o.name) || undefined;
+		result[key] = { type, options };
 	}
 	return result;
 }
@@ -276,6 +283,58 @@ export async function getAllMembers() {
 			name: props['이름']?.type === 'title' ? props['이름'].title[0]?.plain_text ?? '' : '',
 			department: props['학과']?.type === 'rich_text' ? props['학과'].rich_text[0]?.plain_text ?? '' : '',
 			joinDate: props['가입일']?.type === 'date' ? props['가입일'].date?.start ?? '' : ''
+		};
+	});
+}
+
+/**
+ * Fetches all activities from the database with pagination.
+ */
+export async function getAllActivities() {
+	const dbId = env.NOTION_DB_ACTIVITIES;
+	if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
+
+	let allResults: PageObjectResponse[] = [];
+	let hasMore = true;
+	let nextCursor: string | null = null;
+
+	while (hasMore) {
+		const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
+			method: 'POST',
+			headers: {
+				'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+				'Notion-Version': '2022-06-28',
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				sorts: [{ property: '일정', direction: 'descending' }],
+				start_cursor: nextCursor ?? undefined
+			})
+		});
+
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(JSON.stringify(error));
+		}
+
+		const data = await response.json() as QueryDatabaseResponse;
+		const pages = data.results.filter((page: unknown): page is PageObjectResponse => 
+			typeof page === 'object' && page !== null && 'properties' in page
+		);
+		
+		allResults = [...allResults, ...pages];
+		hasMore = data.has_more;
+		nextCursor = data.next_cursor;
+	}
+	
+	return allResults.map(page => {
+		const props = page.properties;
+		return {
+			id: page.id,
+			name: props['활동명']?.type === 'title' ? props['활동명'].title[0]?.plain_text ?? '' : '',
+			date: props['일정']?.type === 'date' ? props['일정'].date?.start ?? '' : '',
+			type: props['활동 종류']?.type === 'select' ? props['활동 종류'].select?.name ?? '' : '',
+			url: (page as any).public_url || page.url
 		};
 	});
 }
