@@ -66,6 +66,14 @@ The application uses a hybrid storage model:
     *   `attendance_queue.json`: Raw timestamp logs waiting for Admin approval.
     *   `withdrawal_requests.json`: Pending withdrawal requests.
 
+## Tech Stack
+
+- **Frontend**: **Svelte 5** & **SvelteKit** for a reactive and efficient user interface.
+- **Styling**: Standard **CSS** with a focus on modern, responsive design.
+- **Authentication**: **Auth.js** (@auth/sveltekit) with **Google OAuth** for secure, domain-restricted access.
+- **Integration**: **Notion API** (@notionhq/client) for robust club data management.
+- **Backend/Storage**: **SvelteKit Server Routes** for logic, **Notion** as the primary DB, and **Local JSON** for temporary transactional queuing.
+
 ## Setup & Installation
 
 ### 1. Prerequisites
