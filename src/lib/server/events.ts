@@ -12,9 +12,10 @@ export interface Event {
 	title: string;
 	date: string; // ISO String
 	type: string;
-	status: 'draft' | 'active' | 'expired'; // 'draft' is created but not active/notion-linked yet? Or just internal state. 
-    // Prompt says: "activate button creates and activates the page" -> So before activate, it might just be draft.
-	pathId: string; // The random path component
+	status: 'draft' | 'active' | 'expired';
+	pathId: string; // The random path component for the event itself
+    attendCode: string; // Random code for attend page
+    leaveCode: string; // Random code for leave page
 }
 
 export interface AttendanceRecord {
@@ -72,7 +73,9 @@ export async function createEvent(data: { title: string; date: string; type: str
 	const events = await getEvents();
 	const newEvent: Event = {
 		id: crypto.randomUUID(),
-		pathId: crypto.randomUUID().slice(0, 8), // Short random path
+		pathId: crypto.randomUUID().slice(0, 8),
+        attendCode: crypto.randomUUID().slice(0, 12),
+        leaveCode: crypto.randomUUID().slice(0, 12),
 		title: data.title,
 		date: data.date,
 		type: data.type,
