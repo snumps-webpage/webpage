@@ -10,11 +10,12 @@ A secure SvelteKit web application designed to automate and visualize data from 
 - **Membership System**:
   - **Signup Flow**: New users must apply for membership. Applications are stored temporarily and require Admin approval.
   - **Admin Dashboard**: Admins can view, approve, or reject membership applications.
-  - **Withdrawal**: Users can voluntarily withdraw their membership, which updates their status in the database and logs them out.
+  - **Member Management**: Admins can manage the member list and withdraw members when necessary.
 - **Notion Integration**:
   - Connects securely to multiple Notion Databases (Members, Activities, Private Info).
   - Dynamically fetches schema and rows to render a data table.
   - **Dashboard**: Shows personal attendance statistics and activity history for the current semester.
+  - **Full DB View**: Admins can view the raw Notion database tables directly within the app.
 
 ## Project Structure
 
