@@ -6,6 +6,6 @@ export const load: PageServerLoad = async (event) => {
 	const session = await event.locals.auth();
 
 	if (session?.user && !isAdmin(session.user.email)) {
-		redirect(302, '/');
+		throw redirect(302, '/');
 	}
 };
