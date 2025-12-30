@@ -100,12 +100,6 @@
 			</section>
 		</div>
 
-		<footer>
-			<div class="footer-info">
-				<p>회장: {data.presidentName} | <a href="mailto:snumps0@gmail.com">snumps0@gmail.com</a></p>
-			</div>
-		</footer>
-
 	{:else}
 		<div class="landing">
 			<h1>SNUMPS 자동화</h1>
@@ -337,7 +331,7 @@
 		box-shadow: 0 4px 6px rgba(102, 126, 234, 0.4);
 	}
 
-	.login-link:hover {
+	.landing .login-link:hover {
 		transform: translateY(-2px);
 		box-shadow: 0 6px 10px rgba(102, 126, 234, 0.5);
 	}
