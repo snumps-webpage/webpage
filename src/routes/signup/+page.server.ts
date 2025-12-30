@@ -6,7 +6,7 @@ import { getApplications, isAdmin } from '$lib/server/admin';
 export const load: PageServerLoad = async (event) => {
 	const session = await event.locals.auth();
 	if (!session?.user?.email) {
-		throw redirect(302, '/login');
+		throw redirect(302, `/login?redirect=${encodeURIComponent(event.url.pathname)}`);
 	}
 
 	// Check if already registered
