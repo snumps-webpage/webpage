@@ -24,3 +24,4 @@ vite.config.ts.timestamp-*
 
 # OAuth
 .oauth_client.json
+data/
