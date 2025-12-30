@@ -1,3 +1,7 @@
+/**
+ * Service for interacting with the Notion API, handling database queries, 
+ * schema retrieval, and member/activity updates.
+ */
 import { Client } from '@notionhq/client';
 import { env } from '$env/dynamic/private';
 import type { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints';
@@ -10,6 +14,9 @@ function getNotionClient() {
 
 export type NotionProperty = PageObjectResponse['properties'][string];
 
+/**
+ * Parses Notion property values into readable strings.
+ */
 export function getPropertyValue(property: NotionProperty): string {
 	switch (property.type) {
 		case 'title':
@@ -47,9 +54,10 @@ interface QueryDatabaseResponse {
 	has_more: boolean;
 }
 
+/**
+ * Recursively queries a Notion database to fetch all records (handling pagination).
+ */
 export async function queryDatabase(databaseId: string): Promise<PageObjectResponse[]> {
-	const notion = getNotionClient();
-
 	let allResults: any[] = [];
 	let hasMore = true;
 	let nextCursor: string | null = null;
@@ -84,6 +92,9 @@ export async function queryDatabase(databaseId: string): Promise<PageObjectRespo
 	);
 }
 
+/**
+ * Retrieves the schema (properties) of a specific Notion database.
+ */
 export async function getDatabaseSchema(databaseId: string): Promise<Record<string, { type: string }>> {
 	const response = await fetch(`https://api.notion.com/v1/databases/${databaseId}`, {
 		method: 'GET',
@@ -99,7 +110,6 @@ export async function getDatabaseSchema(databaseId: string): Promise<Record<stri
 	}
 
 	const data = await response.json();
-	console.log('Schema response:', JSON.stringify(data, null, 2));
 
 	if (!('properties' in data)) {
 		return {};
@@ -110,10 +120,12 @@ export async function getDatabaseSchema(databaseId: string): Promise<Record<stri
 	for (const [key, value] of Object.entries(properties)) {
 		result[key] = { type: value.type };
 	}
-	console.log('Columns:', result);
 	return result;
 }
 
+/**
+ * Creates entries in both Private Info and Member databases and links them.
+ */
 export async function createMember(data: {
 	name: string;
 	email: string;
@@ -127,7 +139,6 @@ export async function createMember(data: {
 	
 	if (!privateDbId || !memberDbId) throw new Error('DB IDs not set');
 
-	// 1. Create Private Info Page
 	const privateResponse = await fetch(`https://api.notion.com/v1/pages`, {
 		method: 'POST',
 		headers: {
@@ -138,21 +149,11 @@ export async function createMember(data: {
 		body: JSON.stringify({
 			parent: { database_id: privateDbId },
 			properties: {
-				'이름': {
-					title: [{ text: { content: data.name } }]
-				},
-				'이메일': {
-					email: data.email
-				},
-				'전화번호': {
-					phone_number: data.phone
-				},
-				'자기 소개': {
-					rich_text: [{ text: { content: data.bio } }]
-				},
-				'배경 지식': {
-					rich_text: [{ text: { content: data.background } }]
-				}
+				'이름': { title: [{ text: { content: data.name } }] },
+				'이메일': { email: data.email },
+				'전화번호': { phone_number: data.phone },
+				'자기 소개': { rich_text: [{ text: { content: data.bio } }] },
+				'배경 지식': { rich_text: [{ text: { content: data.background } }] }
 			}
 		})
 	});
@@ -163,8 +164,6 @@ export async function createMember(data: {
 
 	const privatePage = await privateResponse.json() as PageObjectResponse;
 
-	// 2. Create Member Page
-	// Note: '학과' exists in Member DB based on previous schema check
 	const memberResponse = await fetch(`https://api.notion.com/v1/pages`, {
 		method: 'POST',
 		headers: {
@@ -175,32 +174,22 @@ export async function createMember(data: {
 		body: JSON.stringify({
 			parent: { database_id: memberDbId },
 			properties: {
-				'이름': {
-					title: [{ text: { content: data.name } }]
-				},
-				'학과': {
-					rich_text: [{ text: { content: data.department } }]
-				},
-				'개인 정보': {
-					relation: [{ id: privatePage.id }]
-				},
-				'가입일': {
-					date: { start: new Date().toISOString().split('T')[0] }
-				}
+				'이름': { title: [{ text: { content: data.name } }] },
+				'학과': { rich_text: [{ text: { content: data.department } }] },
+				'개인 정보': { relation: [{ id: privatePage.id }] },
+				'가입일': { date: { start: new Date().toISOString().split('T')[0] } }
 			}
 		})
 	});
 
 	if (!memberResponse.ok) {
-		// Cleanup private page if member creation fails? 
-		// For now, just throw.
 		throw new Error('Failed to create member page: ' + JSON.stringify(await memberResponse.json()));
 	}
-	
-	// 3. Link back to Private Info (Notion usually handles dual property if configured, but let's be safe or rely on auto-sync)
-	// If it's a dual property, Notion updates the other side automatically.
 }
 
+/**
+ * Resolves a user's Private Info ID and Member ID by searching for their email.
+ */
 export async function getMemberByEmail(email: string) {
 	const dbId = env.NOTION_DB_PRIVATE_INFO;
 	if (!dbId) throw new Error('NOTION_DB_PRIVATE_INFO is not set');
@@ -215,9 +204,7 @@ export async function getMemberByEmail(email: string) {
 		body: JSON.stringify({
 			filter: {
 				property: '이메일',
-				email: {
-					equals: email
-				}
+				email: { equals: email }
 			}
 		})
 	});
@@ -231,7 +218,6 @@ export async function getMemberByEmail(email: string) {
 	if (data.results.length === 0) return null;
 
 	const page = data.results[0] as PageObjectResponse;
-	// Get related member ID
 	const relationProp = page.properties['회원 정보'];
 	if (relationProp?.type !== 'relation' || relationProp.relation.length === 0) {
 		return null;
@@ -243,6 +229,9 @@ export async function getMemberByEmail(email: string) {
 	};
 }
 
+/**
+ * Fetches all members from the database with pagination.
+ */
 export async function getAllMembers() {
 	const dbId = env.NOTION_DB_MEMBERS;
 	if (!dbId) throw new Error('NOTION_DB_MEMBERS is not set');
@@ -260,12 +249,7 @@ export async function getAllMembers() {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				sorts: [
-					{
-						property: '이름',
-						direction: 'ascending'
-					}
-				],
+				sorts: [{ property: '이름', direction: 'ascending' }],
 				start_cursor: nextCursor ?? undefined
 			})
 		});
@@ -276,7 +260,6 @@ export async function getAllMembers() {
 		}
 
 		const data = await response.json() as QueryDatabaseResponse;
-		
 		const pages = data.results.filter((page: unknown): page is PageObjectResponse => 
 			typeof page === 'object' && page !== null && 'properties' in page
 		);
@@ -287,16 +270,19 @@ export async function getAllMembers() {
 	}
 	
 	return allResults.map(page => {
-			const props = page.properties;
-			return {
-				id: page.id,
-				name: props['이름']?.type === 'title' ? props['이름'].title[0]?.plain_text ?? '' : '',
-				department: props['학과']?.type === 'rich_text' ? props['학과'].rich_text[0]?.plain_text ?? '' : '',
-				joinDate: props['가입일']?.type === 'date' ? props['가입일'].date?.start ?? '' : ''
-			};
-		});
+		const props = page.properties;
+		return {
+			id: page.id,
+			name: props['이름']?.type === 'title' ? props['이름'].title[0]?.plain_text ?? '' : '',
+			department: props['학과']?.type === 'rich_text' ? props['학과'].rich_text[0]?.plain_text ?? '' : '',
+			joinDate: props['가입일']?.type === 'date' ? props['가입일'].date?.start ?? '' : ''
+		};
+	});
 }
 
+/**
+ * Searches for the president's name for a given semester prefix (e.g., '25-2').
+ */
 export async function getPresidentName(semesterPrefix: string): Promise<string> {
 	const dbId = env.NOTION_DB_MEMBERS;
 	if (!dbId) return '';
@@ -313,9 +299,7 @@ export async function getPresidentName(semesterPrefix: string): Promise<string> 
 		body: JSON.stringify({
 			filter: {
 				property: '임원',
-				multi_select: {
-					contains: roleName
-				}
+				multi_select: { contains: roleName }
 			}
 		})
 	});
@@ -334,6 +318,9 @@ export async function getPresidentName(semesterPrefix: string): Promise<string> 
 	return '';
 }
 
+/**
+ * Fetches all activities within a specific date range.
+ */
 export async function getActivities(startDate: string, endDate: string) {
 	const dbId = env.NOTION_DB_ACTIVITIES;
 	if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
@@ -348,26 +335,11 @@ export async function getActivities(startDate: string, endDate: string) {
 		body: JSON.stringify({
 			filter: {
 				and: [
-					{
-						property: '일정',
-						date: {
-							on_or_after: startDate
-						}
-					},
-					{
-						property: '일정',
-						date: {
-							on_or_before: endDate
-						}
-					}
+					{ property: '일정', date: { on_or_after: startDate } },
+					{ property: '일정', date: { on_or_before: endDate } }
 				]
 			},
-			sorts: [
-				{
-					property: '일정',
-					direction: 'descending'
-				}
-			]
+			sorts: [{ property: '일정', direction: 'descending' }]
 		})
 	});
 
@@ -395,6 +367,9 @@ export async function getActivities(startDate: string, endDate: string) {
 		});
 }
 
+/**
+ * Fetches all activities participated in by a specific member.
+ */
 export async function getUserActivities(memberId: string) {
 	const dbId = env.NOTION_DB_ACTIVITIES;
 	if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
@@ -414,16 +389,9 @@ export async function getUserActivities(memberId: string) {
 			body: JSON.stringify({
 				filter: {
 					property: '출석',
-					relation: {
-						contains: memberId
-					}
+					relation: { contains: memberId }
 				},
-				sorts: [
-					{
-						property: '일정',
-						direction: 'descending'
-					}
-				],
+				sorts: [{ property: '일정', direction: 'descending' }],
 				start_cursor: nextCursor ?? undefined
 			})
 		});
@@ -434,7 +402,6 @@ export async function getUserActivities(memberId: string) {
 		}
 
 		const data = await response.json() as QueryDatabaseResponse;
-		
 		const pages = data.results.filter((page: unknown): page is PageObjectResponse => 
 			typeof page === 'object' && page !== null && 'properties' in page
 		);
@@ -455,6 +422,9 @@ export async function getUserActivities(memberId: string) {
 	});
 }
 
+/**
+ * Updates personal information fields in the Private Info database.
+ */
 export async function updatePrivateInfo(pageId: string, data: { phone?: string; bio?: string; background?: string }) {
 	const props: Record<string, any> = {};
 	if (data.phone !== undefined) props['전화번호'] = { phone_number: data.phone };
@@ -477,6 +447,9 @@ export async function updatePrivateInfo(pageId: string, data: { phone?: string; 
 	}
 }
 
+/**
+ * Creates a new activity record in the Notion Activities database.
+ */
 export async function createActivityPage(data: { title: string; date: string; type: string }) {
 	const dbId = env.NOTION_DB_ACTIVITIES;
 	if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
@@ -491,15 +464,9 @@ export async function createActivityPage(data: { title: string; date: string; ty
 		body: JSON.stringify({
 			parent: { database_id: dbId },
 			properties: {
-				'활동명': {
-					title: [{ text: { content: data.title } }]
-				},
-				'일정': {
-					date: { start: data.date }
-				},
-				'활동 종류': {
-					select: { name: data.type }
-				}
+				'활동명': { title: [{ text: { content: data.title } }] },
+				'일정': { date: { start: data.date } },
+				'활동 종류': { select: { name: data.type } }
 			}
 		})
 	});
@@ -512,13 +479,10 @@ export async function createActivityPage(data: { title: string; date: string; ty
 	return await response.json() as PageObjectResponse;
 }
 
+/**
+ * Appends a member to the attendance list of an activity.
+ */
 export async function addAttendeeToActivity(pageId: string, memberId: string) {
-	// 1. Get current relations first to append? Or does PATCH replace?
-	// Notion API: PATCHing a relation property *replaces* the list if you just send IDs.
-	// So we need to fetch, append, and update.
-	// OR, using the v1 API, usually you need to provide the full list.
-	// Let's fetch the current page first.
-	
 	const notionClient = getNotionClient();
 	const page = await notionClient.pages.retrieve({ page_id: pageId }) as PageObjectResponse;
 	
@@ -529,20 +493,21 @@ export async function addAttendeeToActivity(pageId: string, memberId: string) {
 		currentIds = currentRelations.relation.map(r => r.id);
 	}
 
-	if (currentIds.includes(memberId)) return; // Already added
+	if (currentIds.includes(memberId)) return;
 
 	const newIds = [...currentIds, memberId].map(id => ({ id }));
 
 	await notionClient.pages.update({
 		page_id: pageId,
 		properties: {
-			'출석': {
-				relation: newIds
-			}
+			'출석': { relation: newIds }
 		}
 	});
 }
 
+/**
+ * Retrieves full details from the Private Info database for a specific record.
+ */
 export async function getPrivateInfo(pageId: string) {
 	const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
 		method: 'GET',

@@ -1,3 +1,6 @@
+/**
+ * Service for managing club membership applications stored in local JSON.
+ */
 import { env } from '$env/dynamic/private';
 import fs from 'fs/promises';
 import path from 'path';
