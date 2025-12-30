@@ -90,13 +90,10 @@ export const actions = {
         const data = await request.formData();
         const id = data.get('id') as string;
         
-        // When activating, we could create the Notion Page immediately to ensure it exists.
-        // Or wait until attendance approval. 
-        // Prompt: "activate button creates and activates the page"
-        // Let's create Notion Page now.
         const event = await getEvent(id);
         if (!event) return { error: 'Event not found' };
 
+        // Ensure a corresponding activity page exists in Notion before activation
         if (!event.notionPageId) {
             try {
                 const page = await createActivityPage({
@@ -180,9 +177,6 @@ export const actions = {
         const startTime = data.get('startTime') as string;
         const endTime = data.get('endTime') as string;
 
-        // Ensure ISO strings or nulls if empty? 
-        // Input type datetime-local gives "YYYY-MM-DDTHH:MM".
-        // new Date(...) handles it.
         const updates: { startTime?: string; endTime?: string } = {};
         if (startTime) updates.startTime = new Date(startTime).toISOString();
         if (endTime) updates.endTime = new Date(endTime).toISOString();

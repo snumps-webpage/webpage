@@ -31,6 +31,7 @@ export const load: LayoutServerLoad = async (event) => {
 		const isAuth = event.url.pathname.startsWith('/auth');
 		const isSignOut = event.url.pathname.includes('signout');
 
+		// Prevent infinite loops and redundant checks during authentication flows
 		if (!isSignupPage && !isLoginPage && !isApi && !isAuth && !isSignOut && !isUserAdmin) {
 			try {
 				const member = await getMemberByEmail(session.user.email);
@@ -38,10 +39,9 @@ export const load: LayoutServerLoad = async (event) => {
 					throw redirect(302, '/signup');
 				}
 			} catch (e) {
-				// If it's a redirect, re-throw it
+				// Re-throw redirects to ensure SvelteKit handles them correctly
 				if (e && typeof e === 'object' && 'status' in e && e.status === 302) throw e;
-				console.error('Layout Notion Check Error:', e);
-				// Don't block the site if Notion is down, but maybe the user won't see their data
+				console.error('Layout Membership Verification Error:', e);
 			}
 		}
 	}
