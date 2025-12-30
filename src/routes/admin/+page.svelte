@@ -57,6 +57,45 @@
 	</section>
 
 	<section class="mt-4">
+		<h2>탈퇴 신청 ({data.withdrawalRequests.length})</h2>
+		{#if data.withdrawalRequests.length === 0}
+			<p class="empty">대기 중인 탈퇴 신청이 없습니다.</p>
+		{:else}
+			<div class="table-container">
+				<table>
+					<thead>
+						<tr>
+							<th>이름</th>
+							<th>이메일</th>
+							<th>신청일</th>
+							<th>관리</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each data.withdrawalRequests as req}
+							<tr>
+								<td>{req.name}</td>
+								<td>{req.email}</td>
+								<td>{new Date(req.requestedAt).toLocaleDateString()}</td>
+								<td class="actions-cell">
+									<form method="POST" action="?/approveWithdraw" use:enhance onsubmit={() => confirm(`정말 ${req.name}님의 탈퇴를 승인하시겠습니까?`)}>
+										<input type="hidden" name="email" value={req.email} />
+										<button class="btn approve small">승인</button>
+									</form>
+									<form method="POST" action="?/rejectWithdraw" use:enhance onsubmit={() => confirm('반려하시겠습니까?')}>
+										<input type="hidden" name="email" value={req.email} />
+										<button class="btn reject small">반려</button>
+									</form>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
+	</section>
+
+	<section class="mt-4">
 		<h2>회원 관리 ({data.members.length})</h2>
 		
 		{#if data.members.length === 0}
@@ -243,5 +282,10 @@
 
 	tr:last-child td {
 		border-bottom: none;
+	}
+
+	.actions-cell {
+		display: flex;
+		gap: 0.5rem;
 	}
 </style>
