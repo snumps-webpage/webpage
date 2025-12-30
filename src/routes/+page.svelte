@@ -16,20 +16,6 @@
 			</div>
 		</div>
 
-		<div class="actions-bar">
-			<a href="/notion" class="action-btn secondary">
-				<span class="icon">📊</span>
-				전체 DB 보기
-			</a>
-			{#if $page.data.isAdmin}
-				<a href="/admin" class="action-btn secondary">
-					<span class="icon">🛡️</span>
-					관리자 페이지
-				</a>
-			{/if}
-			<!-- Add more buttons here if needed -->
-		</div>
-
 		<div class="dashboard">
 			{#if data.error}
 				<div class="error-banner">
@@ -135,33 +121,6 @@
 	.welcome {
 		color: #4b5563;
 		margin: 0;
-	}
-
-	/* Actions Bar */
-	.actions-bar {
-		margin-bottom: 2rem;
-		display: flex;
-		gap: 1rem;
-	}
-
-	.action-btn {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.5rem;
-		padding: 0.75rem 1.25rem;
-		border-radius: 8px;
-		font-weight: 500;
-		text-decoration: none;
-		transition: all 0.2s;
-	}
-
-	.action-btn.secondary {
-		background: #f3f4f6;
-		color: #374151;
-	}
-
-	.action-btn.secondary:hover {
-		background: #e5e7eb;
 	}
 
 	/* Stats Card */
