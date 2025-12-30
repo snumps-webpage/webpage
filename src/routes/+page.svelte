@@ -38,6 +38,12 @@
 				<span class="icon">📊</span>
 				전체 DB 보기
 			</a>
+			{#if $page.data.isAdmin}
+				<a href="/admin" class="action-btn secondary">
+					<span class="icon">🛡️</span>
+					관리자 페이지
+				</a>
+			{/if}
 			<!-- Add more buttons here if needed -->
 		</div>
 

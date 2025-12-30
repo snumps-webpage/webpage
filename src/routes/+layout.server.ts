@@ -1,16 +1,18 @@
 import { redirect, fail } from '@sveltejs/kit';
 import { getMemberByEmail } from '$lib/server/notion';
+import { isAdmin } from '$lib/server/admin';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async (event) => {
 	const session = await event.locals.auth();
+	const isUserAdmin = session?.user?.email ? isAdmin(session.user.email) : false;
 	
 	if (session?.user?.email) {
 		const isSignupPage = event.url.pathname === '/signup';
 		const isApi = event.url.pathname.startsWith('/api');
 		const isSignOut = event.url.pathname.includes('signout'); // Auth.js default path
 
-		if (!isSignupPage && !isApi && !isSignOut) {
+		if (!isSignupPage && !isApi && !isSignOut && !isUserAdmin) {
 			const member = await getMemberByEmail(session.user.email);
 			if (!member) {
 				throw redirect(302, '/signup');
@@ -19,6 +21,7 @@ export const load: LayoutServerLoad = async (event) => {
 	}
 
 	return {
-		session
+		session,
+		isAdmin: isUserAdmin
 	};
 };

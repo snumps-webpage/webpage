@@ -1,7 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import { getMemberByEmail } from '$lib/server/notion';
 import type { PageServerLoad } from './$types';
-import { getApplications } from '$lib/server/admin';
+import { getApplications, isAdmin } from '$lib/server/admin';
 
 export const load: PageServerLoad = async (event) => {
 	const session = await event.locals.auth();
@@ -11,7 +11,7 @@ export const load: PageServerLoad = async (event) => {
 
 	// Check if already registered
 	const member = await getMemberByEmail(session.user.email);
-	if (member) {
+	if (member && !isAdmin(session.user.email)) {
 		// Also check if they have a pending application to avoid confusion?
 		// But if they are a member, they shouldn't be here.
 		throw redirect(302, '/');
