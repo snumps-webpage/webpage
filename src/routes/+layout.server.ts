@@ -9,13 +9,22 @@ export const load: LayoutServerLoad = async (event) => {
 	
 	if (session?.user?.email) {
 		const isSignupPage = event.url.pathname === '/signup';
+		const isLoginPage = event.url.pathname === '/login';
 		const isApi = event.url.pathname.startsWith('/api');
-		const isSignOut = event.url.pathname.includes('signout'); // Auth.js default path
+		const isAuth = event.url.pathname.startsWith('/auth');
+		const isSignOut = event.url.pathname.includes('signout');
 
-		if (!isSignupPage && !isApi && !isSignOut && !isUserAdmin) {
-			const member = await getMemberByEmail(session.user.email);
-			if (!member) {
-				throw redirect(302, '/signup');
+		if (!isSignupPage && !isLoginPage && !isApi && !isAuth && !isSignOut && !isUserAdmin) {
+			try {
+				const member = await getMemberByEmail(session.user.email);
+				if (!member) {
+					throw redirect(302, '/signup');
+				}
+			} catch (e) {
+				// If it's a redirect, re-throw it
+				if (e && typeof e === 'object' && 'status' in e && e.status === 302) throw e;
+				console.error('Layout Notion Check Error:', e);
+				// Don't block the site if Notion is down, but maybe the user won't see their data
 			}
 		}
 	}
