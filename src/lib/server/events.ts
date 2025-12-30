@@ -1,3 +1,6 @@
+/**
+ * Service for managing club events and temporary attendance records stored in local JSON.
+ */
 import fs from 'fs/promises';
 import path from 'path';
 import { env } from '$env/dynamic/private';
@@ -7,15 +10,15 @@ const EVENTS_DB_PATH = 'data/events.json';
 const ATTENDANCE_QUEUE_PATH = 'data/attendance_queue.json';
 
 export interface Event {
-	id: string; // Internal random ID for URL
-	notionPageId?: string; // Linked Notion Page ID once activated
+	id: string;
+	notionPageId?: string;
 	title: string;
-	date: string; // ISO String
+	date: string;
 	type: string;
 	status: 'draft' | 'active' | 'expired';
-	pathId: string; // The random path component for the event itself
-    attendCode: string; // Random code for attend page
-    leaveCode: string; // Random code for leave page
+	pathId: string;
+    attendCode: string;
+    leaveCode: string;
 }
 
 export interface AttendanceRecord {
@@ -24,8 +27,8 @@ export interface AttendanceRecord {
 	userEmail: string;
 	userName: string;
 	userDept: string;
-	startTime: string; // ISO
-	endTime?: string; // ISO
+	startTime: string;
+	endTime?: string;
 	status: 'pending' | 'approved' | 'rejected';
 }
 
@@ -52,8 +55,6 @@ async function writeJson(filePath: string, data: any) {
 	await ensureDir(filePath);
 	await fs.writeFile(filePath, JSON.stringify(data, null, 2));
 }
-
-// --- Events ---
 
 export async function getEvents(): Promise<Event[]> {
 	return readJson<Event>(EVENTS_DB_PATH);
@@ -102,15 +103,12 @@ export async function deleteEvent(id: string) {
 	await writeJson(EVENTS_DB_PATH, events);
 }
 
-// --- Attendance ---
-
 export async function getAttendanceQueue(): Promise<AttendanceRecord[]> {
 	return readJson<AttendanceRecord>(ATTENDANCE_QUEUE_PATH);
 }
 
 export async function recordAttendanceStart(eventId: string, user: { email: string; name: string; dept: string }) {
 	const queue = await getAttendanceQueue();
-    // Check if already started?
     const existing = queue.find(r => r.eventId === eventId && r.userEmail === user.email);
     if (existing) {
         return { record: existing, isNew: false };
@@ -161,10 +159,6 @@ export async function updateAttendanceStatus(recordId: string, status: Attendanc
 		record.status = status;
 		await writeJson(ATTENDANCE_QUEUE_PATH, queue);
 	}
-    // If rejected/approved, maybe remove from queue or keep as history? 
-    // Prompt says "admin can accept/reject". Usually implies processing. 
-    // Let's keep them but maybe filter in UI. Or remove if processed?
-    // Let's keep them for history.
 }
 
 export async function removeAttendanceRecord(recordId: string) {
