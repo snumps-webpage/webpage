@@ -9,17 +9,19 @@ A secure SvelteKit web application designed to automate and visualize data from 
   - **Restriction**: Access is strictly limited to users with a `@snu.ac.kr` email address.
 - **Membership System**:
   - **Signup Flow**: New users must apply for membership. Applications are stored temporarily and require Admin approval.
-  - **Admin Dashboard**: Admins can view, approve, or reject membership applications.
-  - **Member Management**: Admins can manage the member list and withdraw members when necessary.
+  - **User Profile**: Members can view their full activity history and update their personal details (Phone, Bio, Background).
+  - **Managed Withdrawal**: Users can request withdrawal through a subtle footer link; Admins then review and approve the request to finalize it in Notion.
+- **Event & Attendance System**:
+  - **Event Creation**: Admins can create activity events with specific types and dates.
+  - **Obfuscated Links**: Generates unique, randomized URLs for "Attend" and "Leave" actions to prevent unauthorized logging.
+  - **Attendance Review**: Admins review attendance timestamps (Start/End) submitted by users before sync to Notion.
 - **Notion Integration**:
   - Connects securely to multiple Notion Databases (Members, Activities, Private Info).
-  - Dynamically fetches schema and rows to render a data table.
-  - **Dashboard**: Shows personal attendance statistics and activity history for the current semester.
-  - **Full DB View**: Admins can view the raw Notion database tables directly within the app.
+  - **Dashboard**: Shows personal attendance statistics and activity summary for the current semester.
+  - **Admin View**: Admins can view the raw Notion database tables directly within the app.
 - **Dynamic Information**:
   - Automatically determines the current semester.
   - Fetches the current club president's name from Notion based on the semester.
-  - Displays official contact information in the footer.
 
 ## Project Structure
 
@@ -29,13 +31,14 @@ src/
 ├── lib/
 │   └── server/
 │       ├── admin.ts     # Admin logic & local JSON DB for applications
+│       ├── events.ts    # Event & Attendance management logic
 │       └── notion.ts    # Notion API integration (fetch wrapper & parsers)
 └── routes/
     ├── +layout.server.ts # Global auth & admin checks
-    ├── +page.svelte      # User Dashboard (Stats, Activities, Withdraw)
-    ├── admin/            # Admin Dashboard (Approve/Reject users)
-    ├── login/            # Custom login page
-    ├── notion/           # Full Database View
+    ├── +page.svelte      # User Dashboard (Stats, Summary)
+    ├── admin/            # Admin Dashboard (Users, Events, Attendance)
+    ├── events/           # Dynamic Event Pages (Attend/Leave)
+    ├── profile/          # User Profile & Activity History
     └── signup/           # New User Application Form
 ```
 
@@ -84,13 +87,8 @@ To create a production build:
 npm run build
 ```
 
-You can preview the production build locally:
-```bash
-npm run preview
-```
-
 ## Tech Stack
 - **Frontend**: SvelteKit, Svelte 5, CSS
 - **Backend**: SvelteKit Server Routes, Notion API
 - **Auth**: @auth/sveltekit, @auth/core
-- **Data**: Notion (Primary), JSON (Temporary for applications)
+- **Storage**: Notion (Primary), local JSON (Temporary Queue)
