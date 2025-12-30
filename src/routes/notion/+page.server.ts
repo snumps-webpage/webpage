@@ -8,11 +8,11 @@ export const load: PageServerLoad = async (event) => {
 	const session = await event.locals.auth();
 
 	if (!session?.user) {
-		redirect(302, '/login');
+		throw redirect(302, '/login');
 	}
 
 	if (!isAdmin(session.user.email)) {
-		redirect(302, '/');
+		throw redirect(302, '/');
 	}
 
 	const databaseId = env.NOTION_DB_MEMBERS;
