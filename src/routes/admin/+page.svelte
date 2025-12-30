@@ -4,6 +4,19 @@
 
 	let { data } = $props();
     
+    // Member search state
+    let memberSearchQuery = $state('');
+    let memberSearchType = $state('이름'); // '이름' or '학과'
+
+    let filteredMembers = $derived(
+        memberSearchQuery.trim() === '' 
+            ? data.members 
+            : data.members.filter(m => {
+                const value = memberSearchType === '이름' ? m.name : m.department;
+                return value.toLowerCase().includes(memberSearchQuery.toLowerCase());
+            })
+    );
+
     // State for editing attendance
     let editingRecord: any = $state(null);
     let editDialog: HTMLDialogElement;
@@ -231,6 +244,29 @@
 		{#if data.members.length === 0}
 			<p class="empty">회원이 없습니다.</p>
 		{:else}
+            <div class="search-bar">
+                <div class="search-input-wrapper">
+                    <input 
+                        type="text" 
+                        bind:value={memberSearchQuery} 
+                        placeholder={`${memberSearchType}으로 검색...`} 
+                        class="search-input"
+                    />
+                </div>
+                <div class="toggle-group">
+                    <button 
+                        class="toggle-btn" 
+                        class:active={memberSearchType === '이름'} 
+                        onclick={() => memberSearchType = '이름'}
+                    >이름</button>
+                    <button 
+                        class="toggle-btn" 
+                        class:active={memberSearchType === '학과'} 
+                        onclick={() => memberSearchType = '학과'}
+                    >학과</button>
+                </div>
+            </div>
+
 			<div class="table-container">
 				<table>
 					<thead>
@@ -241,7 +277,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each data.members as member}
+						{#each filteredMembers as member}
 							<tr>
 								<td>{member.name}</td>
 								<td>{member.department}</td>
@@ -251,6 +287,9 @@
 					</tbody>
 				</table>
 			</div>
+            {#if filteredMembers.length === 0}
+                <p class="search-empty">검색 결과가 없습니다.</p>
+            {/if}
 		{/if}
 	</section>
 </div>
@@ -383,6 +422,58 @@
     
     .dialog-actions .submit { background: #10b981; color: white; }
     .dialog-actions .cancel { background: #e5e7eb; color: #374151; }
+
+    /* Search Bar */
+	.search-bar {
+		display: flex;
+		gap: 1rem;
+		margin-bottom: 1.5rem;
+		align-items: center;
+	}
+
+	.search-input-wrapper {
+		flex: 1;
+	}
+
+	.search-input {
+		width: 100%;
+		padding: 0.6rem 1rem;
+		border: 1px solid #d1d5db;
+		border-radius: 8px;
+		font-size: 0.95rem;
+	}
+
+	.toggle-group {
+		display: flex;
+		background: #f3f4f6;
+		padding: 0.25rem;
+		border-radius: 8px;
+		border: 1px solid #e5e7eb;
+	}
+
+	.toggle-btn {
+		padding: 0.4rem 1rem;
+		border: none;
+		background: transparent;
+		border-radius: 6px;
+		font-size: 0.875rem;
+		cursor: pointer;
+		color: #6b7280;
+		transition: all 0.2s;
+	}
+
+	.toggle-btn.active {
+		background: white;
+		color: #111827;
+		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+	}
+
+    .search-empty {
+        text-align: center;
+        color: #6b7280;
+        padding: 2rem;
+        font-size: 0.9rem;
+    }
 
 	.grid {
 		display: grid;
