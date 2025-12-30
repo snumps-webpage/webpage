@@ -1,13 +1,25 @@
 import { redirect } from '@sveltejs/kit';
 import { createEvent } from '$lib/server/events';
+import { getDatabaseSchema, type DatabasePropertySchema } from '$lib/server/notion';
+import { env } from '$env/dynamic/private';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
-    // We can fetch types from Notion schema here if we want to be dynamic,
-    // but hardcoding based on the previous fetch is faster/safer for now.
-    const activityTypes = [
-        "문제 창작", "문제 풀이", "회식", "세미나", "스터디", "회의", "기타"
-    ];
+    const dbId = env.NOTION_DB_ACTIVITIES;
+    let activityTypes: string[] = ["문제 창작", "문제 풀이", "회식", "세미나", "스터디", "회의", "기타"];
+    
+    if (dbId) {
+        try {
+            const schema = await getDatabaseSchema(dbId);
+            const typeProp = schema['활동 종류'] as DatabasePropertySchema;
+            if (typeProp?.options) {
+                activityTypes = typeProp.options;
+            }
+        } catch (e) {
+            console.error('Failed to fetch activity types from Notion:', e);
+        }
+    }
+
     return { activityTypes };
 };
 

@@ -70,7 +70,7 @@ export async function getEventByPathId(pathId: string): Promise<Event | undefine
 	return events.find(e => e.pathId === pathId);
 }
 
-export async function createEvent(data: { title: string; date: string; type: string }) {
+export async function createEvent(data: { title: string; date: string; type: string; notionPageId?: string }) {
 	const events = await getEvents();
 	const newEvent: Event = {
 		id: crypto.randomUUID(),
@@ -80,7 +80,8 @@ export async function createEvent(data: { title: string; date: string; type: str
 		title: data.title,
 		date: data.date,
 		type: data.type,
-		status: 'draft'
+		status: 'draft',
+		notionPageId: data.notionPageId
 	};
 	events.push(newEvent);
 	await writeJson(EVENTS_DB_PATH, events);
