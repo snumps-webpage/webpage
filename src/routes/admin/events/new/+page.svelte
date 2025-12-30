@@ -27,8 +27,8 @@
         </div>
 
         <div class="actions">
-            <a href="/admin" class="btn cancel">취소 (Abort)</a>
-            <button class="btn submit">발행 (Publish)</button>
+            <a href="/admin" class="btn cancel">취소</a>
+            <button class="btn submit">발행</button>
         </div>
     </form>
 </div>
