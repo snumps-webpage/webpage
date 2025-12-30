@@ -38,6 +38,8 @@ src/
     ├── +page.svelte      # User Dashboard (Stats, Summary)
     ├── admin/            # Admin Dashboard (Users, Events, Attendance)
     ├── events/           # Dynamic Event Pages (Attend/Leave)
+    ├── login/            # Custom login page
+    ├── notion/           # Full Notion Database View (Admin only)
     ├── profile/          # User Profile & Activity History
     └── signup/           # New User Application Form
 ```
