@@ -40,7 +40,8 @@ export const actions: Actions = {
 
         const data = await request.formData();
         const title = data.get('title') as string;
-        const date = data.get('date') as string;
+        const dateRaw = data.get('date') as string;
+        const timezone = data.get('timezone') as string;
         const speakerIdsRaw = data.get('speakerIds') as string; // Expecting comma separated or JSON
         
         let speakerIds: string[] = [];
@@ -52,11 +53,24 @@ export const actions: Actions = {
             }
         }
 
-        if (!title || !date) {
+        if (!title || !dateRaw) {
             return fail(400, { error: 'Missing required fields' });
         }
 
         try {
+            // Calculate ISO date with timezone
+            const dateObj = new Date(dateRaw);
+            const parts = new Intl.DateTimeFormat('en-US', {
+                timeZone: timezone || 'Asia/Seoul', // Fallback to KST
+                timeZoneName: 'longOffset'
+            }).formatToParts(dateObj);
+            
+            const offsetPart = parts.find(p => p.type === 'timeZoneName')?.value;
+            const offset = offsetPart ? offsetPart.replace('GMT', '') : '+09:00';
+            const isoOffset = offset === 'GMT' ? '+00:00' : offset;
+            
+            const date = `${dateRaw}:00${isoOffset}`;
+
             await createSeminarRequest({
                 title,
                 date,

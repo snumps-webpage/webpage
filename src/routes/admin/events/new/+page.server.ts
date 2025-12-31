@@ -32,18 +32,37 @@ export const actions = {
 
         const data = await request.formData();
         const title = data.get('title') as string;
-        const dateRaw = data.get('date') as string;
-        const timezone = data.get('timezone') as string;
+        const dateRaw = data.get('date') as string; // YYYY-MM-DDTHH:mm
+        const timezone = data.get('timezone') as string; // IANA e.g. 'Asia/Seoul'
         const type = data.get('type') as string;
 
         if (!title || !dateRaw || !type) {
             return fail(400, { error: 'Missing required fields' });
         }
 
-        // Construct ISO string with timezone
-        const date = `${dateRaw}:00${timezone}`;
-
+        // Calculate offset for the specific date and timezone
         try {
+            // Create a date object (context-free)
+            const dateObj = new Date(dateRaw);
+            
+            // Get the offset string (e.g., "GMT+9" or "GMT+09:00")
+            // Note: dateObj is interpreted as UTC here just to get a valid date instance for the formatter
+            const parts = new Intl.DateTimeFormat('en-US', {
+                timeZone: timezone,
+                timeZoneName: 'longOffset'
+            }).formatToParts(dateObj);
+            
+            const offsetPart = parts.find(p => p.type === 'timeZoneName')?.value; // "GMT+09:00"
+            const offset = offsetPart ? offsetPart.replace('GMT', '') : '+00:00'; // "+09:00"
+
+            // Handle short offsets like "+9" -> "+09:00" if necessary, 
+            // but Intl usually returns "+09:00" or "GMT" (which is Z).
+            // Let's ensure strict ISO format.
+            let isoOffset = offset === 'GMT' ? '+00:00' : offset;
+            
+            // Construct ISO string
+            const date = `${dateRaw}:00${isoOffset}`;
+
             // 1. Create Notion Page
             const page = await createActivityPage({
                 title,
