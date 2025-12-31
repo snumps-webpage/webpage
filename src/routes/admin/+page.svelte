@@ -48,7 +48,6 @@
 		<div class="header-actions">
 			<a href="/admin/events/new" class="create-event-btn">📅 새 이벤트 만들기</a>
 			<a href="/admin/events/connect" class="create-event-btn secondary">🔗 기존 이벤트 연결</a>
-			<a href="/" class="home-link">홈으로</a>
 		</div>
 	</header>
 
@@ -382,6 +381,7 @@
 		text-decoration: none;
 		font-weight: 600;
 		font-size: 0.9rem;
+		user-select: none;
 	}
 
 	.create-event-btn:hover { opacity: 0.9; }
@@ -395,6 +395,7 @@
 		font-weight: 700;
 		white-space: nowrap;
 		width: max-content;
+		user-select: none;
 	}
 	.status-badge.draft { background: var(--btn-secondary); color: var(--text-secondary); }
 	.status-badge.active { background: var(--color-success-bg); color: var(--color-success-text); }
@@ -408,6 +409,7 @@
 		border-radius: 4px;
 		font-size: 0.75rem;
 		cursor: pointer;
+		user-select: none;
 	}
 	.copy-btn:hover { background: #f9fafb; }
 	.hint { color: #9ca3af; font-size: 0.8rem; }
@@ -424,6 +426,7 @@
 		background: var(--bg-secondary);
 		border-radius: 8px;
 		border: 1px solid var(--border-color);
+		user-select: none;
 	}
 
     .edit-dialog {
@@ -474,6 +477,7 @@
         border-radius: 4px;
         cursor: pointer;
         font-weight: 600;
+        user-select: none;
     }
     
     .dialog-actions .submit { background: #10b981; color: white; }
@@ -507,6 +511,7 @@
 		padding: 0.25rem;
 		border-radius: 8px;
 		border: 1px solid var(--border-color);
+		user-select: none;
 	}
 
 	.toggle-btn {
@@ -518,6 +523,7 @@
 		cursor: pointer;
 		color: var(--text-secondary);
 		transition: all 0.2s;
+		user-select: none;
 	}
 
 	.toggle-btn.active {
@@ -554,6 +560,7 @@
 		background: var(--btn-secondary);
 		padding: 0.2rem 0.5rem;
 		border-radius: 4px;
+		user-select: none;
 	}
 
 	.info p {
@@ -571,6 +578,7 @@
 	summary {
 		cursor: pointer;
 		color: #667eea;
+		user-select: none;
 	}
 
 	.details-content {
@@ -596,6 +604,7 @@
 		cursor: pointer;
 		font-weight: 600;
 		transition: opacity 0.2s;
+		user-select: none;
 	}
 
 	.btn:hover { opacity: 0.9; }

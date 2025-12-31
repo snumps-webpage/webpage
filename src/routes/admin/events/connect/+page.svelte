@@ -145,6 +145,7 @@
         gap: 0.5rem;
         box-shadow: var(--shadow);
         transition: all 0.2s;
+        user-select: none;
     }
 
     .event-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
@@ -159,6 +160,7 @@
         border-radius: 4px;
         width: fit-content;
         white-space: nowrap;
+        user-select: none;
     }
 
     .event-name { font-weight: 600; color: var(--text-primary); line-height: 1.4; }
@@ -180,6 +182,7 @@
         cursor: pointer;
         border: none;
         text-decoration: none;
+        user-select: none;
     }
 
     .abort { background: var(--btn-secondary); color: var(--text-secondary); }

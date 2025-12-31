@@ -336,6 +336,7 @@
 		font-weight: 600;
 		font-size: 1.1rem;
 		box-shadow: 0 4px 6px rgba(102, 126, 234, 0.4);
+		user-select: none;
 	}
 
 	.landing .login-link:hover {

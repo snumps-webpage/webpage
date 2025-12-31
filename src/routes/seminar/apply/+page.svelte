@@ -162,6 +162,7 @@
         font-size: 0.8rem;
         cursor: pointer;
         color: var(--text-secondary);
+        user-select: none;
     }
 
     .toggle-btn:hover { background: var(--border-color); }
@@ -200,6 +201,7 @@
         align-items: center;
         gap: 0.5rem;
         font-size: 0.85rem;
+        user-select: none;
     }
 
     .speaker-tag .info {
@@ -219,6 +221,7 @@
         align-items: center;
         justify-content: center;
         font-size: 0.7rem;
+        user-select: none;
     }
 
     .remove-tag:hover { background: rgba(0,0,0,0.3); }
@@ -241,6 +244,7 @@
         z-index: 50;
         max-height: 200px;
         overflow-y: auto;
+        user-select: none;
     }
 
     .result-item {
@@ -281,6 +285,7 @@
         text-align: center;
         text-decoration: none;
         display: inline-block;
+        user-select: none;
     }
 
     .submit { background: var(--text-primary); color: var(--bg-primary); margin-top: 1rem; }

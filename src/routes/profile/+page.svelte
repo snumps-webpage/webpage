@@ -165,6 +165,7 @@
 		cursor: pointer;
 		font-size: 0.9rem;
 		color: var(--text-primary);
+		user-select: none;
 	}
 
 	.field, .info-item {
@@ -207,6 +208,7 @@
 		border-radius: 6px;
 		font-weight: 600;
 		cursor: pointer;
+		user-select: none;
 	}
 
 	.value { font-size: 1rem; color: var(--text-primary); }
@@ -219,6 +221,7 @@
 		font-size: 0.9rem;
 		background: var(--bg-secondary);
 		color: var(--text-primary);
+		user-select: none;
 	}
 
 	.table-container { overflow-x: auto; }
