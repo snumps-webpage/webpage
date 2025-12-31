@@ -1,6 +1,6 @@
 import { error, redirect } from '@sveltejs/kit';
-import { getEventByPathId, recordAttendance } from '$lib/server/events';
-import { getMemberByEmail, getAllMembers } from '$lib/server/notion';
+import { getEventByPathId, recordAttendance, deleteEvent } from '$lib/server/events';
+import { getMemberByEmail, getAllMembers, checkPageExists } from '$lib/server/notion';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals, url }) => {
@@ -12,6 +12,16 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 
     const event = await getEventByPathId(params.id);
     if (!event) throw error(404, 'Event not found');
+    
+    // Robustness: Verify Notion Page Existence
+    if (event.notionPageId) {
+        const exists = await checkPageExists(event.notionPageId);
+        if (!exists) {
+            console.warn(`Event '${event.title}' accessed but Notion page is missing. Deleting local record.`);
+            await deleteEvent(event.id);
+            throw error(404, 'Event not found (Source Removed)');
+        }
+    }
     
     if (event.status !== 'active') throw error(403, 'Event is not active');
 
