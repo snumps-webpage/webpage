@@ -630,3 +630,170 @@ export async function getPrivateInfo(pageId: string) {
 		background: backProp?.type === 'rich_text' ? backProp.rich_text[0]?.plain_text : ''
 	};
 }
+
+// --- Applications (Signups) ---
+
+export async function getApplicationsFromNotion() {
+	const dbId = env.NOTION_DB_APPLICATIONS;
+	if (!dbId) return [];
+
+	const results = await queryDatabase(dbId);
+	
+	return results.map(page => {
+		const props = page.properties;
+		return {
+			id: page.id, // Use Notion ID as the primary ID
+			email: (props.Email as any)?.email ?? '',
+			name: (props.Name as any)?.title?.[0]?.plain_text ?? '',
+			phone: (props.Phone as any)?.phone_number ?? '',
+			department: (props.Department as any)?.rich_text?.[0]?.plain_text ?? '',
+			bio: (props.Bio as any)?.rich_text?.[0]?.plain_text ?? '',
+			background: (props.Background as any)?.rich_text?.[0]?.plain_text ?? '',
+			submittedAt: (page as any).created_time
+		};
+	});
+}
+
+export async function createApplicationInNotion(data: {
+	email: string;
+	name: string;
+	phone: string;
+	department: string;
+	bio: string;
+	background: string;
+}) {
+	const dbId = env.NOTION_DB_APPLICATIONS;
+	if (!dbId) return null;
+
+	const response = await fetch(`https://api.notion.com/v1/pages`, {
+		method: 'POST',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28',
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			parent: { database_id: dbId },
+			properties: {
+				Name: { title: [{ text: { content: data.name } }] },
+				Email: { email: data.email },
+				Phone: { phone_number: data.phone },
+				Department: { rich_text: [{ text: { content: data.department } }] },
+				Bio: { rich_text: [{ text: { content: data.bio } }] },
+				Background: { rich_text: [{ text: { content: data.background } }] }
+			}
+		})
+	});
+
+	if (!response.ok) {
+		console.error('Failed to create application in Notion', await response.json());
+		return null;
+	}
+
+	const page = await response.json() as PageObjectResponse;
+	return page.id;
+}
+
+export async function removeApplicationInNotion(id: string) {
+	const response = await fetch(`https://api.notion.com/v1/pages/${id}`, {
+		method: 'PATCH',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28',
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({ archived: true })
+	});
+	return response.ok;
+}
+
+// --- Attendance Queue ---
+
+export async function getAttendanceQueueFromNotion() {
+	const dbId = env.NOTION_DB_ATTENDANCE_QUEUE;
+	if (!dbId) return [];
+
+	const results = await queryDatabase(dbId);
+	
+	return results.map(page => {
+		const props = page.properties;
+		return {
+			id: page.id,
+			eventId: (props.EventId as any)?.rich_text?.[0]?.plain_text ?? '',
+			userEmail: (props.UserEmail as any)?.email ?? '',
+			userName: (props.UserName as any)?.title?.[0]?.plain_text ?? '',
+			userDept: (props.UserDept as any)?.rich_text?.[0]?.plain_text ?? '',
+			startTime: (props.StartTime as any)?.date?.start ?? '',
+			endTime: (props.EndTime as any)?.date?.start ?? undefined,
+			status: (props.Status as any)?.select?.name ?? 'pending'
+		};
+	});
+}
+
+export async function createAttendanceRecordInNotion(data: {
+	eventId: string;
+	userEmail: string;
+	userName: string;
+	userDept: string;
+	startTime: string;
+}) {
+	const dbId = env.NOTION_DB_ATTENDANCE_QUEUE;
+	if (!dbId) return null;
+
+	const response = await fetch(`https://api.notion.com/v1/pages`, {
+		method: 'POST',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28',
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			parent: { database_id: dbId },
+			properties: {
+				UserName: { title: [{ text: { content: data.userName } }] },
+				UserEmail: { email: data.userEmail },
+				UserDept: { rich_text: [{ text: { content: data.userDept } }] },
+				EventId: { rich_text: [{ text: { content: data.eventId } }] },
+				StartTime: { date: { start: data.startTime } },
+				Status: { select: { name: 'pending' } }
+			}
+		})
+	});
+
+	if (!response.ok) return null;
+	const page = await response.json() as PageObjectResponse;
+	return page.id;
+}
+
+export async function updateAttendanceRecordInNotion(id: string, updates: { 
+	endTime?: string; 
+	status?: string; 
+	startTime?: string 
+}) {
+	const props: any = {};
+	if (updates.endTime) props.EndTime = { date: { start: updates.endTime } };
+	if (updates.startTime) props.StartTime = { date: { start: updates.startTime } };
+	if (updates.status) props.Status = { select: { name: updates.status } };
+
+	await fetch(`https://api.notion.com/v1/pages/${id}`, {
+		method: 'PATCH',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28',
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({ properties: props })
+	});
+}
+
+export async function removeAttendanceRecordInNotion(id: string) {
+	await fetch(`https://api.notion.com/v1/pages/${id}`, {
+		method: 'PATCH',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28',
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({ archived: true })
+	});
+}
