@@ -388,14 +388,17 @@
 	.create-event-btn.secondary { background: #4b5563; }
 
 	.status-badge {
-		padding: 0.2rem 0.5rem;
+		display: inline-block;
+		padding: 0.2rem 0.75rem;
 		border-radius: 4px;
-		font-size: 0.75rem;
+		font-size: 0.7rem;
 		font-weight: 700;
+		white-space: nowrap;
+		width: max-content;
 	}
-	.status-badge.draft { background: #e5e7eb; color: #374151; }
-	.status-badge.active { background: #d1fae5; color: #059669; }
-	.status-badge.expired { background: #fee2e2; color: #991b1b; }
+	.status-badge.draft { background: var(--btn-secondary); color: var(--text-secondary); }
+	.status-badge.active { background: var(--color-success-bg); color: var(--color-success-text); }
+	.status-badge.expired { background: var(--color-danger-bg); color: var(--color-danger-text); }
 
 	.links { display: flex; gap: 0.5rem; flex-direction: column; }
 	.copy-btn {

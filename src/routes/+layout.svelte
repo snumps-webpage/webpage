@@ -102,6 +102,14 @@
 		--border-color: #e5e7eb;
 		--btn-secondary: #f3f4f6;
 		--shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+		
+		/* Status Colors */
+		--color-success-bg: #d1fae5;
+		--color-success-text: #059669;
+		--color-danger-bg: #fee2e2;
+		--color-danger-text: #dc2626;
+		--color-warning-bg: #fef3c7;
+		--color-warning-text: #d97706;
 	}
 
 	:global(.dark) {
@@ -112,6 +120,14 @@
 		--border-color: #374151;
 		--btn-secondary: #374151;
 		--shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+
+		/* Status Colors (Dark Mode) */
+		--color-success-bg: #064e3b;
+		--color-success-text: #a7f3d0;
+		--color-danger-bg: #7f1d1d;
+		--color-danger-text: #fca5a5;
+		--color-warning-bg: #78350f;
+		--color-warning-text: #fcd34d;
 	}
 
 	:global(body) {

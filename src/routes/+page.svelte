@@ -137,17 +137,17 @@
 		align-items: flex-start;
 		margin-bottom: 2rem;
 		padding-bottom: 1rem;
-		border-bottom: 1px solid #e5e7eb;
+		border-bottom: 1px solid var(--border-color);
 	}
 
 	h1 {
 		font-size: 1.75rem;
-		color: #1a1a2e;
+		color: var(--text-primary);
 		margin: 0 0 0.5rem 0;
 	}
 
 	.welcome {
-		color: #4b5563;
+		color: var(--text-secondary);
 		margin: 0;
 	}
 
@@ -279,33 +279,36 @@
 	.tag {
 		display: inline-block;
 		padding: 0.25rem 0.5rem;
-		background: #f3f4f6;
-		color: #4b5563;
+		background: var(--btn-secondary);
+		color: var(--text-secondary);
 		border-radius: 4px;
 		font-size: 0.75rem;
+		white-space: nowrap;
 	}
 
 	.badge {
 		display: inline-block;
-		padding: 0.25rem 0.6rem;
+		padding: 0.2rem 0.75rem; /* Increased horizontal padding */
 		border-radius: 9999px;
-		font-size: 0.75rem;
+		font-size: 0.7rem; /* Slightly smaller font */
 		font-weight: 600;
+		white-space: nowrap; /* Prevent awkward line breaks */
+		width: max-content;
 	}
 
 	.badge.success {
-		background: #d1fae5;
-		color: #059669;
+		background: var(--color-success-bg);
+		color: var(--color-success-text);
 	}
 
 	.badge.fail {
-		background: #fee2e2;
-		color: #dc2626;
+		background: var(--color-danger-bg);
+		color: var(--color-danger-text);
 	}
 
 	.error-banner {
-		background: #fee2e2;
-		color: #991b1b;
+		background: var(--color-danger-bg);
+		color: var(--color-danger-text);
 		padding: 1rem;
 		border-radius: 8px;
 		margin-bottom: 1rem;
