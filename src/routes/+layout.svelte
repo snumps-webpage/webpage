@@ -172,6 +172,7 @@
 	.dropdown {
 		position: relative;
 		display: inline-block;
+		margin-left: 2.5rem; /* Move away from logo to standard menu position */
 	}
 
 	.nav-link {
