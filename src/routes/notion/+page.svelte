@@ -74,8 +74,6 @@
 			</div>
 		{/if}
 	{/if}
-
-	<a href="/" class="back-link">← 홈으로</a>
 </div>
 
 <style>
@@ -87,7 +85,7 @@
 
 	h1 {
 		margin-bottom: 1.5rem;
-		color: #1a1a2e;
+		color: var(--text-primary);
 	}
 
 	.error {
@@ -131,6 +129,7 @@
 		padding: 0.25rem;
 		border-radius: 8px;
 		border: 1px solid var(--border-color);
+		user-select: none;
 	}
 
 	.toggle-btn {
@@ -142,6 +141,7 @@
 		cursor: pointer;
 		color: var(--text-secondary);
 		transition: all 0.2s;
+		user-select: none;
 	}
 
 	.toggle-btn.active {
@@ -179,16 +179,5 @@
 
 	tr:hover td {
 		background: var(--btn-secondary);
-	}
-
-	.back-link {
-		display: inline-block;
-		margin-top: 1.5rem;
-		color: #667eea;
-		text-decoration: none;
-	}
-
-	.back-link:hover {
-		text-decoration: underline;
 	}
 </style>
