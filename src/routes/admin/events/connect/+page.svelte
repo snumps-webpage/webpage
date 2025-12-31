@@ -155,9 +155,10 @@
         font-weight: 700;
         background: var(--btn-secondary);
         color: var(--text-secondary);
-        padding: 0.1rem 0.4rem;
+        padding: 0.2rem 0.6rem;
         border-radius: 4px;
         width: fit-content;
+        white-space: nowrap;
     }
 
     .event-name { font-weight: 600; color: var(--text-primary); line-height: 1.4; }

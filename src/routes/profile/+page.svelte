@@ -233,6 +233,7 @@
 		border-radius: 4px;
 		font-size: 0.8rem;
 		color: var(--text-secondary);
+		white-space: nowrap;
 	}
 	
 	.empty { text-align: center; color: #9ca3af; padding: 2rem; }
