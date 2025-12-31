@@ -3,7 +3,8 @@
     let { data, form } = $props();
 
     let searchQuery = $state('');
-    let selectedSpeakers = $state<any[]>([]); // Objects from data.members
+    let selectedSpeakers = $state<any[]>([]); 
+    let showSearch = $state(false); // Toggle for search UI
 
     let searchResults = $derived(
         searchQuery.trim() === '' 
@@ -13,12 +14,13 @@
                 (m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                  m.department.toLowerCase().includes(searchQuery.toLowerCase()) ||
                  m.email.toLowerCase().includes(searchQuery.toLowerCase()))
-            ).slice(0, 5) // Limit results
+            ).slice(0, 5)
     );
 
     function addSpeaker(member: any) {
         selectedSpeakers = [...selectedSpeakers, member];
         searchQuery = '';
+        showSearch = false;
     }
 
     function removeSpeaker(id: string) {
@@ -52,7 +54,13 @@
             </div>
 
             <div class="field">
-                <label for="speaker-search">발표자 (Speaker)</label>
+                <div class="label-row">
+                    <label>발표자 (Speaker)</label>
+                    <button type="button" class="toggle-btn" onclick={() => showSearch = !showSearch}>
+                        {showSearch ? '닫기' : 'DB에서 검색/추가'}
+                    </button>
+                </div>
+                
                 <div class="speaker-selection">
                     {#if selectedSpeakers.length > 0}
                         <div class="selected-list">
@@ -60,35 +68,38 @@
                                 <div class="speaker-tag">
                                     <span class="name">{speaker.name}</span>
                                     <span class="info">{speaker.department}</span>
-                                    <button type="button" onclick={() => removeSpeaker(speaker.id)} aria-label="Remove">✕</button>
+                                    <button type="button" class="remove-tag" onclick={() => removeSpeaker(speaker.id)}>✕</button>
                                 </div>
                             {/each}
                         </div>
-                    {:else}
+                    {:else if !showSearch}
                         <p class="hint">지정하지 않을 경우 신청자 본인이 발표자가 됩니다.</p>
                     {/if}
 
-                    <div class="search-container">
-                        <input 
-                            type="text" 
-                            id="speaker-search"
-                            bind:value={searchQuery} 
-                            placeholder="이름, 학과 또는 이메일로 검색..." 
-                        />
-                        {#if searchResults.length > 0}
-                            <div class="results-dropdown">
-                                {#each searchResults as member (member.id)}
-                                    <button type="button" class="result-item" onclick={() => addSpeaker(member)}>
-                                        <div class="main-info">
-                                            <span class="r-name">{member.name}</span>
-                                            <span class="r-dept">{member.department}</span>
-                                        </div>
-                                        <span class="r-email">{member.email}</span>
-                                    </button>
-                                {/each}
-                            </div>
-                        {/if}
-                    </div>
+                    {#if showSearch}
+                        <div class="search-container">
+                            <input 
+                                type="text" 
+                                id="speaker-search"
+                                bind:value={searchQuery} 
+                                placeholder="이름, 학과 또는 이메일로 검색..." 
+                                autofocus
+                            />
+                            {#if searchResults.length > 0}
+                                <div class="results-dropdown">
+                                    {#each searchResults as member (member.id)}
+                                        <button type="button" class="result-item" onclick={() => addSpeaker(member)}>
+                                            <div class="main-info">
+                                                <span class="r-name">{member.name}</span>
+                                                <span class="r-dept">{member.department}</span>
+                                            </div>
+                                            <span class="r-email">{member.email}</span>
+                                        </button>
+                                    {/each}
+                                </div>
+                            {/if}
+                        </div>
+                    {/if}
                 </div>
                 <input type="hidden" name="speakerIds" value={JSON.stringify(selectedSpeakers.map(s => s.id))} />
             </div>
@@ -114,10 +125,28 @@
     
     label { 
         display: block; 
-        margin-bottom: 0.5rem; 
         font-weight: 600; 
         color: #374151;
     }
+
+    .label-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .toggle-btn {
+        background: #f3f4f6;
+        border: 1px solid #d1d5db;
+        padding: 0.25rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        color: #4b5563;
+    }
+
+    .toggle-btn:hover { background: #e5e7eb; }
 
     input {
         width: 100%;
@@ -125,6 +154,7 @@
         border: 1px solid #d1d5db;
         border-radius: 6px;
         font-size: 1rem;
+        box-sizing: border-box;
     }
 
     /* Speaker Selection */
@@ -139,7 +169,6 @@
         display: flex;
         flex-wrap: wrap;
         gap: 0.5rem;
-        margin-bottom: 1rem;
     }
 
     .speaker-tag {
@@ -158,8 +187,8 @@
         font-size: 0.75rem;
     }
 
-    .speaker-tag button {
-        background: rgba(0,0,0,0.1);
+    .remove-tag {
+        background: rgba(0,0,0,0.15);
         border: none;
         color: white;
         cursor: pointer;
@@ -172,21 +201,24 @@
         font-size: 0.7rem;
     }
 
+    .remove-tag:hover { background: rgba(0,0,0,0.3); }
+
     .search-container {
         position: relative;
+        margin-top: 0.5rem;
     }
 
     .results-dropdown {
         position: absolute;
         top: 100%;
         left: 0;
-        right: 0;
+        width: 100%;
         background: white;
         border: 1px solid #d1d5db;
         border-radius: 6px;
-        margin-top: 0.25rem;
+        margin-top: 4px;
         box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-        z-index: 10;
+        z-index: 50;
         max-height: 200px;
         overflow-y: auto;
     }
@@ -214,7 +246,7 @@
     .hint {
         font-size: 0.85rem;
         color: #6b7280;
-        margin-bottom: 0.75rem;
+        margin: 0;
     }
 
     .btn {
