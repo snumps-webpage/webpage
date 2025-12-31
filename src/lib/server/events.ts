@@ -9,7 +9,8 @@ import {
 	getAttendanceQueueFromNotion, 
 	createAttendanceRecordInNotion, 
 	updateAttendanceRecordInNotion, 
-	removeAttendanceRecordInNotion 
+	removeAttendanceRecordInNotion,
+    checkPageExists 
 } from './notion';
 
 const EVENTS_DB_PATH = 'data/events.json';
@@ -244,20 +245,30 @@ export async function removeAttendanceRecord(recordId: string) {
 
 /**
  * Checks all events and updates their status based on the current date.
- * - 'draft' -> 'active' if the event's start time has passed.
- * - 'active' -> 'expired' if the event's day is over.
+ * Also verifies if the linked Notion page still exists.
  */
 export async function syncEventStatuses() {
     const events = await getEvents();
     let hasChanged = false;
+    let validEvents: Event[] = [];
 
     const now = new Date();
     // Get local date string YYYY-MM-DD
     const localDateStr = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0];
 
     for (const event of events) {
+        // Validation: Check if Notion page exists
+        if (event.notionPageId) {
+            const exists = await checkPageExists(event.notionPageId);
+            if (!exists) {
+                console.warn(`Event '${event.title}' (ID: ${event.id}) removed because Notion page ${event.notionPageId} is missing or archived.`);
+                hasChanged = true;
+                continue; // Skip adding this event to validEvents, effectively deleting it
+            }
+        }
+
+        // Status Logic
         // Activate draft events on their start time (or day)
-        // If event.date matches localDateStr or is earlier, activate.
         if (event.status === 'draft' && localDateStr >= event.date) {
             event.status = 'active';
             hasChanged = true;
@@ -270,9 +281,11 @@ export async function syncEventStatuses() {
             hasChanged = true;
             console.log(`Event '${event.title}' expired.`);
         }
+        
+        validEvents.push(event);
     }
 
     if (hasChanged) {
-        await writeJson(EVENTS_DB_PATH, events);
+        await writeJson(EVENTS_DB_PATH, validEvents);
     }
 }
