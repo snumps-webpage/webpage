@@ -70,7 +70,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each data.events as event}
+						{#each data.events as event (event.id)}
 							<tr class={event.status}>
 								<td>{event.title}</td>
 								<td>{new Date(event.date).toLocaleString()}</td>
@@ -79,8 +79,7 @@
 								<td>
 									{#if event.status !== 'draft'}
 										<div class="links">
-											<button class="copy-btn" onclick={() => navigator.clipboard.writeText(`${window.location.origin}/events/${event.pathId}/${event.attendCode}`)}>Attend 📋</button>
-											<button class="copy-btn" onclick={() => navigator.clipboard.writeText(`${window.location.origin}/events/${event.pathId}/${event.leaveCode}`)}>Leave 📋</button>
+											<button class="copy-btn" onclick={() => navigator.clipboard.writeText(`${window.location.origin}/events/${event.pathId}/${event.attendCode}`)}>Copy Link 📋</button>
 										</div>
 									{:else}
 										<span class="hint">Not Published</span>
@@ -129,7 +128,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each data.attendanceQueue as record}
+						{#each data.attendanceQueue as record (record.id)}
 							{@const event = data.events.find(e => e.id === record.eventId)}
 							<tr>
 								<td>{record.userName}</td>
@@ -200,7 +199,7 @@
 			<p class="empty">대기 중인 가입 신청이 없습니다.</p>
 		{:else}
 			<div class="grid">
-				{#each data.applications as app}
+				{#each data.applications as app (app.id)}
 					<div class="card">
 						<div class="card-header">
 							<h3>{app.name}</h3>
@@ -277,7 +276,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each filteredMembers as member}
+						{#each filteredMembers as member (member.id)}
 							<tr>
 								<td>{member.name}</td>
 								<td>{member.department}</td>

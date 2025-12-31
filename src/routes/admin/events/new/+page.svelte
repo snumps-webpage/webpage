@@ -20,7 +20,7 @@
         <div class="field">
             <label for="type">활동 종류</label>
             <select id="type" name="type" required>
-                {#each data.activityTypes as type}
+                {#each data.activityTypes as type (type)}
                     <option value={type}>{type}</option>
                 {/each}
             </select>

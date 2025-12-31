@@ -1,5 +1,6 @@
 <script lang="ts">
     import { enhance } from '$app/forms';
+    import { getSemesterKeyFromDate } from '$lib/utils';
     import type { PageData } from './$types';
 
     let { data } = $props();
@@ -14,10 +15,7 @@
             
             let matchesSemester = true;
             if (selectedSemester !== 'all') {
-                const date = new Date(a.date);
-                const year = date.getFullYear();
-                const month = date.getMonth() + 1;
-                const sem = (month >= 3 && month <= 8) ? `${year}-1` : (month >= 9 ? `${year}-2` : `${year - 1}-2`);
+                const sem = getSemesterKeyFromDate(a.date);
                 matchesSemester = (sem === selectedSemester);
             }
             
@@ -40,7 +38,7 @@
         </div>
         <select bind:value={selectedSemester} class="semester-select">
             <option value="all">전체 학기</option>
-            {#each data.semesters as sem}
+            {#each data.semesters as sem (sem)}
                 <option value={sem}>{sem}학기</option>
             {/each}
         </select>
@@ -51,7 +49,7 @@
             <p class="empty">검색 결과가 없습니다.</p>
         {:else}
             <div class="event-grid">
-                {#each filteredActivities as activity}
+                {#each filteredActivities as activity (activity.id)}
                     <button 
                         class="event-card" 
                         class:selected={selectedEvent?.id === activity.id}
