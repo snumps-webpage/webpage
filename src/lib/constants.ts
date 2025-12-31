@@ -27,3 +27,12 @@ export const ACTIVITY_TYPES = [
 	"회의",
 	"기타"
 ];
+
+export const TIMEZONES = [
+	{ label: 'Korea Standard Time (KST)', value: '+09:00' },
+	{ label: 'Coordinated Universal Time (UTC)', value: '+00:00' },
+	{ label: 'Eastern Standard Time (EST)', value: '-05:00' },
+	{ label: 'Pacific Standard Time (PST)', value: '-08:00' }
+];
+
+export const DEFAULT_TIMEZONE = '+09:00';

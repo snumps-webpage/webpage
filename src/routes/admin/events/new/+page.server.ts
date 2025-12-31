@@ -1,9 +1,10 @@
-import { redirect } from '@sveltejs/kit';
-import { createEvent } from '$lib/server/events';
-import { getDatabaseSchema, type DatabasePropertySchema } from '$lib/server/notion';
-import { ACTIVITY_TYPES } from '$lib/constants';
+import { fail, redirect } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
-import type { PageServerLoad } from './$types';
+import { createEvent } from '$lib/server/events';
+import { createActivityPage, getDatabaseSchema, type DatabasePropertySchema } from '$lib/server/notion';
+import { isAdmin } from '$lib/server/admin';
+import { NOTION_PROPS, ACTIVITY_TYPES } from '$lib/constants';
+import type { PageServerLoad, Actions } from './$types';
 
 export const load: PageServerLoad = async () => {
     const dbId = env.NOTION_DB_ACTIVITIES;
@@ -25,16 +26,44 @@ export const load: PageServerLoad = async () => {
 };
 
 export const actions = {
-	default: async ({ request }) => {
-		const data = await request.formData();
-		const title = data.get('title') as string;
-		const date = data.get('date') as string; // needs to be ISO-ish or at least YYYY-MM-DD
-		const type = data.get('type') as string;
+    default: async ({ request, locals }) => {
+        const session = await locals.auth();
+        if (!session?.user?.email || !isAdmin(session.user.email)) return fail(401, { error: 'Unauthorized' });
 
-        // Ensure date includes time if missing, or just pass as is (Notion accepts ISO)
-        // Let's assume input type="datetime-local" gives "YYYY-MM-DDTHH:MM"
-        
-		await createEvent({ title, date, type });
-		throw redirect(302, '/admin');
-	}
+        const data = await request.formData();
+        const title = data.get('title') as string;
+        const dateRaw = data.get('date') as string;
+        const timezone = data.get('timezone') as string;
+        const type = data.get('type') as string;
+
+        if (!title || !dateRaw || !type) {
+            return fail(400, { error: 'Missing required fields' });
+        }
+
+        // Construct ISO string with timezone
+        const date = `${dateRaw}:00${timezone}`;
+
+        try {
+            // 1. Create Notion Page
+            const page = await createActivityPage({
+                title,
+                date,
+                type
+            });
+
+            // 2. Create Local Event
+            await createEvent({
+                title,
+                date,
+                type,
+                notionPageId: page.id
+            });
+
+            throw redirect(302, '/admin');
+        } catch (e) {
+            if (e && typeof e === 'object' && 'status' in e && e.status === 302) throw e;
+            console.error(e);
+            return fail(500, { error: 'Creation failed' });
+        }
+    }
 };
