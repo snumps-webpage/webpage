@@ -174,6 +174,7 @@
         transition: opacity 0.2s;
         box-shadow: 0 4px 6px rgba(102, 126, 234, 0.25);
         margin-top: 1rem;
+        user-select: none;
     }
 
     .submit-btn:hover {

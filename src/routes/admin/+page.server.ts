@@ -8,7 +8,8 @@ import {
 } from '$lib/server/notion';
 import { 
     getEvents, updateEventStatus, deleteEvent, getAttendanceQueue, 
-    updateAttendanceStatus, getEvent, removeAttendanceRecord, updateAttendanceRecord 
+    updateAttendanceStatus, getEvent, removeAttendanceRecord, updateAttendanceRecord,
+    createEvent
 } from '$lib/server/events';
 import { 
     getSeminarRequests, updateSeminarRequestStatus 
@@ -232,17 +233,25 @@ export const actions = {
             }
 
             // 1. Create Activity Page in Notion with speakers linked
-            await createActivityPage({
+            const page = await createActivityPage({
                 title: seminar.title,
                 date: seminar.date,
                 type: 'Seminar',
                 attendeeIds
             });
 
-            // 2. Update Status
+            // 2. Create Event for Attendance Tracking
+            await createEvent({
+                title: seminar.title,
+                date: seminar.date,
+                type: 'Seminar',
+                notionPageId: page.id
+            });
+
+            // 3. Update Request Status
             await updateSeminarRequestStatus(id, 'approved');
 
-            // 3. Notify Applicant
+            // 4. Notify Applicant
             await sendSeminarStatusNotification(
                 seminar.applicantEmail, 
                 seminar.applicantName, 

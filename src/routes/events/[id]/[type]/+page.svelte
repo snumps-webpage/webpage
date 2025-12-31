@@ -91,6 +91,7 @@
         font-weight: 700;
         cursor: pointer;
         transition: transform 0.1s;
+        user-select: none;
     }
 
     .btn:active { transform: scale(0.98); }

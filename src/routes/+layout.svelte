@@ -208,6 +208,7 @@
 		padding: 0.5rem 0.5rem; /* Reduced horizontal padding */
 		border-radius: 6px;
 		transition: color 0.2s;
+		user-select: none; /* Prevent text selection */
 	}
 
 	.dropdown-content {
@@ -221,6 +222,7 @@
 		border: 1px solid var(--border-color);
 		z-index: 100;
 		overflow: hidden;
+		user-select: none; /* Prevent text selection */
 		
 		/* Rolling Scroll Animation + Centering */
 		max-height: 0;
@@ -262,6 +264,7 @@
 		overflow: hidden;
 		border: 1px solid var(--border-color);
 		transition: transform 0.2s;
+		user-select: none;
 	}
 	
 	.profile-btn:hover {
@@ -289,6 +292,7 @@
 		border: 1px solid var(--border-color);
 		transition: all 0.2s;
 		text-transform: uppercase;
+		user-select: none;
 	}
 
 	.circle-btn:hover {
@@ -305,6 +309,7 @@
 		border-radius: 6px;
 		color: var(--text-secondary);
 		cursor: pointer;
+		user-select: none;
 	}
 
 	.logout-btn:hover {

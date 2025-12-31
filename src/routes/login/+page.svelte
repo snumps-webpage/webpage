@@ -99,22 +99,23 @@
 		font-size: 0.875rem;
 	}
 
-	.google-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.75rem;
-		width: 100%;
-		padding: 0.875rem 1.5rem;
-		background: white;
-		border: 1px solid #dadce0;
-		border-radius: 8px;
-		cursor: pointer;
-		font-size: 0.95rem;
-		font-weight: 500;
-		color: #3c4043;
-		transition: all 0.2s ease;
-	}
+    .google-btn {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        padding: 0.75rem;
+        background: white;
+        border: 1px solid #dadce0;
+        border-radius: 8px;
+        color: #3c4043;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        user-select: none;
+    }
 
 	.google-btn:hover {
 		background: #f8f9fa;
