@@ -1,5 +1,6 @@
 <script lang="ts">
     import { enhance } from '$app/forms';
+    import { TIMEZONES, DEFAULT_TIMEZONE } from '$lib/constants';
     let { data, form } = $props();
 
     let searchQuery = $state('');
@@ -48,9 +49,19 @@
                 <input type="text" id="title" name="title" required placeholder="예: 대수위상 세미나" />
             </div>
 
-            <div class="field">
-                <label for="date">예상 시작일</label>
-                <input type="date" id="date" name="date" required />
+            <div class="field-row">
+                <div class="field">
+                    <label for="date">일시</label>
+                    <input type="datetime-local" id="date" name="date" required />
+                </div>
+                <div class="field">
+                    <label for="timezone">타임존</label>
+                    <select id="timezone" name="timezone" required>
+                        {#each TIMEZONES as tz}
+                            <option value={tz.value} selected={tz.value === DEFAULT_TIMEZONE}>{tz.label}</option>
+                        {/each}
+                    </select>
+                </div>
             </div>
 
             <div class="field">
@@ -121,7 +132,12 @@
 
     h1 { margin: 0 0 1.5rem 0; color: var(--text-primary); }
 
-    .field { margin-bottom: 1.5rem; }
+    .field { margin-bottom: 1.5rem; flex: 1; }
+
+    .field-row {
+        display: flex;
+        gap: 1rem;
+    }
     
     label, .label-text { 
         display: block; 
@@ -150,7 +166,7 @@
 
     .toggle-btn:hover { background: var(--border-color); }
 
-    input {
+    input, select {
         width: 100%;
         padding: 0.75rem;
         border: 1px solid var(--border-color);
