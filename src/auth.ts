@@ -8,12 +8,7 @@ export const { handle, signIn, signOut } = SvelteKitAuth({
 	providers: [
 		Google({
 			clientId: env.GOOGLE_CLIENT_ID!,
-			clientSecret: env.GOOGLE_CLIENT_SECRET!,
-			authorization: {
-				params: {
-					scope: 'openid email profile https://www.googleapis.com/auth/gmail.send'
-				}
-			}
+			clientSecret: env.GOOGLE_CLIENT_SECRET!
 		})
 	],
 	secret: env.AUTH_SECRET,
@@ -30,17 +25,10 @@ export const { handle, signIn, signOut } = SvelteKitAuth({
 
 			return true;
 		},
-		jwt: async ({ token, account }) => {
-			if (account) {
-				token.accessToken = account.access_token;
-			}
-			return token;
-		},
 		session: async ({ session, token }) => {
-			// Expose the unique Auth.js user ID and access token to the session object
-			if (session.user) {
-				if (token.sub) session.user.id = token.sub;
-				(session as any).accessToken = token.accessToken;
+			// Expose the unique Auth.js user ID to the session object for easier lookups
+			if (session.user && token.sub) {
+				session.user.id = token.sub;
 			}
 			return session;
 		}

@@ -59,11 +59,8 @@ export const actions = {
 			background
 		});
 
-		// Notify admins via email using the user's access token
-		const accessToken = (session as any).accessToken;
-		if (accessToken) {
-			await sendSignupNotification(accessToken, name);
-		}
+		// Notify admins via the automated admin email account
+		await sendSignupNotification(name);
 
 		return { success: true };
 	}
