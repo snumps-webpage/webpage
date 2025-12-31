@@ -545,9 +545,21 @@ export async function updatePrivateInfo(pageId: string, data: { phone?: string; 
 /**
  * Creates a new activity record in the Notion Activities database.
  */
-export async function createActivityPage(data: { title: string; date: string; type: string }) {
+export async function createActivityPage(data: { title: string; date: string; type: string; attendeeIds?: string[] }) {
 	const dbId = env.NOTION_DB_ACTIVITIES;
 	if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
+
+	const properties: any = {
+		[NOTION_PROPS.ACTIVITY_NAME]: { title: [{ text: { content: data.title } }] },
+		[NOTION_PROPS.ACTIVITY_DATE]: { date: { start: data.date } },
+		[NOTION_PROPS.ACTIVITY_TYPE]: { select: { name: data.type } }
+	};
+
+	if (data.attendeeIds && data.attendeeIds.length > 0) {
+		properties[NOTION_PROPS.ATTENDANCE] = {
+			relation: data.attendeeIds.map(id => ({ id }))
+		};
+	}
 
 	const response = await fetch(`https://api.notion.com/v1/pages`, {
 		method: 'POST',
@@ -558,11 +570,7 @@ export async function createActivityPage(data: { title: string; date: string; ty
 		},
 		body: JSON.stringify({
 			parent: { database_id: dbId },
-			properties: {
-				[NOTION_PROPS.ACTIVITY_NAME]: { title: [{ text: { content: data.title } }] },
-				[NOTION_PROPS.ACTIVITY_DATE]: { date: { start: data.date } },
-				[NOTION_PROPS.ACTIVITY_TYPE]: { select: { name: data.type } }
-			}
+			properties
 		})
 	});
 
@@ -629,6 +637,30 @@ export async function getPrivateInfo(pageId: string) {
 		bio: bioProp?.type === 'rich_text' ? bioProp.rich_text[0]?.plain_text : '',
 		background: backProp?.type === 'rich_text' ? backProp.rich_text[0]?.plain_text : ''
 	};
+}
+
+/**
+ * Fetches all records from the Private Info database.
+ */
+export async function getAllPrivateInfo() {
+	const dbId = env.NOTION_DB_PRIVATE_INFO;
+	if (!dbId) throw new Error('NOTION_DB_PRIVATE_INFO is not set');
+
+	const results = await queryDatabase(dbId);
+	
+	return results.map(page => {
+		const props = page.properties;
+		const emailProp = props[NOTION_PROPS.EMAIL] as any;
+		const nameProp = props[NOTION_PROPS.NAME] as any;
+		const relationProp = props[NOTION_PROPS.MEMBER_INFO] as any;
+
+		return {
+			id: page.id,
+			name: nameProp?.type === 'title' ? nameProp.title[0]?.plain_text ?? '' : '',
+			email: emailProp?.type === 'email' ? emailProp.email ?? '' : '',
+			memberId: relationProp?.type === 'relation' ? relationProp.relation[0]?.id : undefined
+		};
+	});
 }
 
 // --- Applications (Signups) ---
@@ -808,12 +840,14 @@ export async function getSeminarRequestsFromNotion() {
 	
 	return results.map(page => {
 		const props = page.properties;
+		const speakerRelation = (props.Speakers as any)?.relation ?? [];
 		return {
 			id: page.id,
 			title: (props.Title as any)?.title?.[0]?.plain_text ?? '',
 			date: (props.Date as any)?.date?.start ?? '',
 			applicantEmail: (props.ApplicantEmail as any)?.email ?? '',
 			applicantName: (props.ApplicantName as any)?.rich_text?.[0]?.plain_text ?? '',
+			speakerIds: speakerRelation.map((r: any) => r.id),
 			status: (props.Status as any)?.select?.name ?? 'pending',
 			submittedAt: (page as any).created_time
 		};
@@ -825,9 +859,24 @@ export async function createSeminarRequestInNotion(data: {
 	date: string;
 	applicantEmail: string;
 	applicantName: string;
+	speakerIds: string[];
 }) {
 	const dbId = env.NOTION_DB_SEMINAR_REQUESTS;
 	if (!dbId) return null;
+
+	const properties: any = {
+		Title: { title: [{ text: { content: data.title } }] },
+		Date: { date: { start: data.date } },
+		ApplicantEmail: { email: data.applicantEmail },
+		ApplicantName: { rich_text: [{ text: { content: data.applicantName } }] },
+		Status: { select: { name: 'pending' } }
+	};
+
+	if (data.speakerIds.length > 0) {
+		properties.Speakers = {
+			relation: data.speakerIds.map(id => ({ id }))
+		};
+	}
 
 	const response = await fetch(`https://api.notion.com/v1/pages`, {
 		method: 'POST',
@@ -838,13 +887,7 @@ export async function createSeminarRequestInNotion(data: {
 		},
 		body: JSON.stringify({
 			parent: { database_id: dbId },
-			properties: {
-				Title: { title: [{ text: { content: data.title } }] },
-				Date: { date: { start: data.date } },
-				ApplicantEmail: { email: data.applicantEmail },
-				ApplicantName: { rich_text: [{ text: { content: data.applicantName } }] },
-				Status: { select: { name: 'pending' } }
-			}
+			properties
 		})
 	});
 

@@ -31,12 +31,23 @@ export const load: PageServerLoad = async (event) => {
         getSeminarRequests()
 	]);
 
+    // Map speaker IDs to names for the UI
+    const requestWithSpeakers = seminarRequests
+        .filter(r => r.status === 'pending')
+        .map(r => ({
+            ...r,
+            speakerNames: r.speakerIds?.map(id => {
+                const m = members.find(member => member.id === id);
+                return m ? m.name : 'Unknown';
+            }) || []
+        }));
+
 	return {
 		applications: apps,
 		members: members,
         events: events.reverse(), // Newest first
         attendanceQueue: attendanceQueue.filter(r => r.status === 'pending'),
-        seminarRequests: seminarRequests.filter(r => r.status === 'pending')
+        seminarRequests: requestWithSpeakers
 	};
 };
 
@@ -213,11 +224,19 @@ export const actions = {
         if (!seminar) return { error: 'Request not found' };
 
         try {
-            // 1. Create Activity Page in Notion
+            // Resolve final attendees (speakers)
+            let attendeeIds = seminar.speakerIds || [];
+            if (attendeeIds.length === 0) {
+                const applicant = await getMemberByEmail(seminar.applicantEmail);
+                if (applicant) attendeeIds = [applicant.memberId];
+            }
+
+            // 1. Create Activity Page in Notion with speakers linked
             await createActivityPage({
                 title: seminar.title,
                 date: seminar.date,
-                type: 'Seminar'
+                type: 'Seminar',
+                attendeeIds
             });
 
             // 2. Update Status
