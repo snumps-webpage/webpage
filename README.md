@@ -7,28 +7,23 @@ A secure SvelteKit web application designed to automate membership management an
 ### 🔐 Authentication & Security
 - **Google OAuth**: Secure login via Auth.js, restricted strictly to `@snu.ac.kr` domains.
 - **Role-Based Access**: Distinguishes between regular Members and Admins.
-- **Obfuscated Attendance Links**: Generates unique, randomized URLs (e.g., `/events/[id]/[random_code]`) for "Attend" and "Leave" actions to prevent unauthorized attendance logging.
+- **Obfuscated Attendance Links**: Generates unique, randomized URLs (e.g., `/events/[id]/[random_code]`) for "Attend" and "Leave" actions.
 - **Input Validation**: Server-side checks prevent IDOR attacks and unauthorized data manipulation.
 
 ### 👥 Membership System
-- **Signup Flow**: New users are redirected to a registration form. Upon submission, an **automated email notification** containing the applicant's name is sent to all admins via the Google Gmail API. Applications are then queued locally for review.
-- **User Profile**: Members can view their full activity history (with semester filtering) and manage personal details (Phone, Bio, Background).
-- **Search & Filtering**: Admins can search the full member database by **Name** or **Department** with an intuitive toggle.
+- **Signup Flow**: New users must apply for membership. Applications are queued locally for Admin approval.
+- **User Profile**: Members can view their full activity history (with semester filtering) and manage personal details.
+- **Automated Alerts**: Admins receive instant email notifications for new signups and completed attendance requests.
 
 ### 📅 Event & Attendance System
 - **Event Lifecycle**: Admins can Create (Draft), Activate (Publish), Expire, and Delete events.
-- **Attendance Tracking**:
-  - Users check in/out via time-sensitive, obfuscated links.
-  - Records are queued locally (`data/attendance_queue.json`) for review.
-  - **Automated Notifications**: Completion of attendance (Attending + Leaving) triggers an **automated email alert** to admins from a preset administrative account.
-  - **Admin Review**: Admins can approve (syncs to Notion), reject, or **manually edit timestamps** if corrections are needed.
+- **Attendance Tracking**: Users check in/out via time-sensitive, obfuscated links.
+- **Admin Review**: Admins review, edit, and approve attendance timestamps before they are synced to Notion.
 
 ### 📝 Notion Integration & UI
 - **Smart Paging**: Handles large member lists via recursive fetching (bypassing the 100-record limit).
-- **Automatic Linking**: Activity titles in the user dashboard automatically link to their published Notion pages.
-- **Global Navigation**:
-  - **Header**: Includes quick-access circle buttons for **Admin** and **DB** management (visible to admins only).
-  - **Universal Footer**: Displays current semester information, the Club President's name, and contact links (Email, Instagram).
+- **Dynamic Context**: Automatically calculates the current semester and fetches the current Club President's name for the universal footer.
+- **Search & Filtering**: Real-time search by Name or Department in both Admin and DB views.
 
 ## Project Structure
 
@@ -41,7 +36,9 @@ src/
 │   ├── assets/          # Static assets (favicon, instagram logo)
 │   └── server/
 │       ├── admin.ts     # Membership application queue logic (JSON)
+│       ├── cache.ts     # In-memory server-side caching utility
 │       ├── events.ts    # Event state & attendance queue management (JSON)
+│       ├── mail.ts      # Google Gmail API service for notifications
 │       └── notion.ts    # Notion API Wrapper (Client, Pagers, Type Parsers)
 └── routes/
     ├── +layout.server.ts # Global Context (President info, Admin status)
@@ -56,35 +53,12 @@ src/
     └── signup/           # Application Form
 ```
 
-## Data Architecture
-
-The application uses a hybrid storage model:
-
-1.  **Notion (Primary Source of Truth)**:
-    *   **Members DB**: Official member status, join dates, and roles.
-    *   **Activities DB**: Published events and linked attendance records.
-    *   **Private Info DB**: Sensitive PII (Phone, Bio).
-
-2.  **Local JSON (Transactional/Temporary)**:
-    *   Stored in `data/` (gitignored).
-    *   `applications.json`: Pending signup requests.
-    *   `events.json`: Event configurations, codes, and draft states.
-    *   `attendance_queue.json`: Raw timestamp logs waiting for Admin approval.
-
-## Tech Stack
-
-- **Frontend**: **Svelte 5** & **SvelteKit** for a reactive and efficient user interface.
-- **Styling**: Standard **CSS** with a focus on modern, responsive design.
-- **Authentication**: **Auth.js** (@auth/sveltekit) with **Google OAuth**.
-- **Integration**: **Notion API** (@notionhq/client) for robust club data management.
-- **Backend/Storage**: **SvelteKit Server Routes**, **Notion**, and **Local JSON**.
-
 ## Setup & Installation
 
 ### 1. Prerequisites
-*   Node.js (LTS)
-*   A Notion Integration Token
-*   Google Cloud OAuth Credentials
+*   **Node.js**: Version 18 or higher.
+*   **Notion Integration**: Create an internal integration at [developers.notion.com](https://developers.notion.com/) and share your databases with it.
+*   **Google Cloud Credentials**: Create an OAuth 2.0 Client ID at [console.cloud.google.com](https://console.cloud.google.com/).
 
 ### 2. Installation
 ```bash
@@ -93,27 +67,45 @@ cd snumps-automation-fork
 npm install
 ```
 
-### 3. Environment Configuration
+### 3. Automated Email Setup (Critical)
+To enable the system to send automated alerts to admins from a preset Gmail account:
+
+1.  **Enable Gmail API**: In your Google Cloud Project, enable the "Gmail API".
+2.  **Set to Production**: On the "OAuth consent screen" page, change the Publishing Status from **Testing** to **In Production**. (This prevents the Refresh Token from expiring every 7 days).
+3.  **Generate Refresh Token**:
+    *   Open the [Google OAuth2 Playground](https://developers.google.com/oauthplayground/).
+    *   Click the **Settings cog** (top right) and check **"Use your own OAuth credentials"**.
+    *   Enter your `Client ID` and `Client Secret`.
+    *   In **Step 1**, enter `https://www.googleapis.com/auth/gmail.send` and click **Authorize APIs**.
+    *   Sign in with the Admin Gmail account you wish to send from.
+    *   In **Step 2**, click **Exchange authorization code for tokens**.
+    *   Copy the **Refresh Token** provided.
+
+### 4. Environment Configuration
 Create a `.env` file in the root directory:
 
 ```env
-# Auth
+# Auth.js Secret (Generate via `openssl rand -base64 32`)
+AUTH_SECRET=your_secret
+
+# Google OAuth (App Credentials)
 GOOGLE_CLIENT_ID=your_client_id
 GOOGLE_CLIENT_SECRET=your_client_secret
-AUTH_SECRET=your_generated_secret
-ADMIN_REFRESH_TOKEN=your_admin_gmail_refresh_token
 
-# Access Control
-ADMINS_EMAILS=admin@snu.ac.kr,president@snu.ac.kr
+# Gmail API (From Step 3 above)
+ADMIN_REFRESH_TOKEN=your_generated_refresh_token
 
-# Notion
+# Access Control (Comma-separated admin emails)
+ADMINS_EMAILS=admin1@snu.ac.kr,admin2@snu.ac.kr
+
+# Notion Database IDs
 NOTION_API_KEY=your_integration_token
 NOTION_DB_MEMBERS=id_of_members_db
 NOTION_DB_ACTIVITIES=id_of_activities_db
 NOTION_DB_PRIVATE_INFO=id_of_private_info_db
 ```
 
-### 4. Running Locally
+### 5. Running Locally
 ```bash
 npm run dev
 ```
@@ -123,4 +115,12 @@ npm run dev
 ```bash
 npm run build
 ```
-*Note: Ensure the deployment environment allows writing to the `data/` directory for the local JSON databases to function.*
+**Important**: The application stores transactional data (signups, attendance queue) in the `data/` directory as JSON files. Ensure your server has persistent write permissions for this directory. If using a serverless environment like Vercel, you may need to migrate the `lib/server/admin.ts` and `lib/server/events.ts` to use a database like MongoDB or Supabase.
+
+## Tech Stack
+
+- **Frontend**: **Svelte 5** (Runes) & **SvelteKit**.
+- **Backend**: SvelteKit Server Routes with **In-memory Caching**.
+- **Authentication**: **Auth.js** with Google OAuth.
+- **Storage**: **Notion** (Primary) + **Local JSON** (Transactional Queue).
+- **Communication**: **Google Gmail API** (REST).
