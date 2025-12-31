@@ -2,13 +2,37 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import { page } from '$app/state';
 	import { signOut } from '@auth/sveltekit/client';
+	import { getInitialTheme, applyTheme, type Theme } from '$lib/theme';
 
 	let { children } = $props();
 	const session = $derived(page.data.session);
+
+	// Theme state
+	let currentTheme = $state<Theme>(getInitialTheme());
+
+	$effect(() => {
+		applyTheme(currentTheme);
+	});
+
+	function toggleTheme() {
+		if (currentTheme === 'light') currentTheme = 'dark';
+		else if (currentTheme === 'dark') currentTheme = 'system';
+		else currentTheme = 'light';
+	}
 </script>
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
+	<script>
+		// Inline script to prevent theme flicker on page load
+		(function() {
+			try {
+				const theme = localStorage.getItem('theme') || 'system';
+				const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+				if (isDark) document.documentElement.classList.add('dark');
+			} catch (e) {}
+		})();
+	</script>
 </svelte:head>
 
 <nav class="global-nav">
@@ -37,6 +61,16 @@
 	{@render children()}
 </main>
 
+<button class="theme-toggle" onclick={toggleTheme} aria-label="Theme Toggle">
+	{#if currentTheme === 'light'}
+		☀️
+	{:else if currentTheme === 'dark'}
+		🌙
+	{:else}
+		🖥️
+	{/if}
+</button>
+
 <footer>
 	<div class="footer-info">
 		<p>
@@ -50,18 +84,40 @@
 </footer>
 
 <style>
+	:root {
+		--bg-primary: #f9fafb;
+		--bg-secondary: #ffffff;
+		--text-primary: #111827;
+		--text-secondary: #4b5563;
+		--border-color: #e5e7eb;
+		--btn-secondary: #f3f4f6;
+		--shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+	}
+
+	:global(.dark) {
+		--bg-primary: #111827;
+		--bg-secondary: #1f2937;
+		--text-primary: #f9fafb;
+		--text-secondary: #9ca3af;
+		--border-color: #374151;
+		--btn-secondary: #374151;
+		--shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+	}
+
 	:global(body) {
 		margin: 0;
 		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-		background: #f9fafb;
+		background: var(--bg-primary);
+		color: var(--text-primary);
 		display: flex;
 		flex-direction: column;
 		min-height: 100vh;
+		transition: background-color 0.3s, color 0.2s;
 	}
 
 	.global-nav {
-		background: white;
-		border-bottom: 1px solid #e5e7eb;
+		background: var(--bg-secondary);
+		border-bottom: 1px solid var(--border-color);
 		padding: 0.75rem 1.5rem;
 		position: sticky;
 		top: 0;
@@ -110,7 +166,7 @@
 		height: 40px;
 		border-radius: 50%;
 		overflow: hidden;
-		border: 1px solid #e5e7eb;
+		border: 1px solid var(--border-color);
 		transition: transform 0.2s;
 	}
 	
@@ -131,19 +187,19 @@
 		width: 40px;
 		height: 40px;
 		border-radius: 50%;
-		background: #f3f4f6;
-		color: #4b5563;
+		background: var(--btn-secondary);
+		color: var(--text-secondary);
 		text-decoration: none;
 		font-size: 0.65rem;
 		font-weight: 700;
-		border: 1px solid #d1d5db;
+		border: 1px solid var(--border-color);
 		transition: all 0.2s;
 		text-transform: uppercase;
 	}
 
 	.circle-btn:hover {
-		background: #e5e7eb;
-		color: #111827;
+		background: var(--border-color);
+		color: var(--text-primary);
 		transform: scale(1.1);
 	}
 
@@ -151,31 +207,54 @@
 		font-size: 0.8rem;
 		padding: 0.3rem 0.6rem;
 		background: transparent;
-		border: 1px solid #d1d5db;
+		border: 1px solid var(--border-color);
 		border-radius: 6px;
-		color: #4b5563;
+		color: var(--text-secondary);
 		cursor: pointer;
 	}
 
 	.logout-btn:hover {
-		background: #f3f4f6;
-		color: #1f2937;
+		background: var(--btn-secondary);
+		color: var(--text-primary);
+	}
+
+	.theme-toggle {
+		position: fixed;
+		bottom: 2rem;
+		right: 2rem;
+		width: 48px;
+		height: 48px;
+		border-radius: 50%;
+		background: var(--bg-secondary);
+		border: 1px solid var(--border-color);
+		box-shadow: var(--shadow);
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 1.25rem;
+		z-index: 100;
+		transition: all 0.2s;
+	}
+
+	.theme-toggle:hover {
+		transform: scale(1.1);
 	}
 
 	/* Footer */
 	footer {
 		margin-top: auto;
 		padding: 2rem 1.5rem;
-		border-top: 1px solid #e5e7eb;
+		border-top: 1px solid var(--border-color);
 		display: flex;
 		justify-content: center;
-		color: #6b7280;
+		color: var(--text-secondary);
 		font-size: 0.875rem;
-		background: white;
+		background: var(--bg-secondary);
 	}
 
 	.footer-info a {
-		color: #6b7280;
+		color: var(--text-secondary);
 		text-decoration: none;
 	}
 
@@ -200,5 +279,10 @@
 	.social-icon {
 		width: 18px;
 		height: 18px;
+		filter: grayscale(1) invert(0.5);
+	}
+
+	:global(.dark) .social-icon {
+		filter: grayscale(1) invert(1);
 	}
 </style>

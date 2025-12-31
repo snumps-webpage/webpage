@@ -139,11 +139,11 @@
 	}
 
 	section {
-		background: white;
+		background: var(--bg-secondary);
 		border-radius: 12px;
 		padding: 2rem;
-		box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-		border: 1px solid #e5e7eb;
+		box-shadow: var(--shadow);
+		border: 1px solid var(--border-color);
 	}
 
 	.header {
@@ -153,17 +153,18 @@
 		margin-bottom: 2rem;
 	}
 
-	h1, h2 { margin: 0; color: #1f2937; }
+	h1, h2 { margin: 0; color: var(--text-primary); }
 	h1 { font-size: 1.5rem; }
 	h2 { font-size: 1.25rem; }
 
 	.edit-toggle {
 		background: transparent;
-		border: 1px solid #d1d5db;
+		border: 1px solid var(--border-color);
 		padding: 0.5rem 1rem;
 		border-radius: 6px;
 		cursor: pointer;
 		font-size: 0.9rem;
+		color: var(--text-primary);
 	}
 
 	.field, .info-item {
@@ -174,19 +175,21 @@
 		display: block;
 		font-size: 0.85rem;
 		font-weight: 600;
-		color: #6b7280;
+		color: var(--text-secondary);
 		margin-bottom: 0.5rem;
 	}
 
 	input, textarea {
 		width: 100%;
 		padding: 0.75rem;
-		border: 1px solid #d1d5db;
+		border: 1px solid var(--border-color);
 		border-radius: 6px;
 		font-size: 1rem;
+		background: var(--bg-secondary);
+		color: var(--text-primary);
 	}
 
-	input:disabled { background: #f9fafb; }
+	input:disabled { background: var(--btn-secondary); }
 
 	.hint {
 		font-size: 0.75rem;
@@ -206,28 +209,30 @@
 		cursor: pointer;
 	}
 
-	.value { font-size: 1rem; color: #111827; }
-	.value-text { margin: 0; color: #374151; white-space: pre-wrap; line-height: 1.5; }
+	.value { font-size: 1rem; color: var(--text-primary); }
+	.value-text { margin: 0; color: var(--text-primary); white-space: pre-wrap; line-height: 1.5; }
 
 	.semester-select {
 		padding: 0.5rem 2rem 0.5rem 1rem;
 		border-radius: 6px;
-		border: 1px solid #d1d5db;
+		border: 1px solid var(--border-color);
 		font-size: 0.9rem;
+		background: var(--bg-secondary);
+		color: var(--text-primary);
 	}
 
 	.table-container { overflow-x: auto; }
 	
 	table { width: 100%; border-collapse: collapse; text-align: left; }
-	th { background: #f9fafb; padding: 0.75rem 1rem; font-weight: 600; color: #374151; }
-	td { padding: 0.875rem 1rem; border-bottom: 1px solid #f3f4f6; }
+	th { background: var(--btn-secondary); padding: 0.75rem 1rem; font-weight: 600; color: var(--text-primary); }
+	td { padding: 0.875rem 1rem; border-bottom: 1px solid var(--border-color); color: var(--text-primary); }
 	
 	.tag {
-		background: #f3f4f6;
+		background: var(--btn-secondary);
 		padding: 0.25rem 0.5rem;
 		border-radius: 4px;
 		font-size: 0.8rem;
-		color: #4b5563;
+		color: var(--text-secondary);
 	}
 	
 	.empty { text-align: center; color: #9ca3af; padding: 2rem; }
