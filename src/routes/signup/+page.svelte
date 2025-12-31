@@ -75,142 +75,157 @@
 </div>
 
 <style>
-	.container {
-		min-height: 100vh;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 2rem;
-		background: #f3f4f6;
-	}
+    .container {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg-primary);
+        padding: 2rem 1rem;
+    }
 
-	.card {
-		background: white;
-		width: 100%;
-		max-width: 500px;
-		padding: 2.5rem;
-		border-radius: 16px;
-		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-	}
+    .card {
+        background: var(--bg-secondary);
+        padding: 2.5rem;
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        width: 100%;
+        max-width: 500px;
+        border: 1px solid var(--border-color);
+    }
 
-	h1 {
-		margin: 0 0 0.5rem;
-		color: #111827;
-		text-align: center;
-	}
+    h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: var(--text-primary);
+        text-align: center;
+    }
 
-	.desc {
-		text-align: center;
-		color: #6b7280;
-		margin-bottom: 2rem;
-		font-size: 0.95rem;
-		line-height: 1.5;
-	}
+    .desc {
+        color: var(--text-secondary);
+        text-align: center;
+        margin-bottom: 2rem;
+    }
 
-	.form-group {
-		margin-bottom: 1.25rem;
-	}
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
 
-	label {
-		display: block;
-		font-size: 0.9rem;
-		font-weight: 500;
-		color: #374151;
-		margin-bottom: 0.5rem;
-	}
+    label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: var(--text-secondary);
+    }
 
-	.req {
-		color: #dc2626;
-	}
+    .req {
+        color: #dc2626; /* Keep red for required asterisk */
+        margin-left: 0.2rem;
+    }
 
-	input, textarea {
-		width: 100%;
-		padding: 0.75rem;
-		border: 1px solid #d1d5db;
-		border-radius: 6px;
-		font-size: 1rem;
-		transition: border-color 0.2s;
-	}
+    input, textarea {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        box-sizing: border-box;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+    }
 
-	input:focus, textarea:focus {
-		outline: none;
-		border-color: #667eea;
-		box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-	}
+    input:focus, textarea:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
 
-	input:disabled {
-		background: #f9fafb;
-		color: #6b7280;
-	}
+    input[disabled] {
+        background: var(--btn-secondary);
+        color: var(--text-secondary);
+        cursor: not-allowed;
+    }
 
-	.hint {
-		display: block;
-		margin-top: 0.25rem;
-		font-size: 0.8rem;
-		color: #9ca3af;
-	}
+    textarea {
+        resize: vertical;
+        min-height: 100px;
+    }
 
-	.agreement {
-		margin: 2rem 0;
-		padding: 1rem;
-		background: #f9fafb;
-		border-radius: 8px;
-	}
+    .hint {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-top: 0.4rem;
+        display: block;
+    }
 
-	.agreement label {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		cursor: pointer;
-		margin-bottom: 0.5rem;
-	}
+    .submit-btn {
+        width: 100%;
+        padding: 0.875rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: opacity 0.2s;
+        box-shadow: 0 4px 6px rgba(102, 126, 234, 0.25);
+        margin-top: 1rem;
+    }
 
-	.terms {
-		font-size: 0.8rem;
-		color: #6b7280;
-		padding-left: 1.75rem;
-		line-height: 1.4;
-	}
+    .submit-btn:hover {
+        opacity: 0.9;
+    }
 
-	.submit-btn {
-		width: 100%;
-		padding: 0.875rem;
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-		color: white;
-		border: none;
-		border-radius: 8px;
-		font-size: 1rem;
-		font-weight: 600;
-		cursor: pointer;
-		transition: opacity 0.2s;
-	}
+    .error {
+        background: #fee2e2;
+        color: #dc2626;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        font-size: 0.9rem;
+    }
 
-	.submit-btn:hover {
-		opacity: 0.9;
-	}
+    .status-box {
+        background: #fff7ed;
+        border: 1px solid #ffedd5;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+        color: #9a3412;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        text-align: center;
+    }
 
-	.error {
-		background: #fee2e2;
-		color: #dc2626;
-		padding: 0.75rem;
-		border-radius: 6px;
-		margin-bottom: 1.5rem;
-		font-size: 0.9rem;
-		text-align: center;
-	}
+    .agreement {
+        margin: 1.5rem 0;
+        padding: 1rem;
+        background: var(--btn-secondary);
+        border-radius: 8px;
+    }
 
-	.status-box.pending {
-		text-align: center;
-		padding: 2rem;
-		background: #fff7ed;
-		border: 1px solid #ffedd5;
-		border-radius: 8px;
-		color: #9a3412;
-	}
+    .agreement label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--text-primary);
+        cursor: pointer;
+        margin-bottom: 0.5rem;
+    }
 
-	.status-box h2 {
-		margin-top: 0;
-		font-size: 1.25rem;
-		margin-bottom: 1rem;
-	}
+    .agreement input {
+        width: auto;
+        margin: 0;
+    }
+
+    .terms {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        padding-left: 1.8rem;
+        line-height: 1.4;
+    }
 </style>
