@@ -1,5 +1,5 @@
 import { error, redirect } from '@sveltejs/kit';
-import { getEventByPathId, recordAttendanceStart, recordAttendanceEnd } from '$lib/server/events';
+import { getEventByPathId, recordAttendance } from '$lib/server/events';
 import { getMemberByEmail, getAllMembers } from '$lib/server/notion';
 import type { PageServerLoad } from './$types';
 
@@ -15,20 +15,15 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
     
     if (event.status !== 'active') throw error(403, 'Event is not active');
 
-    // Validate if the type param matches attendCode or leaveCode
-    let actionType: 'attend' | 'leave';
-    if (params.type === event.attendCode) {
-        actionType = 'attend';
-    } else if (params.type === event.leaveCode) {
-        actionType = 'leave';
-    } else {
+    // Validate code
+    if (params.type !== event.attendCode) {
         throw error(404, 'Invalid event page code');
     }
     
     return {
         event,
         user: session.user,
-        actionType
+        actionType: 'attend'
     };
 };
 
@@ -55,7 +50,7 @@ export const actions = {
             console.error('Failed to fetch department:', e);
         }
         
-        const result = await recordAttendanceStart(event.id, {
+        const result = await recordAttendance(event.id, {
             email: session.user.email,
             name: session.user.name,
             dept
@@ -64,32 +59,15 @@ export const actions = {
         if (!result.isNew) {
             return { error: 'Duplicate', message: '이미 출석하셨습니다.' };
         }
-        
-        return { success: true };
-    },
 
-    leave: async ({ params, locals }) => {
-        const session = await locals.auth();
-        if (!session?.user?.email) return { error: 'Unauthorized' };
-        
-        const { getEventByPathId } = await import('$lib/server/events');
-        const event = await getEventByPathId(params.id);
-        
-        if (!event || event.status !== 'active') return { error: 'Invalid event' };
-
-        if (params.type !== event.leaveCode) return { error: 'Invalid code for leaving' };
-
-        const result = await recordAttendanceEnd(event.id, session.user.email);
-        
-        if (!result.record) return { error: 'Not Attended', message: '출석 기록이 없습니다.' };
-        if (!result.updated) return { error: 'Duplicate', message: '이미 퇴장하셨습니다.' };
-
-        // Notify admins via the automated admin email account
+        // Notify admins
         const { sendAttendanceNotification } = await import('$lib/server/mail');
-        if (session.user.name) {
+        try {
             await sendAttendanceNotification(session.user.name, event.title);
+        } catch (e) {
+            console.error('Failed to send admin notification:', e);
         }
-
+        
         return { success: true };
     }
 };

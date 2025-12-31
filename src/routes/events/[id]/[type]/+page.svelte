@@ -3,7 +3,6 @@
     import { page } from '$app/state';
 
     let { data } = $props();
-    let isAttend = $derived(data.actionType === 'attend');
 </script>
 
 <div class="container">
@@ -18,13 +17,13 @@
             참가자: <strong>{data.user?.name}</strong> ({data.user?.email})
         </p>
 
-        <form method="POST" action={isAttend ? '?/attend' : '?/leave'} use:enhance={() => {
+        <form method="POST" action="?/attend" use:enhance={() => {
             return ({ result }) => {
                 if (result.type === 'success') {
                     if (result.data?.error) {
                         alert(result.data.message || '오류가 발생했습니다.');
                     } else {
-                        alert(isAttend ? '출석이 확인되었습니다.' : '퇴장이 확인되었습니다.');
+                        alert('출석이 완료되었습니다.');
                     }
                 } else if (result.type === 'failure') {
                     alert('처리 중 오류가 발생했습니다.');
@@ -33,11 +32,7 @@
                 }
             };
         }}>
-            {#if isAttend}
-                <button class="btn attend">출석하기 (Attend)</button>
-            {:else}
-                <button class="btn leave">퇴장하기 (Leave)</button>
-            {/if}
+            <button class="btn attend">출석 체크 (Check In)</button>
         </form>
     </div>
 </div>
