@@ -57,7 +57,7 @@
                     >
                         <span class="type-tag">{activity.type}</span>
                         <span class="event-name">{activity.name}</span>
-                        <span class="event-date">{new Date(activity.date).toLocaleDateString()}</span>
+                        <span class="event-date">{activity.date}</span>
                     </button>
                 {/each}
             </div>

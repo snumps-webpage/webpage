@@ -252,21 +252,20 @@ export async function syncEventStatuses() {
     let hasChanged = false;
 
     const now = new Date();
+    // Get local date string YYYY-MM-DD
+    const localDateStr = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0];
 
     for (const event of events) {
-        const eventDate = new Date(event.date);
-        
-        // Activate draft events on their start time
-        if (event.status === 'draft' && now >= eventDate) {
+        // Activate draft events on their start time (or day)
+        // If event.date matches localDateStr or is earlier, activate.
+        if (event.status === 'draft' && localDateStr >= event.date) {
             event.status = 'active';
             hasChanged = true;
             console.log(`Event '${event.title}' activated.`);
         }
 
         // Expire active events after their day is over
-        const endOfDay = new Date(eventDate);
-        endOfDay.setHours(23, 59, 59, 999);
-        if (event.status === 'active' && now > endOfDay) {
+        if (event.status === 'active' && localDateStr > event.date) {
             event.status = 'expired';
             hasChanged = true;
             console.log(`Event '${event.title}' expired.`);

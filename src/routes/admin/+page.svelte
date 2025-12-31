@@ -73,7 +73,7 @@
 						{#each data.events as event (event.id)}
 							<tr class={event.status}>
 								<td>{event.title}</td>
-								<td>{new Date(event.date).toLocaleString()}</td>
+								<td>{event.date}</td>
 								<td><span class="tag">{event.type}</span></td>
 								<td><span class="status-badge {event.status}">{event.status.toUpperCase()}</span></td>
 								<td>
@@ -221,7 +221,7 @@
 										<span class="hint">신청자 본인</span>
 									{/if}
 								</td>
-								<td>{new Date(req.date).toLocaleDateString()}</td>
+								<td>{req.date}</td>
 								<td class="actions-cell">
 									<form method="POST" action="?/approveSeminar" use:enhance onsubmit={() => confirm(`'${req.title}' 세미나 개설을 승인하시겠습니까?`)}>
 										<input type="hidden" name="id" value={req.id} />
