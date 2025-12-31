@@ -38,12 +38,13 @@
         max-width: 600px;
         margin: 2rem auto;
         padding: 2rem;
-        background: white;
+        background: var(--bg-secondary);
         border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        box-shadow: var(--shadow);
+        border: 1px solid var(--border-color);
     }
     
-    h1 { margin-top: 0; }
+    h1 { margin-top: 0; color: var(--text-primary); }
 
     .field { margin-bottom: 1.5rem; }
     
@@ -51,15 +52,17 @@
         display: block; 
         margin-bottom: 0.5rem; 
         font-weight: 600; 
-        color: #374151;
+        color: var(--text-secondary);
     }
 
     input, select {
         width: 100%;
         padding: 0.75rem;
-        border: 1px solid #d1d5db;
+        border: 1px solid var(--border-color);
         border-radius: 6px;
         font-size: 1rem;
+        background: var(--bg-primary);
+        color: var(--text-primary);
     }
 
     .actions {
@@ -80,11 +83,11 @@
     }
 
     .cancel {
-        background: #f3f4f6;
-        color: #374151;
+        background: var(--btn-secondary);
+        color: var(--text-secondary);
     }
     
-    .cancel:hover { background: #e5e7eb; }
+    .cancel:hover { background: var(--border-color); }
 
     .submit {
         background: #667eea;
