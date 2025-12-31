@@ -41,6 +41,14 @@
 			<a href="/" class="logo-btn" aria-label="Home">
 				<img src={favicon} alt="SNUMPS" />
 			</a>
+			{#if session?.user}
+				<div class="dropdown">
+					<button class="nav-link">Seminar ▾</button>
+					<div class="dropdown-content">
+						<a href="/seminar/apply">세미나 개설</a>
+					</div>
+				</div>
+			{/if}
 		</div>
 		<div class="nav-right">
 			{#if session?.user}
@@ -158,6 +166,59 @@
 	.logo-btn img {
 		width: 100%;
 		height: 100%;
+	}
+
+	/* Dropdown Menu */
+	.dropdown {
+		position: relative;
+		display: inline-block;
+	}
+
+	.nav-link {
+		background: none;
+		border: none;
+		font-size: 1rem;
+		font-weight: 600;
+		color: var(--text-primary);
+		cursor: pointer;
+		padding: 0.5rem 1rem;
+		border-radius: 6px;
+		transition: background-color 0.2s;
+	}
+
+	.nav-link:hover {
+		background-color: var(--btn-secondary);
+	}
+
+	.dropdown-content {
+		display: none;
+		position: absolute;
+		top: 100%;
+		left: 0;
+		background-color: var(--bg-secondary);
+		min-width: 160px;
+		box-shadow: var(--shadow);
+		border-radius: 8px;
+		border: 1px solid var(--border-color);
+		z-index: 100;
+		overflow: hidden;
+	}
+
+	.dropdown:hover .dropdown-content {
+		display: block;
+	}
+
+	.dropdown-content a {
+		color: var(--text-primary);
+		padding: 0.75rem 1rem;
+		text-decoration: none;
+		display: block;
+		font-size: 0.9rem;
+		transition: background-color 0.2s;
+	}
+
+	.dropdown-content a:hover {
+		background-color: var(--btn-secondary);
 	}
 
 	.profile-btn {

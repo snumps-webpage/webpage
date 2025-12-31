@@ -797,3 +797,78 @@ export async function removeAttendanceRecordInNotion(id: string) {
 		body: JSON.stringify({ archived: true })
 	});
 }
+
+// --- Seminar Requests ---
+
+export async function getSeminarRequestsFromNotion() {
+	const dbId = env.NOTION_DB_SEMINAR_REQUESTS;
+	if (!dbId) return [];
+
+	const results = await queryDatabase(dbId);
+	
+	return results.map(page => {
+		const props = page.properties;
+		return {
+			id: page.id,
+			title: (props.Title as any)?.title?.[0]?.plain_text ?? '',
+			date: (props.Date as any)?.date?.start ?? '',
+			applicantEmail: (props.ApplicantEmail as any)?.email ?? '',
+			applicantName: (props.ApplicantName as any)?.rich_text?.[0]?.plain_text ?? '',
+			status: (props.Status as any)?.select?.name ?? 'pending',
+			submittedAt: (page as any).created_time
+		};
+	});
+}
+
+export async function createSeminarRequestInNotion(data: {
+	title: string;
+	date: string;
+	applicantEmail: string;
+	applicantName: string;
+}) {
+	const dbId = env.NOTION_DB_SEMINAR_REQUESTS;
+	if (!dbId) return null;
+
+	const response = await fetch(`https://api.notion.com/v1/pages`, {
+		method: 'POST',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28',
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			parent: { database_id: dbId },
+			properties: {
+				Title: { title: [{ text: { content: data.title } }] },
+				Date: { date: { start: data.date } },
+				ApplicantEmail: { email: data.applicantEmail },
+				ApplicantName: { rich_text: [{ text: { content: data.applicantName } }] },
+				Status: { select: { name: 'pending' } }
+			}
+		})
+	});
+
+	if (!response.ok) {
+		console.error('Failed to create seminar request in Notion', await response.json());
+		return null;
+	}
+
+	const page = await response.json() as PageObjectResponse;
+	return page.id;
+}
+
+export async function updateSeminarRequestStatusInNotion(id: string, status: string) {
+	await fetch(`https://api.notion.com/v1/pages/${id}`, {
+		method: 'PATCH',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28',
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			properties: {
+				Status: { select: { name: status } }
+			}
+		})
+	});
+}

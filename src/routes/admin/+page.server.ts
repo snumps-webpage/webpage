@@ -10,6 +10,10 @@ import {
     getEvents, updateEventStatus, deleteEvent, getAttendanceQueue, 
     updateAttendanceStatus, getEvent, removeAttendanceRecord, updateAttendanceRecord 
 } from '$lib/server/events';
+import { 
+    getSeminarRequests, updateSeminarRequestStatus 
+} from '$lib/server/seminars';
+import { sendSeminarStatusNotification } from '$lib/server/mail';
 import { invalidateCache } from '$lib/server/cache';
 import type { PageServerLoad } from './$types';
 
@@ -19,18 +23,20 @@ export const load: PageServerLoad = async (event) => {
 		throw redirect(302, '/');
 	}
 
-	const [apps, members, events, attendanceQueue] = await Promise.all([
+	const [apps, members, events, attendanceQueue, seminarRequests] = await Promise.all([
 		getApplications(),
 		getAllMembers(),
         getEvents(),
-        getAttendanceQueue()
+        getAttendanceQueue(),
+        getSeminarRequests()
 	]);
 
 	return {
 		applications: apps,
 		members: members,
         events: events.reverse(), // Newest first
-        attendanceQueue: attendanceQueue.filter(r => r.status === 'pending')
+        attendanceQueue: attendanceQueue.filter(r => r.status === 'pending'),
+        seminarRequests: seminarRequests.filter(r => r.status === 'pending')
 	};
 };
 
@@ -191,5 +197,71 @@ export const actions = {
         const data = await request.formData();
         await removeAttendanceRecord(data.get('id') as string);
         return { success: true };
+    },
+
+    // --- Seminar Management ---
+
+    approveSeminar: async ({ request, locals }) => {
+        const session = await locals.auth();
+        if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
+
+        const data = await request.formData();
+        const id = data.get('id') as string;
+        const requests = await getSeminarRequests();
+        const seminar = requests.find(r => r.id === id);
+
+        if (!seminar) return { error: 'Request not found' };
+
+        try {
+            // 1. Create Activity Page in Notion
+            await createActivityPage({
+                title: seminar.title,
+                date: seminar.date,
+                type: 'Seminar'
+            });
+
+            // 2. Update Status
+            await updateSeminarRequestStatus(id, 'approved');
+
+            // 3. Notify Applicant
+            await sendSeminarStatusNotification(
+                seminar.applicantEmail, 
+                seminar.applicantName, 
+                seminar.title, 
+                'approved'
+            );
+
+            return { success: true };
+        } catch (e) {
+            console.error(e);
+            return { error: 'Approval failed: ' + (e as Error).message };
+        }
+    },
+
+    rejectSeminar: async ({ request, locals }) => {
+        const session = await locals.auth();
+        if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
+
+        const data = await request.formData();
+        const id = data.get('id') as string;
+        const requests = await getSeminarRequests();
+        const seminar = requests.find(r => r.id === id);
+
+        if (!seminar) return { error: 'Request not found' };
+
+        try {
+            await updateSeminarRequestStatus(id, 'rejected');
+            
+            await sendSeminarStatusNotification(
+                seminar.applicantEmail, 
+                seminar.applicantName, 
+                seminar.title, 
+                'rejected'
+            );
+            return { success: true };
+        } catch (e) {
+            console.error(e);
+            return { error: 'Rejection failed' };
+        }
     }
 };
