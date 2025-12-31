@@ -1,12 +1,13 @@
 import { redirect } from '@sveltejs/kit';
 import { createEvent } from '$lib/server/events';
 import { getDatabaseSchema, type DatabasePropertySchema } from '$lib/server/notion';
+import { ACTIVITY_TYPES } from '$lib/constants';
 import { env } from '$env/dynamic/private';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
     const dbId = env.NOTION_DB_ACTIVITIES;
-    let activityTypes: string[] = ["문제 창작", "문제 풀이", "회식", "세미나", "스터디", "회의", "기타"];
+    let activityTypes: string[] = [...ACTIVITY_TYPES];
     
     if (dbId) {
         try {

@@ -6,6 +6,7 @@ import { Client } from '@notionhq/client';
 import { env } from '$env/dynamic/private';
 import type { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints';
 import { withCache } from './cache';
+import { NOTION_PROPS } from '../constants';
 
 function getNotionClient() {
 	return new Client({
@@ -123,7 +124,7 @@ export async function getDatabaseSchema(databaseId: string): Promise<Record<stri
 		}
 
 		const properties = data.properties as Record<string, any>;
-		const result: Record<string, { type: string; options?: string[] }> = {};
+		const result: Record<string, DatabasePropertySchema> = {};
 		for (const [key, value] of Object.entries(properties)) {
 			const type = value.type;
 			const options = value[type]?.options?.map((o: any) => o.name) || undefined;
@@ -159,11 +160,11 @@ export async function createMember(data: {
 		body: JSON.stringify({
 			parent: { database_id: privateDbId },
 			properties: {
-				'이름': { title: [{ text: { content: data.name } }] },
-				'이메일': { email: data.email },
-				'전화번호': { phone_number: data.phone },
-				'자기 소개': { rich_text: [{ text: { content: data.bio } }] },
-				'배경 지식': { rich_text: [{ text: { content: data.background } }] }
+				[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
+				[NOTION_PROPS.EMAIL]: { email: data.email },
+				[NOTION_PROPS.PHONE]: { phone_number: data.phone },
+				[NOTION_PROPS.BIO]: { rich_text: [{ text: { content: data.bio } }] },
+				[NOTION_PROPS.BACKGROUND]: { rich_text: [{ text: { content: data.background } }] }
 			}
 		})
 	});
@@ -184,10 +185,10 @@ export async function createMember(data: {
 		body: JSON.stringify({
 			parent: { database_id: memberDbId },
 			properties: {
-				'이름': { title: [{ text: { content: data.name } }] },
-				'학과': { rich_text: [{ text: { content: data.department } }] },
-				'개인 정보': { relation: [{ id: privatePage.id }] },
-				'가입일': { date: { start: new Date().toISOString().split('T')[0] } }
+				[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
+				[NOTION_PROPS.DEPT]: { rich_text: [{ text: { content: data.department } }] },
+				[NOTION_PROPS.MEMBER_INFO]: { relation: [{ id: privatePage.id }] },
+				[NOTION_PROPS.JOIN_DATE]: { date: { start: new Date().toISOString().split('T')[0] } }
 			}
 		})
 	});
@@ -214,7 +215,7 @@ export async function getMemberByEmail(email: string) {
 			},
 			body: JSON.stringify({
 				filter: {
-					property: '이메일',
+					property: NOTION_PROPS.EMAIL,
 					email: { equals: email }
 				}
 			})
@@ -229,7 +230,8 @@ export async function getMemberByEmail(email: string) {
 		if (data.results.length === 0) return null;
 
 		const page = data.results[0] as PageObjectResponse;
-		const relationProp = page.properties['회원 정보'];
+		const relationProp = page.properties[NOTION_PROPS.MEMBER_INFO];
+			
 		if (relationProp?.type !== 'relation' || relationProp.relation.length === 0) {
 			return null;
 		}
@@ -262,7 +264,11 @@ export async function getAllMembers() {
 					'Content-Type': 'application/json'
 				},
 				body: JSON.stringify({
-					sorts: [{ property: '이름', direction: 'ascending' }],
+					filter: {
+						property: NOTION_PROPS.NAME,
+						title: { is_not_empty: true }
+					},
+					sorts: [{ property: NOTION_PROPS.NAME, direction: 'ascending' }],
 					start_cursor: nextCursor ?? undefined
 				})
 			});
@@ -284,11 +290,15 @@ export async function getAllMembers() {
 		
 		return allResults.map(page => {
 			const props = page.properties;
+			const nameProp = props[NOTION_PROPS.NAME] as any;
+			const deptProp = props[NOTION_PROPS.DEPT] as any;
+			const joinDateProp = props[NOTION_PROPS.JOIN_DATE] as any;
+
 			return {
 				id: page.id,
-				name: props['이름']?.type === 'title' ? props['이름'].title[0]?.plain_text ?? '' : '',
-				department: props['학과']?.type === 'rich_text' ? props['학과'].rich_text[0]?.plain_text ?? '' : '',
-				joinDate: props['가입일']?.type === 'date' ? props['가입일'].date?.start ?? '' : ''
+				name: nameProp?.type === 'title' ? nameProp.title[0]?.plain_text ?? '' : '',
+				department: deptProp?.type === 'rich_text' ? deptProp.rich_text[0]?.plain_text ?? '' : '',
+				joinDate: joinDateProp?.type === 'date' ? joinDateProp.date?.start ?? '' : ''
 			};
 		});
 	});
@@ -315,7 +325,7 @@ export async function getAllActivities() {
 					'Content-Type': 'application/json'
 				},
 				body: JSON.stringify({
-					sorts: [{ property: '일정', direction: 'descending' }],
+					sorts: [{ property: NOTION_PROPS.ACTIVITY_DATE, direction: 'descending' }],
 					start_cursor: nextCursor ?? undefined
 				})
 			});
@@ -337,11 +347,15 @@ export async function getAllActivities() {
 		
 		return allResults.map(page => {
 			const props = page.properties;
+			const nameProp = props[NOTION_PROPS.ACTIVITY_NAME] as any;
+			const dateProp = props[NOTION_PROPS.ACTIVITY_DATE] as any;
+			const typeProp = props[NOTION_PROPS.ACTIVITY_TYPE] as any;
+
 			return {
 				id: page.id,
-				name: props['활동명']?.type === 'title' ? props['활동명'].title[0]?.plain_text ?? '' : '',
-				date: props['일정']?.type === 'date' ? props['일정'].date?.start ?? '' : '',
-				type: props['활동 종류']?.type === 'select' ? props['활동 종류'].select?.name ?? '' : '',
+				name: nameProp?.type === 'title' ? nameProp.title[0]?.plain_text ?? '' : '',
+				date: dateProp?.type === 'date' ? dateProp.date?.start ?? '' : '',
+				type: typeProp?.type === 'select' ? typeProp.select?.name ?? '' : '',
 				url: (page as any).public_url || page.url
 			};
 		});
@@ -367,7 +381,7 @@ export async function getPresidentName(semesterPrefix: string): Promise<string> 
 			},
 			body: JSON.stringify({
 				filter: {
-					property: '임원',
+					property: NOTION_PROPS.EXECUTIVES,
 					multi_select: { contains: roleName }
 				}
 			})
@@ -379,11 +393,10 @@ export async function getPresidentName(semesterPrefix: string): Promise<string> 
 		if (data.results.length === 0) return '';
 
 		const page = data.results[0] as PageObjectResponse;
-		const nameProp = page.properties['이름'];
+		const nameProp = page.properties[NOTION_PROPS.NAME] as any;
 		if (nameProp?.type === 'title' && nameProp.title.length > 0) {
 			return nameProp.title[0].plain_text;
 		}
-
 		return '';
 	});
 }
@@ -406,11 +419,11 @@ export async function getActivities(startDate: string, endDate: string) {
 			body: JSON.stringify({
 				filter: {
 					and: [
-						{ property: '일정', date: { on_or_after: startDate } },
-						{ property: '일정', date: { on_or_before: endDate } }
+						{ property: NOTION_PROPS.ACTIVITY_DATE, date: { on_or_after: startDate } },
+						{ property: NOTION_PROPS.ACTIVITY_DATE, date: { on_or_before: endDate } }
 					]
 				},
-				sorts: [{ property: '일정', direction: 'descending' }]
+				sorts: [{ property: NOTION_PROPS.ACTIVITY_DATE, direction: 'descending' }]
 			})
 		});
 
@@ -427,12 +440,17 @@ export async function getActivities(startDate: string, endDate: string) {
 			)
 			.map(page => {
 				const props = page.properties;
+				const nameProp = props[NOTION_PROPS.ACTIVITY_NAME] as any;
+				const dateProp = props[NOTION_PROPS.ACTIVITY_DATE] as any;
+				const typeProp = props[NOTION_PROPS.ACTIVITY_TYPE] as any;
+				const attendProp = props[NOTION_PROPS.ATTENDANCE] as any;
+
 				return {
 					id: page.id,
-					name: props['활동명']?.type === 'title' ? props['활동명'].title[0]?.plain_text ?? '' : '',
-					date: props['일정']?.type === 'date' ? props['일정'].date?.start ?? '' : '',
-					type: props['활동 종류']?.type === 'select' ? props['활동 종류'].select?.name ?? '' : '',
-					attendees: props['출석']?.type === 'relation' ? props['출석'].relation.map(r => r.id) : [],
+					name: nameProp?.type === 'title' ? nameProp.title[0]?.plain_text ?? '' : '',
+					date: dateProp?.type === 'date' ? dateProp.date?.start ?? '' : '',
+					type: typeProp?.type === 'select' ? typeProp.select?.name ?? '' : '',
+					attendees: attendProp?.type === 'relation' ? attendProp.relation.map((r: any) => r.id) : [],
 					url: (page as any).public_url || page.url
 				};
 			});
@@ -460,10 +478,10 @@ export async function getUserActivities(memberId: string) {
 			},
 			body: JSON.stringify({
 				filter: {
-					property: '출석',
+					property: NOTION_PROPS.ATTENDANCE,
 					relation: { contains: memberId }
 				},
-				sorts: [{ property: '일정', direction: 'descending' }],
+				sorts: [{ property: NOTION_PROPS.ACTIVITY_DATE, direction: 'descending' }],
 				start_cursor: nextCursor ?? undefined
 			})
 		});
@@ -485,11 +503,15 @@ export async function getUserActivities(memberId: string) {
 	
 	return allResults.map(page => {
 		const props = page.properties;
+		const nameProp = props[NOTION_PROPS.ACTIVITY_NAME] as any;
+		const dateProp = props[NOTION_PROPS.ACTIVITY_DATE] as any;
+		const typeProp = props[NOTION_PROPS.ACTIVITY_TYPE] as any;
+
 		return {
 			id: page.id,
-			name: props['활동명']?.type === 'title' ? props['활동명'].title[0]?.plain_text ?? '' : '',
-			date: props['일정']?.type === 'date' ? props['일정'].date?.start ?? '' : '',
-			type: props['활동 종류']?.type === 'select' ? props['활동 종류'].select?.name ?? '' : '',
+			name: nameProp?.type === 'title' ? nameProp.title[0]?.plain_text ?? '' : '',
+			date: dateProp?.type === 'date' ? dateProp.date?.start ?? '' : '',
+			type: typeProp?.type === 'select' ? typeProp.select?.name ?? '' : '',
 			url: (page as any).public_url || page.url
 		};
 	});
@@ -500,9 +522,9 @@ export async function getUserActivities(memberId: string) {
  */
 export async function updatePrivateInfo(pageId: string, data: { phone?: string; bio?: string; background?: string }) {
 	const props: Record<string, any> = {};
-	if (data.phone !== undefined) props['전화번호'] = { phone_number: data.phone };
-	if (data.bio !== undefined) props['자기 소개'] = { rich_text: [{ text: { content: data.bio } }] };
-	if (data.background !== undefined) props['배경 지식'] = { rich_text: [{ text: { content: data.background } }] };
+	if (data.phone !== undefined) props[NOTION_PROPS.PHONE] = { phone_number: data.phone };
+	if (data.bio !== undefined) props[NOTION_PROPS.BIO] = { rich_text: [{ text: { content: data.bio } }] };
+	if (data.background !== undefined) props[NOTION_PROPS.BACKGROUND] = { rich_text: [{ text: { content: data.background } }] };
 
 	const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
 		method: 'PATCH',
@@ -537,9 +559,9 @@ export async function createActivityPage(data: { title: string; date: string; ty
 		body: JSON.stringify({
 			parent: { database_id: dbId },
 			properties: {
-				'활동명': { title: [{ text: { content: data.title } }] },
-				'일정': { date: { start: data.date } },
-				'활동 종류': { select: { name: data.type } }
+				[NOTION_PROPS.ACTIVITY_NAME]: { title: [{ text: { content: data.title } }] },
+				[NOTION_PROPS.ACTIVITY_DATE]: { date: { start: data.date } },
+				[NOTION_PROPS.ACTIVITY_TYPE]: { select: { name: data.type } }
 			}
 		})
 	});
@@ -559,7 +581,7 @@ export async function addAttendeeToActivity(pageId: string, memberId: string) {
 	const notionClient = getNotionClient();
 	const page = await notionClient.pages.retrieve({ page_id: pageId }) as PageObjectResponse;
 	
-	const currentRelations = page.properties['출석'];
+	const currentRelations = page.properties[NOTION_PROPS.ATTENDANCE];
 	let currentIds: string[] = [];
 	
 	if (currentRelations?.type === 'relation') {
@@ -573,7 +595,7 @@ export async function addAttendeeToActivity(pageId: string, memberId: string) {
 	await notionClient.pages.update({
 		page_id: pageId,
 		properties: {
-			'출석': { relation: newIds }
+			[NOTION_PROPS.ATTENDANCE]: { relation: newIds }
 		}
 	});
 }
@@ -594,11 +616,17 @@ export async function getPrivateInfo(pageId: string) {
 	const page = await response.json() as PageObjectResponse;
 	const props = page.properties;
 
+	const emailProp = props[NOTION_PROPS.EMAIL] as any;
+	const nameProp = props[NOTION_PROPS.NAME] as any;
+	const phoneProp = props[NOTION_PROPS.PHONE] as any;
+	const bioProp = props[NOTION_PROPS.BIO] as any;
+	const backProp = props[NOTION_PROPS.BACKGROUND] as any;
+
 	return {
-		email: props['이메일']?.type === 'email' ? props['이메일'].email : '',
-		name: props['이름']?.type === 'title' ? props['이름'].title[0]?.plain_text : '',
-		phone: props['전화번호']?.type === 'phone_number' ? props['전화번호'].phone_number : '',
-		bio: props['자기 소개']?.type === 'rich_text' ? props['자기 소개'].rich_text[0]?.plain_text : '',
-		background: props['배경 지식']?.type === 'rich_text' ? props['배경 지식'].rich_text[0]?.plain_text : ''
+		email: emailProp?.type === 'email' ? emailProp.email : '',
+		name: nameProp?.type === 'title' ? nameProp.title[0]?.plain_text : '',
+		phone: phoneProp?.type === 'phone_number' ? phoneProp.phone_number : '',
+		bio: bioProp?.type === 'rich_text' ? bioProp.rich_text[0]?.plain_text : '',
+		background: backProp?.type === 'rich_text' ? backProp.rich_text[0]?.plain_text : ''
 	};
 }

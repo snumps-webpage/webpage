@@ -1,17 +1,28 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
+	import { getSemesterKeyFromDate } from '$lib/utils';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 	const session = $derived(page.data.session);
 
-	let selectedSemester = $state(data.currentSemesterKey || 'all');
+	let selectedSemester = $state('all');
+	
+	// Set initial semester once data is available
+	$effect(() => {
+		if (data.currentSemesterKey) {
+			selectedSemester = data.currentSemesterKey;
+		}
+	});
 
 	let filteredActivities = $derived(
 		selectedSemester === 'all' 
 			? data.activities 
-			: data.activities.filter((a: any) => a.semester === selectedSemester)
+			: data.activities.filter((a: any) => {
+				const sem = getSemesterKeyFromDate(a.date);
+				return sem === selectedSemester;
+			})
 	);
 </script>
 

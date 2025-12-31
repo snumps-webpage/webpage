@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
+	import { getSemesterKeyFromDate } from '$lib/utils';
 	import type { PageData } from './$types';
 
 	let { data } = $props();
@@ -11,11 +12,8 @@
 		selectedSemester === 'all' 
 			? data.activities 
 			: data.activities.filter(a => {
-				const date = new Date(a.date);
-				const year = date.getFullYear();
-				const month = date.getMonth() + 1;
-				// Match academic semester: 1st (Mar-Aug), 2nd (Sep-Feb next year)
-				const sem = (month >= 3 && month <= 8) ? `${year}-1` : (month >= 9 ? `${year}-2` : `${year - 1}-2`);
+				// Match academic semester using shared utility
+				const sem = getSemesterKeyFromDate(a.date);
 				return sem === selectedSemester;
 			})
 	);
