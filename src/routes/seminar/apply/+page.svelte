@@ -55,7 +55,7 @@
 
             <div class="field">
                 <div class="label-row">
-                    <label>발표자 (Speaker)</label>
+                    <span class="label-text">발표자 (Speaker)</span>
                     <button type="button" class="toggle-btn" onclick={() => showSearch = !showSearch}>
                         {showSearch ? '닫기' : 'DB에서 검색/추가'}
                     </button>
@@ -83,7 +83,6 @@
                                 id="speaker-search"
                                 bind:value={searchQuery} 
                                 placeholder="이름, 학과 또는 이메일로 검색..." 
-                                autofocus
                             />
                             {#if searchResults.length > 0}
                                 <div class="results-dropdown">
@@ -123,11 +122,13 @@
 
     .field { margin-bottom: 1.5rem; }
     
-    label { 
+    label, .label-text { 
         display: block; 
         font-weight: 600; 
         color: #374151;
     }
+
+    label { margin-bottom: 0.5rem; }
 
     .label-row {
         display: flex;
