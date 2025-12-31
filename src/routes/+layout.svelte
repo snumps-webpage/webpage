@@ -42,10 +42,12 @@
 				<img src={favicon} alt="SNUMPS" />
 			</a>
 			{#if session?.user}
-				<div class="dropdown">
-					<button class="nav-link">Seminar</button>
-					<div class="dropdown-content">
-						<a href="/seminar/apply">세미나 개설</a>
+				<div class="nav-menus">
+					<div class="dropdown">
+						<button class="nav-link">Seminar</button>
+						<div class="dropdown-content">
+							<a href="/seminar/apply">세미나 개설</a>
+						</div>
 					</div>
 				</div>
 			{/if}
@@ -168,11 +170,16 @@
 		height: 100%;
 	}
 
+	.nav-menus {
+		display: flex;
+		align-items: center;
+		margin: 0 4rem; /* Balanced margins for the entire menu group */
+	}
+
 	/* Dropdown Menu */
 	.dropdown {
 		position: relative;
 		display: inline-block;
-		margin-left: 4rem; /* Move further right to standard menu position */
 	}
 
 	.nav-link {
