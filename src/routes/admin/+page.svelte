@@ -193,6 +193,48 @@
     </dialog>
 
 	<section class="mt-4">
+		<h2>세미나 개설 신청 ({data.seminarRequests.length})</h2>
+		
+		{#if data.seminarRequests.length === 0}
+			<p class="empty">대기 중인 세미나 신청이 없습니다.</p>
+		{:else}
+			<div class="table-container">
+				<table>
+					<thead>
+						<tr>
+							<th>주제</th>
+							<th>신청자</th>
+							<th>이메일</th>
+							<th>희망 일정</th>
+							<th>관리</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each data.seminarRequests as req (req.id)}
+							<tr>
+								<td>{req.title}</td>
+								<td>{req.applicantName}</td>
+								<td>{req.applicantEmail}</td>
+								<td>{new Date(req.date).toLocaleDateString()}</td>
+								<td class="actions-cell">
+									<form method="POST" action="?/approveSeminar" use:enhance onsubmit={() => confirm(`'${req.title}' 세미나 개설을 승인하시겠습니까?`)}>
+										<input type="hidden" name="id" value={req.id} />
+										<button class="btn approve small">승인</button>
+									</form>
+									<form method="POST" action="?/rejectSeminar" use:enhance onsubmit={() => confirm('반려하시겠습니까?')}>
+										<input type="hidden" name="id" value={req.id} />
+										<button class="btn reject small">반려</button>
+									</form>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
+	</section>
+
+	<section class="mt-4">
 		<h2>가입 승인 대기 ({data.applications.length})</h2>
 		
 		{#if data.applications.length === 0}
