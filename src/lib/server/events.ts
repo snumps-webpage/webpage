@@ -241,3 +241,39 @@ export async function removeAttendanceRecord(recordId: string) {
     queue = queue.filter(r => r.id !== recordId);
     await writeJson(ATTENDANCE_QUEUE_PATH, queue);
 }
+
+/**
+ * Checks all events and updates their status based on the current date.
+ * - 'draft' -> 'active' if the event's start time has passed.
+ * - 'active' -> 'expired' if the event's day is over.
+ */
+export async function syncEventStatuses() {
+    const events = await getEvents();
+    let hasChanged = false;
+
+    const now = new Date();
+
+    for (const event of events) {
+        const eventDate = new Date(event.date);
+        
+        // Activate draft events on their start time
+        if (event.status === 'draft' && now >= eventDate) {
+            event.status = 'active';
+            hasChanged = true;
+            console.log(`Event '${event.title}' activated.`);
+        }
+
+        // Expire active events after their day is over
+        const endOfDay = new Date(eventDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        if (event.status === 'active' && now > endOfDay) {
+            event.status = 'expired';
+            hasChanged = true;
+            console.log(`Event '${event.title}' expired.`);
+        }
+    }
+
+    if (hasChanged) {
+        await writeJson(EVENTS_DB_PATH, events);
+    }
+}
