@@ -56,15 +56,15 @@
 				<table>
 					<thead>
 						<tr>
-							{#each data.columns as column}
+							{#each data.columns as column (column.name)}
 								<th>{column.name}</th>
 							{/each}
 						</tr>
 					</thead>
 					<tbody>
-						{#each filteredRows as row}
+						{#each filteredRows as row (row.id)}
 							<tr>
-								{#each data.columns as column}
+								{#each data.columns as column (column.name)}
 									<td>{getRowValue(row, column.name)}</td>
 								{/each}
 							</tr>

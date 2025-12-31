@@ -95,7 +95,7 @@
 				<h2>활동 내역</h2>
 				<select bind:value={selectedSemester} class="semester-select">
 					<option value="all">전체 활동</option>
-					{#each data.semesters as sem}
+					{#each data.semesters as sem (sem)}
 						<option value={sem}>{sem}학기</option>
 					{/each}
 				</select>
@@ -114,7 +114,7 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#each filteredActivities as activity}
+							{#each filteredActivities as activity (activity.id)}
 								<tr>
 									<td class="date">{activity.date}</td>
 									<td class="name">{activity.name}</td>

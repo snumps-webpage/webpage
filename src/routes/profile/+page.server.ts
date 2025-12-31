@@ -1,5 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import { getMemberByEmail, getUserActivities, getPrivateInfo, updatePrivateInfo } from '$lib/server/notion';
+import { getSemesterKeyFromDate } from '$lib/utils';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -15,21 +16,8 @@ export const load: PageServerLoad = async (event) => {
 			getPrivateInfo(memberLinks.privateInfoId)
 		]);
 
-		// Extract unique semesters
-		const semesters = Array.from(new Set(activities.map(a => {
-			if (!a.date) return 'Unknown';
-			const date = new Date(a.date);
-			const year = date.getFullYear();
-			const month = date.getMonth() + 1;
-			// Simple semester logic: Mar-Aug = 1, Sep-Feb = 2 (belongs to year started in Sep)
-			// Actually, typical academic year:
-			// 1st Sem: Mar 1 - Aug 31
-			// 2nd Sem: Sep 1 - Feb 28 (next year)
-			
-			if (month >= 3 && month <= 8) return `${year}-1`;
-			if (month >= 9) return `${year}-2`;
-			return `${year - 1}-2`; // Jan/Feb
-		}))).sort().reverse();
+		// Extract unique semesters using utility function
+		const semesters = Array.from(new Set(activities.map(a => getSemesterKeyFromDate(a.date)))).sort().reverse();
 
 		return {
 			activities,
