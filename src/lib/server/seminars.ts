@@ -15,6 +15,7 @@ export interface SeminarRequest {
     date: string;
     applicantEmail: string;
     applicantName: string;
+    speakerIds: string[];
     status: 'pending' | 'approved' | 'rejected';
     submittedAt: string;
 }
@@ -71,7 +72,7 @@ export async function getSeminarRequests(): Promise<SeminarRequest[]> {
     }
 }
 
-export async function createSeminarRequest(data: { title: string; date: string; applicantEmail: string; applicantName: string }) {
+export async function createSeminarRequest(data: { title: string; date: string; applicantEmail: string; applicantName: string; speakerIds: string[] }) {
     const requests = await getSeminarRequests();
     
     // 1. Notion Write
@@ -91,6 +92,7 @@ export async function createSeminarRequest(data: { title: string; date: string; 
         date: data.date,
         applicantEmail: data.applicantEmail,
         applicantName: data.applicantName,
+        speakerIds: data.speakerIds,
         status: 'pending',
         submittedAt: new Date().toISOString()
     };

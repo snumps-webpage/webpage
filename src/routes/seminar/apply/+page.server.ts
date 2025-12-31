@@ -1,11 +1,36 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { createSeminarRequest } from '$lib/server/seminars';
+import { getAllMembers, getAllPrivateInfo } from '$lib/server/notion';
 import type { PageServerLoad, Actions } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
     const session = await locals.auth();
     if (!session?.user) throw redirect(302, '/login');
-    return { user: session.user };
+
+    const [members, privateInfos] = await Promise.all([
+        getAllMembers(),
+        getAllPrivateInfo()
+    ]);
+
+    // Create a map for quick lookup
+    const memberMap = new Map(members.map(m => [m.id, m]));
+
+    const searchableMembers = privateInfos
+        .filter(p => p.memberId && memberMap.has(p.memberId))
+        .map(p => {
+            const member = memberMap.get(p.memberId!)!;
+            return {
+                id: member.id, // We use the Member Database ID for relations
+                name: member.name,
+                department: member.department,
+                email: p.email
+            };
+        });
+
+    return { 
+        user: session.user,
+        members: searchableMembers
+    };
 };
 
 export const actions: Actions = {
@@ -16,6 +41,16 @@ export const actions: Actions = {
         const data = await request.formData();
         const title = data.get('title') as string;
         const date = data.get('date') as string;
+        const speakerIdsRaw = data.get('speakerIds') as string; // Expecting comma separated or JSON
+        
+        let speakerIds: string[] = [];
+        if (speakerIdsRaw) {
+            try {
+                speakerIds = JSON.parse(speakerIdsRaw);
+            } catch {
+                speakerIds = speakerIdsRaw.split(',').filter(id => id.trim());
+            }
+        }
 
         if (!title || !date) {
             return fail(400, { error: 'Missing required fields' });
@@ -26,12 +61,13 @@ export const actions: Actions = {
                 title,
                 date,
                 applicantEmail: session.user.email,
-                applicantName: session.user.name
+                applicantName: session.user.name,
+                speakerIds
             });
             return { success: true };
         } catch (e) {
             console.error(e);
-            return fail(500, { error: 'Application failed' });
+            return { error: 'Application failed' };
         }
     }
 };
