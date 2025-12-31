@@ -13,10 +13,12 @@ A secure SvelteKit web application designed to automate membership management an
 ### 👥 Membership System
 - **Signup Flow**: New users must apply for membership. Applications are stored in a hybrid system (Notion primary, Local JSON cache) for Admin approval.
 - **User Profile**: Members can view their full activity history (with standardized semester filtering) and manage personal details.
+- **Seminar Application**: Members can propose and organize their own seminars directly through the web interface.
 - **Automated Alerts**: Admins receive instant email notifications for new signups and completed attendance requests.
 
 ### 📅 Event & Attendance System
 - **Event Lifecycle**: Admins can Create (Draft), Activate (Publish), Expire, and Delete events.
+- **Seminar Approval**: Admins review member-submitted seminar proposals. Approved seminars are automatically converted into official Activities in Notion.
 - **Attendance Tracking**: Users check in via a single, time-sensitive, obfuscated link.
 - **One-Click Completion**: Clicking the attendance button immediately records both start and end times, generating a complete request for admin review.
 - **Admin Review**: Admins review, edit, and approve attendance records before they are officially synced to the Notion Activities database.
@@ -136,6 +138,7 @@ NOTION_DB_ACTIVITIES=id_of_activities_db
 NOTION_DB_PRIVATE_INFO=id_of_private_info_db
 NOTION_DB_APPLICATIONS=id_of_applications_mirror_db
 NOTION_DB_ATTENDANCE_QUEUE=id_of_attendance_mirror_db
+NOTION_DB_SEMINAR_REQUESTS=id_of_seminar_requests_db
 ```
 
 ### 5. Running Locally
