@@ -545,13 +545,18 @@ export async function updatePrivateInfo(pageId: string, data: { phone?: string; 
 /**
  * Creates a new activity record in the Notion Activities database.
  */
-export async function createActivityPage(data: { title: string; date: string; type: string; attendeeIds?: string[] }) {
+export async function createActivityPage(data: { title: string; date: string; type: string; attendeeIds?: string[]; timeZone?: string }) {
 	const dbId = env.NOTION_DB_ACTIVITIES;
 	if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
 
+	const dateObj: any = { start: data.date };
+	if (data.timeZone) {
+		dateObj.time_zone = data.timeZone;
+	}
+
 	const properties: any = {
 		[NOTION_PROPS.ACTIVITY_NAME]: { title: [{ text: { content: data.title } }] },
-		[NOTION_PROPS.ACTIVITY_DATE]: { date: { start: data.date } },
+		[NOTION_PROPS.ACTIVITY_DATE]: { date: dateObj },
 		[NOTION_PROPS.ACTIVITY_TYPE]: { select: { name: data.type } }
 	};
 
@@ -860,13 +865,19 @@ export async function createSeminarRequestInNotion(data: {
 	applicantEmail: string;
 	applicantName: string;
 	speakerIds: string[];
+	timeZone?: string;
 }) {
 	const dbId = env.NOTION_DB_SEMINAR_REQUESTS;
 	if (!dbId) return null;
 
+	const dateObj: any = { start: data.date };
+	if (data.timeZone) {
+		dateObj.time_zone = data.timeZone;
+	}
+
 	const properties: any = {
 		Title: { title: [{ text: { content: data.title } }] },
-		Date: { date: { start: data.date } },
+		Date: { date: dateObj },
 		ApplicantEmail: { email: data.applicantEmail },
 		ApplicantName: { rich_text: [{ text: { content: data.applicantName } }] },
 		Status: { select: { name: 'pending' } }

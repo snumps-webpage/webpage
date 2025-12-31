@@ -12,7 +12,8 @@ export interface SeminarRequest {
     id: string;
     notionId?: string;
     title: string;
-    date: string;
+    date: string; // ISO string with offset (for local sorting/display)
+    timeZone?: string; // IANA timezone ID
     applicantEmail: string;
     applicantName: string;
     speakerIds: string[];
@@ -72,13 +73,23 @@ export async function getSeminarRequests(): Promise<SeminarRequest[]> {
     }
 }
 
-export async function createSeminarRequest(data: { title: string; date: string; applicantEmail: string; applicantName: string; speakerIds: string[] }) {
+export async function createSeminarRequest(data: { 
+    title: string; 
+    date: string; 
+    timeZone: string; 
+    applicantEmail: string; 
+    applicantName: string; 
+    speakerIds: string[] 
+}) {
     const requests = await getSeminarRequests();
     
     // 1. Notion Write
+    // Note: createSeminarRequestInNotion needs to be updated to accept timeZone separately if we haven't already
     let notionId: string | undefined;
     try {
-        const nid = await createSeminarRequestInNotion(data);
+        const nid = await createSeminarRequestInNotion({
+            ...data
+        });
         if (nid) notionId = nid;
     } catch (e) {
         console.error('Notion seminar request write failed:', e);
@@ -90,6 +101,7 @@ export async function createSeminarRequest(data: { title: string; date: string; 
         notionId,
         title: data.title,
         date: data.date,
+        timeZone: data.timeZone,
         applicantEmail: data.applicantEmail,
         applicantName: data.applicantName,
         speakerIds: data.speakerIds,
