@@ -7,18 +7,19 @@ A secure SvelteKit web application designed to automate membership management an
 ### 🔐 Authentication & Security
 - **Google OAuth**: Secure login via Auth.js, restricted strictly to `@snu.ac.kr` domains.
 - **Role-Based Access**: Distinguishes between regular Members and Admins.
-- **Obfuscated Attendance Links**: Generates unique, randomized URLs (e.g., `/events/[id]/[random_code]`) for "Attend" and "Leave" actions.
+- **Obfuscated Attendance Links**: Generates unique, randomized URLs (e.g., `/events/[id]/[random_code]`) for simplified check-in.
 - **Input Validation**: Server-side checks prevent IDOR attacks and unauthorized data manipulation.
 
 ### 👥 Membership System
-- **Signup Flow**: New users must apply for membership. Applications are queued locally for Admin approval.
-- **User Profile**: Members can view their full activity history (with semester filtering) and manage personal details.
+- **Signup Flow**: New users must apply for membership. Applications are stored in a hybrid system (Notion primary, Local JSON cache) for Admin approval.
+- **User Profile**: Members can view their full activity history (with standardized semester filtering) and manage personal details.
 - **Automated Alerts**: Admins receive instant email notifications for new signups and completed attendance requests.
 
 ### 📅 Event & Attendance System
 - **Event Lifecycle**: Admins can Create (Draft), Activate (Publish), Expire, and Delete events.
-- **Attendance Tracking**: Users check in/out via time-sensitive, obfuscated links.
-- **Admin Review**: Admins review, edit, and approve attendance timestamps before they are synced to Notion.
+- **Attendance Tracking**: Users check in via a single, time-sensitive, obfuscated link.
+- **One-Click Completion**: Clicking the attendance button immediately records both start and end times, generating a complete request for admin review.
+- **Admin Review**: Admins review, edit, and approve attendance records before they are officially synced to the Notion Activities database.
 
 ### 📝 Notion Integration & UI
 - **Smart Paging**: Handles large member lists via recursive fetching (bypassing the 100-record limit).
@@ -26,6 +27,11 @@ A secure SvelteKit web application designed to automate membership management an
 - **Search & Filtering**: Real-time search by Name or Department in both Admin and DB views.
 
 ## System Operations & Error Handling
+
+### 💾 Hybrid Storage & Scalability
+- **JSON First, Notion Fallback**: Transactional data (applications and attendance requests) is stored locally in JSON files for low-latency access but mirrored to Notion databases for persistence and serverless scalability.
+- **Self-Healing Cache**: If local JSON files are lost or empty (e.g., after a server redeploy), the system automatically restores the cache by fetching the source of truth from Notion.
+- **Dual-Write Consistency**: Every creation or update action attempts to write to Notion first, followed by a local cache update, ensuring data is never trapped on a single server instance.
 
 ### 🛡️ Global Access Control (+layout.server.ts)
 - **Membership Enforcement**: For every request, the layout verifies the user's existence in the Notion database. If not found, the user is forcefully redirected to `/signup`.
@@ -38,8 +44,8 @@ A secure SvelteKit web application designed to automate membership management an
 - **Data Integrity**: During member creation, the system ensures both the `Private Info` and `Member` records are created and cross-linked successfully. If one step fails, an explicit error is thrown to prevent partial/broken records.
 
 ### 📅 Attendance Validation (events.ts)
-- **Sequence Enforcement**: The system strictly blocks "Leave" actions if no matching "Attend" record exists for that user and event.
-- **Duplicate Prevention**: Users are blocked from submitting multiple "Attend" or "Leave" timestamps for the same event. Explicit alerts are returned to inform the user of their current status.
+- **One-Step Logic**: The system records a complete attendance event in a single user action, reducing friction and ensuring data completeness.
+- **Duplicate Prevention**: Users are blocked from submitting multiple attendance records for the same event. Explicit alerts are returned to inform the user of their current status.
 - **State Management**: Events in `draft` or `expired` states are inaccessible to regular users via randomized links, throwing a `403 Forbidden` error.
 
 ### ✉️ Notification Reliability (mail.ts)
@@ -128,6 +134,8 @@ NOTION_API_KEY=your_integration_token
 NOTION_DB_MEMBERS=id_of_members_db
 NOTION_DB_ACTIVITIES=id_of_activities_db
 NOTION_DB_PRIVATE_INFO=id_of_private_info_db
+NOTION_DB_APPLICATIONS=id_of_applications_mirror_db
+NOTION_DB_ATTENDANCE_QUEUE=id_of_attendance_mirror_db
 ```
 
 ### 5. Running Locally
@@ -147,5 +155,5 @@ npm run build
 - **Frontend**: **Svelte 5** (Runes) & **SvelteKit**.
 - **Backend**: SvelteKit Server Routes with **In-memory Caching**.
 - **Authentication**: **Auth.js** with Google OAuth.
-- **Storage**: **Notion** (Primary) + **Local JSON** (Transactional Queue).
+- **Storage**: **Notion** (Primary) + **Local JSON Cache** (Hybrid Persistence).
 - **Communication**: **Google Gmail API** (REST).
