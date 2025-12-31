@@ -19,20 +19,22 @@ A secure SvelteKit web application designed to automate membership management an
 ### 📅 Event & Attendance System
 - **Event Lifecycle**: Admins can Create (Draft), Activate (Publish), Expire, and Delete events.
 - **Seminar Approval**: Admins review member-submitted seminar proposals. Approved seminars are automatically converted into official Activities in Notion.
+- **Global Timezone Support**: Full IANA timezone database integration (e.g., `Asia/Seoul`, `America/New_York`) for both event creation and seminar applications, ensuring accurate scheduling across regions.
 - **Attendance Tracking**: Users check in via a single, time-sensitive, obfuscated link.
 - **One-Click Completion**: Clicking the attendance button immediately records both start and end times, generating a complete request for admin review.
-- **Admin Review**: Admins review, edit, and approve attendance records before they are officially synced to the Notion Activities database.
 
 ### 📝 Notion Integration & UI
 - **Smart Paging**: Handles large member lists via recursive fetching (bypassing the 100-record limit).
 - **Dynamic Context**: Automatically calculates the current semester and fetches the current Club President's name for the universal footer.
 - **Search & Filtering**: Real-time search by Name or Department in both Admin and DB views.
+- **Native UI Feel**: Interactive elements (buttons, links, tags) use `user-select: none` to prevent accidental text highlighting and mimic a native application experience.
 
 ## System Operations & Error Handling
 
 ### 💾 Hybrid Storage & Scalability
 - **JSON First, Notion Fallback**: Transactional data (applications and attendance requests) is stored locally in JSON files for low-latency access but mirrored to Notion databases for persistence and serverless scalability.
 - **Self-Healing Cache**: If local JSON files are lost or empty (e.g., after a server redeploy), the system automatically restores the cache by fetching the source of truth from Notion.
+- **Robust Source Sync**: The system verifies the existence of linked Notion pages in real-time and during background syncs. If a page is deleted or archived in Notion, the local record is automatically purged to maintain data integrity.
 - **Dual-Write Consistency**: Every creation or update action attempts to write to Notion first, followed by a local cache update, ensuring data is never trapped on a single server instance.
 
 ### 🛡️ Global Access Control (+layout.server.ts)
