@@ -191,21 +191,33 @@
 	}
 
 	.dropdown-content {
-		display: none;
 		position: absolute;
 		top: 100%;
 		left: 0;
 		background-color: var(--bg-secondary);
-		min-width: 160px;
+		min-width: 140px;
+		width: max-content;
 		box-shadow: var(--shadow);
 		border-radius: 8px;
 		border: 1px solid var(--border-color);
 		z-index: 100;
 		overflow: hidden;
+		
+		/* Rolling Animation */
+		max-height: 0;
+		opacity: 0;
+		visibility: hidden;
+		transform-origin: top;
+		transition: 
+			max-height 0.3s ease-out,
+			opacity 0.2s ease-out,
+			visibility 0.3s;
 	}
 
 	.dropdown:hover .dropdown-content {
-		display: block;
+		max-height: 200px; /* Arbitrary large height to allow roll open */
+		opacity: 1;
+		visibility: visible;
 	}
 
 	.dropdown-content a {
