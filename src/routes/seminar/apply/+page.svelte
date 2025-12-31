@@ -5,7 +5,6 @@
 
 <div class="container">
     <h1>세미나 개설 신청</h1>
-    <p class="desc">회원 누구나 자유롭게 세미나를 제안하고 개설할 수 있습니다.</p>
     
     {#if form?.success}
         <div class="success-message">
@@ -20,19 +19,13 @@
             {/if}
 
             <div class="field">
-                <label for="title">세미나 주제 (Title)</label>
-                <input type="text" id="title" name="title" required placeholder="예: 양자역학 입문 세미나" />
+                <label for="title">세미나 주제</label>
+                <input type="text" id="title" name="title" required placeholder="예: 대수위상 세미나" />
             </div>
 
             <div class="field">
                 <label for="date">예상 시작일</label>
                 <input type="date" id="date" name="date" required />
-            </div>
-
-            <div class="field">
-                <label for="type">활동 종류</label>
-                <input type="text" id="type" value="Seminar" disabled class="disabled-input" />
-                <span class="hint">세미나 신청 페이지에서는 종류가 'Seminar'로 고정됩니다.</span>
             </div>
 
             <button class="btn submit">신청하기</button>
