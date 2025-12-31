@@ -43,30 +43,31 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: #f3f4f6;
+        background: var(--bg-primary);
         padding: 1rem;
     }
 
     .card {
-        background: white;
+        background: var(--bg-secondary);
         padding: 3rem;
         border-radius: 16px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        box-shadow: var(--shadow);
         text-align: center;
         max-width: 400px;
         width: 100%;
+        border: 1px solid var(--border-color);
     }
 
-    h1 { margin: 0 0 1rem; color: #111827; }
+    h1 { margin: 0 0 1rem; color: var(--text-primary); }
 
     .meta {
         margin-bottom: 2rem;
-        color: #6b7280;
+        color: var(--text-secondary);
         font-size: 0.9rem;
     }
 
     .type {
-        background: #e5e7eb;
+        background: var(--btn-secondary);
         padding: 0.2rem 0.5rem;
         border-radius: 4px;
         margin-right: 0.5rem;
@@ -75,10 +76,10 @@
     .user-info {
         margin-bottom: 2rem;
         padding: 1rem;
-        background: #f9fafb;
+        background: var(--btn-secondary);
         border-radius: 8px;
         font-size: 0.9rem;
-        color: #4b5563;
+        color: var(--text-secondary);
     }
 
     .btn {

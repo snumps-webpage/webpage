@@ -425,16 +425,18 @@
     .edit-dialog {
         padding: 2rem;
         border-radius: 8px;
-        border: none;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        border: 1px solid var(--border-color);
+        box-shadow: var(--shadow);
         min-width: 300px;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
     }
     
     .edit-dialog::backdrop {
         background: rgba(0,0,0,0.5);
     }
     
-    .edit-dialog h3 { margin-top: 0; }
+    .edit-dialog h3 { margin-top: 0; color: var(--text-primary); }
     
     .edit-dialog .field { margin-bottom: 1rem; }
     
@@ -443,14 +445,16 @@
         margin-bottom: 0.5rem;
         font-size: 0.9rem;
         font-weight: 600;
-        color: #374151;
+        color: var(--text-secondary);
     }
     
     .edit-dialog input {
         width: 100%;
         padding: 0.5rem;
-        border: 1px solid #d1d5db;
+        border: 1px solid var(--border-color);
         border-radius: 4px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
     }
     
     .dialog-actions {
@@ -469,7 +473,7 @@
     }
     
     .dialog-actions .submit { background: #10b981; color: white; }
-    .dialog-actions .cancel { background: #e5e7eb; color: #374151; }
+    .dialog-actions .cancel { background: var(--btn-secondary); color: var(--text-secondary); }
 
     /* Search Bar */
 	.search-bar {
@@ -486,17 +490,19 @@
 	.search-input {
 		width: 100%;
 		padding: 0.6rem 1rem;
-		border: 1px solid #d1d5db;
+		border: 1px solid var(--border-color);
 		border-radius: 8px;
 		font-size: 0.95rem;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
 	}
 
 	.toggle-group {
 		display: flex;
-		background: #f3f4f6;
+		background: var(--btn-secondary);
 		padding: 0.25rem;
 		border-radius: 8px;
-		border: 1px solid #e5e7eb;
+		border: 1px solid var(--border-color);
 	}
 
 	.toggle-btn {
@@ -506,19 +512,19 @@
 		border-radius: 6px;
 		font-size: 0.875rem;
 		cursor: pointer;
-		color: #6b7280;
+		color: var(--text-secondary);
 		transition: all 0.2s;
 	}
 
 	.toggle-btn.active {
-		background: white;
-		color: #111827;
-		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+		background: var(--bg-secondary);
+		color: var(--text-primary);
+		box-shadow: var(--shadow);
 	}
 
     .search-empty {
         text-align: center;
-        color: #6b7280;
+        color: var(--text-secondary);
         padding: 2rem;
         font-size: 0.9rem;
     }

@@ -84,13 +84,13 @@
         max-width: 1000px;
         margin: 2rem auto;
         padding: 2rem;
-        background: white;
+        background: var(--bg-secondary);
         border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        box-shadow: var(--shadow);
     }
 
-    h1 { margin: 0 0 0.5rem 0; color: #111827; }
-    .desc { color: #6b7280; margin-bottom: 2rem; }
+    h1 { margin: 0 0 0.5rem 0; color: var(--text-primary); }
+    .desc { color: var(--text-secondary); margin-bottom: 2rem; }
 
     .filter-bar {
         display: flex;
@@ -102,25 +102,28 @@
     .search-box input {
         width: 100%;
         padding: 0.75rem 1rem;
-        border: 1px solid #d1d5db;
+        border: 1px solid var(--border-color);
         border-radius: 8px;
         font-size: 1rem;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
     }
 
     .semester-select {
         padding: 0.75rem 2rem 0.75rem 1rem;
-        border: 1px solid #d1d5db;
+        border: 1px solid var(--border-color);
         border-radius: 8px;
-        background: white;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
     }
 
     .list-container {
         height: 400px;
         overflow-y: auto;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--border-color);
         border-radius: 8px;
         padding: 1rem;
-        background: #f9fafb;
+        background: var(--bg-primary);
         margin-bottom: 2rem;
     }
 
@@ -131,7 +134,7 @@
     }
 
     .event-card {
-        background: white;
+        background: var(--bg-secondary);
         border: 2px solid transparent;
         border-radius: 8px;
         padding: 1rem;
@@ -140,32 +143,32 @@
         display: flex;
         flex-direction: column;
         gap: 0.5rem;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        box-shadow: var(--shadow);
         transition: all 0.2s;
     }
 
     .event-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-    .event-card.selected { border-color: #667eea; background: #f0f4ff; }
+    .event-card.selected { border-color: #667eea; background: var(--btn-secondary); }
 
     .type-tag {
         font-size: 0.7rem;
         font-weight: 700;
-        background: #e5e7eb;
-        color: #4b5563;
+        background: var(--btn-secondary);
+        color: var(--text-secondary);
         padding: 0.1rem 0.4rem;
         border-radius: 4px;
         width: fit-content;
     }
 
-    .event-name { font-weight: 600; color: #1f2937; line-height: 1.4; }
-    .event-date { font-size: 0.8rem; color: #6b7280; }
+    .event-name { font-weight: 600; color: var(--text-primary); line-height: 1.4; }
+    .event-date { font-size: 0.8rem; color: var(--text-secondary); }
 
     .footer-actions {
         display: flex;
         justify-content: flex-end;
         gap: 1rem;
         padding-top: 1rem;
-        border-top: 1px solid #e5e7eb;
+        border-top: 1px solid var(--border-color);
     }
 
     .btn {
@@ -178,9 +181,9 @@
         text-decoration: none;
     }
 
-    .abort { background: #f3f4f6; color: #374151; }
+    .abort { background: var(--btn-secondary); color: var(--text-secondary); }
     .publish { background: #667eea; color: white; }
-    .publish:disabled { background: #d1d5db; cursor: not-allowed; }
+    .publish:disabled { background: var(--border-color); cursor: not-allowed; }
 
-    .empty { text-align: center; color: #9ca3af; padding: 4rem; }
+    .empty { text-align: center; color: var(--text-secondary); padding: 4rem; }
 </style>
