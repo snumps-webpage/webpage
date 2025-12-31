@@ -153,18 +153,18 @@
 
 	/* Stats Card */
 	.stats-card {
-		background: white;
+		background: var(--bg-secondary);
 		border-radius: 12px;
 		padding: 1.5rem;
-		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+		box-shadow: var(--shadow);
 		margin-bottom: 2rem;
-		border: 1px solid #e5e7eb;
+		border: 1px solid var(--border-color);
 	}
 
 	.stats-card h2 {
 		margin: 0 0 1rem 0;
 		font-size: 1.25rem;
-		color: #111827;
+		color: var(--text-primary);
 	}
 
 	.stats-grid {
@@ -187,18 +187,18 @@
 	}
 	
 	.stat-value.total {
-		color: #6b7280;
+		color: var(--text-secondary);
 	}
 
 	.stat-label {
 		font-size: 0.875rem;
-		color: #6b7280;
+		color: var(--text-secondary);
 		margin-top: 0.25rem;
 	}
 
 	.stat-divider {
 		font-size: 2rem;
-		color: #d1d5db;
+		color: var(--border-color);
 		font-weight: 300;
 	}
 
@@ -213,25 +213,25 @@
 	.activities-list h3 {
 		font-size: 1.25rem;
 		margin: 0;
-		color: #111827;
+		color: var(--text-primary);
 	}
 
 	.semester-select {
 		padding: 0.4rem 2rem 0.4rem 0.8rem;
 		border-radius: 6px;
-		border: 1px solid #d1d5db;
+		border: 1px solid var(--border-color);
 		font-size: 0.875rem;
-		background: white;
-		color: #374151;
+		background: var(--bg-secondary);
+		color: var(--text-primary);
 		cursor: pointer;
 	}
 
 	.table-container {
-		background: white;
+		background: var(--bg-secondary);
 		border-radius: 12px;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+		box-shadow: var(--shadow);
 		overflow: hidden;
-		border: 1px solid #e5e7eb;
+		border: 1px solid var(--border-color);
 	}
 
 	table {
@@ -241,18 +241,18 @@
 	}
 
 	th {
-		background: #f9fafb;
+		background: var(--btn-secondary);
 		padding: 0.75rem 1rem;
 		font-size: 0.875rem;
 		font-weight: 600;
-		color: #374151;
-		border-bottom: 1px solid #e5e7eb;
+		color: var(--text-primary);
+		border-bottom: 1px solid var(--border-color);
 	}
 
 	td {
 		padding: 0.875rem 1rem;
-		border-bottom: 1px solid #f3f4f6;
-		color: #1f2937;
+		border-bottom: 1px solid var(--border-color);
+		color: var(--text-primary);
 	}
 
 	tr:last-child td {
@@ -261,7 +261,7 @@
 
 	.date {
 		white-space: nowrap;
-		color: #6b7280;
+		color: var(--text-secondary);
 		font-size: 0.9rem;
 	}
 

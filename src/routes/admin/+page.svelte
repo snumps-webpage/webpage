@@ -483,25 +483,18 @@
 	}
 
 	.card {
-		background: white;
-		border: 1px solid #e5e7eb;
+		background: var(--bg-secondary);
+		border: 1px solid var(--border-color);
 		border-radius: 8px;
 		padding: 1.5rem;
-		box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+		box-shadow: var(--shadow);
 	}
 
-	.card-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 1rem;
-	}
-
-	.card-header h3 { margin: 0; font-size: 1.1rem; }
+	.card-header h3 { margin: 0; font-size: 1.1rem; color: var(--text-primary); }
 	.dept { 
 		font-size: 0.85rem; 
-		color: #4b5563; 
-		background: #f3f4f6;
+		color: var(--text-secondary); 
+		background: var(--btn-secondary);
 		padding: 0.2rem 0.5rem;
 		border-radius: 4px;
 	}
@@ -509,12 +502,13 @@
 	.info p {
 		margin: 0.5rem 0;
 		font-size: 0.9rem;
-		color: #374151;
+		color: var(--text-primary);
 	}
 
 	details {
 		margin: 1rem 0;
 		font-size: 0.9rem;
+		color: var(--text-primary);
 	}
 	
 	summary {
@@ -525,9 +519,9 @@
 	.details-content {
 		margin-top: 0.5rem;
 		padding: 0.75rem;
-		background: #f9fafb;
+		background: var(--btn-secondary);
 		border-radius: 4px;
-		color: #4b5563;
+		color: var(--text-primary);
 		white-space: pre-wrap;
 	}
 
@@ -566,8 +560,8 @@
 	}
 
 	.table-container {
-		background: white;
-		border: 1px solid #e5e7eb;
+		background: var(--bg-secondary);
+		border: 1px solid var(--border-color);
 		border-radius: 8px;
 		overflow-x: auto;
 	}
@@ -580,13 +574,14 @@
 
 	th, td {
 		padding: 0.75rem 1rem;
-		border-bottom: 1px solid #e5e7eb;
+		border-bottom: 1px solid var(--border-color);
+		color: var(--text-primary);
 	}
 
 	th {
-		background: #f9fafb;
+		background: var(--btn-secondary);
 		font-weight: 600;
-		color: #374151;
+		color: var(--text-primary);
 	}
 
 	tr:last-child td {

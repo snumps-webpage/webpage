@@ -99,7 +99,7 @@
 	}
 
 	.empty {
-		color: #666;
+		color: var(--text-secondary);
 		text-align: center;
 		padding: 2rem;
 	}
@@ -118,17 +118,19 @@
 	.search-input {
 		width: 100%;
 		padding: 0.6rem 1rem;
-		border: 1px solid #d1d5db;
+		border: 1px solid var(--border-color);
 		border-radius: 8px;
 		font-size: 0.95rem;
+		background: var(--bg-secondary);
+		color: var(--text-primary);
 	}
 
 	.toggle-group {
 		display: flex;
-		background: #f3f4f6;
+		background: var(--btn-secondary);
 		padding: 0.25rem;
 		border-radius: 8px;
-		border: 1px solid #e5e7eb;
+		border: 1px solid var(--border-color);
 	}
 
 	.toggle-btn {
@@ -138,44 +140,45 @@
 		border-radius: 6px;
 		font-size: 0.875rem;
 		cursor: pointer;
-		color: #6b7280;
+		color: var(--text-secondary);
 		transition: all 0.2s;
 	}
 
 	.toggle-btn.active {
-		background: white;
-		color: #111827;
-		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+		background: var(--bg-secondary);
+		color: var(--text-primary);
+		box-shadow: var(--shadow);
 	}
 
 	.table-wrapper {
 		overflow-x: auto;
 		border-radius: 8px;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+		box-shadow: var(--shadow);
 	}
 
 	table {
 		width: 100%;
 		border-collapse: collapse;
-		background: white;
+		background: var(--bg-secondary);
 	}
 
 	th,
 	td {
 		padding: 0.75rem 1rem;
 		text-align: left;
-		border-bottom: 1px solid #e5e7eb;
+		border-bottom: 1px solid var(--border-color);
+		color: var(--text-primary);
 	}
 
 	th {
-		background: #f9fafb;
+		background: var(--btn-secondary);
 		font-weight: 600;
-		color: #374151;
+		color: var(--text-primary);
 		white-space: nowrap;
 	}
 
 	tr:hover td {
-		background: #f9fafb;
+		background: var(--btn-secondary);
 	}
 
 	.back-link {
