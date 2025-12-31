@@ -21,6 +21,7 @@ export interface Event {
 	notionPageId?: string;
 	title: string;
 	date: string;
+    timeZone?: string;
 	type: string;
 	status: 'draft' | 'active' | 'expired';
 	pathId: string;
@@ -78,7 +79,7 @@ export async function getEventByPathId(pathId: string): Promise<Event | undefine
 	return events.find(e => e.pathId === pathId);
 }
 
-export async function createEvent(data: { title: string; date: string; type: string; notionPageId?: string }) {
+export async function createEvent(data: { title: string; date: string; type: string; notionPageId?: string; timeZone?: string }) {
 	const events = await getEvents();
 	const newEvent: Event = {
 		id: crypto.randomUUID(),
@@ -86,6 +87,7 @@ export async function createEvent(data: { title: string; date: string; type: str
         attendCode: crypto.randomUUID().slice(0, 12),
 		title: data.title,
 		date: data.date,
+        timeZone: data.timeZone,
 		type: data.type,
 		status: 'draft',
 		notionPageId: data.notionPageId

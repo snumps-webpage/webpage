@@ -117,6 +117,7 @@ export const actions = {
                 const page = await createActivityPage({
                     title: event.title,
                     date: event.date,
+                    timeZone: event.timeZone,
                     type: event.type
                 });
                 await updateEventStatus(id, 'active', page.id);
@@ -236,6 +237,7 @@ export const actions = {
             const page = await createActivityPage({
                 title: seminar.title,
                 date: seminar.date,
+                timeZone: seminar.timeZone,
                 type: 'Seminar',
                 attendeeIds
             });
@@ -245,6 +247,7 @@ export const actions = {
                 title: seminar.title,
                 date: seminar.date,
                 type: 'Seminar',
+                timeZone: seminar.timeZone,
                 notionPageId: page.id
             });
 

@@ -74,6 +74,7 @@ export const actions: Actions = {
             await createSeminarRequest({
                 title,
                 date,
+                timeZone: timezone || 'Asia/Seoul',
                 applicantEmail: session.user.email,
                 applicantName: session.user.name,
                 speakerIds
