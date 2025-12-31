@@ -418,11 +418,12 @@
     .edit { background: #667eea; color: white; }
 
 	.empty {
-		color: #9ca3af;
+		color: var(--text-secondary);
 		text-align: center;
 		padding: 3rem;
-		background: #f9fafb;
+		background: var(--bg-secondary);
 		border-radius: 8px;
+		border: 1px solid var(--border-color);
 	}
 
     .edit-dialog {
