@@ -29,7 +29,11 @@ async function getAdminAccessToken(): Promise<string> {
 	});
 
 	if (!response.ok) {
-		throw new Error('Failed to refresh admin access token: ' + (await response.text()));
+		const errorText = await response.text();
+		if (errorText.includes('invalid_grant')) {
+			console.error('CRITICAL: ADMIN_REFRESH_TOKEN has expired or is invalid. Please generate a new one using Google OAuth Playground.');
+		}
+		throw new Error(`Failed to refresh admin access token: ${errorText}`);
 	}
 
 	const data = await response.json();
