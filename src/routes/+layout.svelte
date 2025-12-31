@@ -43,7 +43,7 @@
 			</a>
 			{#if session?.user}
 				<div class="dropdown">
-					<button class="nav-link">Seminar ▾</button>
+					<button class="nav-link">Seminar</button>
 					<div class="dropdown-content">
 						<a href="/seminar/apply">세미나 개설</a>
 					</div>
@@ -189,7 +189,7 @@
 	.dropdown-content {
 		position: absolute;
 		top: 100%;
-		left: 0;
+		left: 50%; /* Align to middle */
 		background-color: var(--bg-secondary);
 		width: max-content; /* Fit exactly to content */
 		box-shadow: var(--shadow);
@@ -198,11 +198,11 @@
 		z-index: 100;
 		overflow: hidden;
 		
-		/* Rolling Scroll Animation */
+		/* Rolling Scroll Animation + Centering */
 		max-height: 0;
 		opacity: 0;
 		visibility: hidden;
-		transform: scaleY(0);
+		transform: translateX(-50%) scaleY(0); /* Center and collapse */
 		transform-origin: top;
 		transition: 
 			max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
@@ -214,7 +214,7 @@
 		max-height: 300px;
 		opacity: 1;
 		visibility: visible;
-		transform: scaleY(1);
+		transform: translateX(-50%) scaleY(1); /* Center and expand */
 	}
 
 	.dropdown-content a {
