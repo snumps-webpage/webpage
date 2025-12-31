@@ -25,6 +25,31 @@ A secure SvelteKit web application designed to automate membership management an
 - **Dynamic Context**: Automatically calculates the current semester and fetches the current Club President's name for the universal footer.
 - **Search & Filtering**: Real-time search by Name or Department in both Admin and DB views.
 
+## System Operations & Error Handling
+
+### 🛡️ Global Access Control (+layout.server.ts)
+- **Membership Enforcement**: For every request, the layout verifies the user's existence in the Notion database. If not found, the user is forcefully redirected to `/signup`.
+- **Flow Protection**: Routes like `/login`, `/auth/*`, and `/api/*` are explicitly excluded from the membership check to prevent infinite redirect loops and allow authentication to complete.
+- **Resilience**: The Notion check is wrapped in a `try-catch` block. If the API is unreachable, the system logs the error and allows navigation to continue (without user-specific data) rather than crashing the entire site.
+
+### 📝 Notion Integration (notion.ts)
+- **Pagination Logic**: The `queryDatabase` function uses a recursive `while` loop with `next_cursor` to ensure the application retrieves 100% of database records, overcoming Notion's default 100-item response limit.
+- **Property Safety**: Property parsers include defensive checks (e.g., `?.type`, `length > 0`) to handle cases where a Notion property might be empty or improperly configured in the dashboard.
+- **Data Integrity**: During member creation, the system ensures both the `Private Info` and `Member` records are created and cross-linked successfully. If one step fails, an explicit error is thrown to prevent partial/broken records.
+
+### 📅 Attendance Validation (events.ts)
+- **Sequence Enforcement**: The system strictly blocks "Leave" actions if no matching "Attend" record exists for that user and event.
+- **Duplicate Prevention**: Users are blocked from submitting multiple "Attend" or "Leave" timestamps for the same event. Explicit alerts are returned to inform the user of their current status.
+- **State Management**: Events in `draft` or `expired` states are inaccessible to regular users via randomized links, throwing a `403 Forbidden` error.
+
+### ✉️ Notification Reliability (mail.ts)
+- **Token Refreshing**: The system automatically exchanges the `ADMIN_REFRESH_TOKEN` for a fresh `accessToken` on every notification trigger.
+- **Critical Failure Logging**: If the refresh token expires (e.g., due to account security changes), the system logs a `CRITICAL` error with instructions for manual intervention, while allowing the core user action (like signing up) to proceed silently to avoid a total service outage.
+
+### 🛡️ Admin Security & Obscurity
+- **Silent Redirects**: Unauthorized attempts to access `/admin` or `/notion` result in a silent `302 Redirect` to the homepage rather than a `403 Forbidden` page, concealing the existence of administrative paths from malicious actors.
+- **Server-Side Verification**: Every administrative action (Approving, Editing, Deleting) re-verifies the user's email against the `ADMINS_EMAILS` environment variable strictly on the server side.
+
 ## Project Structure
 
 ```text
