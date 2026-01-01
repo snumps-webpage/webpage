@@ -3,9 +3,9 @@ import { createSeminarRequest } from '$lib/server/seminars';
 import { getAllMembers, getAllPrivateInfo } from '$lib/server/notion';
 import type { PageServerLoad, Actions } from './$types';
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
     const session = await locals.auth();
-    if (!session?.user) throw redirect(302, '/login');
+    if (!session?.user) throw redirect(302, `/login?redirect=${encodeURIComponent(url.pathname)}`);
 
     const [members, privateInfos] = await Promise.all([
         getAllMembers(),
