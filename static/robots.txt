@@ -1,6 +1,3 @@
-# Allow crawling everything by default, but hide admin/private routes
+# Block all crawling
 User-agent: *
-Disallow: /admin
-Disallow: /notion
-Disallow: /api
-Disallow: /events/*/*
+Disallow: /
