@@ -462,59 +462,61 @@ export async function getActivities(startDate: string, endDate: string) {
  * Fetches all activities participated in by a specific member.
  */
 export async function getUserActivities(memberId: string) {
-	const dbId = env.NOTION_DB_ACTIVITIES;
-	if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
+	return withCache(`user_activities_${memberId}`, 300000, async () => {
+		const dbId = env.NOTION_DB_ACTIVITIES;
+		if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
 
-	let allResults: PageObjectResponse[] = [];
-	let hasMore = true;
-	let nextCursor: string | null = null;
+		let allResults: PageObjectResponse[] = [];
+		let hasMore = true;
+		let nextCursor: string | null = null;
 
-	while (hasMore) {
-		const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
-			method: 'POST',
-			headers: {
-				'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-				'Notion-Version': '2022-06-28',
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({
-				filter: {
-					property: NOTION_PROPS.ATTENDANCE,
-					relation: { contains: memberId }
+		while (hasMore) {
+			const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+					'Notion-Version': '2022-06-28',
+					'Content-Type': 'application/json'
 				},
-				sorts: [{ property: NOTION_PROPS.ACTIVITY_DATE, direction: 'descending' }],
-				start_cursor: nextCursor ?? undefined
-			})
-		});
+				body: JSON.stringify({
+					filter: {
+						property: NOTION_PROPS.ATTENDANCE,
+						relation: { contains: memberId }
+					},
+					sorts: [{ property: NOTION_PROPS.ACTIVITY_DATE, direction: 'descending' }],
+					start_cursor: nextCursor ?? undefined
+				})
+			});
 
-		if (!response.ok) {
-			const error = await response.json();
-			throw new Error(JSON.stringify(error));
+			if (!response.ok) {
+				const error = await response.json();
+				throw new Error(JSON.stringify(error));
+			}
+
+			const data = await response.json() as QueryDatabaseResponse;
+			const pages = data.results.filter((page: unknown): page is PageObjectResponse => 
+				typeof page === 'object' && page !== null && 'properties' in page
+			);
+			
+			allResults = [...allResults, ...pages];
+			hasMore = data.has_more;
+			nextCursor = data.next_cursor;
 		}
-
-		const data = await response.json() as QueryDatabaseResponse;
-		const pages = data.results.filter((page: unknown): page is PageObjectResponse => 
-			typeof page === 'object' && page !== null && 'properties' in page
-		);
 		
-		allResults = [...allResults, ...pages];
-		hasMore = data.has_more;
-		nextCursor = data.next_cursor;
-	}
-	
-	return allResults.map(page => {
-		const props = page.properties;
-		const nameProp = props[NOTION_PROPS.ACTIVITY_NAME] as any;
-		const dateProp = props[NOTION_PROPS.ACTIVITY_DATE] as any;
-		const typeProp = props[NOTION_PROPS.ACTIVITY_TYPE] as any;
+		return allResults.map(page => {
+			const props = page.properties;
+			const nameProp = props[NOTION_PROPS.ACTIVITY_NAME] as any;
+			const dateProp = props[NOTION_PROPS.ACTIVITY_DATE] as any;
+			const typeProp = props[NOTION_PROPS.ACTIVITY_TYPE] as any;
 
-		return {
-			id: page.id,
-			name: nameProp?.type === 'title' ? nameProp.title[0]?.plain_text ?? '' : '',
-			date: dateProp?.type === 'date' ? dateProp.date?.start ?? '' : '',
-			type: typeProp?.type === 'select' ? typeProp.select?.name ?? '' : '',
-			url: (page as any).public_url || page.url
-		};
+			return {
+				id: page.id,
+				name: nameProp?.type === 'title' ? nameProp.title[0]?.plain_text ?? '' : '',
+				date: dateProp?.type === 'date' ? dateProp.date?.start ?? '' : '',
+				type: typeProp?.type === 'select' ? typeProp.select?.name ?? '' : '',
+				url: (page as any).public_url || page.url
+			};
+		});
 	});
 }
 
