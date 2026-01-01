@@ -154,17 +154,24 @@
 	/* Stats Card */
 	.stats-card {
 		background: var(--bg-secondary);
-		border-radius: 12px;
-		padding: 1.5rem;
+		border-radius: 16px; /* Softer corners */
+		padding: 2rem; /* More whitespace */
 		box-shadow: var(--shadow);
 		margin-bottom: 2rem;
 		border: 1px solid var(--border-color);
+		transition: transform 0.2s ease, box-shadow 0.2s ease;
+	}
+
+	.stats-card:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 	}
 
 	.stats-card h2 {
-		margin: 0 0 1rem 0;
+		margin: 0 0 1.5rem 0;
 		font-size: 1.25rem;
 		color: var(--text-primary);
+		font-weight: 600;
 	}
 
 	.stats-grid {
