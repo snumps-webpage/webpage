@@ -28,6 +28,8 @@ A secure SvelteKit web application designed to automate membership management an
 - **Dynamic Context**: Automatically calculates the current semester and fetches the current Club President's name for the universal footer.
 - **Search & Filtering**: Real-time search by Name or Department in both Admin and DB views.
 - **Native UI Feel**: Interactive elements (buttons, links, tags) use `user-select: none` to prevent accidental text highlighting and mimic a native application experience.
+- **Fluid Transitions**: Utilizes the native View Transitions API for smooth, app-like page navigation.
+- **Skeleton Loaders**: Implements shimmering placeholder UI during asynchronous data streaming, providing immediate visual feedback and better perceived performance.
 
 ## System Operations & Error Handling
 
