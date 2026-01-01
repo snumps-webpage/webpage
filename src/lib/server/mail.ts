@@ -91,7 +91,7 @@ export async function sendSeminarStatusNotification(
 		const accessToken = await getAdminAccessToken();
 		const subject = `[SNUMPS] 세미나 신청 결과 안내: ${seminarTitle}`;
 		const statusText = status === 'approved' ? '승인' : '반려';
-		const body = `안녕하세요, ${recipientName}님.\n\n신청하신 세미나 '${seminarTitle}'가 ${statusText}되었습니다.\n\n${status === 'approved' ? '자세한 일정은 추후 공지될 예정입니다.' : '아쉽게도 이번 세미나는 개설이 어렵게 되었습니다.'}\n\n감사합니다.`;
+		const body = `안녕하세요, ${recipientName}님.\n\n신청하신 세미나 '${seminarTitle}'가 ${statusText}되었습니다.\n\n${status === 'approved' ? '자세한 일정의 확인 부탁드립니다.' : '아쉽게도 이번 세미나는 개설이 어렵게 되었습니다.'}\n\n감사합니다.`;
 
 		await dispatchEmail(accessToken, [recipientEmail], subject, body);
 	} catch (e) {
