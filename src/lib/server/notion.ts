@@ -2,6 +2,7 @@
  * Service for interacting with the Notion API, handling database queries, 
  * schema retrieval, and member/activity updates.
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Client } from '@notionhq/client';
 import { env } from '$env/dynamic/private';
 import type { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints';
