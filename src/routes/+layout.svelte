@@ -1,6 +1,7 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.svg';
 	import { page } from '$app/state';
+	import { onNavigate } from '$app/navigation';
 	import { signOut } from '@auth/sveltekit/client';
 	import { getInitialTheme, applyTheme, type Theme } from '$lib/theme';
 
@@ -19,6 +20,17 @@
 		else if (currentTheme === 'dark') currentTheme = 'system';
 		else currentTheme = 'light';
 	}
+
+	onNavigate((navigation) => {
+		if (!document.startViewTransition) return;
+
+		return new Promise((resolve) => {
+			document.startViewTransition(async () => {
+				resolve();
+				await navigation.complete;
+			});
+		});
+	});
 </script>
 
 <svelte:head>
@@ -67,7 +79,7 @@
 	</div>
 </nav>
 
-<main>
+<main style="view-transition-name: page">
 	{@render children()}
 </main>
 
@@ -391,5 +403,24 @@
 
 	:global(.dark) .social-icon {
 		filter: grayscale(1) invert(1);
+	}
+
+	/* View Transitions */
+	::view-transition-old(page) {
+		animation: 0.3s cubic-bezier(0.4, 0, 0.2, 1) both fade-out;
+	}
+
+	::view-transition-new(page) {
+		animation: 0.3s cubic-bezier(0.4, 0, 0.2, 1) both fade-in;
+	}
+
+	@keyframes fade-in {
+		from { opacity: 0; transform: translateY(5px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+
+	@keyframes fade-out {
+		from { opacity: 1; transform: translateY(0); }
+		to { opacity: 0; transform: translateY(-5px); }
 	}
 </style>
