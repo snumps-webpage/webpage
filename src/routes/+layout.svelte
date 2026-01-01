@@ -1,6 +1,6 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.svg';
-	import { page } from '$app/state';
+	import { page, navigating } from '$app/state';
 	import { onNavigate } from '$app/navigation';
 	import { signOut } from '@auth/sveltekit/client';
 	import { getInitialTheme, applyTheme, type Theme } from '$lib/theme';
@@ -46,6 +46,12 @@
 		})();
 	</script>
 </svelte:head>
+
+{#if navigating.to}
+	<div class="loading-bar">
+		<div class="loading-progress"></div>
+	</div>
+{/if}
 
 <nav class="global-nav">
 	<div class="nav-content">
@@ -422,5 +428,30 @@
 	@keyframes fade-out {
 		from { opacity: 1; transform: translateY(0); }
 		to { opacity: 0; transform: translateY(-5px); }
+	}
+
+	/* Global Loading Bar */
+	.loading-bar {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 3px;
+		z-index: 9999;
+		background: transparent;
+		pointer-events: none;
+	}
+
+	.loading-progress {
+		width: 100%;
+		height: 100%;
+		background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+		transform-origin: left;
+		animation: progress 1s infinite linear;
+	}
+
+	@keyframes progress {
+		0% { transform: translateX(-100%); }
+		100% { transform: translateX(100%); }
 	}
 </style>
