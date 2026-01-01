@@ -1,6 +1,5 @@
 <script lang="ts">
     import { enhance } from '$app/forms';
-    import { page } from '$app/state';
 
     let { data } = $props();
 </script>

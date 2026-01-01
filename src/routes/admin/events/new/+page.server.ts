@@ -3,8 +3,8 @@ import { env } from '$env/dynamic/private';
 import { createEvent } from '$lib/server/events';
 import { createActivityPage, getDatabaseSchema, type DatabasePropertySchema } from '$lib/server/notion';
 import { isAdmin } from '$lib/server/admin';
-import { NOTION_PROPS, ACTIVITY_TYPES } from '$lib/constants';
-import type { PageServerLoad, Actions } from './$types';
+import { ACTIVITY_TYPES } from '$lib/constants';
+import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
     const session = await locals.auth();
@@ -63,7 +63,7 @@ export const actions = {
             // Handle short offsets like "+9" -> "+09:00" if necessary, 
             // but Intl usually returns "+09:00" or "GMT" (which is Z).
             // Let's ensure strict ISO format.
-            let isoOffset = offset === 'GMT' ? '+00:00' : offset;
+            const isoOffset = offset === 'GMT' ? '+00:00' : offset;
             
             // Construct ISO string
             const date = `${dateRaw}:00${isoOffset}`;

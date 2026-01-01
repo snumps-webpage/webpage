@@ -1,15 +1,16 @@
 <script lang="ts">
     import { enhance } from '$app/forms';
     import { getSemesterKeyFromDate } from '$lib/utils';
-    import type { PageData } from './$types';
 
     let { data } = $props();
     
     let searchQuery = $state('');
     let selectedSemester = $state('all');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let selectedEvent: any = $state(null);
 
     let filteredActivities = $derived(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data.activities.filter((a: any) => {
             const matchesSearch = a.name.toLowerCase().includes(searchQuery.toLowerCase());
             
@@ -23,6 +24,7 @@
         })
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function selectEvent(event: any) {
         selectedEvent = event;
     }

@@ -3,8 +3,6 @@
  */
 import fs from 'fs/promises';
 import path from 'path';
-import { env } from '$env/dynamic/private';
-import type { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints';
 import { 
 	getAttendanceQueueFromNotion, 
 	createAttendanceRecordInNotion, 
@@ -59,7 +57,7 @@ async function readJson<T>(filePath: string): Promise<T[]> {
 	}
 }
 
-async function writeJson(filePath: string, data: any) {
+async function writeJson(filePath: string, data: unknown) {
 	await ensureDir(filePath);
 	await fs.writeFile(filePath, JSON.stringify(data, null, 2));
 }
@@ -252,7 +250,7 @@ export async function removeAttendanceRecord(recordId: string) {
 export async function syncEventStatuses() {
     const events = await getEvents();
     let hasChanged = false;
-    let validEvents: Event[] = [];
+    const validEvents: Event[] = [];
 
     const now = new Date();
     // Get local date string YYYY-MM-DD

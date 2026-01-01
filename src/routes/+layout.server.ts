@@ -1,4 +1,4 @@
-import { redirect, fail } from '@sveltejs/kit';
+import { redirect } from '@sveltejs/kit';
 import { getMemberByEmail, getPresidentName } from '$lib/server/notion';
 import { isAdmin } from '$lib/server/admin';
 import { getSemesterInfo } from '$lib/utils';

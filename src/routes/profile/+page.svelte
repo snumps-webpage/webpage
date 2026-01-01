@@ -2,7 +2,6 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { getSemesterKeyFromDate } from '$lib/utils';
-	import type { PageData } from './$types';
 
 	let { data } = $props();
 	let selectedSemester = $state('all');

@@ -13,6 +13,7 @@
 	let filteredRows = $derived(
 		searchQuery.trim() === '' 
 			? data.rows 
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			: data.rows.filter((row: any) => {
 				const value = row[searchType] || '';
 				return value.toLowerCase().includes(searchQuery.toLowerCase());

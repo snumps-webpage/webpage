@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { enhance } from '$app/forms';
 	import { getSemesterKeyFromDate } from '$lib/utils';
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import type { PageData } from './$types';
@@ -72,6 +71,7 @@
 				{:else}
 					{@const filteredActivities = selectedSemester === 'all' 
 						? dashboardData.activities 
+						// eslint-disable-next-line @typescript-eslint/no-explicit-any
 						: dashboardData.activities.filter((a: any) => getSemesterKeyFromDate(a.date) === selectedSemester)
 					}
 

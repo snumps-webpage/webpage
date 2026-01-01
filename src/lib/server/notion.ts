@@ -60,7 +60,7 @@ interface QueryDatabaseResponse {
  * Recursively queries a Notion database to fetch all records (handling pagination).
  */
 export async function queryDatabase(databaseId: string): Promise<PageObjectResponse[]> {
-	let allResults: any[] = [];
+	let allResults: unknown[] = [];
 	let hasMore = true;
 	let nextCursor: string | null = null;
 
@@ -123,11 +123,11 @@ export async function getDatabaseSchema(databaseId: string): Promise<Record<stri
 			return {};
 		}
 
-		const properties = data.properties as Record<string, any>;
+		const properties = data.properties as Record<string, unknown>;
 		const result: Record<string, DatabasePropertySchema> = {};
 		for (const [key, value] of Object.entries(properties)) {
-			const type = value.type;
-			const options = value[type]?.options?.map((o: any) => o.name) || undefined;
+			const type = (value as { type: string }).type;
+			const options = (value as { [key: string]: { options: { name: string }[] } })[type]?.options?.map((o) => o.name) || undefined;
 			result[key] = { type, options };
 		}
 		return result;
