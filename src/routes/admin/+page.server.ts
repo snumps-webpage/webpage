@@ -169,6 +169,7 @@ export const actions = {
 
             // 3. Add to Notion
             await addAttendeeToActivity(event.notionPageId, memberLink.memberId);
+            invalidateCache(`user_activities_${memberLink.memberId}`);
 
             // 4. Update Status
             await updateAttendanceStatus(recordId, 'approved');
