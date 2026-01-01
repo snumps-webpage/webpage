@@ -3,6 +3,7 @@
 	import { getSemesterKeyFromDate } from '$lib/utils';
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import type { PageData } from './$types';
+	import type { Activity } from '$lib/types';
 
 	let { data }: { data: PageData } = $props();
 	const session = $derived(page.data.session);
@@ -71,8 +72,7 @@
 				{:else}
 					{@const filteredActivities = selectedSemester === 'all' 
 						? dashboardData.activities 
-						// eslint-disable-next-line @typescript-eslint/no-explicit-any
-						: dashboardData.activities.filter((a: any) => getSemesterKeyFromDate(a.date) === selectedSemester)
+						: dashboardData.activities.filter((a: Activity) => getSemesterKeyFromDate(a.date) === selectedSemester)
 					}
 
 					<div class="dashboard">

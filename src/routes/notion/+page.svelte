@@ -1,20 +1,16 @@
 <script lang="ts">
 	import type { PageData } from './$types';
+	import type { NotionRow } from '$lib/types';
 
 	let { data }: { data: PageData } = $props();
-
+	
 	let searchQuery = $state('');
-	let searchType = $state('이름'); // '이름' or '학과'
-
-	function getRowValue(row: Record<string, string>, columnName: string): string {
-		return row[columnName] ?? '';
-	}
+	let searchType = $state('이름'); // Default search column
 
 	let filteredRows = $derived(
 		searchQuery.trim() === '' 
-			? data.rows 
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			: data.rows.filter((row: any) => {
+			? data.rows as NotionRow[]
+			: (data.rows as NotionRow[]).filter((row) => {
 				const value = row[searchType] || '';
 				return value.toLowerCase().includes(searchQuery.toLowerCase());
 			})
@@ -66,7 +62,7 @@
 						{#each filteredRows as row (row.id)}
 							<tr>
 								{#each data.columns as column (column.name)}
-									<td>{getRowValue(row, column.name)}</td>
+									<td>{row[column.name]}</td>
 								{/each}
 							</tr>
 						{/each}
