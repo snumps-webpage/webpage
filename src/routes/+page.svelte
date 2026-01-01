@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
 	import { getSemesterKeyFromDate } from '$lib/utils';
+	import Skeleton from '$lib/components/Skeleton.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -9,21 +10,12 @@
 
 	let selectedSemester = $state('all');
 	
-	// Set initial semester once data is available
+	// Effect to set initial semester when data resolves
 	$effect(() => {
 		if (data.currentSemesterKey) {
 			selectedSemester = data.currentSemesterKey;
 		}
 	});
-
-	let filteredActivities = $derived(
-		selectedSemester === 'all' 
-			? data.activities 
-			: data.activities.filter((a: any) => {
-				const sem = getSemesterKeyFromDate(a.date);
-				return sem === selectedSemester;
-			})
-	);
 </script>
 
 <div class="container">
@@ -35,84 +27,128 @@
 			</div>
 		</div>
 
-		<div class="dashboard">
-			{#if data.error}
-				<div class="error-banner">
-					⚠️ {data.error}
-				</div>
-			{/if}
-
-			<section class="stats-card">
-				<h2>{data.semester} 출석 현황</h2>
-				{#if data.myAttendanceStats}
+		{#await data.streamed.dashboard}
+			<div class="dashboard-skeleton">
+				<!-- Stats Card Skeleton -->
+				<div class="stats-card">
+					<Skeleton width="40%" height="1.5rem" className="mb-4" />
 					<div class="stats-grid">
 						<div class="stat-item">
-							<span class="stat-value">{data.myAttendanceStats.attended}</span>
-							<span class="stat-label">출석</span>
+							<Skeleton width="60px" height="2.5rem" />
+							<Skeleton width="40px" height="0.8rem" className="mt-2" />
 						</div>
 						<div class="stat-divider">/</div>
 						<div class="stat-item">
-							<span class="stat-value total">{data.myAttendanceStats.total}</span>
-							<span class="stat-label">전체 활동</span>
+							<Skeleton width="60px" height="2.5rem" />
+							<Skeleton width="60px" height="0.8rem" className="mt-2" />
 						</div>
 						<div class="stat-chart">
-							{#if data.myAttendanceStats.total > 0}
-								<div class="pie-chart" style="--percent: {(data.myAttendanceStats.attended / data.myAttendanceStats.total) * 100}%"></div>
-							{/if}
+							<Skeleton width="60px" height="60px" borderRadius="50%" />
 						</div>
 					</div>
-				{/if}
-			</section>
-
-			<section class="activities-list">
-				<div class="list-header">
-					<h3>활동 목록</h3>
-					<select bind:value={selectedSemester} class="semester-select">
-						<option value="all">전체 활동</option>
-						{#each data.semesters as sem (sem)}
-							<option value={sem}>{sem}학기</option>
-						{/each}
-					</select>
 				</div>
 
-				{#if filteredActivities.length === 0}
-					<p class="empty-state">활동 내역이 없습니다.</p>
-				{:else}
-					<div class="table-container">
-						<table>
-							<thead>
-								<tr>
-									<th>날짜</th>
-									<th>활동명</th>
-									<th>종류</th>
-									<th>출석</th>
-								</tr>
-							</thead>
-							<tbody>
-								{#each filteredActivities as activity (activity.id)}
-									<tr class={activity.attended ? 'attended' : 'absent'}>
-										<td class="date">{activity.date}</td>
-										<td class="name">
-											<a href={activity.url} target="_blank" rel="noopener noreferrer" class="activity-link">
-												{activity.name}
-											</a>
-										</td>
-										<td><span class="tag">{activity.type}</span></td>
-										<td class="status">
-											{#if activity.attended}
-												<span class="badge success">출석</span>
-											{:else}
-												<span class="badge fail">결석</span>
-											{/if}
-										</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
+				<!-- List Skeleton -->
+				<div class="activities-list">
+					<div class="list-header">
+						<Skeleton width="100px" height="1.5rem" />
+						<Skeleton width="120px" height="2rem" />
 					</div>
-				{/if}
-			</section>
-		</div>
+					<div class="table-container p-4">
+						<Skeleton width="100%" height="2rem" className="mb-2" />
+						<Skeleton width="100%" height="2rem" className="mb-2" />
+						<Skeleton width="100%" height="2rem" />
+					</div>
+				</div>
+			</div>
+		{:then dashboardData}
+			{#if dashboardData}
+				{#if 'error' in dashboardData}
+					<div class="dashboard">
+						<div class="error-banner">
+							⚠️ {dashboardData.error}
+						</div>
+					</div>
+				{:else}
+					{@const filteredActivities = selectedSemester === 'all' 
+						? dashboardData.activities 
+						: dashboardData.activities.filter((a: any) => getSemesterKeyFromDate(a.date) === selectedSemester)
+					}
+
+					<div class="dashboard">
+						<section class="stats-card">
+						<h2>{data.semester} 출석 현황</h2>
+						{#if dashboardData.myAttendanceStats}
+							<div class="stats-grid">
+								<div class="stat-item">
+									<span class="stat-value">{dashboardData.myAttendanceStats.attended}</span>
+									<span class="stat-label">출석</span>
+								</div>
+								<div class="stat-divider">/</div>
+								<div class="stat-item">
+									<span class="stat-value total">{dashboardData.myAttendanceStats.total}</span>
+									<span class="stat-label">전체 활동</span>
+								</div>
+								<div class="stat-chart">
+									{#if dashboardData.myAttendanceStats.total > 0}
+										<div class="pie-chart" style="--percent: {(dashboardData.myAttendanceStats.attended / dashboardData.myAttendanceStats.total) * 100}%"></div>
+									{/if}
+								</div>
+							</div>
+						{/if}
+					</section>
+
+					<section class="activities-list">
+						<div class="list-header">
+							<h3>활동 목록</h3>
+							<select bind:value={selectedSemester} class="semester-select">
+								<option value="all">전체 활동</option>
+								{#each dashboardData.semesters as sem (sem)}
+									<option value={sem}>{sem}학기</option>
+								{/each}
+							</select>
+						</div>
+
+						{#if filteredActivities.length === 0}
+							<p class="empty-state">활동 내역이 없습니다.</p>
+						{:else}
+							<div class="table-container">
+								<table>
+									<thead>
+										<tr>
+											<th>날짜</th>
+											<th>활동명</th>
+											<th>종류</th>
+											<th>출석</th>
+										</tr>
+									</thead>
+									<tbody>
+										{#each filteredActivities as activity (activity.id)}
+											<tr class={activity.attended ? 'attended' : 'absent'}>
+												<td class="date">{activity.date}</td>
+												<td class="name">
+													<a href={activity.url} target="_blank" rel="noopener noreferrer" class="activity-link">
+														{activity.name}
+													</a>
+												</td>
+												<td><span class="tag">{activity.type}</span></td>
+												<td class="status">
+													{#if activity.attended}
+														<span class="badge success">출석</span>
+													{:else}
+														<span class="badge fail">결석</span>
+													{/if}
+												</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						{/if}
+					</section>
+				</div>
+			{/if}
+		{/await}
 
 	{:else}
 		<div class="landing">
