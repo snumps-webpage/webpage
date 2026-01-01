@@ -1,4 +1,4 @@
-import { fail, redirect } from '@sveltejs/kit';
+import { fail, redirect, error } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { createEvent } from '$lib/server/events';
 import { createActivityPage, getDatabaseSchema, type DatabasePropertySchema } from '$lib/server/notion';
@@ -6,7 +6,12 @@ import { isAdmin } from '$lib/server/admin';
 import { NOTION_PROPS, ACTIVITY_TYPES } from '$lib/constants';
 import type { PageServerLoad, Actions } from './$types';
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async ({ locals }) => {
+    const session = await locals.auth();
+    if (!session?.user?.email || !isAdmin(session.user.email)) {
+        throw error(404, 'Not Found');
+    }
+
     const dbId = env.NOTION_DB_ACTIVITIES;
     let activityTypes: string[] = [...ACTIVITY_TYPES];
     

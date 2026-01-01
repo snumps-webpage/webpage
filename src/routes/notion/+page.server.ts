@@ -1,4 +1,4 @@
-import { redirect } from '@sveltejs/kit';
+import { redirect, error } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { queryDatabase, getDatabaseSchema, getPropertyValue, type NotionProperty } from '$lib/server/notion';
 import { isAdmin } from '$lib/server/admin';
@@ -7,12 +7,8 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async (event) => {
 	const session = await event.locals.auth();
 
-	if (!session?.user) {
-		throw redirect(302, `/login?redirect=${encodeURIComponent(event.url.pathname)}`);
-	}
-
-	if (!isAdmin(session.user.email)) {
-		throw redirect(302, '/');
+	if (!session?.user || !isAdmin(session.user.email)) {
+		throw error(404, 'Not Found');
 	}
 
 	const databaseId = env.NOTION_DB_MEMBERS;
