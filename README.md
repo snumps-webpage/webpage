@@ -74,7 +74,8 @@ src/
 │       ├── cache.ts     # In-memory server-side caching utility
 │       ├── events.ts    # Event state & attendance queue management (JSON)
 │       ├── mail.ts      # Google Gmail API service for notifications
-│       └── notion.ts    # Notion API Wrapper (Client, Pagers, Type Parsers)
+│       ├── notion.ts    # Notion API Wrapper (Client, Pagers, Type Parsers)
+│       └── seminars.ts  # Seminar request queue logic (JSON)
 └── routes/
     ├── +layout.server.ts # Global Context (President info, Admin status)
     ├── +layout.svelte    # Global UI (Header with Logo/Profile/Admin, Footer)
@@ -85,6 +86,7 @@ src/
     ├── login/            # Custom styled login page
     ├── notion/           # Raw Database Viewer with Search (Admin only)
     ├── profile/          # Member Profile with Semester Filtering
+    ├── seminar/          # Seminar Application Flow
     └── signup/           # Application Form
 ```
 
