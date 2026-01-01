@@ -1,6 +1,4 @@
-/**
- * Service for managing club events and temporary attendance records stored in local JSON.
- */
+import type { Event, AttendanceRecord } from '$lib/types';
 import fs from 'fs/promises';
 import path from 'path';
 import { 
@@ -13,30 +11,6 @@ import {
 
 const EVENTS_DB_PATH = 'data/events.json';
 const ATTENDANCE_QUEUE_PATH = 'data/attendance_queue.json';
-
-export interface Event {
-	id: string;
-	notionPageId?: string;
-	title: string;
-	date: string;
-    timeZone?: string;
-	type: string;
-	status: 'draft' | 'active' | 'expired';
-	pathId: string;
-    attendCode: string;
-}
-
-export interface AttendanceRecord {
-	id: string; // Internal/Local ID (often matches Notion ID if synced)
-    notionId?: string;
-	eventId: string;
-	userEmail: string;
-	userName: string;
-	userDept: string;
-	startTime: string;
-	endTime?: string;
-	status: 'pending' | 'approved' | 'rejected';
-}
 
 async function ensureDir(filePath: string) {
 	const dir = path.dirname(filePath);

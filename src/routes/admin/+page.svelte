@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import type { AttendanceRecord } from '$lib/types';
 
 	let { data } = $props();
     
@@ -17,12 +18,10 @@
     );
 
     // State for editing attendance
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let editingRecord: any = $state(null);
+    let editingRecord = $state<AttendanceRecord | null>(null);
     let editDialog: HTMLDialogElement;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    function openEdit(record: any) {
+    function openEdit(record: AttendanceRecord) {
         editingRecord = record;
         editDialog.showModal();
     }
@@ -36,7 +35,7 @@
      * Converts an ISO string to a format compatible with <input type="datetime-local">.
      * datetime-local expects YYYY-MM-DDTHH:MM in local time.
      */
-    function toDateTimeLocal(iso: string) {
+    function toDateTimeLocal(iso?: string) {
         if (!iso) return '';
         const d = new Date(iso);
         return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);

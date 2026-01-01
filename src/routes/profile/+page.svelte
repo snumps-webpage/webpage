@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { getSemesterKeyFromDate } from '$lib/utils';
+	import type { NotionActivity } from '$lib/types';
 
 	let { data } = $props();
 	let selectedSemester = $state('all');
@@ -10,7 +11,7 @@
 	let filteredActivities = $derived(
 		selectedSemester === 'all' 
 			? data.activities 
-			: data.activities.filter(a => {
+			: data.activities.filter((a: NotionActivity) => {
 				// Match academic semester using shared utility
 				const sem = getSemesterKeyFromDate(a.date);
 				return sem === selectedSemester;

@@ -1,18 +1,18 @@
 <script lang="ts">
     import { enhance } from '$app/forms';
     import { TIMEZONES, DEFAULT_TIMEZONE } from '$lib/constants';
+    import type { SeminarSpeaker } from '$lib/types';
+
     let { data, form } = $props();
 
     let searchQuery = $state('');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let selectedSpeakers = $state<any[]>([]); 
+    let selectedSpeakers = $state<SeminarSpeaker[]>([]); 
     let showSearch = $state(false); // Toggle for search UI
 
     let searchResults = $derived(
         searchQuery.trim() === '' 
             ? [] 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            : data.members.filter((m: any) => 
+            : data.members.filter((m: SeminarSpeaker) => 
                 !selectedSpeakers.find(s => s.id === m.id) &&
                 (m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                  m.department.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -20,8 +20,7 @@
             ).slice(0, 5)
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    function addSpeaker(member: any) {
+    function addSpeaker(member: SeminarSpeaker) {
         selectedSpeakers = [...selectedSpeakers, member];
         searchQuery = '';
         showSearch = false;
