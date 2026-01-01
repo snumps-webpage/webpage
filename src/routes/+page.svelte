@@ -147,6 +147,7 @@
 						{/if}
 					</section>
 				</div>
+				{/if}
 			{/if}
 		{/await}
 
