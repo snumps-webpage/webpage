@@ -95,31 +95,31 @@
 
 <style>
 	:root {
-		--bg-primary: #f9fafb;
+		--bg-primary: #f8fafc; /* Slightly cooler gray for modern feel */
 		--bg-secondary: #ffffff;
-		--text-primary: #111827;
-		--text-secondary: #4b5563;
-		--border-color: #e5e7eb;
-		--btn-secondary: #f3f4f6;
-		--shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+		--text-primary: #1e293b; /* Slate-900 */
+		--text-secondary: #64748b; /* Slate-500 */
+		--border-color: #e2e8f0; /* Slate-200 */
+		--btn-secondary: #f1f5f9; /* Slate-100 */
+		--shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025); /* Softer, diffuse shadow */
 		
 		/* Status Colors */
-		--color-success-bg: #d1fae5;
-		--color-success-text: #059669;
+		--color-success-bg: #dcfce7;
+		--color-success-text: #166534;
 		--color-danger-bg: #fee2e2;
-		--color-danger-text: #dc2626;
+		--color-danger-text: #991b1b;
 		--color-warning-bg: #fef3c7;
-		--color-warning-text: #d97706;
+		--color-warning-text: #92400e;
 	}
 
 	:global(.dark) {
-		--bg-primary: #111827;
-		--bg-secondary: #1f2937;
-		--text-primary: #f9fafb;
-		--text-secondary: #9ca3af;
-		--border-color: #374151;
-		--btn-secondary: #374151;
-		--shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+		--bg-primary: #0f172a; /* Slate-950 */
+		--bg-secondary: #1e293b; /* Slate-800 */
+		--text-primary: #f8fafc;
+		--text-secondary: #94a3b8;
+		--border-color: #334155;
+		--btn-secondary: #334155;
+		--shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
 
 		/* Status Colors (Dark Mode) */
 		--color-success-bg: #064e3b;
@@ -132,22 +132,30 @@
 
 	:global(body) {
 		margin: 0;
-		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+		font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; /* Prefer Inter if available */
 		background: var(--bg-primary);
 		color: var(--text-primary);
 		display: flex;
 		flex-direction: column;
 		min-height: 100vh;
 		transition: background-color 0.3s, color 0.2s;
+		-webkit-font-smoothing: antialiased; /* Smoother fonts */
 	}
 
 	.global-nav {
-		background: var(--bg-secondary);
+		background: rgba(255, 255, 255, 0.8); /* Translucent for glass effect */
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
 		border-bottom: 1px solid var(--border-color);
 		padding: 0.75rem 1.5rem;
 		position: sticky;
 		top: 0;
 		z-index: 50;
+		transition: background-color 0.3s;
+	}
+
+	:global(.dark) .global-nav {
+		background: rgba(30, 41, 59, 0.8); /* Dark translucent */
 	}
 
 	.nav-content {

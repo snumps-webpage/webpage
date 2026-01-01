@@ -22,7 +22,7 @@
 </script>
 
 <div class="login-container">
-	<div class="login-box">
+	<div class="card">
 		<h1>SNUMPS 자동화</h1>
 		<p class="subtitle">동아리 노션 자동화 시스템</p>
 
@@ -64,25 +64,33 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		background: var(--bg-primary);
 		padding: 1rem;
 	}
 
-	.login-box {
-		background: white;
-		padding: 2.5rem;
-		border-radius: 16px;
-		box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-		text-align: center;
-		max-width: 400px;
-		width: 100%;
-	}
+    .card {
+        background: var(--bg-secondary);
+        padding: 3rem;
+        border-radius: 24px; /* Very soft corners */
+        box-shadow: var(--shadow);
+        width: 100%;
+        max-width: 400px;
+        text-align: center;
+        border: 1px solid var(--border-color);
+        transition: transform 0.2s ease;
+    }
 
-	h1 {
-		margin: 0 0 0.5rem;
-		color: #1a1a2e;
-		font-size: 1.75rem;
-	}
+    .card:hover {
+        transform: translateY(-2px);
+    }
+
+    h1 {
+        margin-bottom: 0.5rem;
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        letter-spacing: -0.025em; /* Tighter tracking for headings */
+    }
 
 	.subtitle {
 		color: #666;
