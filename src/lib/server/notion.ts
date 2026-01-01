@@ -935,21 +935,24 @@ export async function updateSeminarRequestStatusInNotion(id: string, status: str
  */
 export async function checkPageExists(pageId: string): Promise<boolean> {
 	if (!pageId) return false;
-	const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
-		method: 'GET',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28'
+
+	return withCache(`page_exists_${pageId}`, 10000, async () => {
+		const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+			method: 'GET',
+			headers: {
+				'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+				'Notion-Version': '2022-06-28'
+			}
+		});
+		
+		if (response.status === 404) return false;
+		
+		// If it's archived (deleted in Notion UI), it still exists via API but property 'archived' is true.
+		if (response.ok) {
+			const page = await response.json() as { archived: boolean };
+			return !page.archived;
 		}
+		
+		return false;
 	});
-	
-	if (response.status === 404) return false;
-	
-	// If it's archived (deleted in Notion UI), it still exists via API but property 'archived' is true.
-	if (response.ok) {
-		const page = await response.json() as { archived: boolean };
-		return !page.archived;
-	}
-	
-	return false;
 }
