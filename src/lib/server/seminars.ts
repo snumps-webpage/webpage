@@ -40,7 +40,7 @@ async function readJson<T>(filePath: string): Promise<T[]> {
     }
 }
 
-async function writeJson(filePath: string, data: any) {
+async function writeJson(filePath: string, data: unknown) {
     await ensureDir(filePath);
     await fs.writeFile(filePath, JSON.stringify(data, null, 2));
 }

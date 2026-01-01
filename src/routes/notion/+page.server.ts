@@ -1,4 +1,4 @@
-import { redirect, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { queryDatabase, getDatabaseSchema, getPropertyValue, type NotionProperty } from '$lib/server/notion';
 import { isAdmin } from '$lib/server/admin';

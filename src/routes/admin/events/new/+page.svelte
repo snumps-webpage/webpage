@@ -21,7 +21,7 @@
             <div class="field">
                 <label for="timezone">타임존</label>
                 <select id="timezone" name="timezone" required>
-                    {#each TIMEZONES as tz}
+                    {#each TIMEZONES as tz (tz.value)}
                         <option value={tz.value} selected={tz.value === DEFAULT_TIMEZONE}>{tz.label}</option>
                     {/each}
                 </select>

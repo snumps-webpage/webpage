@@ -4,12 +4,14 @@
     let { data, form } = $props();
 
     let searchQuery = $state('');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let selectedSpeakers = $state<any[]>([]); 
     let showSearch = $state(false); // Toggle for search UI
 
     let searchResults = $derived(
         searchQuery.trim() === '' 
             ? [] 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             : data.members.filter((m: any) => 
                 !selectedSpeakers.find(s => s.id === m.id) &&
                 (m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -18,6 +20,7 @@
             ).slice(0, 5)
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function addSpeaker(member: any) {
         selectedSpeakers = [...selectedSpeakers, member];
         searchQuery = '';
@@ -57,7 +60,7 @@
                 <div class="field">
                     <label for="timezone">타임존</label>
                     <select id="timezone" name="timezone" required>
-                        {#each TIMEZONES as tz}
+                        {#each TIMEZONES as tz (tz.value)}
                             <option value={tz.value} selected={tz.value === DEFAULT_TIMEZONE}>{tz.label}</option>
                         {/each}
                     </select>

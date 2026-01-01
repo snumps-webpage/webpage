@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import type { PageData } from './$types';
 
 	let { data } = $props();
     
@@ -18,9 +17,11 @@
     );
 
     // State for editing attendance
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let editingRecord: any = $state(null);
     let editDialog: HTMLDialogElement;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function openEdit(record: any) {
         editingRecord = record;
         editDialog.showModal();

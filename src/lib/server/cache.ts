@@ -7,14 +7,14 @@ interface CacheEntry<T> {
 	expiry: number;
 }
 
-const cache = new Map<string, CacheEntry<any>>();
+const cache = new Map<string, CacheEntry<unknown>>();
 
 export async function withCache<T>(key: string, ttlMs: number, fetcher: () => Promise<T>): Promise<T> {
 	const now = Date.now();
 	const entry = cache.get(key);
 
 	if (entry && entry.expiry > now) {
-		return entry.data;
+		return entry.data as T;
 	}
 
 	const data = await fetcher();
