@@ -74,9 +74,9 @@ npm run lint
 *   **Statements**: Don't use words like "finalize", which can be redundant or overstating/oversimplifying the stage. Always use direct words, explicit explanations that allows easy tracking of the project.
 
 #### 2. Documentation
-*   **Continuous Updates**: Ensure `README.md` is **always** synchronized with the current codebase.
-*   **Feature Reflection**: Update documentation immediately after implementing any new feature, architectural change, or setup requirement.
-*   **Schema Reference**: Refer to `docs/schema.md` for the latest Notion database property definitions.
+*   **Synchronized State**: Ensure `README.md` and all modular documentation within the `docs/` directory are **always** synchronized with the current codebase.
+*   **Modular Updates**: Update the appropriate specific document (e.g., `docs/FEATURES.md` for feature changes, `docs/ARCHITECTURE.md` for system changes, `docs/SETUP.md` for configuration changes) immediately after implementation.
+*   **Quick Links**: Ensure the main `README.md` maintains accurate summaries and links to the detailed modular documents.
 
 #### 3. Security
 *   **Obscurity**: Unauthorized access to admin routes must return `404 Not Found`, not a redirect (except for `events/*` and `seminar/*`).
