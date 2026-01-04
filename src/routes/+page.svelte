@@ -78,8 +78,8 @@
 										name="phone" 
 										value={result.profile.phone} 
 										placeholder="010-1234-5678" 
-										pattern="010-\d{4}-\d{4}"
-										title="010-XXXX-XXXX 형식으로 입력해주세요."
+										pattern="010[- ]?\d&#123;3,4&#125;[- ]?\d&#123;4&#125;"
+										title="숫자만 입력하거나 하이픈(-) 또는 공백을 포함할 수 있습니다."
 									/>
 								</div>
 								<div class="form-group">

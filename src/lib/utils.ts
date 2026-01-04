@@ -57,3 +57,20 @@ export function getSemesterKeyFromDate(dateStr: string): string {
 	if (month >= 9) return `${year % 100}-2`;
 	return `${(year - 1) % 100}-2`;
 }
+
+/**
+ * Normalizes phone numbers to 010-XXXX-XXXX format.
+ * Accepts: 010XXXXXXXX, 010-XXXX-XXXX, 010 XXXX XXXX, etc.
+ */
+export function normalizePhoneNumber(phone: string): string {
+	// Remove all non-digit characters
+	const digits = phone.replace(/\D/g, '');
+	
+	if (digits.length === 11) {
+		return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+	} else if (digits.length === 10) {
+		return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+	}
+	
+	return phone; // Return as-is if it doesn't match expected length
+}
