@@ -29,10 +29,15 @@
 
 {#snippet collapsibleCard(title: string, bindValue: boolean, toggle: () => void, children: any)}
 	<section class="card {bindValue ? '' : 'collapsed'}">
-		<header onclick={toggle} class="card-header-toggle">
+		<button 
+			type="button"
+			onclick={toggle} 
+			class="card-header-toggle"
+			aria-expanded={bindValue}
+		>
 			<h2>{title}</h2>
-			<span class="chevron">{bindValue ? '▼' : '▶'}</span>
-		</header>
+			<span class="chevron" aria-hidden="true">{bindValue ? '▼' : '▶'}</span>
+		</button>
 		{#if bindValue}
 			<div class="card-content">
 				{@render children()}
@@ -224,6 +229,8 @@
 	}
 
 	.card-header-toggle {
+		width: 100%;
+		border: none;
 		padding: 1rem 1.5rem;
 		display: flex;
 		justify-content: space-between;
@@ -232,6 +239,7 @@
 		user-select: none;
 		background: var(--btn-secondary);
 		transition: background 0.2s;
+		text-align: left;
 	}
 
 	.card-header-toggle:hover { background: var(--border-color); }
