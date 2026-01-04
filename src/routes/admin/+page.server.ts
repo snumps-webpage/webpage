@@ -4,7 +4,7 @@ import {
 } from '$lib/server/admin';
 import { 
     createMember, getAllMembers, getMemberByEmail, 
-    createActivityPage, addAttendeeToActivity 
+    createActivityPage, addAttendeeToActivity, markApplicationAsAccepted 
 } from '$lib/server/notion';
 import { 
     getEvents, updateEventStatus, deleteEvent, getAttendanceQueue, 
@@ -99,7 +99,9 @@ export const actions = {
             // 2. Send Welcome Email
             await sendWelcomeEmail(app.email, app.name);
 
-            // Note: We no longer call removeApplication(id) here.
+            // 3. Mark as accepted in Notion
+            await markApplicationAsAccepted(id);
+
 			return { success: true };
 		} catch (e) {
 			console.error(e);

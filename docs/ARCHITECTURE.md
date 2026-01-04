@@ -32,10 +32,13 @@ src/
 ```
 
 ## 💾 Hybrid Storage & Scalability
-- **JSON First, Notion Fallback**: Transactional data (applications and attendance requests) is stored locally in JSON files for low-latency access but mirrored to Notion databases for persistence and serverless scalability.
-- **Self-Healing Cache**: If local JSON files are lost or empty (e.g., after a server redeploy), the system automatically restores the cache by fetching the source of truth from Notion.
-- **Robust Source Sync**: The system verifies the existence of linked Notion pages in real-time. If a page is deleted or archived in Notion, the local record is automatically purged.
-- **Dual-Write Consistency**: Every creation or update action attempts to write to Notion first, followed by a local cache update.
+- **Notion Primary (Source of Truth)**: 
+  - **Members & Private Info**: Centralized member registry.
+  - **Applications (Signups)**: All membership requests are stored directly in the `APPLICATIONS` database.
+  - **Seminar Requests**: Member-led proposals are persisted in the `SEMINAR_REQUESTS` database.
+- **Local JSON (Transactional Queue)**:
+  - **Events & Attendance**: Attendance timestamps are captured locally in `data/attendance_queue.json` for low-latency recording during high-traffic events. Once an admin approves a record, it is synced to the official `ACTIVITIES` database in Notion.
+- **Dual-Write Consistency**: Every creation or update action attempts to write to Notion first, ensuring data persistence and auditability across all club operations.
 
 ## 🛡️ Operations & Error Handling
 - **Membership Enforcement**: `+layout.server.ts` verifies membership on every request. Non-members are redirected to `/signup`.

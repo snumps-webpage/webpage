@@ -132,9 +132,9 @@
 						</div>
 					{/snippet}
 
-					<!-- 3. Attendance Stats (Collapsible) -->
-					{@render collapsibleCard(`${data.semester} 출석 현황`, showStats, () => showStats = !showStats, statsContent)}
-					{#snippet statsContent()}
+					<!-- 3. Attendance Stats (Restored to non-collapsible) -->
+					<section class="stats-card">
+						<h2>{data.semester} 출석 현황</h2>
 						<div class="stats-grid">
 							<div class="stat-item">
 								<span class="stat-value">{result.myAttendanceStats.attended}</span>
@@ -151,42 +151,58 @@
 								{/if}
 							</div>
 						</div>
-					{/snippet}
-
-					<!-- 4. Activities List -->
-					<section class="activities-card">
-						<div class="list-header">
-							<h3>활동 목록</h3>
-							<select bind:value={selectedSemester} class="semester-select">
-								<option value="all">전체 활동</option>
-								{#each result.semesters as sem}
-									<option value={sem}>{sem}학기</option>
-								{/each}
-							</select>
-						</div>
-
-						<div class="table-container">
-							{#each result.activities.filter((a: any) => selectedSemester === 'all' || getSemesterKeyFromDate(a.date) === selectedSemester) as activity (activity.id)}
-								<div class="activity-row {activity.attended ? 'attended' : 'absent'}">
-									<div class="act-main">
-										<span class="act-date">{activity.date}</span>
-										<a href={activity.url} target="_blank" rel="noopener noreferrer" class="act-name">
-											{activity.name}
-										</a>
-									</div>
-									<div class="act-meta">
-										<span class="tag">{activity.type}</span>
-										<span class="badge {activity.attended ? 'success' : 'fail'}">
-											{activity.attended ? '출석' : '결석'}
-										</span>
-									</div>
-								</div>
-							{:else}
-								<p class="empty-state">활동 내역이 없습니다.</p>
-							{/each}
-						</div>
 					</section>
 				</div>
+
+				<!-- 4. Activities List (Restored Table View) -->
+				<section class="activities-list">
+					<div class="list-header">
+						<h3>활동 목록</h3>
+						<select bind:value={selectedSemester} class="semester-select">
+							<option value="all">전체 활동</option>
+							{#each result.semesters as sem}
+								<option value={sem}>{sem}학기</option>
+							{/each}
+						</select>
+					</div>
+
+					{#if result.activities.filter((a: any) => selectedSemester === 'all' || getSemesterKeyFromDate(a.date) === selectedSemester).length === 0}
+						<p class="empty-state">활동 내역이 없습니다.</p>
+					{:else}
+						<div class="table-container">
+							<table>
+								<thead>
+									<tr>
+										<th>날짜</th>
+										<th>활동명</th>
+										<th>종류</th>
+										<th>출석</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each result.activities.filter((a: any) => selectedSemester === 'all' || getSemesterKeyFromDate(a.date) === selectedSemester) as activity (activity.id)}
+										<tr class={activity.attended ? 'attended' : 'absent'}>
+											<td class="date">{activity.date}</td>
+											<td class="name">
+												<a href={activity.url} target="_blank" rel="noopener noreferrer" class="activity-link">
+													{activity.name}
+												</a>
+											</td>
+											<td><span class="tag">{activity.type}</span></td>
+											<td class="status">
+												{#if activity.attended}
+													<span class="badge success">출석</span>
+												{:else}
+													<span class="badge fail">결석</span>
+												{/if}
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{/if}
+				</section>
 			{/if}
 		{/await}
 	{:else}
@@ -328,7 +344,29 @@
 		font-size: 0.9rem;
 	}
 
-	/* Stats Grid */
+	/* Stats Card */
+	.stats-card {
+		background: var(--bg-secondary);
+		border-radius: 16px;
+		padding: 2rem;
+		box-shadow: var(--shadow);
+		margin-bottom: 2rem;
+		border: 1px solid var(--border-color);
+		transition: transform 0.2s ease, box-shadow 0.2s ease;
+	}
+
+	.stats-card:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+	}
+
+	.stats-card h2 {
+		margin: 0 0 1.5rem 0;
+		font-size: 1.25rem;
+		color: var(--text-primary);
+		font-weight: 600;
+	}
+
 	.stats-grid { display: flex; align-items: center; gap: 1rem; }
 	.stat-item { display: flex; flex-direction: column; align-items: center; }
 	.stat-value { font-size: 2rem; font-weight: 700; color: #10b981; }
@@ -336,38 +374,135 @@
 	.stat-label { font-size: 0.875rem; color: var(--text-secondary); }
 	.stat-divider { font-size: 2rem; color: var(--border-color); font-weight: 300; }
 
+	.stat-chart {
+		margin-left: auto;
+	}
+
+	.pie-chart {
+		width: 60px;
+		height: 60px;
+		border-radius: 50%;
+		background: conic-gradient(#10b981 var(--percent), #e5e7eb 0);
+		transition: all 0.3s ease;
+	}
+
+	:global(.dark) .pie-chart {
+		background: conic-gradient(#10b981 var(--percent), #374151 0);
+	}
+
 	/* Activities List */
-	.activities-card { padding: 1.5rem; background: var(--bg-secondary); border-radius: 12px; border: 1px solid var(--border-color); }
-	.list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-	.list-header h3 { margin: 0; font-size: 1.25rem; color: var(--text-primary); }
-	
+	.activities-list {
+		margin-top: 2rem;
+		padding: 2rem;
+		background: var(--bg-secondary);
+		border-radius: 16px;
+		border: 1px solid var(--border-color);
+		box-shadow: var(--shadow);
+	}
+
+	.list-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 1.5rem;
+	}
+
+	.activities-list h3 {
+		font-size: 1.25rem;
+		margin: 0;
+		color: var(--text-primary);
+		font-weight: 600;
+	}
+
 	.semester-select {
 		padding: 0.4rem 2rem 0.4rem 0.8rem;
 		border-radius: 6px;
 		border: 1px solid var(--border-color);
-		background: var(--bg-primary);
+		font-size: 0.875rem;
+		background: var(--bg-secondary);
+		color: var(--text-primary);
+		cursor: pointer;
+	}
+
+	.table-container {
+		background: var(--bg-secondary);
+		border-radius: 12px;
+		box-shadow: var(--shadow);
+		overflow: hidden;
+		border: 1px solid var(--border-color);
+	}
+
+	table {
+		width: 100%;
+		border-collapse: collapse;
+		text-align: left;
+	}
+
+	th {
+		background: var(--btn-secondary);
+		padding: 0.75rem 1rem;
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--text-primary);
+		border-bottom: 1px solid var(--border-color);
+	}
+
+	td {
+		padding: 0.875rem 1rem;
+		border-bottom: 1px solid var(--border-color);
 		color: var(--text-primary);
 	}
 
-	.table-container { display: grid; gap: 0.75rem; }
-	.activity-row {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 1rem;
-		background: var(--bg-primary);
-		border-radius: 8px;
-		border: 1px solid var(--border-color);
+	tr:last-child td {
+		border-bottom: none;
 	}
-	.act-date { font-size: 0.85rem; color: var(--text-secondary); display: block; }
-	.act-name { font-weight: 600; color: var(--text-primary); text-decoration: none; }
-	.act-name:hover { color: #667eea; text-decoration: underline; }
-	.act-meta { display: flex; align-items: center; gap: 0.75rem; }
 
-	.tag { font-size: 0.75rem; background: var(--btn-secondary); padding: 0.2rem 0.5rem; border-radius: 4px; color: var(--text-secondary); }
-	.badge { font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 20px; }
-	.badge.success { background: #d1fae5; color: #059669; }
-	.badge.fail { background: #fee2e2; color: #dc2626; }
+	.date {
+		white-space: nowrap;
+		color: var(--text-secondary);
+		font-size: 0.9rem;
+	}
+
+	.activity-link {
+		color: inherit;
+		text-decoration: none;
+		transition: color 0.2s;
+	}
+
+	.activity-link:hover {
+		color: #667eea;
+		text-decoration: underline;
+	}
+
+	.tag {
+		display: inline-block;
+		padding: 0.25rem 0.5rem;
+		background: var(--btn-secondary);
+		color: var(--text-secondary);
+		border-radius: 4px;
+		font-size: 0.75rem;
+		white-space: nowrap;
+	}
+
+	.badge {
+		display: inline-block;
+		padding: 0.2rem 0.75rem;
+		border-radius: 9999px;
+		font-size: 0.7rem;
+		font-weight: 600;
+		white-space: nowrap;
+		width: max-content;
+	}
+
+	.badge.success {
+		background: #d1fae5;
+		color: #059669;
+	}
+
+	.badge.fail {
+		background: #fee2e2;
+		color: #dc2626;
+	}
 
 	.loading, .error-banner, .empty-hint, .empty-state { text-align: center; padding: 2rem; color: var(--text-secondary); }
 

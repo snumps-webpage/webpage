@@ -1,15 +1,15 @@
 /**
- * Service for managing club membership applications using Notion as storage.
+ * Service for managing club membership applications stored in Notion.
  */
 import { env } from '$env/dynamic/private';
-import { 
-	getApplicationsFromNotion, 
-	createApplicationInNotion, 
-	removeApplicationInNotion 
+import {
+	getApplicationsFromNotion,
+	createApplicationInNotion,
+	removeApplicationInNotion
 } from './notion';
 
 export interface Application {
-	id: string; // Notion ID
+	id: string;
 	email: string;
 	name: string;
 	phone: string;
@@ -20,7 +20,7 @@ export interface Application {
 
 export async function getApplications(): Promise<Application[]> {
 	try {
-		return await getApplicationsFromNotion() as Application[];
+		return await getApplicationsFromNotion();
 	} catch (e) {
 		console.error('Failed to fetch applications from Notion:', e);
 		return [];
@@ -30,16 +30,10 @@ export async function getApplications(): Promise<Application[]> {
 export async function addApplication(app: Omit<Application, 'id' | 'submittedAt'>) {
 	try {
 		const id = await createApplicationInNotion(app);
-		if (!id) throw new Error('Notion creation returned no ID');
-		
-		return {
-			...app,
-			id,
-			submittedAt: new Date().toISOString()
-		};
+		return { ...app, id, submittedAt: new Date().toISOString() };
 	} catch (e) {
 		console.error('Failed to create application in Notion:', e);
-		throw e; // Propagate error so UI knows
+		throw e;
 	}
 }
 
@@ -48,7 +42,6 @@ export async function removeApplication(id: string) {
 		await removeApplicationInNotion(id);
 	} catch (e) {
 		console.error('Failed to remove application from Notion:', e);
-		throw e;
 	}
 }
 
@@ -57,3 +50,4 @@ export function isAdmin(email: string | null | undefined) {
 	const admins = (env.ADMINS_EMAILS || '').split(',').map(e => e.trim());
 	return admins.includes(email);
 }
+
