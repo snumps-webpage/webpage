@@ -53,8 +53,8 @@
 
             <div class="field-row">
                 <div class="field">
-                    <label for="date">일시</label>
-                    <input type="datetime-local" id="date" name="date" required />
+                    <label for="date">일시 (날짜)</label>
+                    <input type="date" id="date" name="date" required />
                 </div>
                 <div class="field">
                     <label for="timezone">타임존</label>

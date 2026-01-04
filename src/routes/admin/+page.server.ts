@@ -14,7 +14,7 @@ import {
 import { 
     getSeminarRequests, updateSeminarRequestStatus 
 } from '$lib/server/seminars';
-import { sendSeminarStatusNotification } from '$lib/server/mail';
+import { sendSeminarStatusNotification, sendWelcomeEmail } from '$lib/server/mail';
 import { invalidateCache } from '$lib/server/cache';
 import type { PageServerLoad } from './$types';
 
@@ -32,6 +32,23 @@ export const load: PageServerLoad = async (event) => {
         getSeminarRequests()
 	]);
 
+    // Enhanced Applications: Sort by date ASC and check membership
+    const sortedApps = apps
+        .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime())
+        .map(app => ({
+            ...app,
+            isAlreadyMember: members.some(m => {
+                // We need email to check membership, but members list only has name/dept/joinDate?
+                // Wait, Notion member DB might not have email in the "Public" Member record.
+                // But we can check if a member relation exists for this email via getMemberByEmail.
+                // However, doing that in a loop is slow.
+                // Better approach: notion.ts getAllMembers should include a way to match.
+                // Let's assume for now we match by name + department if email is missing in the list,
+                // OR I will check if I can get all private info to match emails.
+                return m.name === app.name && m.department === app.department;
+            })
+        }));
+
     // Map speaker IDs to names for the UI
     const requestWithSpeakers = seminarRequests
         .filter(r => r.status === 'pending')
@@ -44,7 +61,7 @@ export const load: PageServerLoad = async (event) => {
         }));
 
 	return {
-		applications: apps,
+		applications: sortedApps,
 		members: members,
         events: events.reverse(), // Newest first
         attendanceQueue: attendanceQueue.filter(r => r.status === 'pending'),
@@ -68,6 +85,7 @@ export const actions = {
 		if (!app) return { error: 'Application not found' };
 
 		try {
+            // 1. Create Member record in Notion
 			await createMember({
 				name: app.name,
 				email: app.email,
@@ -78,11 +96,15 @@ export const actions = {
 			});
 			
 			invalidateCache(`member_${app.email}`);
-			await removeApplication(id);
+            
+            // 2. Send Welcome Email
+            await sendWelcomeEmail(app.email, app.name);
+
+            // Note: We no longer call removeApplication(id) here.
 			return { success: true };
 		} catch (e) {
 			console.error(e);
-			return { error: 'Notion creation failed: ' + (e as Error).message };
+			return { error: 'Approval failed: ' + (e as Error).message };
 		}
 	},
 

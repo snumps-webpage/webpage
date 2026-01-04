@@ -100,6 +100,21 @@ export async function sendSeminarStatusNotification(
 }
 
 /**
+ * Sends a welcome email to a new member upon acceptance.
+ */
+export async function sendWelcomeEmail(recipientEmail: string, recipientName: string) {
+	try {
+		const accessToken = await getAdminAccessToken();
+		const subject = `[SNUMPS] 가입 승인 안내`;
+		const body = `안녕하세요, ${recipientName}님.\n\nSNUMPS 가입이 승인되었습니다.\n\n환영합니다!\n\n동아리 노션 링크: https://placeholder-link.com (추후 업데이트 예정)\n\n감사합니다.`;
+
+		await dispatchEmail(accessToken, [recipientEmail], subject, body);
+	} catch (e) {
+		console.error('Welcome email error:', e);
+	}
+}
+
+/**
  * Internal helper to send the actual RFC 2822 email via Gmail API.
  */
 async function dispatchEmail(accessToken: string, recipients: string[], subject: string, body: string) {
