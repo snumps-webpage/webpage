@@ -250,7 +250,6 @@ export const actions = {
         if (!seminar) return { error: 'Request not found' };
 
         try {
-            // Use current date since it's missing in request
             const now = new Date().toISOString();
 
             // 1. Create Activity Page in Notion with speakers linked
@@ -272,6 +271,18 @@ export const actions = {
             // 3. Update Request Status
             await updateSeminarRequestStatus(id, 'approved');
 
+            // 4. Notify Speaker(s)
+            if (seminar.speakerIds.length > 0) {
+                const { getMemberById, getPrivateInfo } = await import('$lib/server/notion');
+                const member = await getMemberById(seminar.speakerIds[0]);
+                if (member?.privateInfoId) {
+                    const info = await getPrivateInfo(member.privateInfoId);
+                    if (info?.email) {
+                        await sendSeminarStatusNotification(info.email, member.name, seminar.title, 'approved');
+                    }
+                }
+            }
+
             return { success: true };
         } catch (e) {
             console.error(e);
@@ -285,9 +296,26 @@ export const actions = {
 
         const data = await request.formData();
         const id = data.get('id') as string;
+        const requests = await getSeminarRequests();
+        const seminar = requests.find(r => r.id === id);
+
+        if (!seminar) return { error: 'Request not found' };
 
         try {
             await updateSeminarRequestStatus(id, 'rejected');
+
+            // Notify Speaker(s)
+            if (seminar.speakerIds.length > 0) {
+                const { getMemberById, getPrivateInfo } = await import('$lib/server/notion');
+                const member = await getMemberById(seminar.speakerIds[0]);
+                if (member?.privateInfoId) {
+                    const info = await getPrivateInfo(member.privateInfoId);
+                    if (info?.email) {
+                        await sendSeminarStatusNotification(info.email, member.name, seminar.title, 'rejected');
+                    }
+                }
+            }
+
             return { success: true };
         } catch (e) {
             console.error(e);

@@ -74,6 +74,11 @@ export const actions: Actions = {
                 duration,
                 speakerIds
             });
+
+            // Notify admins about the new seminar application
+            const { sendSeminarApplicationNotification } = await import('$lib/server/mail');
+            await sendSeminarApplicationNotification(session.user.name, title);
+
             return { success: true };
         } catch (e) {
             console.error('Seminar Application Action Error:', e);

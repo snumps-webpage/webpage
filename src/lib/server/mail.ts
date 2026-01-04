@@ -100,13 +100,31 @@ export async function sendSeminarStatusNotification(
 }
 
 /**
+ * Sends an email notification to admins about a new seminar application.
+ */
+export async function sendSeminarApplicationNotification(applicantName: string, seminarTitle: string) {
+	try {
+		const accessToken = await getAdminAccessToken();
+		const adminEmails = (env.ADMINS_EMAILS || '').split(',').map((e) => e.trim());
+		if (adminEmails.length === 0) return;
+
+		const subject = `[SNUMPS] 새 세미나 신청: ${seminarTitle}`;
+		const body = `안녕하세요, 관리자님.\n\n${applicantName}님으로부터 새로운 세미나 개설 신청이 접수되었습니다.\n\n주제: ${seminarTitle}\n\n관리자 페이지에서 확인 후 승인 또는 반려해주세요.`;
+
+		await dispatchEmail(accessToken, adminEmails, subject, body);
+	} catch (e) {
+		console.error('Seminar application notification error:', e);
+	}
+}
+
+/**
  * Sends a welcome email to a new member upon acceptance.
  */
 export async function sendWelcomeEmail(recipientEmail: string, recipientName: string) {
 	try {
 		const accessToken = await getAdminAccessToken();
-		const subject = `[SNUMPS] 가입 승인 안내`;
-		const body = `안녕하세요, ${recipientName}님.\n\nSNUMPS 가입이 승인되었습니다.\n\n환영합니다!\n\n동아리 노션 링크: https://placeholder-link.com (추후 업데이트 예정)\n\n감사합니다.`;
+		const subject = `[SNUMPS] 가입이 승인되었습니다!`;
+		const body = `안녕하세요, ${recipientName}님!\n\nSNUMPS 가입 신청이 성공적으로 승인되었습니다. 동아리의 일원이 되신 것을 진심으로 환영합니다.\n\n앞으로의 활동을 위해 아래의 단톡방에 입장해 주세요:\n동아리 단톡방 링크: https://chat.placeholder.link (비밀번호: snumps)\n\n감사합니다.`;
 
 		await dispatchEmail(accessToken, [recipientEmail], subject, body);
 	} catch (e) {

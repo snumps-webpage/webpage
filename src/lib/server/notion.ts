@@ -267,6 +267,32 @@ export async function updateSeminar(pageId: string, data: { title?: string; rema
 }
 
 /**
+ * Resolves a member's details by their Member DB Page ID.
+ */
+export async function getMemberById(memberId: string) {
+	const response = await fetch(`https://api.notion.com/v1/pages/${memberId}`, {
+		method: 'GET',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28'
+		}
+	});
+
+	if (!response.ok) return null;
+	const page = await response.json() as PageObjectResponse;
+	const props = page.properties;
+
+	const nameProp = props[NOTION_PROPS.NAME] as any;
+	const relationProp = props[NOTION_PROPS.MEMBER_INFO] as any;
+
+	return {
+		id: page.id,
+		name: nameProp?.type === 'title' ? nameProp.title[0]?.plain_text ?? '' : '',
+		privateInfoId: relationProp?.type === 'relation' ? relationProp.relation[0]?.id : undefined
+	};
+}
+
+/**
  * Resolves a user's Private Info ID and Member ID by searching for their email.
  */
 export async function getMemberByEmail(email: string) {
