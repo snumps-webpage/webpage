@@ -25,6 +25,7 @@
 				<h1>SNUMPS 활동 현황</h1>
 				<p class="welcome">환영합니다, {session.user.name}님!</p>
 			</div>
+			<a href="/seminar/apply" class="apply-btn">🗣️ 세미나 신청</a>
 		</div>
 
 		{#await data.streamed.dashboard}
@@ -46,6 +47,13 @@
 							<Skeleton width="60px" height="60px" borderRadius="50%" />
 						</div>
 					</div>
+				</div>
+
+				<!-- Seminar List Skeleton -->
+				<div class="seminar-card mb-4">
+					<Skeleton width="150px" height="1.5rem" className="mb-4" />
+					<Skeleton width="100%" height="3rem" className="mb-2" />
+					<Skeleton width="100%" height="3rem" />
 				</div>
 
 				<!-- List Skeleton -->
@@ -97,6 +105,26 @@
 							</div>
 						{/if}
 					</section>
+
+					{#if dashboardData.mySeminars && dashboardData.mySeminars.length > 0}
+						<section class="seminar-card">
+							<h2>내 세미나 신청 현황</h2>
+							<div class="seminar-list">
+								{#each dashboardData.mySeminars as seminar (seminar.id)}
+									<div class="seminar-item {seminar.status}">
+										<div class="seminar-info">
+											<h3>{seminar.title}</h3>
+											<span class="seminar-date">{new Date(seminar.date).toLocaleString()}</span>
+										</div>
+										<span class="status-tag {seminar.status}">
+											{seminar.status === 'approved' ? '승인됨' : 
+											 seminar.status === 'rejected' ? '반려됨' : '검토 중'}
+										</span>
+									</div>
+								{/each}
+							</div>
+						</section>
+					{/if}
 
 					<section class="activities-list">
 						<div class="list-header">
@@ -387,4 +415,71 @@
 		transform: translateY(-2px);
 		box-shadow: 0 6px 10px rgba(102, 126, 234, 0.5);
 	}
+
+	/* Seminar */
+	.apply-btn {
+		background: #667eea;
+		color: white;
+		padding: 0.5rem 1rem;
+		border-radius: 6px;
+		text-decoration: none;
+		font-weight: 600;
+		font-size: 0.9rem;
+		transition: opacity 0.2s;
+		user-select: none;
+	}
+	
+	.apply-btn:hover { opacity: 0.9; }
+
+	.seminar-card {
+		background: var(--bg-secondary);
+		border-radius: 16px;
+		padding: 2rem;
+		box-shadow: var(--shadow);
+		margin-bottom: 2rem;
+		border: 1px solid var(--border-color);
+	}
+
+	.seminar-card h2 {
+		margin: 0 0 1rem 0;
+		font-size: 1.25rem;
+		color: var(--text-primary);
+	}
+
+	.seminar-list {
+		display: grid;
+		gap: 1rem;
+	}
+
+	.seminar-item {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 1rem;
+		background: var(--bg-primary);
+		border-radius: 8px;
+		border: 1px solid var(--border-color);
+	}
+
+	.seminar-info h3 {
+		margin: 0 0 0.25rem 0;
+		font-size: 1rem;
+		color: var(--text-primary);
+	}
+
+	.seminar-date {
+		font-size: 0.85rem;
+		color: var(--text-secondary);
+	}
+
+	.status-tag {
+		padding: 0.25rem 0.75rem;
+		border-radius: 20px;
+		font-size: 0.8rem;
+		font-weight: 600;
+	}
+
+	.status-tag.approved { background: var(--color-success-bg); color: var(--color-success-text); }
+	.status-tag.rejected { background: var(--color-danger-bg); color: var(--color-danger-text); }
+	.status-tag.pending { background: var(--color-warning-bg); color: var(--color-warning-text); }
 </style>

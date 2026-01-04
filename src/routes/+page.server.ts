@@ -1,4 +1,5 @@
 import { getMemberByEmail, getActivities, getUserActivities } from '$lib/server/notion';
+import { getSeminarRequests } from '$lib/server/seminars';
 import { getSemesterInfo, getSemesterKeyFromDate } from '$lib/utils';
 import type { PageServerLoad } from './$types';
 
@@ -24,10 +25,17 @@ export const load: PageServerLoad = async (event) => {
 		}
 
 		try {
-			const [rawCurrentActivities, allAttendedActivities] = await Promise.all([
+			const [rawCurrentActivities, allAttendedActivities, allSeminarRequests] = await Promise.all([
 				getActivities(semester.startDate, semester.endDate),
-				getUserActivities(member.memberId)
+				getUserActivities(member.memberId),
+				getSeminarRequests()
 			]);
+
+			// Filter Seminars: My Applications OR Seminars where I am a speaker
+			const mySeminars = allSeminarRequests.filter(req => 
+				req.applicantEmail === session.user?.email || 
+				req.speakerIds.includes(member.memberId)
+			).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
 			const currentActivities = rawCurrentActivities.map(act => ({
 				id: act.id,
@@ -59,6 +67,7 @@ export const load: PageServerLoad = async (event) => {
 
 			return {
 				activities: [...currentActivities, ...pastAttended],
+				mySeminars,
 				myAttendanceStats: {
 					total: currentActivities.length,
 					attended: attendedCount
