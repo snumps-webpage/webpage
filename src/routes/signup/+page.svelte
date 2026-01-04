@@ -1,5 +1,5 @@
 <script lang="ts">
-	
+	import { enhance } from '$app/forms';
 	let { data, form } = $props();
 </script>
 
@@ -23,37 +23,28 @@
 				<div class="error">{form.error}</div>
 			{/if}
 
-			<form method="POST">
-				<div class="form-group">
-					<label for="email">이메일</label>
-					<input type="text" id="email" value={data.user?.email} disabled />
-					<span class="hint">로그인된 계정입니다.</span>
-				</div>
+		<form method="POST" use:enhance>
+			<div class="field">
+				<label for="name">이름 <span class="req">*</span></label>
+				<input id="name" type="text" name="name" value={data.parsedName} disabled />
+				<span class="hint">Google 계정 정보에서 가져온 이름입니다.</span>
+			</div>
 
-				<div class="form-group">
-					<label for="name">이름 <span class="req">*</span></label>
-					<input type="text" id="name" name="name" value={data.user?.name} required placeholder="홍길동" />
-				</div>
+			<div class="field">
+				<label for="department">학과 <span class="req">*</span></label>
+				<input id="department" type="text" name="department" value={data.parsedDept} disabled />
+				<span class="hint">Google 계정 정보에서 가져온 학과입니다.</span>
+			</div>
 
-				<div class="form-group">
-					<label for="department">학과 <span class="req">*</span></label>
-					<input type="text" id="department" name="department" required placeholder="수리과학부" />
-				</div>
+			<div class="field">
+				<label for="phone">전화번호 <span class="req">*</span></label>
+				<input id="phone" type="tel" name="phone" placeholder="010-0000-0000" required />
+			</div>
 
-				<div class="form-group">
-					<label for="phone">전화번호 <span class="req">*</span></label>
-					<input type="tel" id="phone" name="phone" required placeholder="010-0000-0000" />
-				</div>
-
-				<div class="form-group">
-					<label for="bio">자기소개</label>
-					<textarea id="bio" name="bio" rows="3" placeholder="간단한 자기소개를 입력해주세요."></textarea>
-				</div>
-
-				<div class="form-group">
-					<label for="background">배경지식</label>
-					<textarea id="background" name="background" rows="3" placeholder="관심 분야나 관련 경험을 적어주세요."></textarea>
-				</div>
+			<div class="field">
+				<label for="background">배경지식</label>
+				<textarea id="background" name="background" rows="3" placeholder="예: 학부 2학년, 해석학 수강 중, 코딩 가능여부 등"></textarea>
+			</div>
 
 				<div class="agreement">
 					<label>
@@ -101,27 +92,20 @@
         text-align: center;
     }
 
-    .desc {
-        color: var(--text-secondary);
-        text-align: center;
-        margin-bottom: 2rem;
-    }
+	.desc { color: var(--text-secondary); margin-bottom: 2rem; font-size: 0.9rem; }
 
-    .form-group {
-        margin-bottom: 1.25rem;
-    }
+	.field { margin-bottom: 1.5rem; }
 
-    label {
-        display: block;
-        font-size: 0.875rem;
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-        color: var(--text-secondary);
-    }
+	label {
+		display: block;
+		margin-bottom: 0.5rem;
+		font-weight: 600;
+		color: var(--text-secondary);
+	}
 
     .req {
-        color: #dc2626; /* Keep red for required asterisk */
-        margin-left: 0.2rem;
+        color: #ef4444; /* Red color for required asterisk */
+        margin-left: 0.1rem;
     }
 
     input, textarea {
