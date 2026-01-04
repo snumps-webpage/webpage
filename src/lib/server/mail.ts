@@ -134,6 +134,7 @@ export async function sendWelcomeEmail(recipientEmail: string, recipientName: st
  * Internal helper to send the actual RFC 2822 email via Gmail API.
  */
 async function dispatchEmail(accessToken: string, recipients: string[], subject: string, body: string) {
+	console.log(`Dispatching email to: ${recipients.join(', ')}`);
 	const message = [
 		`To: ${recipients.join(', ')}`,
 		`Subject: =?utf-8?B?${Buffer.from(subject).toString('base64')}?=`, 
@@ -161,5 +162,7 @@ async function dispatchEmail(accessToken: string, recipients: string[], subject:
 		const err = await response.json();
 		console.error('Google Gmail API Send Error:', JSON.stringify(err, null, 2));
 		throw new Error('Gmail API failure');
+	} else {
+		console.log('Email successfully sent via Google API.');
 	}
 }
