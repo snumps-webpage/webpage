@@ -145,56 +145,33 @@ export async function createMember(data: {
 	department: string;
 	background: string;
 }) {
+	const notion = getNotionClient();
 	const privateDbId = env.NOTION_DB_PRIVATE_INFO;
 	const memberDbId = env.NOTION_DB_MEMBERS;
 	
 	if (!privateDbId || !memberDbId) throw new Error('DB IDs not set');
 
-	const privateResponse = await fetch(`https://api.notion.com/v1/pages`, {
-		method: 'POST',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			parent: { database_id: privateDbId },
-			properties: {
-				[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
-				[NOTION_PROPS.EMAIL]: { email: data.email },
-				[NOTION_PROPS.PHONE]: { phone_number: data.phone },
-				[NOTION_PROPS.BACKGROUND]: { rich_text: [{ text: { content: data.background } }] }
-			}
-		})
+	// 1. Create Private Info Page
+	const privatePage = await notion.pages.create({
+		parent: { database_id: privateDbId },
+		properties: {
+			[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
+			[NOTION_PROPS.EMAIL]: { email: data.email },
+			[NOTION_PROPS.PHONE]: { phone_number: data.phone },
+			[NOTION_PROPS.BACKGROUND]: { rich_text: [{ text: { content: data.background } }] }
+		}
+	}) as PageObjectResponse;
+
+	// 2. Create Member Page
+	await notion.pages.create({
+		parent: { database_id: memberDbId },
+		properties: {
+			[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
+			[NOTION_PROPS.DEPT]: { rich_text: [{ text: { content: data.department } }] },
+			[NOTION_PROPS.MEMBER_INFO]: { relation: [{ id: privatePage.id }] },
+			[NOTION_PROPS.JOIN_DATE]: { date: { start: new Date().toISOString().split('T')[0] } }
+		}
 	});
-
-	if (!privateResponse.ok) {
-		throw new Error('Failed to create private info: ' + JSON.stringify(await privateResponse.json()));
-	}
-
-	const privatePage = await privateResponse.json() as PageObjectResponse;
-
-	const memberResponse = await fetch(`https://api.notion.com/v1/pages`, {
-		method: 'POST',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			parent: { database_id: memberDbId },
-			properties: {
-				[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
-				[NOTION_PROPS.DEPT]: { rich_text: [{ text: { content: data.department } }] },
-				[NOTION_PROPS.MEMBER_INFO]: { relation: [{ id: privatePage.id }] },
-				[NOTION_PROPS.JOIN_DATE]: { date: { start: new Date().toISOString().split('T')[0] } }
-			}
-		})
-	});
-
-	if (!memberResponse.ok) {
-		throw new Error('Failed to create member page: ' + JSON.stringify(await memberResponse.json()));
-	}
 }
 
 /**
@@ -821,17 +798,12 @@ export async function createApplicationInNotion(data: {
 	department: string;
 	background: string;
 }) {
+	const notion = getNotionClient();
 	const dbId = env.NOTION_DB_APPLICATIONS;
 	if (!dbId) return null;
 
-	const response = await fetch(`https://api.notion.com/v1/pages`, {
-		method: 'POST',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
+	try {
+		const page = await notion.pages.create({
 			parent: { database_id: dbId },
 			properties: {
 				'이름': { title: [{ text: { content: data.name } }] },
@@ -840,16 +812,12 @@ export async function createApplicationInNotion(data: {
 				'학과': { rich_text: [{ text: { content: data.department } }] },
 				'배경 지식': { rich_text: [{ text: { content: data.background } }] }
 			}
-		})
-	});
-
-	if (!response.ok) {
-		console.error('Failed to create application in Notion', await response.json());
+		});
+		return page.id;
+	} catch (error) {
+		console.error('Notion Client Error (Create Application):', error);
 		return null;
 	}
-
-	const page = await response.json() as PageObjectResponse;
-	return page.id;
 }
 
 export async function removeApplicationInNotion(id: string) {

@@ -16,6 +16,7 @@ import {
 } from '$lib/server/seminars';
 import { sendSeminarStatusNotification, sendWelcomeEmail } from '$lib/server/mail';
 import { invalidateCache } from '$lib/server/cache';
+import { normalizePhoneNumber } from '$lib/utils';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -86,12 +87,13 @@ export const actions = {
 
 		try {
             console.log(`Starting approval for ${app.name} (${app.email})...`);
+            const normalizedPhone = normalizePhoneNumber(app.phone);
             
             // 1. Create Member record in Notion
 			await createMember({
 				name: app.name,
 				email: app.email,
-				phone: app.phone,
+				phone: normalizedPhone,
 				department: app.department,
 				background: app.background
 			});
