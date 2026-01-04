@@ -9,198 +9,181 @@
 	let { data }: { data: PageData } = $props();
 	const session = $derived(page.data.session);
 
+	// Visibility states
+	let showProfile = $state(true);
+	let showSeminars = $state(true);
+	let showStats = $state(true);
+
+	// Filtering state
 	let selectedSemester = $state('all');
 	
-	// Effect to set initial semester when data resolves
 	$effect(() => {
 		if (data.currentSemesterKey) {
 			selectedSemester = data.currentSemesterKey;
 		}
 	});
+
+	// Seminar Edit state
+	let editingSeminarId = $state<string | null>(null);
 </script>
+
+{#snippet collapsibleCard(title: string, bindValue: boolean, toggle: () => void, children: any)}
+	<section class="card {bindValue ? '' : 'collapsed'}">
+		<header onclick={toggle} class="card-header-toggle">
+			<h2>{title}</h2>
+			<span class="chevron">{bindValue ? '▼' : '▶'}</span>
+		</header>
+		{#if bindValue}
+			<div class="card-content">
+				{@render children()}
+			</div>
+		{/if}
+	</section>
+{/snippet}
 
 <div class="container">
 	{#if session?.user}
-		<div class="header">
-			<div>
-				<h1>SNUMPS 활동 현황</h1>
-				<p class="welcome">환영합니다, {session.user.name}님!</p>
-			</div>
-			<a href="/seminar/apply" class="apply-btn">🗣️ 세미나 신청</a>
+		<div class="dashboard-header">
+			<h1>SNUMPS 활동 현황</h1>
+			<p class="welcome">환영합니다, {session.user.name}님!</p>
 		</div>
 
 		{#await data.streamed.dashboard}
 			<div class="dashboard-skeleton">
-				<!-- Profile Skeleton -->
-				<div class="profile-card mb-4">
-					<Skeleton width="150px" height="1.5rem" className="mb-4" />
-					<Skeleton width="100%" height="3rem" />
-				</div>
-
-				<!-- Stats Card Skeleton -->
-				<div class="stats-card">
-					<Skeleton width="40%" height="1.5rem" className="mb-4" />
-					<div class="stats-grid">
-						<div class="stat-item">
-							<Skeleton width="60px" height="2.5rem" />
-							<Skeleton width="40px" height="0.8rem" className="mt-2" />
-						</div>
-						<div class="stat-divider">/</div>
-						<div class="stat-item">
-							<Skeleton width="60px" height="2.5rem" />
-							<Skeleton width="60px" height="0.8rem" className="mt-2" />
-						</div>
-						<div class="stat-chart">
-							<Skeleton width="60px" height="60px" borderRadius="50%" />
-						</div>
-					</div>
-				</div>
-
-				<!-- Seminar List Skeleton -->
-				<div class="seminar-card mb-4">
-					<Skeleton width="150px" height="1.5rem" className="mb-4" />
-					<Skeleton width="100%" height="3rem" className="mb-2" />
-					<Skeleton width="100%" height="3rem" />
-				</div>
-
-				<!-- List Skeleton -->
-				<div class="activities-list">
-					<div class="list-header">
-						<Skeleton width="100px" height="1.5rem" />
-						<Skeleton width="120px" height="2rem" />
-					</div>
-					<div class="table-container p-4">
-						<Skeleton width="100%" height="2rem" className="mb-2" />
-						<Skeleton width="100%" height="2rem" className="mb-2" />
-						<Skeleton width="100%" height="2rem" />
-					</div>
-				</div>
+				<div class="card mb-4"><Skeleton width="100%" height="150px" /></div>
+				<div class="card mb-4"><Skeleton width="100%" height="150px" /></div>
+				<div class="card mb-4"><Skeleton width="100%" height="150px" /></div>
 			</div>
-		{:then dashboardData}
-			{#if dashboardData}
-				{#if 'error' in dashboardData}
-					<div class="dashboard">
-						<div class="error-banner">
-							⚠️ {dashboardData.error}
+		{:then result}
+			{#if result && 'error' in result}
+				<div class="error-banner">{result.error}</div>
+			{:else if result}
+				<div class="dashboard-grid">
+					
+					<!-- 1. Member Info (Collapsible) -->
+					{@render collapsibleCard('회원 정보 관리', showProfile, () => showProfile = !showProfile, profileContent)}
+					{#snippet profileContent()}
+						<form method="POST" action="?/updateProfile" use:enhance>
+							<div class="profile-summary">
+								<div class="form-group">
+									<label for="phone">전화번호</label>
+									<input type="tel" id="phone" name="phone" value={result.profile.phone} placeholder="010-0000-0000" />
+								</div>
+								<div class="form-group">
+									<label for="background">배경지식</label>
+									<textarea id="background" name="background" rows="2" placeholder="관심 분야 등">{result.profile.background}</textarea>
+								</div>
+								<button class="btn-save">저장</button>
+							</div>
+						</form>
+					{/snippet}
+
+					<!-- 2. Manage Seminar (Collapsible) -->
+					{@render collapsibleCard('세미나 관리', showSeminars, () => showSeminars = !showSeminars, seminarContent)}
+					{#snippet seminarContent()}
+						<div class="seminar-section">
+							{#if result.approvedSeminars.length === 0 && result.seminarRequests.length === 0}
+								<p class="empty-hint">참여 중인 세미나나 신청 내역이 없습니다.</p>
+							{:else}
+								<div class="seminar-list">
+									{#each result.approvedSeminars as seminar}
+										<div class="seminar-item approved">
+											<div class="seminar-info">
+												<span class="sem-tag">기록됨</span>
+												{#if editingSeminarId === seminar.id}
+													<form method="POST" action="?/updateSeminar" use:enhance={() => {
+														return ({ result }) => { if (result.type === 'success') editingSeminarId = null; };
+													}} class="edit-form">
+														<input type="hidden" name="id" value={seminar.id} />
+														<input type="text" name="title" value={seminar.title} class="edit-input" />
+														<textarea name="remarks" class="edit-textarea">{seminar.remarks}</textarea>
+														<div class="edit-actions">
+															<button type="button" class="btn-cancel" onclick={() => editingSeminarId = null}>취소</button>
+															<button class="btn-confirm">저장</button>
+														</div>
+													</form>
+												{:else}
+													<div class="view-mode">
+														<span class="sem-title">{seminar.title}</span>
+														<span class="sem-meta">{seminar.semester} | {seminar.remarks || '비고 없음'}</span>
+														<button class="btn-edit-inline" onclick={() => editingSeminarId = seminar.id}>수정</button>
+													</div>
+												{/if}
+											</div>
+										</div>
+									{/each}
+									{#each result.seminarRequests as req}
+										<div class="seminar-item request {req.status}">
+											<div class="seminar-info">
+												<span class="sem-tag status">{req.status === 'approved' ? '승인됨' : req.status === 'rejected' ? '반려됨' : '승인 대기'}</span>
+												<span class="sem-title">{req.title}</span>
+												<span class="sem-meta">{new Date(req.date).toLocaleDateString()} 신청</span>
+											</div>
+										</div>
+									{/each}
+								</div>
+							{/if}
+							<a href="/seminar/apply" class="btn-apply">🗣️ 새 세미나 신청</a>
 						</div>
-					</div>
-				{:else}
-					{@const filteredActivities = selectedSemester === 'all' 
-						? dashboardData.activities 
-						: dashboardData.activities.filter((a: Activity) => getSemesterKeyFromDate(a.date) === selectedSemester)
-					}
+					{/snippet}
 
-					<div class="dashboard">
-						{#if dashboardData.profile}
-							<section class="profile-card">
-								<h2>내 정보 관리</h2>
-								<form method="POST" action="?/updatePhone" use:enhance class="phone-form">
-									<div class="field">
-										<label for="phone">전화번호</label>
-										<div class="input-group">
-											<input type="tel" id="phone" name="phone" value={dashboardData.profile.phone} placeholder="010-0000-0000" />
-											<button class="save-btn">저장</button>
-										</div>
-									</div>
-								</form>
-							</section>
-						{/if}
-
-						<section class="stats-card">
-						<h2>{data.semester} 출석 현황</h2>
-						{#if dashboardData.myAttendanceStats}
-							<div class="stats-grid">
-								<div class="stat-item">
-									<span class="stat-value">{dashboardData.myAttendanceStats.attended}</span>
-									<span class="stat-label">출석</span>
-								</div>
-								<div class="stat-divider">/</div>
-								<div class="stat-item">
-									<span class="stat-value total">{dashboardData.myAttendanceStats.total}</span>
-									<span class="stat-label">전체 활동</span>
-								</div>
-								<div class="stat-chart">
-									{#if dashboardData.myAttendanceStats.total > 0}
-										<div class="pie-chart" style="--percent: {(dashboardData.myAttendanceStats.attended / dashboardData.myAttendanceStats.total) * 100}%"></div>
-									{/if}
-								</div>
+					<!-- 3. Attendance Stats (Collapsible) -->
+					{@render collapsibleCard(`${data.semester} 출석 현황`, showStats, () => showStats = !showStats, statsContent)}
+					{#snippet statsContent()}
+						<div class="stats-grid">
+							<div class="stat-item">
+								<span class="stat-value">{result.myAttendanceStats.attended}</span>
+								<span class="stat-label">출석</span>
 							</div>
-						{/if}
-					</section>
-
-					{#if dashboardData.mySeminars && dashboardData.mySeminars.length > 0}
-						<section class="seminar-card">
-							<h2>내 세미나 신청 현황</h2>
-							<div class="seminar-list">
-								{#each dashboardData.mySeminars as seminar (seminar.id)}
-									<div class="seminar-item {seminar.status}">
-										<div class="seminar-info">
-											<h3>{seminar.title}</h3>
-											<span class="seminar-date">{new Date(seminar.date).toLocaleString()}</span>
-										</div>
-										<span class="status-tag {seminar.status}">
-											{seminar.status === 'approved' ? '승인됨' : 
-											 seminar.status === 'rejected' ? '반려됨' : '검토 중'}
-										</span>
-									</div>
-								{/each}
+							<div class="stat-divider">/</div>
+							<div class="stat-item">
+								<span class="stat-value total">{result.myAttendanceStats.total}</span>
+								<span class="stat-label">전체 활동</span>
 							</div>
-						</section>
-					{/if}
+							<div class="stat-chart">
+								{#if result.myAttendanceStats.total > 0}
+									<div class="pie-chart" style="--percent: {(result.myAttendanceStats.attended / result.myAttendanceStats.total) * 100}%"></div>
+								{/if}
+							</div>
+						</div>
+					{/snippet}
 
-					<section class="activities-list">
+					<!-- 4. Activities List -->
+					<section class="activities-card">
 						<div class="list-header">
 							<h3>활동 목록</h3>
 							<select bind:value={selectedSemester} class="semester-select">
 								<option value="all">전체 활동</option>
-								{#each dashboardData.semesters as sem (sem)}
+								{#each result.semesters as sem}
 									<option value={sem}>{sem}학기</option>
 								{/each}
 							</select>
 						</div>
 
-						{#if filteredActivities.length === 0}
-							<p class="empty-state">활동 내역이 없습니다.</p>
-						{:else}
-							<div class="table-container">
-								<table>
-									<thead>
-										<tr>
-											<th>날짜</th>
-											<th>활동명</th>
-											<th>종류</th>
-											<th>출석</th>
-										</tr>
-									</thead>
-									<tbody>
-										{#each filteredActivities as activity (activity.id)}
-											<tr class={activity.attended ? 'attended' : 'absent'}>
-												<td class="date">{activity.date}</td>
-												<td class="name">
-													<a href={activity.url} target="_blank" rel="noopener noreferrer" class="activity-link">
-														{activity.name}
-													</a>
-												</td>
-												<td><span class="tag">{activity.type}</span></td>
-												<td class="status">
-													{#if activity.attended}
-														<span class="badge success">출석</span>
-													{:else}
-														<span class="badge fail">결석</span>
-													{/if}
-												</td>
-											</tr>
-										{/each}
-									</tbody>
-								</table>
-							</div>
-						{/if}
+						<div class="table-container">
+							{#each result.activities.filter((a: any) => selectedSemester === 'all' || getSemesterKeyFromDate(a.date) === selectedSemester) as activity (activity.id)}
+								<div class="activity-row {activity.attended ? 'attended' : 'absent'}">
+									<div class="act-main">
+										<span class="act-date">{activity.date}</span>
+										<a href={activity.url} target="_blank" rel="noopener noreferrer" class="act-name">
+											{activity.name}
+										</a>
+									</div>
+									<div class="act-meta">
+										<span class="tag">{activity.type}</span>
+										<span class="badge {activity.attended ? 'success' : 'fail'}">
+											{activity.attended ? '출석' : '결석'}
+										</span>
+									</div>
+								</div>
+							{:else}
+								<p class="empty-state">활동 내역이 없습니다.</p>
+							{/each}
+						</div>
 					</section>
 				</div>
-				{/if}
 			{/if}
 		{/await}
-
 	{:else}
 		<div class="landing">
 			<h1>SNUMPS 자동화</h1>
@@ -217,208 +200,171 @@
 		padding: 2rem;
 	}
 
-	/* Header */
-	.header {
+	.dashboard-header {
+		margin-bottom: 2rem;
+		border-bottom: 1px solid var(--border-color);
+		padding-bottom: 1rem;
+	}
+
+	h1 { font-size: 1.75rem; color: var(--text-primary); margin: 0 0 0.5rem 0; }
+	.welcome { color: var(--text-secondary); margin: 0; }
+
+	.dashboard-grid {
+		display: grid;
+		gap: 1.5rem;
+	}
+
+	/* Card Styles */
+	.card {
+		background: var(--bg-secondary);
+		border-radius: 12px;
+		border: 1px solid var(--border-color);
+		box-shadow: var(--shadow);
+		overflow: hidden;
+	}
+
+	.card-header-toggle {
+		padding: 1rem 1.5rem;
 		display: flex;
 		justify-content: space-between;
-		align-items: flex-start;
-		margin-bottom: 2rem;
-		padding-bottom: 1rem;
-		border-bottom: 1px solid var(--border-color);
+		align-items: center;
+		cursor: pointer;
+		user-select: none;
+		background: var(--btn-secondary);
+		transition: background 0.2s;
 	}
 
-	h1 {
-		font-size: 1.75rem;
-		color: var(--text-primary);
-		margin: 0 0 0.5rem 0;
-	}
+	.card-header-toggle:hover { background: var(--border-color); }
+	.card-header-toggle h2 { margin: 0; font-size: 1.1rem; color: var(--text-primary); font-weight: 600; }
+	.chevron { color: var(--text-secondary); font-size: 0.8rem; }
 
-	.welcome {
-		color: var(--text-secondary);
-		margin: 0;
-	}
+	.card-content { padding: 1.5rem; }
 
-	/* Stats Card */
-	.stats-card {
-		background: var(--bg-secondary);
-		border-radius: 16px; /* Softer corners */
-		padding: 2rem; /* More whitespace */
-		box-shadow: var(--shadow);
-		margin-bottom: 2rem;
+	/* Profile Summary */
+	.profile-summary { display: grid; gap: 1rem; }
+	.form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+	.form-group label { font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); }
+	.form-group input, .form-group textarea {
+		padding: 0.6rem;
 		border: 1px solid var(--border-color);
-		transition: transform 0.2s ease, box-shadow 0.2s ease;
-	}
-
-	.stats-card:hover {
-		transform: translateY(-2px);
-		box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-	}
-
-	.stats-card h2 {
-		margin: 0 0 1.5rem 0;
-		font-size: 1.25rem;
+		border-radius: 6px;
+		background: var(--bg-primary);
 		color: var(--text-primary);
+		font-size: 0.95rem;
+	}
+	.btn-save {
+		padding: 0.6rem;
+		background: var(--text-primary);
+		color: var(--bg-primary);
+		border: none;
+		border-radius: 6px;
 		font-weight: 600;
+		cursor: pointer;
 	}
 
-	.stats-grid {
-		display: flex;
-		align-items: center;
-		gap: 1rem;
+	/* Seminar Management */
+	.seminar-section { display: grid; gap: 1rem; }
+	.seminar-list { display: grid; gap: 0.75rem; }
+	.seminar-item {
+		padding: 1rem;
+		border-radius: 8px;
+		border: 1px solid var(--border-color);
+		background: var(--bg-primary);
 	}
-
-	.stat-item {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-	}
-
-	.stat-value {
-		font-size: 2rem;
+	.sem-tag {
+		font-size: 0.7rem;
 		font-weight: 700;
-		color: #10b981;
-		line-height: 1;
+		text-transform: uppercase;
+		background: #e5e7eb;
+		color: #4b5563;
+		padding: 0.1rem 0.4rem;
+		border-radius: 4px;
+		margin-bottom: 0.4rem;
+		display: inline-block;
 	}
+	.sem-title { display: block; font-weight: 600; color: var(--text-primary); margin-bottom: 0.2rem; }
+	.sem-meta { font-size: 0.85rem; color: var(--text-secondary); }
 	
-	.stat-value.total {
+	.btn-edit-inline {
+		margin-top: 0.5rem;
+		font-size: 0.8rem;
+		background: transparent;
+		border: 1px solid var(--border-color);
+		padding: 0.2rem 0.5rem;
+		border-radius: 4px;
 		color: var(--text-secondary);
+		cursor: pointer;
 	}
 
-	.stat-label {
-		font-size: 0.875rem;
-		color: var(--text-secondary);
-		margin-top: 0.25rem;
+	.edit-form { display: grid; gap: 0.5rem; margin-top: 0.5rem; }
+	.edit-input, .edit-textarea {
+		width: 100%;
+		padding: 0.5rem;
+		border: 1px solid var(--border-color);
+		border-radius: 4px;
+		background: var(--bg-secondary);
+		color: var(--text-primary);
+	}
+	.edit-actions { display: flex; gap: 0.5rem; }
+	.btn-confirm { background: #10b981; color: white; border: none; padding: 0.3rem 0.8rem; border-radius: 4px; cursor: pointer; }
+	.btn-cancel { background: #6b7280; color: white; border: none; padding: 0.3rem 0.8rem; border-radius: 4px; cursor: pointer; }
+
+	.btn-apply {
+		text-align: center;
+		padding: 0.75rem;
+		background: #667eea;
+		color: white;
+		text-decoration: none;
+		border-radius: 8px;
+		font-weight: 600;
+		font-size: 0.9rem;
 	}
 
-	.stat-divider {
-		font-size: 2rem;
-		color: var(--border-color);
-		font-weight: 300;
-	}
+	/* Stats Grid */
+	.stats-grid { display: flex; align-items: center; gap: 1rem; }
+	.stat-item { display: flex; flex-direction: column; align-items: center; }
+	.stat-value { font-size: 2rem; font-weight: 700; color: #10b981; }
+	.stat-value.total { color: var(--text-secondary); }
+	.stat-label { font-size: 0.875rem; color: var(--text-secondary); }
+	.stat-divider { font-size: 2rem; color: var(--border-color); font-weight: 300; }
 
 	/* Activities List */
-	.list-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 1rem;
-	}
-
-	.activities-list h3 {
-		font-size: 1.25rem;
-		margin: 0;
-		color: var(--text-primary);
-	}
-
+	.activities-card { padding: 1.5rem; background: var(--bg-secondary); border-radius: 12px; border: 1px solid var(--border-color); }
+	.list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+	.list-header h3 { margin: 0; font-size: 1.25rem; color: var(--text-primary); }
+	
 	.semester-select {
 		padding: 0.4rem 2rem 0.4rem 0.8rem;
 		border-radius: 6px;
 		border: 1px solid var(--border-color);
-		font-size: 0.875rem;
-		background: var(--bg-secondary);
+		background: var(--bg-primary);
 		color: var(--text-primary);
-		cursor: pointer;
 	}
 
-	.table-container {
-		background: var(--bg-secondary);
-		border-radius: 12px;
-		box-shadow: var(--shadow);
-		overflow: hidden;
+	.table-container { display: grid; gap: 0.75rem; }
+	.activity-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 1rem;
+		background: var(--bg-primary);
+		border-radius: 8px;
 		border: 1px solid var(--border-color);
 	}
+	.act-date { font-size: 0.85rem; color: var(--text-secondary); display: block; }
+	.act-name { font-weight: 600; color: var(--text-primary); text-decoration: none; }
+	.act-name:hover { color: #667eea; text-decoration: underline; }
+	.act-meta { display: flex; align-items: center; gap: 0.75rem; }
 
-	table {
-		width: 100%;
-		border-collapse: collapse;
-		text-align: left;
-	}
+	.tag { font-size: 0.75rem; background: var(--btn-secondary); padding: 0.2rem 0.5rem; border-radius: 4px; color: var(--text-secondary); }
+	.badge { font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 20px; }
+	.badge.success { background: #d1fae5; color: #059669; }
+	.badge.fail { background: #fee2e2; color: #dc2626; }
 
-	th {
-		background: var(--btn-secondary);
-		padding: 0.75rem 1rem;
-		font-size: 0.875rem;
-		font-weight: 600;
-		color: var(--text-primary);
-		border-bottom: 1px solid var(--border-color);
-	}
-
-	td {
-		padding: 0.875rem 1rem;
-		border-bottom: 1px solid var(--border-color);
-		color: var(--text-primary);
-	}
-
-	tr:last-child td {
-		border-bottom: none;
-	}
-
-	.date {
-		white-space: nowrap;
-		color: var(--text-secondary);
-		font-size: 0.9rem;
-	}
-
-	.activity-link {
-		color: inherit;
-		text-decoration: none;
-		transition: color 0.2s;
-	}
-
-	.activity-link:hover {
-		color: #667eea;
-		text-decoration: underline;
-	}
-
-	.tag {
-		display: inline-block;
-		padding: 0.25rem 0.5rem;
-		background: var(--btn-secondary);
-		color: var(--text-secondary);
-		border-radius: 4px;
-		font-size: 0.75rem;
-		white-space: nowrap;
-	}
-
-	.badge {
-		display: inline-block;
-		padding: 0.2rem 0.75rem; /* Increased horizontal padding */
-		border-radius: 9999px;
-		font-size: 0.7rem; /* Slightly smaller font */
-		font-weight: 600;
-		white-space: nowrap; /* Prevent awkward line breaks */
-		width: max-content;
-	}
-
-	.badge.success {
-		background: var(--color-success-bg);
-		color: var(--color-success-text);
-	}
-
-	.badge.fail {
-		background: var(--color-danger-bg);
-		color: var(--color-danger-text);
-	}
-
-	.error-banner {
-		background: var(--color-danger-bg);
-		color: var(--color-danger-text);
-		padding: 1rem;
-		border-radius: 8px;
-		margin-bottom: 1rem;
-	}
+	.loading, .error-banner, .empty-hint, .empty-state { text-align: center; padding: 2rem; color: var(--text-secondary); }
 
 	/* Landing */
-	.landing {
-		text-align: center;
-		padding: 4rem 1rem;
-	}
-
-	.landing h1 {
-		font-size: 2.5rem;
-		margin-bottom: 1rem;
-	}
-
+	.landing { text-align: center; padding: 4rem 1rem; }
 	.login-link {
 		display: inline-block;
 		margin-top: 2rem;
@@ -428,134 +374,5 @@
 		text-decoration: none;
 		border-radius: 8px;
 		font-weight: 600;
-		font-size: 1.1rem;
-		box-shadow: 0 4px 6px rgba(102, 126, 234, 0.4);
-		user-select: none;
 	}
-
-	.landing .login-link:hover {
-		transform: translateY(-2px);
-		box-shadow: 0 6px 10px rgba(102, 126, 234, 0.5);
-	}
-
-	/* Seminar */
-	.apply-btn {
-		background: #667eea;
-		color: white;
-		padding: 0.5rem 1rem;
-		border-radius: 6px;
-		text-decoration: none;
-		font-weight: 600;
-		font-size: 0.9rem;
-		transition: opacity 0.2s;
-		user-select: none;
-	}
-	
-	.apply-btn:hover { opacity: 0.9; }
-
-	.seminar-card {
-		background: var(--bg-secondary);
-		border-radius: 16px;
-		padding: 2rem;
-		box-shadow: var(--shadow);
-		margin-bottom: 2rem;
-		border: 1px solid var(--border-color);
-	}
-
-	.seminar-card h2 {
-		margin: 0 0 1rem 0;
-		font-size: 1.25rem;
-		color: var(--text-primary);
-	}
-
-	.seminar-list {
-		display: grid;
-		gap: 1rem;
-	}
-
-	.seminar-item {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 1rem;
-		background: var(--bg-primary);
-		border-radius: 8px;
-		border: 1px solid var(--border-color);
-	}
-
-	.seminar-info h3 {
-		margin: 0 0 0.25rem 0;
-		font-size: 1rem;
-		color: var(--text-primary);
-	}
-
-	.seminar-date {
-		font-size: 0.85rem;
-		color: var(--text-secondary);
-	}
-
-	.status-tag {
-		padding: 0.25rem 0.75rem;
-		border-radius: 20px;
-		font-size: 0.8rem;
-		font-weight: 600;
-	}
-
-	.status-tag.approved { background: var(--color-success-bg); color: var(--color-success-text); }
-	.status-tag.rejected { background: var(--color-danger-bg); color: var(--color-danger-text); }
-	.status-tag.pending { background: var(--color-warning-bg); color: var(--color-warning-text); }
-
-	/* Profile Card */
-	.profile-card {
-		background: var(--bg-secondary);
-		border-radius: 16px;
-		padding: 2rem;
-		box-shadow: var(--shadow);
-		margin-bottom: 2rem;
-		border: 1px solid var(--border-color);
-	}
-
-	.profile-card h2 {
-		margin: 0 0 1rem 0;
-		font-size: 1.25rem;
-		color: var(--text-primary);
-	}
-
-    .phone-form .field { margin-bottom: 0; }
-    
-    .phone-form label {
-        display: block;
-        margin-bottom: 0.5rem;
-        font-weight: 600;
-        color: var(--text-secondary);
-        font-size: 0.9rem;
-    }
-
-    .input-group {
-        display: flex;
-        gap: 0.5rem;
-    }
-
-    .input-group input {
-        flex: 1;
-        padding: 0.75rem;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        font-size: 1rem;
-        background: var(--bg-primary);
-        color: var(--text-primary);
-    }
-
-    .save-btn {
-        padding: 0 1.5rem;
-        background: var(--text-primary);
-        color: var(--bg-primary);
-        border: none;
-        border-radius: 6px;
-        font-weight: 600;
-        cursor: pointer;
-        user-select: none;
-    }
-
-    .save-btn:hover { opacity: 0.9; }
 </style>

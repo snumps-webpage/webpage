@@ -198,6 +198,75 @@ export async function createMember(data: {
 }
 
 /**
+ * Fetches all seminars where the specific member is a speaker.
+ */
+export async function getUserSeminars(memberId: string) {
+	const dbId = env.NOTION_DB_SEMINARS;
+	if (!dbId) return [];
+
+	const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
+		method: 'POST',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28',
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			filter: {
+				property: NOTION_PROPS.SEMINAR_SPEAKER,
+				relation: { contains: memberId }
+			},
+			sorts: [{ property: NOTION_PROPS.SEMINAR_SEMESTER, direction: 'descending' }]
+		})
+	});
+
+	if (!response.ok) return [];
+
+	const data = await response.json() as QueryDatabaseResponse;
+	return data.results
+		.filter((page: unknown): page is PageObjectResponse => 
+			typeof page === 'object' && page !== null && 'properties' in page
+		)
+		.map(page => {
+			const props = page.properties;
+			const titleProp = props[NOTION_PROPS.SEMINAR_TITLE] as any;
+			const remarksProp = props[NOTION_PROPS.SEMINAR_REMARKS] as any;
+			const semesterProp = props[NOTION_PROPS.SEMINAR_SEMESTER] as any;
+
+			return {
+				id: page.id,
+				title: titleProp?.type === 'title' ? titleProp.title[0]?.plain_text ?? '' : '',
+				remarks: remarksProp?.type === 'rich_text' ? remarksProp.rich_text[0]?.plain_text ?? '' : '',
+				semester: semesterProp?.type === 'select' ? semesterProp.select?.name ?? '' : ''
+			};
+		});
+}
+
+/**
+ * Updates a seminar record in Notion.
+ */
+export async function updateSeminar(pageId: string, data: { title?: string; remarks?: string }) {
+	const props: Record<string, any> = {};
+	if (data.title !== undefined) props[NOTION_PROPS.SEMINAR_TITLE] = { title: [{ text: { content: data.title } }] };
+	if (data.remarks !== undefined) props[NOTION_PROPS.SEMINAR_REMARKS] = { rich_text: [{ text: { content: data.remarks } }] };
+
+	const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+		method: 'PATCH',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28',
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({ properties: props })
+	});
+
+	if (!response.ok) {
+		const error = await response.json();
+		throw new Error(JSON.stringify(error));
+	}
+}
+
+/**
  * Resolves a user's Private Info ID and Member ID by searching for their email.
  */
 export async function getMemberByEmail(email: string) {
