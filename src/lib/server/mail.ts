@@ -122,6 +122,7 @@ export async function sendSeminarApplicationNotification(applicantName: string, 
  */
 export async function sendWelcomeEmail(recipientEmail: string, recipientName: string) {
 	try {
+		console.log(`Attempting to send welcome email to ${recipientName} (${recipientEmail})...`);
 		const accessToken = await getAdminAccessToken();
 		const subject = `[SNUMPS] 가입이 승인되었습니다!`;
 		const body = `안녕하세요, ${recipientName}님!\n\nSNUMPS 가입 신청이 성공적으로 승인되었습니다. 동아리의 일원이 되신 것을 진심으로 환영합니다.\n\n앞으로의 활동을 위해 아래의 단톡방에 입장해 주세요:\n동아리 단톡방 링크: https://chat.placeholder.link (비밀번호: snumps)\n\n감사합니다.`;
@@ -161,6 +162,7 @@ async function dispatchEmail(accessToken: string, recipients: string[], subject:
 
 	if (!response.ok) {
 		const err = await response.json();
-		throw new Error(JSON.stringify(err));
+		console.error('Google Gmail API Send Error:', JSON.stringify(err, null, 2));
+		throw new Error('Gmail API failure');
 	}
 }

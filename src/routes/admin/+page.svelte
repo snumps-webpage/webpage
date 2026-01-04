@@ -265,21 +265,37 @@
 							</div>
 						</details>
 
-						<div class="actions">
-							{#if app.accepted}
-								<button class="btn approved-badge" disabled>가입 완료</button>
-							{:else}
-									<form method="POST" action="?/approve" use:enhance>
-										<input type="hidden" name="id" value={app.id} />
-										<button class="btn approve">승인</button>
-									</form>
-									
-									<form method="POST" action="?/reject" use:enhance onsubmit={() => confirm('정말 거절하시겠습니까?')}>
-										<input type="hidden" name="id" value={app.id} />
-										<button class="btn reject">거절</button>
-									</form>
-							{/if}
-						</div>
+												<div class="actions">
+
+													{#if app.accepted}
+
+														<button class="btn approved-badge" disabled>승인됨</button>
+
+													{:else}
+
+														<form method="POST" action="?/approve" use:enhance>
+
+															<input type="hidden" name="id" value={app.id} />
+
+															<button class="btn approve">승인</button>
+
+														</form>
+
+													{/if}
+
+													
+
+													<form method="POST" action="?/reject" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.')}>
+
+														<input type="hidden" name="id" value={app.id} />
+
+														<button class="btn reject">거절</button>
+
+													</form>
+
+												</div>
+
+						
 					</div>
 				{/each}
 			</div>
