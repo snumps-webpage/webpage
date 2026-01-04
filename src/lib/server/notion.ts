@@ -143,7 +143,6 @@ export async function createMember(data: {
 	email: string;
 	phone: string;
 	department: string;
-	bio: string;
 	background: string;
 }) {
 	const privateDbId = env.NOTION_DB_PRIVATE_INFO;
@@ -164,7 +163,6 @@ export async function createMember(data: {
 				[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
 				[NOTION_PROPS.EMAIL]: { email: data.email },
 				[NOTION_PROPS.PHONE]: { phone_number: data.phone },
-				[NOTION_PROPS.BIO]: { rich_text: [{ text: { content: data.bio } }] },
 				[NOTION_PROPS.BACKGROUND]: { rich_text: [{ text: { content: data.background } }] }
 			}
 		})
@@ -523,10 +521,9 @@ export async function getUserActivities(memberId: string) {
 /**
  * Updates personal information fields in the Private Info database.
  */
-export async function updatePrivateInfo(pageId: string, data: { phone?: string; bio?: string; background?: string }) {
+export async function updatePrivateInfo(pageId: string, data: { phone?: string; background?: string }) {
 	const props: Record<string, any> = {};
 	if (data.phone !== undefined) props[NOTION_PROPS.PHONE] = { phone_number: data.phone };
-	if (data.bio !== undefined) props[NOTION_PROPS.BIO] = { rich_text: [{ text: { content: data.bio } }] };
 	if (data.background !== undefined) props[NOTION_PROPS.BACKGROUND] = { rich_text: [{ text: { content: data.background } }] };
 
 	const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
@@ -635,14 +632,12 @@ export async function getPrivateInfo(pageId: string) {
 	const emailProp = props[NOTION_PROPS.EMAIL] as any;
 	const nameProp = props[NOTION_PROPS.NAME] as any;
 	const phoneProp = props[NOTION_PROPS.PHONE] as any;
-	const bioProp = props[NOTION_PROPS.BIO] as any;
 	const backProp = props[NOTION_PROPS.BACKGROUND] as any;
 
 	return {
 		email: emailProp?.type === 'email' ? emailProp.email : '',
 		name: nameProp?.type === 'title' ? nameProp.title[0]?.plain_text : '',
 		phone: phoneProp?.type === 'phone_number' ? phoneProp.phone_number : '',
-		bio: bioProp?.type === 'rich_text' ? bioProp.rich_text[0]?.plain_text : '',
 		background: backProp?.type === 'rich_text' ? backProp.rich_text[0]?.plain_text : ''
 	};
 }
@@ -687,7 +682,6 @@ export async function getApplicationsFromNotion() {
 			name: (props.Name as any)?.title?.[0]?.plain_text ?? '',
 			phone: (props.Phone as any)?.phone_number ?? '',
 			department: (props.Department as any)?.rich_text?.[0]?.plain_text ?? '',
-			bio: (props.Bio as any)?.rich_text?.[0]?.plain_text ?? '',
 			background: (props.Background as any)?.rich_text?.[0]?.plain_text ?? '',
 			submittedAt: (page as any).created_time
 		};
@@ -699,7 +693,6 @@ export async function createApplicationInNotion(data: {
 	name: string;
 	phone: string;
 	department: string;
-	bio: string;
 	background: string;
 }) {
 	const dbId = env.NOTION_DB_APPLICATIONS;
@@ -719,7 +712,6 @@ export async function createApplicationInNotion(data: {
 				Email: { email: data.email },
 				Phone: { phone_number: data.phone },
 				Department: { rich_text: [{ text: { content: data.department } }] },
-				Bio: { rich_text: [{ text: { content: data.bio } }] },
 				Background: { rich_text: [{ text: { content: data.background } }] }
 			}
 		})

@@ -14,7 +14,6 @@ export interface Application {
 	name: string;
 	phone: string;
 	department: string;
-	bio: string;
 	background: string;
 	submittedAt: string;
 }
