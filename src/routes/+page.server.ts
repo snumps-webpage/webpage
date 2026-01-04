@@ -1,4 +1,4 @@
-import { getMemberByEmail, getActivities, getUserActivities } from '$lib/server/notion';
+import { getMemberByEmail, getActivities, getUserActivities, getPrivateInfo, updatePrivateInfo } from '$lib/server/notion';
 import { getSeminarRequests } from '$lib/server/seminars';
 import { getSemesterInfo, getSemesterKeyFromDate } from '$lib/utils';
 import type { PageServerLoad } from './$types';
@@ -25,10 +25,11 @@ export const load: PageServerLoad = async (event) => {
 		}
 
 		try {
-			const [rawCurrentActivities, allAttendedActivities, allSeminarRequests] = await Promise.all([
+			const [rawCurrentActivities, allAttendedActivities, allSeminarRequests, privateInfo] = await Promise.all([
 				getActivities(semester.startDate, semester.endDate),
 				getUserActivities(member.memberId),
-				getSeminarRequests()
+				getSeminarRequests(),
+				getPrivateInfo(member.privateInfoId)
 			]);
 
 			// Filter Seminars: My Applications OR Seminars where I am a speaker
@@ -72,6 +73,9 @@ export const load: PageServerLoad = async (event) => {
 					total: currentActivities.length,
 					attended: attendedCount
 				},
+				profile: {
+					phone: privateInfo?.phone || ''
+				},
 				semesters
 			};
 		} catch (e) {
@@ -87,4 +91,25 @@ export const load: PageServerLoad = async (event) => {
 			dashboard: dashboardPromise()
 		}
 	};
+};
+
+export const actions = {
+	updatePhone: async ({ request, locals }) => {
+		const session = await locals.auth();
+		if (!session?.user?.email) return { error: 'Unauthorized' };
+		
+		const data = await request.formData();
+		const phone = data.get('phone') as string;
+		
+		const member = await getMemberByEmail(session.user.email);
+		if (!member) return { error: 'Member not found' };
+		
+		try {
+			await updatePrivateInfo(member.privateInfoId, { phone });
+			return { success: true };
+		} catch (e) {
+			console.error(e);
+			return { error: 'Failed to update phone' };
+		}
+	}
 };

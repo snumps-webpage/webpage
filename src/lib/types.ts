@@ -33,6 +33,9 @@ export interface DashboardData {
 	activities: Activity[];
 	myAttendanceStats: AttendanceStats;
     mySeminars?: SeminarRequest[];
+    profile: {
+        phone: string;
+    };
 	semesters: string[];
 	error?: string;
 }
