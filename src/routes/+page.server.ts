@@ -3,7 +3,7 @@ import {
 	getPrivateInfo, updatePrivateInfo, getUserSeminars, updateSeminar 
 } from '$lib/server/notion';
 import { getSeminarRequests } from '$lib/server/seminars';
-import { getSemesterInfo, getSemesterKeyFromDate } from '$lib/utils';
+import { getSemesterInfo, getSemesterKeyFromDate, normalizePhoneNumber } from '$lib/utils';
 import { fail } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
@@ -109,7 +109,7 @@ export const actions = {
 		if (!session?.user?.email) return fail(401);
 		
 		const data = await request.formData();
-		const phone = data.get('phone') as string;
+		const phone = normalizePhoneNumber(data.get('phone') as string);
 		const background = data.get('background') as string;
 		
 		const member = await getMemberByEmail(session.user.email);

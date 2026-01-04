@@ -2,6 +2,7 @@ import { redirect } from '@sveltejs/kit';
 import { getMemberByEmail } from '$lib/server/notion';
 import type { PageServerLoad } from './$types';
 import { getApplications, isAdmin } from '$lib/server/admin';
+import { normalizePhoneNumber } from '$lib/utils';
 
 export const load: PageServerLoad = async (event) => {
 	const session = await event.locals.auth();
@@ -43,7 +44,7 @@ export const actions = {
 		const department = parts[2] || 'Unknown';
 
 		const data = await request.formData();
-		const phone = data.get('phone') as string;
+		const phone = normalizePhoneNumber(data.get('phone') as string);
 		const background = data.get('background') as string;
 		const agreement = data.get('agreement');
 
