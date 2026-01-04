@@ -285,13 +285,23 @@
 
 													
 
-													<form method="POST" action="?/reject" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.')}>
+																					<form method="POST" action="?/reject" use:enhance onsubmit={() => confirm(app.accepted ? '신청 내역을 삭제하시겠습니까?' : '정말 거절하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.')}>
 
-														<input type="hidden" name="id" value={app.id} />
+													
 
-														<button class="btn reject">거절</button>
+																						<input type="hidden" name="id" value={app.id} />
 
-													</form>
+													
+
+																						<button class="btn reject">{app.accepted ? '삭제' : '거절'}</button>
+
+													
+
+																					</form>
+
+													
+
+													
 
 												</div>
 

@@ -85,6 +85,8 @@ export const actions = {
 		if (!app) return { error: 'Application not found' };
 
 		try {
+            console.log(`Starting approval for ${app.name} (${app.email})...`);
+            
             // 1. Create Member record in Notion
 			await createMember({
 				name: app.name,
@@ -93,14 +95,17 @@ export const actions = {
 				department: app.department,
 				background: app.background
 			});
+            console.log('Successfully created Notion member records.');
 			
 			invalidateCache(`member_${app.email}`);
             
             // 2. Send Welcome Email
             await sendWelcomeEmail(app.email, app.name);
+            console.log('Successfully dispatched welcome email.');
 
             // 3. Mark as accepted in Notion
             await markApplicationAsAccepted(id);
+            console.log('Successfully updated application status in Notion.');
 
 			return { success: true };
 		} catch (e) {

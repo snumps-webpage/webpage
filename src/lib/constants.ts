@@ -28,7 +28,8 @@ export const NOTION_PROPS = {
 	SEMINAR_REQ_DESC: '설명',
 	SEMINAR_REQ_PREREQ: '선수 지식',
 	SEMINAR_REQ_DURATION: '예상 소요 시간',
-	SEMINAR_REQ_APPROVED: '승인됨'
+	SEMINAR_REQ_APPROVED: '승인됨',
+	APP_ACCEPTED: '수락됨'
 };
 
 export const ACTIVITY_TYPES = [
@@ -40,6 +41,10 @@ export const ACTIVITY_TYPES = [
 	"회의",
 	"기타"
 ];
+
+// Chatroom configuration for welcome emails
+export const CHATROOM_LINK = "https://chat.placeholder.link";
+export const CHATROOM_PASSWORD = "snumps";
 
 export const TIMEZONES = [
   { "label": "Africa/Abidjan", "value": "Africa/Abidjan" },

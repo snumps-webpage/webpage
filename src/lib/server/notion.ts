@@ -767,26 +767,25 @@ export async function getApplicationsFromNotion() {
 	const dbId = env.NOTION_DB_APPLICATIONS;
 	if (!dbId) return [];
 
-	// Fetch all applications so we can show accepted ones as deactivated
 	const results = await queryDatabase(dbId);
 	
 	return results.map(page => {
 		const props = page.properties;
 		return {
 			id: page.id,
-			email: (props['이메일'] as any)?.email ?? '',
-			name: (props['이름'] as any)?.title?.[0]?.plain_text ?? '',
-			phone: (props['전화 번호'] as any)?.phone_number ?? '',
-			department: (props['학과'] as any)?.rich_text?.[0]?.plain_text ?? '',
-			background: (props['배경 지식'] as any)?.rich_text?.[0]?.plain_text ?? '',
-			accepted: (props['수락됨'] as any)?.checkbox ?? false,
+			email: (props[NOTION_PROPS.EMAIL] as any)?.email ?? '',
+			name: (props[NOTION_PROPS.NAME] as any)?.title?.[0]?.plain_text ?? '',
+			phone: (props['전화 번호'] as any)?.phone_number ?? '', // Keep space as per schema check
+			department: (props[NOTION_PROPS.DEPT] as any)?.rich_text?.[0]?.plain_text ?? '',
+			background: (props[NOTION_PROPS.BACKGROUND] as any)?.rich_text?.[0]?.plain_text ?? '',
+			accepted: (props[NOTION_PROPS.APP_ACCEPTED] as any)?.checkbox ?? false,
 			submittedAt: (page as any).created_time
 		};
 	});
 }
 
 export async function markApplicationAsAccepted(id: string) {
-	await fetch(`https://api.notion.com/v1/pages/${id}`, {
+	const response = await fetch(`https://api.notion.com/v1/pages/${id}`, {
 		method: 'PATCH',
 		headers: {
 			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
@@ -795,10 +794,15 @@ export async function markApplicationAsAccepted(id: string) {
 		},
 		body: JSON.stringify({
 			properties: {
-				'수락됨': { checkbox: true }
+				[NOTION_PROPS.APP_ACCEPTED]: { checkbox: true }
 			}
 		})
 	});
+
+	if (!response.ok) {
+		const error = await response.json();
+		throw new Error('Failed to mark application as accepted: ' + JSON.stringify(error));
+	}
 }
 
 export async function removeSeminarRequestInNotion(id: string) {
