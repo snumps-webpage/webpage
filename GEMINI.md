@@ -76,6 +76,7 @@ npm run lint
 #### 2. Documentation
 *   **Continuous Updates**: Ensure `README.md` is **always** synchronized with the current codebase.
 *   **Feature Reflection**: Update documentation immediately after implementing any new feature, architectural change, or setup requirement.
+*   **Schema Reference**: Refer to `docs/schema.md` for the latest Notion database property definitions.
 
 #### 3. Security
 *   **Obscurity**: Unauthorized access to admin routes must return `404 Not Found`, not a redirect (except for `events/*` and `seminar/*`).
