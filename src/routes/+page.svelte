@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { enhance } from '$app/forms';
 	import { getSemesterKeyFromDate } from '$lib/utils';
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import type { PageData } from './$types';
@@ -30,6 +31,12 @@
 
 		{#await data.streamed.dashboard}
 			<div class="dashboard-skeleton">
+				<!-- Profile Skeleton -->
+				<div class="profile-card mb-4">
+					<Skeleton width="150px" height="1.5rem" className="mb-4" />
+					<Skeleton width="100%" height="3rem" />
+				</div>
+
 				<!-- Stats Card Skeleton -->
 				<div class="stats-card">
 					<Skeleton width="40%" height="1.5rem" className="mb-4" />
@@ -84,6 +91,21 @@
 					}
 
 					<div class="dashboard">
+						{#if dashboardData.profile}
+							<section class="profile-card">
+								<h2>내 정보 관리</h2>
+								<form method="POST" action="?/updatePhone" use:enhance class="phone-form">
+									<div class="field">
+										<label for="phone">전화번호</label>
+										<div class="input-group">
+											<input type="tel" id="phone" name="phone" value={dashboardData.profile.phone} placeholder="010-0000-0000" />
+											<button class="save-btn">저장</button>
+										</div>
+									</div>
+								</form>
+							</section>
+						{/if}
+
 						<section class="stats-card">
 						<h2>{data.semester} 출석 현황</h2>
 						{#if dashboardData.myAttendanceStats}
@@ -482,4 +504,58 @@
 	.status-tag.approved { background: var(--color-success-bg); color: var(--color-success-text); }
 	.status-tag.rejected { background: var(--color-danger-bg); color: var(--color-danger-text); }
 	.status-tag.pending { background: var(--color-warning-bg); color: var(--color-warning-text); }
+
+	/* Profile Card */
+	.profile-card {
+		background: var(--bg-secondary);
+		border-radius: 16px;
+		padding: 2rem;
+		box-shadow: var(--shadow);
+		margin-bottom: 2rem;
+		border: 1px solid var(--border-color);
+	}
+
+	.profile-card h2 {
+		margin: 0 0 1rem 0;
+		font-size: 1.25rem;
+		color: var(--text-primary);
+	}
+
+    .phone-form .field { margin-bottom: 0; }
+    
+    .phone-form label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+    }
+
+    .input-group {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .input-group input {
+        flex: 1;
+        padding: 0.75rem;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 1rem;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+    }
+
+    .save-btn {
+        padding: 0 1.5rem;
+        background: var(--text-primary);
+        color: var(--bg-primary);
+        border: none;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .save-btn:hover { opacity: 0.9; }
 </style>

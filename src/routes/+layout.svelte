@@ -72,9 +72,6 @@
 		</div>
 		<div class="nav-right">
 			{#if session?.user}
-				<a href="/profile" class="profile-btn" aria-label="내 프로필">
-					<img src={favicon} alt="Profile" />
-				</a>
 				{#if page.data.isAdmin}
 					<a href="/admin" class="circle-btn">Admin</a>
 					<a href="/notion" class="circle-btn">DB</a>
@@ -280,27 +277,6 @@
 
 	.dropdown-content a:hover {
 		background-color: var(--btn-secondary);
-	}
-
-	.profile-btn {
-		display: block;
-		width: 40px;
-		height: 40px;
-		border-radius: 50%;
-		overflow: hidden;
-		border: 1px solid var(--border-color);
-		transition: transform 0.2s;
-		user-select: none;
-	}
-	
-	.profile-btn:hover {
-		transform: scale(1.1);
-	}
-
-	.profile-btn img {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
 	}
 
 	.circle-btn {
