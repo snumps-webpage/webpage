@@ -1,6 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { createSeminarRequest } from '$lib/server/seminars';
-import { getAllMembers, getAllPrivateInfo } from '$lib/server/notion';
+import { getAllMembers, getAllPrivateInfo, getMemberByEmail } from '$lib/server/notion';
 import type { PageServerLoad, Actions } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -40,10 +40,14 @@ export const actions: Actions = {
 
         const data = await request.formData();
         const title = data.get('title') as string;
-        const dateRaw = data.get('date') as string;
-        const timezone = data.get('timezone') as string;
-        const speakerIdsRaw = data.get('speakerIds') as string; // Expecting comma separated or JSON
+        const description = data.get('description') as string;
+        const prerequisites = data.get('prerequisites') as string;
+        const duration = data.get('duration') as string;
+        const speakerIdsRaw = data.get('speakerIds') as string;
         
+        const member = await getMemberByEmail(session.user.email);
+        if (!member) return fail(404, { error: 'Member record not found' });
+
         let speakerIds: string[] = [];
         if (speakerIdsRaw) {
             try {
@@ -53,38 +57,27 @@ export const actions: Actions = {
             }
         }
 
-        if (!title || !dateRaw) {
+        // Default to the applicant themselves if no speakers are explicitly selected
+        if (speakerIds.length === 0) {
+            speakerIds = [member.memberId];
+        }
+
+        if (!title || !description) {
             return fail(400, { error: 'Missing required fields' });
         }
 
         try {
-            // Calculate ISO date with timezone
-            // Append default time since input is now just date
-            const fullDateRaw = `${dateRaw}T00:00`;
-            const dateObj = new Date(fullDateRaw);
-            const parts = new Intl.DateTimeFormat('en-US', {
-                timeZone: timezone || 'Asia/Seoul', // Fallback to KST
-                timeZoneName: 'longOffset'
-            }).formatToParts(dateObj);
-            
-            const offsetPart = parts.find(p => p.type === 'timeZoneName')?.value;
-            const offset = offsetPart ? offsetPart.replace('GMT', '') : '+09:00';
-            const isoOffset = offset === 'GMT' ? '+00:00' : offset;
-            
-            const date = `${fullDateRaw}:00${isoOffset}`;
-
             await createSeminarRequest({
                 title,
-                date,
-                timeZone: timezone || 'Asia/Seoul',
-                applicantEmail: session.user.email,
-                applicantName: session.user.name,
+                description,
+                prerequisites: prerequisites || '',
+                duration,
                 speakerIds
             });
             return { success: true };
         } catch (e) {
-            console.error(e);
-            return { error: 'Application failed' };
+            console.error('Seminar Application Action Error:', e);
+            return fail(500, { error: 'Application failed: ' + (e as Error).message });
         }
     }
 };

@@ -250,41 +250,27 @@ export const actions = {
         if (!seminar) return { error: 'Request not found' };
 
         try {
-            // Resolve final attendees (speakers)
-            let attendeeIds = seminar.speakerIds || [];
-            if (attendeeIds.length === 0) {
-                const applicant = await getMemberByEmail(seminar.applicantEmail);
-                if (applicant) attendeeIds = [applicant.memberId];
-            }
+            // Use current date since it's missing in request
+            const now = new Date().toISOString();
 
             // 1. Create Activity Page in Notion with speakers linked
             const page = await createActivityPage({
                 title: seminar.title,
-                date: seminar.date,
-                timeZone: seminar.timeZone,
+                date: now,
                 type: 'Seminar',
-                attendeeIds
+                attendeeIds: seminar.speakerIds
             });
 
             // 2. Create Event for Attendance Tracking
             await createEvent({
                 title: seminar.title,
-                date: seminar.date,
+                date: now,
                 type: 'Seminar',
-                timeZone: seminar.timeZone,
                 notionPageId: page.id
             });
 
             // 3. Update Request Status
             await updateSeminarRequestStatus(id, 'approved');
-
-            // 4. Notify Applicant
-            await sendSeminarStatusNotification(
-                seminar.applicantEmail, 
-                seminar.applicantName, 
-                seminar.title, 
-                'approved'
-            );
 
             return { success: true };
         } catch (e) {
@@ -299,20 +285,9 @@ export const actions = {
 
         const data = await request.formData();
         const id = data.get('id') as string;
-        const requests = await getSeminarRequests();
-        const seminar = requests.find(r => r.id === id);
-
-        if (!seminar) return { error: 'Request not found' };
 
         try {
             await updateSeminarRequestStatus(id, 'rejected');
-            
-            await sendSeminarStatusNotification(
-                seminar.applicantEmail, 
-                seminar.applicantName, 
-                seminar.title, 
-                'rejected'
-            );
             return { success: true };
         } catch (e) {
             console.error(e);

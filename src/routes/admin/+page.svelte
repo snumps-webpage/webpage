@@ -203,9 +203,8 @@
 					<thead>
 						<tr>
 							<th>주제</th>
-							<th>신청자</th>
 							<th>발표자</th>
-							<th>희망 일정</th>
+							<th>신청일</th>
 							<th>관리</th>
 						</tr>
 					</thead>
@@ -213,15 +212,14 @@
 						{#each data.seminarRequests as req (req.id)}
 							<tr>
 								<td>{req.title}</td>
-								<td>{req.applicantName}</td>
 								<td>
 									{#if req.speakerNames && req.speakerNames.length > 0}
 										{req.speakerNames.join(', ')}
 									{:else}
-										<span class="hint">신청자 본인</span>
+										<span class="hint">미지정</span>
 									{/if}
 								</td>
-								<td>{new Date(req.date).toLocaleDateString()}</td>
+								<td>{new Date(req.submittedAt).toLocaleDateString()}</td>
 								<td class="actions-cell">
 									<form method="POST" action="?/approveSeminar" use:enhance onsubmit={() => confirm(`'${req.title}' 세미나 개설을 승인하시겠습니까?`)}>
 										<input type="hidden" name="id" value={req.id} />

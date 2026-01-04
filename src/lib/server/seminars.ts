@@ -20,10 +20,9 @@ export async function getSeminarRequests(): Promise<SeminarRequest[]> {
 
 export async function createSeminarRequest(data: { 
     title: string; 
-    date: string; 
-    timeZone: string; 
-    applicantEmail: string; 
-    applicantName: string; 
+    description: string; 
+    prerequisites: string; 
+    duration: string; 
     speakerIds: string[] 
 }) {
     try {
@@ -37,7 +36,7 @@ export async function createSeminarRequest(data: {
             id,
             status: 'pending',
             submittedAt: new Date().toISOString()
-        } as SeminarRequest;
+        };
     } catch (e) {
         console.error('Notion seminar request write failed:', e);
         throw e;
