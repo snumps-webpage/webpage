@@ -59,7 +59,9 @@ export const actions: Actions = {
 
         try {
             // Calculate ISO date with timezone
-            const dateObj = new Date(dateRaw);
+            // Append default time since input is now just date
+            const fullDateRaw = `${dateRaw}T00:00`;
+            const dateObj = new Date(fullDateRaw);
             const parts = new Intl.DateTimeFormat('en-US', {
                 timeZone: timezone || 'Asia/Seoul', // Fallback to KST
                 timeZoneName: 'longOffset'
@@ -69,7 +71,7 @@ export const actions: Actions = {
             const offset = offsetPart ? offsetPart.replace('GMT', '') : '+09:00';
             const isoOffset = offset === 'GMT' ? '+00:00' : offset;
             
-            const date = `${dateRaw}:00${isoOffset}`;
+            const date = `${fullDateRaw}:00${isoOffset}`;
 
             await createSeminarRequest({
                 title,

@@ -220,7 +220,7 @@
 										<span class="hint">신청자 본인</span>
 									{/if}
 								</td>
-								<td>{req.date}</td>
+								<td>{new Date(req.date).toLocaleDateString()}</td>
 								<td class="actions-cell">
 									<form method="POST" action="?/approveSeminar" use:enhance onsubmit={() => confirm(`'${req.title}' 세미나 개설을 승인하시겠습니까?`)}>
 										<input type="hidden" name="id" value={req.id} />
@@ -255,7 +255,18 @@
 						
 						<div class="info">
 							<p><strong>이메일:</strong> {app.email}</p>
-							<p><strong>전화번호:</strong> {app.phone}</p>
+							<p><strong>전화번호:</strong> 
+								<button 
+									class="copy-link-btn" 
+									onclick={() => {
+										navigator.clipboard.writeText(app.phone);
+										alert('전화번호가 복사되었습니다.');
+									}}
+									title="클릭하여 복사"
+								>
+									{app.phone} 📋
+								</button>
+							</p>
 							<p><strong>신청일:</strong> {new Date(app.submittedAt).toLocaleDateString()}</p>
 						</div>
 
@@ -270,12 +281,14 @@
 						<div class="actions">
 							<form method="POST" action="?/approve" use:enhance>
 								<input type="hidden" name="id" value={app.id} />
-								<button class="btn approve">승인</button>
+								<button class="btn approve" disabled={app.isAlreadyMember}>
+									{app.isAlreadyMember ? '승인됨' : '승인'}
+								</button>
 							</form>
 							
-							<form method="POST" action="?/reject" use:enhance onsubmit={() => confirm('정말 거절하시겠습니까?')}>
+							<form method="POST" action="?/reject" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까? 신청 내역이 영구적으로 제거됩니다.')}>
 								<input type="hidden" name="id" value={app.id} />
-								<button class="btn reject">거절</button>
+								<button class="btn reject">삭제</button>
 							</form>
 						</div>
 					</div>
@@ -413,6 +426,19 @@
 	}
 	.copy-btn:hover { background: #f9fafb; }
 	.hint { color: #9ca3af; font-size: 0.8rem; }
+
+    .copy-link-btn {
+        background: none;
+        border: none;
+        padding: 0;
+        color: #667eea;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: underline;
+        font-size: inherit;
+    }
+
+    .copy-link-btn:hover { color: #764ba2; }
 
 	.activate { background: #10b981; color: white; }
 	.expire { background: #fbbf24; color: white; }
