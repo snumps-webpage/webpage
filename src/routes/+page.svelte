@@ -72,7 +72,15 @@
 							<div class="profile-summary">
 								<div class="form-group">
 									<label for="phone">전화번호</label>
-									<input type="tel" id="phone" name="phone" value={result.profile.phone} placeholder="010-0000-0000" />
+									<input 
+										type="tel" 
+										id="phone" 
+										name="phone" 
+										value={result.profile.phone} 
+										placeholder="010-1234-5678" 
+										pattern="010-\d{4}-\d{4}"
+										title="010-XXXX-XXXX 형식으로 입력해주세요."
+									/>
 								</div>
 								<div class="form-group">
 									<label for="background">배경지식</label>

@@ -767,41 +767,22 @@ export async function getApplicationsFromNotion() {
 	const dbId = env.NOTION_DB_APPLICATIONS;
 	if (!dbId) return [];
 
-	const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
-		method: 'POST',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			filter: {
-				property: '수락됨',
-				checkbox: { equals: false }
-			}
-		})
-	});
-
-	if (!response.ok) return [];
-
-	const data = await response.json() as QueryDatabaseResponse;
+	// Fetch all applications so we can show accepted ones as deactivated
+	const results = await queryDatabase(dbId);
 	
-	return data.results
-		.filter((page: unknown): page is PageObjectResponse => 
-			typeof page === 'object' && page !== null && 'properties' in page
-		)
-		.map(page => {
-			const props = page.properties;
-			return {
-				id: page.id,
-				email: (props['이메일'] as any)?.email ?? '',
-				name: (props['이름'] as any)?.title?.[0]?.plain_text ?? '',
-				phone: (props['전화 번호'] as any)?.phone_number ?? '',
-				department: (props['학과'] as any)?.rich_text?.[0]?.plain_text ?? '',
-				background: (props['배경 지식'] as any)?.rich_text?.[0]?.plain_text ?? '',
-				submittedAt: (page as any).created_time
-			};
-		});
+	return results.map(page => {
+		const props = page.properties;
+		return {
+			id: page.id,
+			email: (props['이메일'] as any)?.email ?? '',
+			name: (props['이름'] as any)?.title?.[0]?.plain_text ?? '',
+			phone: (props['전화 번호'] as any)?.phone_number ?? '',
+			department: (props['학과'] as any)?.rich_text?.[0]?.plain_text ?? '',
+			background: (props['배경 지식'] as any)?.rich_text?.[0]?.plain_text ?? '',
+			accepted: (props['수락됨'] as any)?.checkbox ?? false,
+			submittedAt: (page as any).created_time
+		};
+	});
 }
 
 export async function markApplicationAsAccepted(id: string) {
@@ -817,6 +798,18 @@ export async function markApplicationAsAccepted(id: string) {
 				'수락됨': { checkbox: true }
 			}
 		})
+	});
+}
+
+export async function removeSeminarRequestInNotion(id: string) {
+	await fetch(`https://api.notion.com/v1/pages/${id}`, {
+		method: 'PATCH',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28',
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({ archived: true })
 	});
 }
 

@@ -246,26 +246,15 @@
 		{:else}
 			<div class="grid">
 				{#each data.applications as app (app.id)}
-					<div class="card">
+					<div class="card" class:accepted={app.accepted}>
 						<div class="card-header">
-							<h3>{app.name}</h3>
+							<h3>{app.name}</h3>	
 							<span class="dept">{app.department}</span>
 						</div>
 						
 						<div class="info">
 							<p><strong>이메일:</strong> {app.email}</p>
-							<p><strong>전화번호:</strong> 
-								<button 
-									class="copy-link-btn" 
-									onclick={() => {
-										navigator.clipboard.writeText(app.phone);
-										alert('전화번호가 복사되었습니다.');
-									}}
-									title="클릭하여 복사"
-								>
-									{app.phone} 📋
-								</button>
-							</p>
+							<p><strong>전화번호:</strong> {app.phone}</p>
 							<p><strong>신청일:</strong> {new Date(app.submittedAt).toLocaleDateString()}</p>
 						</div>
 
@@ -277,76 +266,23 @@
 						</details>
 
 						<div class="actions">
-							<form method="POST" action="?/approve" use:enhance>
-								<input type="hidden" name="id" value={app.id} />
-								<button class="btn approve" disabled={app.isAlreadyMember}>
-									{app.isAlreadyMember ? '승인됨' : '승인'}
-								</button>
-							</form>
-							
-							<form method="POST" action="?/reject" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까? 신청 내역이 영구적으로 제거됩니다.')}>
-								<input type="hidden" name="id" value={app.id} />
-								<button class="btn reject">삭제</button>
-							</form>
+							{#if app.accepted}
+								<button class="btn approved-badge" disabled>가입 완료</button>
+							{:else}
+									<form method="POST" action="?/approve" use:enhance>
+										<input type="hidden" name="id" value={app.id} />
+										<button class="btn approve">승인</button>
+									</form>
+									
+									<form method="POST" action="?/reject" use:enhance onsubmit={() => confirm('정말 거절하시겠습니까?')}>
+										<input type="hidden" name="id" value={app.id} />
+										<button class="btn reject">거절</button>
+									</form>
+							{/if}
 						</div>
 					</div>
 				{/each}
 			</div>
-		{/if}
-	</section>
-
-	<section class="mt-4">
-		<h2>회원 관리 ({data.members.length})</h2>
-		
-		{#if data.members.length === 0}
-			<p class="empty">회원이 없습니다.</p>
-		{:else}
-            <div class="search-bar">
-                <div class="search-input-wrapper">
-                    <input 
-                        type="text" 
-                        bind:value={memberSearchQuery} 
-                        placeholder={`${memberSearchType}으로 검색...`} 
-                        class="search-input"
-                    />
-                </div>
-                <div class="toggle-group">
-                    <button 
-                        class="toggle-btn" 
-                        class:active={memberSearchType === '이름'} 
-                        onclick={() => memberSearchType = '이름'}
-                    >이름</button>
-                    <button 
-                        class="toggle-btn" 
-                        class:active={memberSearchType === '학과'} 
-                        onclick={() => memberSearchType = '학과'}
-                    >학과</button>
-                </div>
-            </div>
-
-			<div class="table-container">
-				<table>
-					<thead>
-						<tr>
-							<th>이름</th>
-							<th>학과</th>
-							<th>가입일</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each filteredMembers as member (member.id)}
-							<tr>
-								<td>{member.name}</td>
-								<td>{member.department}</td>
-								<td>{member.joinDate}</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-            {#if filteredMembers.length === 0}
-                <p class="search-empty">검색 결과가 없습니다.</p>
-            {/if}
 		{/if}
 	</section>
 </div>
@@ -648,6 +584,17 @@
 	.reject {
 		background: #ef4444;
 		color: white;
+	}
+
+	.approved-badge {
+		background: #d1fae5;
+		color: #059669;
+		cursor: default !important;
+	}
+
+	.card.accepted {
+		opacity: 0.7;
+		border-style: dashed;
 	}
 
 	.small {

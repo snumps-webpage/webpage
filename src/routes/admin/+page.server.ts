@@ -12,7 +12,7 @@ import {
     createEvent
 } from '$lib/server/events';
 import { 
-    getSeminarRequests, updateSeminarRequestStatus 
+    getSeminarRequests, deleteSeminarRequest, updateSeminarRequestStatus 
 } from '$lib/server/seminars';
 import { sendSeminarStatusNotification, sendWelcomeEmail } from '$lib/server/mail';
 import { invalidateCache } from '$lib/server/cache';
@@ -302,9 +302,7 @@ export const actions = {
         if (!seminar) return { error: 'Request not found' };
 
         try {
-            await updateSeminarRequestStatus(id, 'rejected');
-
-            // Notify Speaker(s)
+            // Notify Speaker(s) before deletion
             if (seminar.speakerIds.length > 0) {
                 const { getMemberById, getPrivateInfo } = await import('$lib/server/notion');
                 const member = await getMemberById(seminar.speakerIds[0]);
@@ -316,10 +314,11 @@ export const actions = {
                 }
             }
 
+            await deleteSeminarRequest(id);
             return { success: true };
         } catch (e) {
             console.error(e);
-            return { error: 'Rejection failed' };
+            return { error: 'Rejection/Deletion failed' };
         }
     }
 };

@@ -2,19 +2,26 @@ import type { SeminarRequest } from '$lib/types';
 import { 
     getSeminarRequestsFromNotion, 
     createSeminarRequestInNotion, 
-    updateSeminarRequestStatusInNotion 
+    updateSeminarRequestStatusInNotion,
+    removeSeminarRequestInNotion
 } from './notion';
 
 export async function getSeminarRequests(): Promise<SeminarRequest[]> {
     try {
         const results = await getSeminarRequestsFromNotion();
-        // Map Notion results to SeminarRequest interface if not already done in notion.ts
-        // notion.ts returns objects that match SeminarRequest structure loosely but with Notion ID as 'id'.
-        // We cast it here.
         return results as SeminarRequest[];
     } catch (e) {
         console.error('Failed to fetch seminar requests from Notion:', e);
         return [];
+    }
+}
+
+export async function deleteSeminarRequest(id: string) {
+    try {
+        await removeSeminarRequestInNotion(id);
+    } catch (e) {
+        console.error('Failed to delete seminar request from Notion:', e);
+        throw e;
     }
 }
 

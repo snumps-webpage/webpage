@@ -36,15 +36,23 @@
 				<span class="hint">Google 계정 정보에서 가져온 학과입니다.</span>
 			</div>
 
-			<div class="field">
-				<label for="phone">전화번호 <span class="req">*</span></label>
-				<input id="phone" type="tel" name="phone" placeholder="010-0000-0000" required />
-			</div>
+				<div class="form-group">
+					<label for="phone">전화번호 <span class="req">*</span></label>
+					<input 
+						type="tel" 
+						id="phone" 
+						name="phone" 
+						required 
+						placeholder="010-1234-5678" 
+						pattern="010-\d{4}-\d{4}"
+						title="010-XXXX-XXXX 형식으로 입력해주세요."
+					/>
+				</div>
 
-			<div class="field">
-				<label for="background">배경지식</label>
-				<textarea id="background" name="background" rows="3" placeholder="예: 학부 2학년, 해석학 수강 중, 코딩 가능여부 등"></textarea>
-			</div>
+				<div class="form-group">
+					<label for="background">배경지식</label>
+					<textarea id="background" name="background" rows="3" placeholder="관심 분야나 관련 경험을 적어주세요." style="resize: none;"></textarea>
+				</div>
 
 				<div class="agreement">
 					<label>
