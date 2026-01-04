@@ -16,9 +16,23 @@ export interface AttendanceStats {
 	attended: number;
 }
 
+export interface SeminarRequest {
+    id: string;
+    notionId?: string;
+    title: string;
+    date: string;
+    timeZone?: string;
+    applicantEmail: string;
+    applicantName: string;
+    speakerIds: string[];
+    status: 'pending' | 'approved' | 'rejected';
+    submittedAt: string;
+}
+
 export interface DashboardData {
 	activities: Activity[];
 	myAttendanceStats: AttendanceStats;
+    mySeminars?: SeminarRequest[];
 	semesters: string[];
 	error?: string;
 }

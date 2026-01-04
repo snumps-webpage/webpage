@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import type { SeminarRequest } from '$lib/types';
 import { 
     getSeminarRequestsFromNotion, 
     createSeminarRequestInNotion, 
@@ -7,19 +8,6 @@ import {
 } from './notion';
 
 const SEMINAR_REQUESTS_DB_PATH = 'data/seminar_requests.json';
-
-export interface SeminarRequest {
-    id: string;
-    notionId?: string;
-    title: string;
-    date: string; // ISO string with offset (for local sorting/display)
-    timeZone?: string; // IANA timezone ID
-    applicantEmail: string;
-    applicantName: string;
-    speakerIds: string[];
-    status: 'pending' | 'approved' | 'rejected';
-    submittedAt: string;
-}
 
 async function ensureDir(filePath: string) {
     const dir = path.dirname(filePath);
