@@ -14,7 +14,14 @@ export const NOTION_PROPS = {
 	ACTIVITY_NAME: '활동명',
 	ACTIVITY_DATE: '일정',
 	ACTIVITY_TYPE: '활동 종류',
-	MEMBER_INFO: '회원 정보'
+	MEMBER_INFO: '회원 정보',
+	// Seminar Props
+	SEMINAR_TITLE: '제목',
+	SEMINAR_SPEAKER: '진행자',
+	SEMINAR_SEMESTER: '학기',
+	SEMINAR_REMARKS: '비고',
+	SEMINAR_FILES: '강의 자료',
+	SEMINAR_PHOTOS: '활동 사진'
 };
 
 export const ACTIVITY_TYPES = [

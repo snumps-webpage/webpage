@@ -1,6 +1,10 @@
-import { getMemberByEmail, getActivities, getUserActivities, getPrivateInfo, updatePrivateInfo } from '$lib/server/notion';
+import { 
+	getMemberByEmail, getActivities, getUserActivities, 
+	getPrivateInfo, updatePrivateInfo, getUserSeminars, updateSeminar 
+} from '$lib/server/notion';
 import { getSeminarRequests } from '$lib/server/seminars';
 import { getSemesterInfo, getSemesterKeyFromDate } from '$lib/utils';
+import { fail } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -25,18 +29,26 @@ export const load: PageServerLoad = async (event) => {
 		}
 
 		try {
-			const [rawCurrentActivities, allAttendedActivities, allSeminarRequests, privateInfo] = await Promise.all([
+			const [
+				rawCurrentActivities, 
+				allAttendedActivities, 
+				allSeminarRequests, 
+				privateInfo,
+				approvedSeminars
+			] = await Promise.all([
 				getActivities(semester.startDate, semester.endDate),
 				getUserActivities(member.memberId),
 				getSeminarRequests(),
-				getPrivateInfo(member.privateInfoId)
+				getPrivateInfo(member.privateInfoId),
+				getUserSeminars(member.memberId)
 			]);
 
-			// Filter Seminars: My Applications OR Seminars where I am a speaker
-			const mySeminars = allSeminarRequests.filter(req => 
+			// Combine and Deduplicate Seminars
+			// 1. Pending/Rejected requests where I am applicant or speaker
+			const requests = allSeminarRequests.filter(req => 
 				req.applicantEmail === session.user?.email || 
 				req.speakerIds.includes(member.memberId)
-			).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+			);
 
 			const currentActivities = rawCurrentActivities.map(act => ({
 				id: act.id,
@@ -51,10 +63,7 @@ export const load: PageServerLoad = async (event) => {
 			const attendedCount = currentActivities.filter(a => a.attended).length;
 
 			const semesters = Array.from(new Set(allAttendedActivities.map(a => getSemesterKeyFromDate(a.date))));
-			
-			if (!semesters.includes(semester.key)) {
-				semesters.push(semester.key);
-			}
+			if (!semesters.includes(semester.key)) semesters.push(semester.key);
 			semesters.sort().reverse();
 
 			const pastAttended = allAttendedActivities
@@ -68,18 +77,20 @@ export const load: PageServerLoad = async (event) => {
 
 			return {
 				activities: [...currentActivities, ...pastAttended],
-				mySeminars,
+				seminarRequests: requests,
+				approvedSeminars,
 				myAttendanceStats: {
 					total: currentActivities.length,
 					attended: attendedCount
 				},
 				profile: {
-					phone: privateInfo?.phone || ''
+					phone: privateInfo?.phone || '',
+					background: privateInfo?.background || ''
 				},
 				semesters
 			};
 		} catch (e) {
-			console.error('Error loading dashboard:', e);
+			console.error('Error loading dashboard data:', e);
 			return { error: '데이터를 불러오는 중 오류가 발생했습니다.' };
 		}
 	};
@@ -94,22 +105,43 @@ export const load: PageServerLoad = async (event) => {
 };
 
 export const actions = {
-	updatePhone: async ({ request, locals }) => {
+	updateProfile: async ({ request, locals }) => {
 		const session = await locals.auth();
-		if (!session?.user?.email) return { error: 'Unauthorized' };
+		if (!session?.user?.email) return fail(401);
 		
 		const data = await request.formData();
 		const phone = data.get('phone') as string;
+		const background = data.get('background') as string;
 		
 		const member = await getMemberByEmail(session.user.email);
-		if (!member) return { error: 'Member not found' };
+		if (!member) return fail(404, { error: 'Member not found' });
 		
 		try {
-			await updatePrivateInfo(member.privateInfoId, { phone });
+			await updatePrivateInfo(member.privateInfoId, { phone, background });
 			return { success: true };
 		} catch (e) {
 			console.error(e);
-			return { error: 'Failed to update phone' };
+			return fail(500, { error: 'Failed to update profile' });
+		}
+	},
+
+	updateSeminar: async ({ request, locals }) => {
+		const session = await locals.auth();
+		if (!session?.user?.email) return fail(401);
+
+		const data = await request.formData();
+		const id = data.get('id') as string;
+		const title = data.get('title') as string;
+		const remarks = data.get('remarks') as string;
+
+		if (!id) return fail(400, { error: 'ID is required' });
+
+		try {
+			await updateSeminar(id, { title, remarks });
+			return { success: true };
+		} catch (e) {
+			console.error(e);
+			return fail(500, { error: 'Seminar update failed' });
 		}
 	}
 };
