@@ -48,6 +48,7 @@
 		<div class="header-actions">
 			<a href="/admin/events/new" class="create-event-btn">📅 새 이벤트 만들기</a>
 			<a href="/admin/events/connect" class="create-event-btn secondary">🔗 기존 이벤트 연결</a>
+			<a href="/signup" class="create-event-btn signup">📝 회원 가입 페이지</a>
 		</div>
 	</header>
 
@@ -399,6 +400,7 @@
 
 	.create-event-btn:hover { opacity: 0.9; }
 	.create-event-btn.secondary { background: #4b5563; }
+	.create-event-btn.signup { background: #10b981; }
 
 	.status-badge {
 		display: inline-block;
