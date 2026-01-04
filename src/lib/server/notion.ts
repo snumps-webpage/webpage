@@ -785,36 +785,33 @@ export async function getApplicationsFromNotion() {
 }
 
 export async function markApplicationAsAccepted(id: string) {
-	const response = await fetch(`https://api.notion.com/v1/pages/${id}`, {
-		method: 'PATCH',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
+	const notion = getNotionClient();
+	try {
+		await notion.pages.update({
+			page_id: id,
 			properties: {
-				[NOTION_PROPS.APP_ACCEPTED]: { checkbox: true }
+				[NOTION_PROPS.APP_ACCEPTED]: {
+					checkbox: true
+				}
 			}
-		})
-	});
-
-	if (!response.ok) {
-		const error = await response.json();
-		throw new Error('Failed to mark application as accepted: ' + JSON.stringify(error));
+		});
+	} catch (error) {
+		console.error('Notion Client Error (Mark Application Accepted):', error);
+		throw new Error('Failed to update application status in Notion');
 	}
 }
 
 export async function removeSeminarRequestInNotion(id: string) {
-	await fetch(`https://api.notion.com/v1/pages/${id}`, {
-		method: 'PATCH',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({ archived: true })
-	});
+	const notion = getNotionClient();
+	try {
+		await notion.pages.update({
+			page_id: id,
+			archived: true
+		});
+	} catch (error) {
+		console.error('Notion Client Error (Remove Seminar Request):', error);
+		throw new Error('Failed to remove seminar request from Notion');
+	}
 }
 
 export async function createApplicationInNotion(data: {
