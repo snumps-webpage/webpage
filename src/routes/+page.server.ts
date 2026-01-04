@@ -46,7 +46,6 @@ export const load: PageServerLoad = async (event) => {
 			// Combine and Deduplicate Seminars
 			// 1. Pending/Rejected requests where I am applicant or speaker
 			const requests = allSeminarRequests.filter(req => 
-				req.applicantEmail === session.user?.email || 
 				req.speakerIds.includes(member.memberId)
 			);
 

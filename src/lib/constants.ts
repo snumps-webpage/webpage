@@ -21,7 +21,14 @@ export const NOTION_PROPS = {
 	SEMINAR_SEMESTER: '학기',
 	SEMINAR_REMARKS: '비고',
 	SEMINAR_FILES: '강의 자료',
-	SEMINAR_PHOTOS: '활동 사진'
+	SEMINAR_PHOTOS: '활동 사진',
+	// Seminar Request Props
+	SEMINAR_REQ_TITLE: '제목',
+	SEMINAR_REQ_SPEAKERS: '진행자',
+	SEMINAR_REQ_DESC: '설명',
+	SEMINAR_REQ_PREREQ: '선수 지식',
+	SEMINAR_REQ_DURATION: '예상 소요 시간',
+	SEMINAR_REQ_APPROVED: '승인됨'
 };
 
 export const ACTIVITY_TYPES = [

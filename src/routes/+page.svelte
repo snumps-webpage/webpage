@@ -122,7 +122,7 @@
 											<div class="seminar-info">
 												<span class="sem-tag status">{req.status === 'approved' ? '승인됨' : req.status === 'rejected' ? '반려됨' : '승인 대기'}</span>
 												<span class="sem-title">{req.title}</span>
-												<span class="sem-meta">{new Date(req.date).toLocaleDateString()} 신청</span>
+												<span class="sem-meta">{new Date(req.submittedAt).toLocaleDateString()} 신청</span>
 											</div>
 										</div>
 									{/each}
@@ -275,6 +275,7 @@
 		background: var(--bg-primary);
 		color: var(--text-primary);
 		font-size: 0.95rem;
+		resize: none;
 	}
 	.btn-save {
 		padding: 0.6rem;

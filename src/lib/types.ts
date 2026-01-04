@@ -18,12 +18,10 @@ export interface AttendanceStats {
 
 export interface SeminarRequest {
     id: string;
-    notionId?: string;
     title: string;
-    date: string;
-    timeZone?: string;
-    applicantEmail: string;
-    applicantName: string;
+    description: string;
+    prerequisites: string;
+    duration: string;
     speakerIds: string[];
     status: 'pending' | 'approved' | 'rejected';
     submittedAt: string;

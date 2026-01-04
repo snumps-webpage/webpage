@@ -47,23 +47,23 @@
             {/if}
 
             <div class="field">
-                <label for="title">세미나 주제</label>
+                <label for="title">세미나 주제 <span class="req">*</span></label>
                 <input type="text" id="title" name="title" required placeholder="예: 대수위상 세미나" />
             </div>
 
-            <div class="field-row">
-                <div class="field">
-                    <label for="date">일시 (날짜)</label>
-                    <input type="date" id="date" name="date" required />
-                </div>
-                <div class="field">
-                    <label for="timezone">타임존</label>
-                    <select id="timezone" name="timezone" required>
-                        {#each TIMEZONES as tz (tz.value)}
-                            <option value={tz.value} selected={tz.value === DEFAULT_TIMEZONE}>{tz.label}</option>
-                        {/each}
-                    </select>
-                </div>
+            <div class="field">
+                <label for="description">세미나 설명 <span class="req">*</span></label>
+                <textarea id="description" name="description" rows="4" required placeholder="세미나의 목적과 내용을 간략히 적어주세요."></textarea>
+            </div>
+
+            <div class="field">
+                <label for="prerequisites">선수 지식</label>
+                <textarea id="prerequisites" name="prerequisites" rows="2" placeholder="세미나를 듣기 위해 필요한 배경 지식이 있다면 적어주세요."></textarea>
+            </div>
+
+            <div class="field">
+                <label for="duration">예상 소요 시간 <span class="req">*</span></label>
+                <input type="text" id="duration" name="duration" required placeholder="예: 90분" />
             </div>
 
             <div class="field">
@@ -134,12 +134,7 @@
 
     h1 { margin: 0 0 1.5rem 0; color: var(--text-primary); }
 
-    .field { margin-bottom: 1.5rem; flex: 1; }
-
-    .field-row {
-        display: flex;
-        gap: 1rem;
-    }
+    .field { margin-bottom: 1.5rem; }
     
     label, .label-text { 
         display: block; 
@@ -148,6 +143,8 @@
     }
 
     label { margin-bottom: 0.5rem; }
+
+    .req { color: #ef4444; }
 
     .label-row {
         display: flex;
@@ -169,7 +166,7 @@
 
     .toggle-btn:hover { background: var(--border-color); }
 
-    input, select {
+    input, textarea {
         width: 100%;
         padding: 0.75rem;
         border: 1px solid var(--border-color);
@@ -178,6 +175,7 @@
         box-sizing: border-box;
         background: var(--bg-primary);
         color: var(--text-primary);
+        resize: none;
     }
 
     /* Speaker Selection */

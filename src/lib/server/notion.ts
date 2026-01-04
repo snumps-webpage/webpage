@@ -946,15 +946,17 @@ export async function getSeminarRequestsFromNotion() {
 	
 	return results.map(page => {
 		const props = page.properties;
-		const speakerRelation = (props.Speakers as any)?.relation ?? [];
+		const speakerRelation = (props[NOTION_PROPS.SEMINAR_REQ_SPEAKERS] as any)?.relation ?? [];
+		const approved = (props[NOTION_PROPS.SEMINAR_REQ_APPROVED] as any)?.checkbox ?? false;
+
 		return {
 			id: page.id,
-			title: (props.Title as any)?.title?.[0]?.plain_text ?? '',
-			date: (props.Date as any)?.date?.start ?? '',
-			applicantEmail: (props.ApplicantEmail as any)?.email ?? '',
-			applicantName: (props.ApplicantName as any)?.rich_text?.[0]?.plain_text ?? '',
+			title: (props[NOTION_PROPS.SEMINAR_REQ_TITLE] as any)?.title?.[0]?.plain_text ?? '',
+			description: (props[NOTION_PROPS.SEMINAR_REQ_DESC] as any)?.rich_text?.[0]?.plain_text ?? '',
+			prerequisites: (props[NOTION_PROPS.SEMINAR_REQ_PREREQ] as any)?.rich_text?.[0]?.plain_text ?? '',
+			duration: (props[NOTION_PROPS.SEMINAR_REQ_DURATION] as any)?.rich_text?.[0]?.plain_text ?? '',
 			speakerIds: speakerRelation.map((r: any) => r.id),
-			status: (props.Status as any)?.select?.name ?? 'pending',
+			status: approved ? 'approved' : 'pending',
 			submittedAt: (page as any).created_time
 		};
 	});
@@ -962,30 +964,23 @@ export async function getSeminarRequestsFromNotion() {
 
 export async function createSeminarRequestInNotion(data: {
 	title: string;
-	date: string;
-	applicantEmail: string;
-	applicantName: string;
+	description: string;
+	prerequisites: string;
+	duration: string;
 	speakerIds: string[];
-	timeZone?: string;
 }) {
 	const dbId = env.NOTION_DB_SEMINAR_REQUESTS;
 	if (!dbId) return null;
 
-	const dateObj: any = { start: data.date };
-	if (data.timeZone) {
-		dateObj.time_zone = data.timeZone;
-	}
-
 	const properties: any = {
-		Title: { title: [{ text: { content: data.title } }] },
-		Date: { date: dateObj },
-		ApplicantEmail: { email: data.applicantEmail },
-		ApplicantName: { rich_text: [{ text: { content: data.applicantName } }] },
-		Status: { select: { name: 'pending' } }
+		[NOTION_PROPS.SEMINAR_REQ_TITLE]: { title: [{ text: { content: data.title } }] },
+		[NOTION_PROPS.SEMINAR_REQ_DESC]: { rich_text: [{ text: { content: data.description } }] },
+		[NOTION_PROPS.SEMINAR_REQ_PREREQ]: { rich_text: [{ text: { content: data.prerequisites } }] },
+		[NOTION_PROPS.SEMINAR_REQ_DURATION]: { rich_text: [{ text: { content: data.duration } }] }
 	};
 
 	if (data.speakerIds.length > 0) {
-		properties.Speakers = {
+		properties[NOTION_PROPS.SEMINAR_REQ_SPEAKERS] = {
 			relation: data.speakerIds.map(id => ({ id }))
 		};
 	}
@@ -1004,7 +999,8 @@ export async function createSeminarRequestInNotion(data: {
 	});
 
 	if (!response.ok) {
-		console.error('Failed to create seminar request in Notion', await response.json());
+		const errorData = await response.json();
+		console.error('Notion API Error (Create Seminar Request):', JSON.stringify(errorData, null, 2));
 		return null;
 	}
 
@@ -1022,7 +1018,7 @@ export async function updateSeminarRequestStatusInNotion(id: string, status: str
 		},
 		body: JSON.stringify({
 			properties: {
-				Status: { select: { name: status } }
+				[NOTION_PROPS.SEMINAR_REQ_APPROVED]: { checkbox: status === 'approved' }
 			}
 		})
 	});
