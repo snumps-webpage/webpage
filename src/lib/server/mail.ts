@@ -2,6 +2,7 @@
  * Service for sending automated alerts from the Admin account via Google's Gmail API.
  */
 import { env } from '$env/dynamic/private';
+import { CHATROOM_LINK, CHATROOM_PASSWORD } from '../constants';
 
 /**
  * Exchanges the ADMIN_REFRESH_TOKEN for a fresh Access Token.
@@ -121,16 +122,12 @@ export async function sendSeminarApplicationNotification(applicantName: string, 
  * Sends a welcome email to a new member upon acceptance.
  */
 export async function sendWelcomeEmail(recipientEmail: string, recipientName: string) {
-	try {
-		console.log(`Attempting to send welcome email to ${recipientName} (${recipientEmail})...`);
-		const accessToken = await getAdminAccessToken();
-		const subject = `[SNUMPS] 가입이 승인되었습니다!`;
-		const body = `안녕하세요, ${recipientName}님!\n\nSNUMPS 가입 신청이 성공적으로 승인되었습니다. 동아리의 일원이 되신 것을 진심으로 환영합니다.\n\n앞으로의 활동을 위해 아래의 단톡방에 입장해 주세요:\n동아리 단톡방 링크: https://chat.placeholder.link (비밀번호: snumps)\n\n감사합니다.`;
+	console.log(`Attempting to send welcome email to ${recipientName} (${recipientEmail})...`);
+	const accessToken = await getAdminAccessToken();
+	const subject = `[SNUMPS] 가입이 승인되었습니다!`;
+	const body = `안녕하세요, ${recipientName}님!\n\nSNUMPS 가입 신청이 성공적으로 승인되었습니다. 동아리의 일원이 되신 것을 진심으로 환영합니다.\n\n앞으로의 활동을 위해 아래의 단톡방에 입장해 주세요:\n동아리 단톡방 링크: ${CHATROOM_LINK} (비밀번호: ${CHATROOM_PASSWORD})\n\n감사합니다.`;
 
-		await dispatchEmail(accessToken, [recipientEmail], subject, body);
-	} catch (e) {
-		console.error('Welcome email error:', e);
-	}
+	await dispatchEmail(accessToken, [recipientEmail], subject, body);
 }
 
 /**
