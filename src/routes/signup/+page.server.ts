@@ -63,7 +63,8 @@ export const actions = {
 			name,
 			department,
 			phone,
-			background
+			background,
+			accepted: false
 		});
 
 		// Notify admins via the automated admin email account

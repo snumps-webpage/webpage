@@ -15,6 +15,7 @@ export interface Application {
 	phone: string;
 	department: string;
 	background: string;
+	accepted: boolean;
 	submittedAt: string;
 }
 
