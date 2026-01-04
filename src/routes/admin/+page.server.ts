@@ -91,7 +91,6 @@ export const actions = {
 				email: app.email,
 				phone: app.phone,
 				department: app.department,
-				bio: app.bio,
 				background: app.background
 			});
 			

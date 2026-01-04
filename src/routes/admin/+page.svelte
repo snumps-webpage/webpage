@@ -274,7 +274,6 @@
 						<details>
 							<summary>상세 정보 보기</summary>
 							<div class="details-content">
-								<p><strong>자기소개:</strong><br>{app.bio || '-'}</p>
 								<p><strong>배경지식:</strong><br>{app.background || '-'}</p>
 							</div>
 						</details>
