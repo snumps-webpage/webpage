@@ -12,16 +12,22 @@ export const load: PageServerLoad = async (event) => {
 	// Check if already registered
 	const member = await getMemberByEmail(session.user.email);
 	if (member && !isAdmin(session.user.email)) {
-		// Also check if they have a pending application to avoid confusion?
-		// But if they are a member, they shouldn't be here.
 		throw redirect(302, '/');
 	}
 
 	const apps = await getApplications();
 	const pending = apps.find(a => a.email === session.user?.email);
 
+	// Parse "Name / Status / Department"
+	const fullName = session.user.name || '';
+	const parts = fullName.split('/').map(p => p.trim());
+	const parsedName = parts[0] || '';
+	const parsedDept = parts[2] || '';
+
 	return {
 		user: session.user,
+		parsedName,
+		parsedDept,
 		pending: !!pending
 	};
 };
@@ -29,13 +35,15 @@ export const load: PageServerLoad = async (event) => {
 export const actions = {
 	default: async ({ request, locals }) => {
 		const session = await locals.auth();
-		if (!session?.user?.email) return { error: 'Unauthorized' };
+		if (!session?.user?.email || !session.user.name) return { error: 'Unauthorized' };
+
+		// Re-parse from session for security (do not trust form input for name/dept)
+		const parts = session.user.name.split('/').map(p => p.trim());
+		const name = parts[0];
+		const department = parts[2] || 'Unknown';
 
 		const data = await request.formData();
-		const name = data.get('name') as string;
-		const department = data.get('department') as string;
 		const phone = data.get('phone') as string;
-		const bio = data.get('bio') as string;
 		const background = data.get('background') as string;
 		const agreement = data.get('agreement');
 
@@ -43,7 +51,7 @@ export const actions = {
 			return { error: '개인정보 수집 및 이용에 동의해야 합니다.' };
 		}
 
-		if (!name || !department || !phone) {
+		if (!phone) {
 			return { error: '필수 정보를 모두 입력해주세요.' };
 		}
 
@@ -55,7 +63,6 @@ export const actions = {
 			name,
 			department,
 			phone,
-			bio,
 			background
 		});
 
