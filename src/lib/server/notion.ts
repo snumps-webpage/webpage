@@ -741,19 +741,56 @@ export async function getApplicationsFromNotion() {
 	const dbId = env.NOTION_DB_APPLICATIONS;
 	if (!dbId) return [];
 
-	const results = await queryDatabase(dbId);
+	const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
+		method: 'POST',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28',
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			filter: {
+				property: '수락됨',
+				checkbox: { equals: false }
+			}
+		})
+	});
+
+	if (!response.ok) return [];
+
+	const data = await response.json() as QueryDatabaseResponse;
 	
-	return results.map(page => {
-		const props = page.properties;
-		return {
-			id: page.id, // Use Notion ID as the primary ID
-			email: (props.Email as any)?.email ?? '',
-			name: (props.Name as any)?.title?.[0]?.plain_text ?? '',
-			phone: (props.Phone as any)?.phone_number ?? '',
-			department: (props.Department as any)?.rich_text?.[0]?.plain_text ?? '',
-			background: (props.Background as any)?.rich_text?.[0]?.plain_text ?? '',
-			submittedAt: (page as any).created_time
-		};
+	return data.results
+		.filter((page: unknown): page is PageObjectResponse => 
+			typeof page === 'object' && page !== null && 'properties' in page
+		)
+		.map(page => {
+			const props = page.properties;
+			return {
+				id: page.id,
+				email: (props['이메일'] as any)?.email ?? '',
+				name: (props['이름'] as any)?.title?.[0]?.plain_text ?? '',
+				phone: (props['전화 번호'] as any)?.phone_number ?? '',
+				department: (props['학과'] as any)?.rich_text?.[0]?.plain_text ?? '',
+				background: (props['배경 지식'] as any)?.rich_text?.[0]?.plain_text ?? '',
+				submittedAt: (page as any).created_time
+			};
+		});
+}
+
+export async function markApplicationAsAccepted(id: string) {
+	await fetch(`https://api.notion.com/v1/pages/${id}`, {
+		method: 'PATCH',
+		headers: {
+			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+			'Notion-Version': '2022-06-28',
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({
+			properties: {
+				'수락됨': { checkbox: true }
+			}
+		})
 	});
 }
 
@@ -777,11 +814,11 @@ export async function createApplicationInNotion(data: {
 		body: JSON.stringify({
 			parent: { database_id: dbId },
 			properties: {
-				Name: { title: [{ text: { content: data.name } }] },
-				Email: { email: data.email },
-				Phone: { phone_number: data.phone },
-				Department: { rich_text: [{ text: { content: data.department } }] },
-				Background: { rich_text: [{ text: { content: data.background } }] }
+				'이름': { title: [{ text: { content: data.name } }] },
+				'이메일': { email: data.email },
+				'전화 번호': { phone_number: data.phone },
+				'학과': { rich_text: [{ text: { content: data.department } }] },
+				'배경 지식': { rich_text: [{ text: { content: data.background } }] }
 			}
 		})
 	});
