@@ -4,29 +4,32 @@
 
 	let { data } = $props();
     
-    // Member search state
-    let memberSearchQuery = $state('');
-    let memberSearchType = $state('이름'); // '이름' or '학과'
+    // State for applications to allow partial updates
+    let applications = $state(data.applications);
 
-    	let filteredMembers = $derived(
-            memberSearchQuery.trim() === '' 
-                ? data.members 
-                : data.members.filter(m => {
-                    const value = memberSearchType === '이름' ? m.name : m.department;
-                    return value.toLowerCase().includes(memberSearchQuery.toLowerCase());
-                })
-        );
-    
-        // State for applications to allow partial updates
-        let applications = $state(data.applications);
-    
-        $effect(() => {
-            applications = data.applications;
-        });
-    
-        // State for editing attendance
-        let editingRecord = $state<AttendanceRecord | null>(null);
-        let editDialog: HTMLDialogElement;
+    $effect(() => {
+        applications = data.applications;
+    });
+
+    // Carousel state for applications
+    let appStartIndex = $state(0);
+    let visibleApplications = $derived(applications.slice(appStartIndex, appStartIndex + 3));
+
+    function nextApp() {
+        if (appStartIndex + 3 < applications.length) {
+            appStartIndex++;
+        }
+    }
+
+    function prevApp() {
+        if (appStartIndex > 0) {
+            appStartIndex--;
+        }
+    }
+
+    // State for editing attendance
+    let editingRecord = $state<AttendanceRecord | null>(null);
+    let editDialog: HTMLDialogElement;
     
         function openEdit(record: AttendanceRecord) {
             editingRecord = record;
@@ -255,93 +258,95 @@
     		{/if}
     	</section>
     
-    	<section class="mt-4">
-    		<h2>가입 승인 대기 ({applications.length})</h2>
-    		
-    		{#if applications.length === 0}
-    			<p class="empty">대기 중인 가입 신청이 없습니다.</p>
-    		{:else}
-    			<div class="grid">
-    				{#each applications as app (app.id)}
-    					<div class="card" class:accepted={app.accepted}>
-    						<div class="card-header">
-    							<h3>{app.name}</h3>	
-    							<span class="dept">{app.department}</span>
-    						</div>
-    						
-    						<div class="info">
-    							<p><strong>이메일:</strong> {app.email}</p>
-    							<p><strong>전화번호:</strong> {app.phone}</p>
-    							<p><strong>신청일:</strong> {new Date(app.submittedAt).toLocaleDateString()}</p>
-    						</div>
+    		<section class="mt-4">
     
-    						<details>
-    							<summary>상세 정보 보기</summary>
-    							<div class="details-content">
-    								<p><strong>배경지식:</strong><br>{app.background || '-'}</p>
-    							</div>
-    						</details>
+    			<h2>가입 승인 대기 ({applications.length})</h2>
     
-    												<div class="actions">
+    			
     
-    													{#if app.accepted}
+    			{#if applications.length === 0}
     
-    														<button class="btn approved-badge" disabled>승인됨</button>
+    				<p class="empty">대기 중인 가입 신청이 없습니다.</p>
     
-    													{:else}
+    			{:else}
+                    <div class="carousel-container">
+                        <button 
+                            class="carousel-nav prev" 
+                            onclick={prevApp} 
+                            disabled={appStartIndex === 0}
+                            aria-label="Previous application"
+                        >
+                            &lt;
+                        </button>
+
+                        <div class="grid carousel-grid">
+                            {#each visibleApplications as app (app.id)}
+                                <div class="card" class:accepted={app.accepted}>
+                                    <div class="card-header">
+                                        <h3>{app.name}</h3>	
+                                        <span class="dept">{app.department}</span>
+                                    </div>
+                                    
+                                    <div class="info">
+                                        <p><strong>이메일:</strong> {app.email}</p>
+                                        <p><strong>전화번호:</strong> {app.phone}</p>
+                                        <p><strong>신청일:</strong> {new Date(app.submittedAt).toLocaleDateString()}</p>
+                                    </div>
+
+                                    <details>
+                                        <summary>상세 정보 보기</summary>
+                                        <div class="details-content">
+                                            <p><strong>배경지식:</strong><br>{app.background || '-'}</p>
+                                        </div>
+                                    </details>
+
+                                    <div class="actions">
+                                        {#if app.accepted}
+                                            <button class="btn approved-badge" disabled>승인됨</button>
+                                        {:else}
+                                            <form method="POST" action="?/approve" use:enhance={({ formData }) => {
+                                                return async ({ result }) => {
+                                                    if (result.type === 'success') {
+                                                        alert('회원 가입이 승인되었습니다.');
+                                                        
+                                                        // Update local state to accepted without reloading page
+                                                        const id = formData.get('id');
+                                                        const idx = applications.findIndex(a => a.id === id);
+                                                        if (idx !== -1) {
+                                                            const updatedApp = { ...applications[idx], accepted: true };
+                                                            applications[idx] = updatedApp;
+                                                        }
+                                                    }
+                                                };
+                                            }}>
+                                                <input type="hidden" name="id" value={app.id} />
+                                                <button class="btn approve">승인</button>
+                                            </form>
+                                        {/if}
+
+                                        <form method="POST" action="?/reject" use:enhance onsubmit={() => confirm(app.accepted ? '신청 내역을 삭제하시겠습니까?' : '정말 거절하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.')}>
+                                            <input type="hidden" name="id" value={app.id} />
+                                            <button class="btn reject">{app.accepted ? '삭제' : '거절'}</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            {/each}
+                        </div>
+
+                        <button 
+                            class="carousel-nav next" 
+                            onclick={nextApp} 
+                            disabled={appStartIndex + 3 >= applications.length}
+                            aria-label="Next application"
+                        >
+                            &gt;
+                        </button>
+                    </div>
+    			{/if}
     
-    														<form method="POST" action="?/approve" use:enhance={({ formData }) => {
-    															return async ({ result }) => {
-    																if (result.type === 'success') {
-    																	alert('회원 가입이 승인되었습니다.');
-                                                                        
-                                                                        // Update local state to accepted without reloading page
-                                                                        const id = formData.get('id');
-                                                                        const idx = applications.findIndex(a => a.id === id);
-                                                                        if (idx !== -1) {
-                                                                            const updatedApp = { ...applications[idx], accepted: true };
-                                                                            applications[idx] = updatedApp;
-                                                                        }
-    																}
-    															};
-    														}}>
+    				</section>
     
-    															<input type="hidden" name="id" value={app.id} />
-    
-    															<button class="btn approve">승인</button>
-    
-    														</form>
-    
-    													{/if}
-    
-    													
-    
-    																					<form method="POST" action="?/reject" use:enhance onsubmit={() => confirm(app.accepted ? '신청 내역을 삭제하시겠습니까?' : '정말 거절하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.')}>
-    
-    													
-    
-    																						<input type="hidden" name="id" value={app.id} />
-    
-    													
-    
-    																						<button class="btn reject">{app.accepted ? '삭제' : '거절'}</button>
-    
-    													
-    
-    																					</form>
-    
-    													
-    
-    													
-    
-    												</div>
-    
-    						
-    					</div>
-    				{/each}
     			</div>
-    		{/if}
-    	</section></div>
 
 <style>
 	.mt-4 {
@@ -692,4 +697,62 @@
 		display: flex;
 		gap: 0.5rem;
 	}
+
+    /* Carousel Styles */
+    .carousel-container {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        position: relative;
+        padding: 1rem 0;
+    }
+
+    .carousel-grid {
+        flex: 1;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 1.5rem;
+        min-height: 350px;
+    }
+
+    .carousel-nav {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 1.2rem;
+        font-weight: bold;
+        transition: all 0.2s;
+        box-shadow: var(--shadow);
+        user-select: none;
+        z-index: 10;
+    }
+
+    .carousel-nav:hover:not(:disabled) {
+        background: var(--btn-secondary);
+        transform: scale(1.1);
+    }
+
+    .carousel-nav:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+
+    @media (max-width: 1024px) {
+        .carousel-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .carousel-grid {
+            grid-template-columns: 1fr !important;
+        }
+    }
 </style>
