@@ -124,6 +124,7 @@
 		--color-danger-text: #991b1b;
 		--color-warning-bg: #fef3c7;
 		--color-warning-text: #92400e;
+		--brand-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 	}
 
 	:global(.dark) {
@@ -142,6 +143,7 @@
 		--color-danger-text: #fca5a5;
 		--color-warning-bg: #78350f;
 		--color-warning-text: #fcd34d;
+		--brand-gradient: linear-gradient(135deg, #818cf8 0%, #a78bfa 100%);
 	}
 
 	:global(body) {
@@ -430,7 +432,7 @@
 	.loading-progress {
 		width: 100%;
 		height: 100%;
-		background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+		background: var(--brand-gradient);
 		transform-origin: left;
 		animation: progress 1s infinite linear;
 	}
