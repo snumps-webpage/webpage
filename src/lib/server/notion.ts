@@ -46,7 +46,6 @@ export async function notionQuery(databaseId: string, options: any = {}): Promis
 				...options
 			});
 
-			// Filter out PartialPageObjectResponse items which lack properties
 			const fullPages = (response.results || []).filter((page: any) => page && 'properties' in page);
 			allResults = [...allResults, ...fullPages];
 			
@@ -216,7 +215,7 @@ export async function createMember(data: {
 	await notionCreate(memberDbId, {
 		[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
 		[NOTION_PROPS.DEPT]: { rich_text: [{ text: { content: data.department } }] },
-		[NOTION_PROPS.MEMBER_INFO]: { relation: [{ id: privatePage.id }] },
+		[NOTION_PROPS.MEMBER_TO_PRIVATE]: { relation: [{ id: privatePage.id }] },
 		[NOTION_PROPS.JOIN_DATE]: { date: { start: new Date().toISOString().split('T')[0] } }
 	});
 }
@@ -233,7 +232,7 @@ export async function getMemberByEmail(email: string) {
 		if (results.length === 0) return null;
 
 		const page = results[0];
-		const relationProp: any = page.properties[NOTION_PROPS.MEMBER_INFO];
+		const relationProp: any = page.properties[NOTION_PROPS.PRIVATE_TO_MEMBER];
 		if (relationProp?.type !== 'relation' || !relationProp.relation || relationProp.relation.length === 0) return null;
 
 		return {
@@ -246,7 +245,7 @@ export async function getMemberByEmail(email: string) {
 export async function getMemberById(memberId: string) {
 	const page = await notionRetrieve(memberId);
 	const nameProp = page.properties[NOTION_PROPS.NAME] as any;
-	const relationProp = page.properties[NOTION_PROPS.MEMBER_INFO] as any;
+	const relationProp = page.properties[NOTION_PROPS.MEMBER_TO_PRIVATE] as any;
 
 	return {
 		id: page.id,
@@ -501,7 +500,7 @@ export async function getAllPrivateInfo() {
 		id: page.id,
 		name: getPropertyValue(page.properties[NOTION_PROPS.NAME]),
 		email: getPropertyValue(page.properties[NOTION_PROPS.EMAIL]),
-		memberId: (page.properties[NOTION_PROPS.MEMBER_INFO] as any)?.relation?.[0]?.id
+		memberId: (page.properties[NOTION_PROPS.PRIVATE_TO_MEMBER] as any)?.relation?.[0]?.id
 	}));
 }
 
@@ -511,7 +510,12 @@ export async function getPresidentName(semesterPrefix: string): Promise<string> 
 		if (!dbId) return '';
 
 		const results = await notionQuery(dbId, {
-			filter: { property: NOTION_PROPS.EXECUTIVES, multi_select: { contains: `${semesterPrefix} 회장` } }
+			filter: { 
+				or: [
+					{ property: NOTION_PROPS.EXECUTIVES, multi_select: { contains: `${semesterPrefix} 회장` } },
+					{ property: NOTION_PROPS.EXECUTIVES, multi_select: { contains: `${semesterPrefix} 회 장` } }
+				]
+			}
 		});
 
 		if (results.length === 0) return '';
