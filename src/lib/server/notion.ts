@@ -1,6 +1,6 @@
 /**
- * Service for interacting with the Notion API, handling database queries, 
- * schema retrieval, and member/activity updates.
+ * Core service for interacting with the Notion API.
+ * Provides generic CRUD operations for databases and pages.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Client } from '@notionhq/client';
@@ -9,33 +9,115 @@ import type { PageObjectResponse } from '@notionhq/client/build/src/api-endpoint
 import { withCache } from './cache';
 import { NOTION_PROPS } from '../constants';
 
-function getNotionClient() {
-	return new Client({
-		auth: env.NOTION_API_KEY
+export type NotionProperty = PageObjectResponse['properties'][string];
+
+export interface DatabasePropertySchema {
+	type: string;
+	options?: string[];
+}
+
+/**
+ * --- GENERIC NOTION HELPERS ---
+ */
+
+function getClient(): any {
+	return new Client({ auth: env.NOTION_API_KEY });
+}
+
+/**
+ * Generic database query with automatic pagination.
+ */
+export async function notionQuery(databaseId: string, options: any = {}): Promise<PageObjectResponse[]> {
+	const notion = getClient();
+	let allResults: PageObjectResponse[] = [];
+	let hasMore = true;
+	let nextCursor: string | undefined = undefined;
+
+	while (hasMore) {
+		const response: any = await notion.databases.query({
+			database_id: databaseId,
+			start_cursor: nextCursor,
+			...options
+		});
+
+		allResults = [...allResults, ...(response.results as PageObjectResponse[])];
+		hasMore = response.has_more;
+		nextCursor = response.next_cursor ?? undefined;
+	}
+
+	return allResults;
+}
+
+/**
+ * Compatibility alias for notionQuery
+ */
+export const queryDatabase = notionQuery;
+
+/**
+ * Generic page creation.
+ */
+export async function notionCreate(databaseId: string, properties: any): Promise<PageObjectResponse> {
+	const notion = getClient();
+	return await notion.pages.create({
+		parent: { database_id: databaseId },
+		properties
+	}) as PageObjectResponse;
+}
+
+/**
+ * Generic page update.
+ */
+export async function notionUpdate(pageId: string, properties: any): Promise<PageObjectResponse> {
+	const notion = getClient();
+	return await notion.pages.update({
+		page_id: pageId,
+		properties
+	}) as PageObjectResponse;
+}
+
+/**
+ * Generic page archive (delete).
+ */
+export async function notionArchive(pageId: string): Promise<void> {
+	const notion = getClient();
+	await notion.pages.update({
+		page_id: pageId,
+		archived: true
 	});
 }
 
-export type NotionProperty = PageObjectResponse['properties'][string];
+/**
+ * Generic page retrieval.
+ */
+export async function notionRetrieve(pageId: string): Promise<PageObjectResponse> {
+	const notion = getClient();
+	return await notion.pages.retrieve({ page_id: pageId }) as PageObjectResponse;
+}
 
 /**
- * Parses Notion property values into readable strings.
+ * --- DATA PARSERS ---
  */
-export function getPropertyValue(property: NotionProperty): string {
+
+/**
+ * Extracts a readable string from a Notion property object.
+ */
+export function getPropertyValue(property: any): any {
+	if (!property) return '';
 	switch (property.type) {
 		case 'title':
-			return property.title.map((t) => t.plain_text).join('');
+			return property.title.map((t: any) => t.plain_text).join('');
 		case 'rich_text':
-			return property.rich_text.map((t) => t.plain_text).join('');
+			return property.rich_text.map((t: any) => t.plain_text).join('');
 		case 'number':
-			return property.number?.toString() ?? '';
+			return property.number ?? 0;
 		case 'select':
 			return property.select?.name ?? '';
 		case 'multi_select':
-			return property.multi_select.map((s) => s.name).join(', ');
+			return property.multi_select.map((s: any) => s.name).join(', ');
 		case 'date':
 			return property.date?.start ?? '';
 		case 'checkbox':
-			return property.checkbox ? 'Yes' : 'No';
+			return property.checkbox;
 		case 'email':
 			return property.email ?? '';
 		case 'phone_number':
@@ -44,100 +126,17 @@ export function getPropertyValue(property: NotionProperty): string {
 			return property.url ?? '';
 		case 'status':
 			return property.status?.name ?? '';
-		case 'people':
-			return property.people.map((p) => ('name' in p ? p.name : '')).join(', ');
+		case 'relation':
+			return property.relation.map((r: any) => r.id);
 		default:
 			return '';
 	}
 }
 
-interface QueryDatabaseResponse {
-	results: unknown[];
-	next_cursor: string | null;
-	has_more: boolean;
-}
-
 /**
- * Recursively queries a Notion database to fetch all records (handling pagination).
+ * --- SPECIFIC BUSINESS LOGIC ---
  */
-export async function queryDatabase(databaseId: string): Promise<PageObjectResponse[]> {
-	let allResults: unknown[] = [];
-	let hasMore = true;
-	let nextCursor: string | null = null;
 
-	while (hasMore) {
-		const response = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
-			method: 'POST',
-			headers: {
-				'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-				'Notion-Version': '2022-06-28',
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({
-				start_cursor: nextCursor ?? undefined
-			})
-		});
-
-		if (!response.ok) {
-			const error = await response.json();
-			throw new Error(JSON.stringify(error));
-		}
-
-		const data = await response.json() as QueryDatabaseResponse;
-		allResults = [...allResults, ...data.results];
-		hasMore = data.has_more;
-		nextCursor = data.next_cursor;
-	}
-
-	return allResults.filter(
-		(page: unknown): page is PageObjectResponse =>
-			typeof page === 'object' && page !== null && 'properties' in page
-	);
-}
-
-export interface DatabasePropertySchema {
-	type: string;
-	options?: string[];
-}
-
-/**
- * Retrieves the schema (properties) of a specific Notion database.
- */
-export async function getDatabaseSchema(databaseId: string): Promise<Record<string, DatabasePropertySchema>> {
-	return withCache(`schema_${databaseId}`, 3600000, async () => {
-		const response = await fetch(`https://api.notion.com/v1/databases/${databaseId}`, {
-			method: 'GET',
-			headers: {
-				'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-				'Notion-Version': '2022-06-28'
-			}
-		});
-
-		if (!response.ok) {
-			const error = await response.json();
-			throw new Error(JSON.stringify(error));
-		}
-
-		const data = await response.json();
-
-		if (!('properties' in data)) {
-			return {};
-		}
-
-		const properties = data.properties as Record<string, unknown>;
-		const result: Record<string, DatabasePropertySchema> = {};
-		for (const [key, value] of Object.entries(properties)) {
-			const type = (value as { type: string }).type;
-			const options = (value as { [key: string]: { options: { name: string }[] } })[type]?.options?.map((o) => o.name) || undefined;
-			result[key] = { type, options };
-		}
-		return result;
-	});
-}
-
-/**
- * Creates entries in both Private Info and Member databases and links them.
- */
 export async function createMember(data: {
 	name: string;
 	email: string;
@@ -145,167 +144,41 @@ export async function createMember(data: {
 	department: string;
 	background: string;
 }) {
-	const notion = getNotionClient();
 	const privateDbId = env.NOTION_DB_PRIVATE_INFO;
 	const memberDbId = env.NOTION_DB_MEMBERS;
-	
 	if (!privateDbId || !memberDbId) throw new Error('DB IDs not set');
 
 	// 1. Create Private Info Page
-	const privatePage = await notion.pages.create({
-		parent: { database_id: privateDbId },
-		properties: {
-			[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
-			[NOTION_PROPS.EMAIL]: { email: data.email },
-			[NOTION_PROPS.PHONE]: { phone_number: data.phone },
-			[NOTION_PROPS.BACKGROUND]: { rich_text: [{ text: { content: data.background } }] }
-		}
-	}) as PageObjectResponse;
+	const privatePage = await notionCreate(privateDbId, {
+		[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
+		[NOTION_PROPS.EMAIL]: { email: data.email },
+		[NOTION_PROPS.PHONE]: { phone_number: data.phone },
+		[NOTION_PROPS.BACKGROUND]: { rich_text: [{ text: { content: data.background } }] }
+	});
 
 	// 2. Create Member Page
-	await notion.pages.create({
-		parent: { database_id: memberDbId },
-		properties: {
-			[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
-			[NOTION_PROPS.DEPT]: { rich_text: [{ text: { content: data.department } }] },
-			[NOTION_PROPS.MEMBER_INFO]: { relation: [{ id: privatePage.id }] },
-			[NOTION_PROPS.JOIN_DATE]: { date: { start: new Date().toISOString().split('T')[0] } }
-		}
+	await notionCreate(memberDbId, {
+		[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
+		[NOTION_PROPS.DEPT]: { rich_text: [{ text: { content: data.department } }] },
+		[NOTION_PROPS.MEMBER_INFO]: { relation: [{ id: privatePage.id }] },
+		[NOTION_PROPS.JOIN_DATE]: { date: { start: new Date().toISOString().split('T')[0] } }
 	});
 }
 
-/**
- * Fetches all seminars where the specific member is a speaker.
- */
-export async function getUserSeminars(memberId: string) {
-	const dbId = env.NOTION_DB_SEMINARS;
-	if (!dbId) return [];
-
-	const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
-		method: 'POST',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			filter: {
-				property: NOTION_PROPS.SEMINAR_SPEAKER,
-				relation: { contains: memberId }
-			},
-			sorts: [{ property: NOTION_PROPS.SEMINAR_SEMESTER, direction: 'descending' }]
-		})
-	});
-
-	if (!response.ok) return [];
-
-	const data = await response.json() as QueryDatabaseResponse;
-	return data.results
-		.filter((page: unknown): page is PageObjectResponse => 
-			typeof page === 'object' && page !== null && 'properties' in page
-		)
-		.map(page => {
-			const props = page.properties;
-			const titleProp = props[NOTION_PROPS.SEMINAR_TITLE] as any;
-			const remarksProp = props[NOTION_PROPS.SEMINAR_REMARKS] as any;
-			const semesterProp = props[NOTION_PROPS.SEMINAR_SEMESTER] as any;
-
-			return {
-				id: page.id,
-				title: titleProp?.type === 'title' ? titleProp.title[0]?.plain_text ?? '' : '',
-				remarks: remarksProp?.type === 'rich_text' ? remarksProp.rich_text[0]?.plain_text ?? '' : '',
-				semester: semesterProp?.type === 'select' ? semesterProp.select?.name ?? '' : ''
-			};
-		});
-}
-
-/**
- * Updates a seminar record in Notion.
- */
-export async function updateSeminar(pageId: string, data: { title?: string; remarks?: string }) {
-	const props: Record<string, any> = {};
-	if (data.title !== undefined) props[NOTION_PROPS.SEMINAR_TITLE] = { title: [{ text: { content: data.title } }] };
-	if (data.remarks !== undefined) props[NOTION_PROPS.SEMINAR_REMARKS] = { rich_text: [{ text: { content: data.remarks } }] };
-
-	const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
-		method: 'PATCH',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({ properties: props })
-	});
-
-	if (!response.ok) {
-		const error = await response.json();
-		throw new Error(JSON.stringify(error));
-	}
-}
-
-/**
- * Resolves a member's details by their Member DB Page ID.
- */
-export async function getMemberById(memberId: string) {
-	const response = await fetch(`https://api.notion.com/v1/pages/${memberId}`, {
-		method: 'GET',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28'
-		}
-	});
-
-	if (!response.ok) return null;
-	const page = await response.json() as PageObjectResponse;
-	const props = page.properties;
-
-	const nameProp = props[NOTION_PROPS.NAME] as any;
-	const relationProp = props[NOTION_PROPS.MEMBER_INFO] as any;
-
-	return {
-		id: page.id,
-		name: nameProp?.type === 'title' ? nameProp.title[0]?.plain_text ?? '' : '',
-		privateInfoId: relationProp?.type === 'relation' ? relationProp.relation[0]?.id : undefined
-	};
-}
-
-/**
- * Resolves a user's Private Info ID and Member ID by searching for their email.
- */
 export async function getMemberByEmail(email: string) {
 	return withCache(`member_${email}`, 300000, async () => {
 		const dbId = env.NOTION_DB_PRIVATE_INFO;
 		if (!dbId) throw new Error('NOTION_DB_PRIVATE_INFO is not set');
 
-		const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
-			method: 'POST',
-			headers: {
-				'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-				'Notion-Version': '2022-06-28',
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({
-				filter: {
-					property: NOTION_PROPS.EMAIL,
-					email: { equals: email }
-				}
-			})
+		const results = await notionQuery(dbId, {
+			filter: { property: NOTION_PROPS.EMAIL, email: { equals: email } }
 		});
 
-		if (!response.ok) {
-			const error = await response.json();
-			throw new Error(JSON.stringify(error));
-		}
+		if (results.length === 0) return null;
 
-		const data = await response.json() as QueryDatabaseResponse;
-		if (data.results.length === 0) return null;
-
-		const page = data.results[0] as PageObjectResponse;
-		const relationProp = page.properties[NOTION_PROPS.MEMBER_INFO];
-			
-		if (relationProp?.type !== 'relation' || relationProp.relation.length === 0) {
-			return null;
-		}
+		const page = results[0];
+		const relationProp: any = page.properties[NOTION_PROPS.MEMBER_INFO];
+		if (relationProp?.type !== 'relation' || relationProp.relation.length === 0) return null;
 
 		return {
 			privateInfoId: page.id,
@@ -314,488 +187,140 @@ export async function getMemberByEmail(email: string) {
 	});
 }
 
-/**
- * Fetches all members from the database with pagination.
- */
+export async function getMemberById(memberId: string) {
+	const page = await notionRetrieve(memberId);
+	const nameProp = page.properties[NOTION_PROPS.NAME] as any;
+	const relationProp = page.properties[NOTION_PROPS.MEMBER_INFO] as any;
+
+	return {
+		id: page.id,
+		name: getPropertyValue(nameProp),
+		privateInfoId: relationProp?.type === 'relation' ? relationProp.relation[0]?.id : undefined
+	};
+}
+
 export async function getAllMembers() {
 	return withCache('all_members', 60000, async () => {
 		const dbId = env.NOTION_DB_MEMBERS;
 		if (!dbId) throw new Error('NOTION_DB_MEMBERS is not set');
 
-		let allResults: PageObjectResponse[] = [];
-		let hasMore = true;
-		let nextCursor: string | null = null;
-
-		while (hasMore) {
-			const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
-				method: 'POST',
-				headers: {
-					'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-					'Notion-Version': '2022-06-28',
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
-					filter: {
-						property: NOTION_PROPS.NAME,
-						title: { is_not_empty: true }
-					},
-					sorts: [{ property: NOTION_PROPS.NAME, direction: 'ascending' }],
-					start_cursor: nextCursor ?? undefined
-				})
-			});
-
-			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(JSON.stringify(error));
-			}
-
-			const data = await response.json() as QueryDatabaseResponse;
-			const pages = data.results.filter((page: unknown): page is PageObjectResponse => 
-				typeof page === 'object' && page !== null && 'properties' in page
-			);
-			
-			allResults = [...allResults, ...pages];
-			hasMore = data.has_more;
-			nextCursor = data.next_cursor;
-		}
-		
-		return allResults.map(page => {
-			const props = page.properties;
-			const nameProp = props[NOTION_PROPS.NAME] as any;
-			const deptProp = props[NOTION_PROPS.DEPT] as any;
-			const joinDateProp = props[NOTION_PROPS.JOIN_DATE] as any;
-
-			return {
-				id: page.id,
-				name: nameProp?.type === 'title' ? nameProp.title[0]?.plain_text ?? '' : '',
-				department: deptProp?.type === 'rich_text' ? deptProp.rich_text[0]?.plain_text ?? '' : '',
-				joinDate: joinDateProp?.type === 'date' ? joinDateProp.date?.start ?? '' : ''
-			};
+		const results = await notionQuery(dbId, {
+			filter: { property: NOTION_PROPS.NAME, title: { is_not_empty: true } },
+			sorts: [{ property: NOTION_PROPS.NAME, direction: 'ascending' }]
 		});
+
+		return results.map(page => ({
+			id: page.id,
+			name: getPropertyValue(page.properties[NOTION_PROPS.NAME]),
+			department: getPropertyValue(page.properties[NOTION_PROPS.DEPT]),
+			joinDate: getPropertyValue(page.properties[NOTION_PROPS.JOIN_DATE])
+		}));
 	});
 }
 
-/**
- * Fetches all activities from the database with pagination.
- */
-export async function getAllActivities() {
-	return withCache('all_activities', 60000, async () => {
-		const dbId = env.NOTION_DB_ACTIVITIES;
-		if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
-
-		let allResults: PageObjectResponse[] = [];
-		let hasMore = true;
-		let nextCursor: string | null = null;
-
-		while (hasMore) {
-			const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
-				method: 'POST',
-				headers: {
-					'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-					'Notion-Version': '2022-06-28',
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
-					sorts: [{ property: NOTION_PROPS.ACTIVITY_DATE, direction: 'descending' }],
-					start_cursor: nextCursor ?? undefined
-				})
-			});
-
-			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(JSON.stringify(error));
-			}
-
-			const data = await response.json() as QueryDatabaseResponse;
-			const pages = data.results.filter((page: unknown): page is PageObjectResponse => 
-				typeof page === 'object' && page !== null && 'properties' in page
-			);
-			
-			allResults = [...allResults, ...pages];
-			hasMore = data.has_more;
-			nextCursor = data.next_cursor;
-		}
-		
-		return allResults.map(page => {
-			const props = page.properties;
-			const nameProp = props[NOTION_PROPS.ACTIVITY_NAME] as any;
-			const dateProp = props[NOTION_PROPS.ACTIVITY_DATE] as any;
-			const typeProp = props[NOTION_PROPS.ACTIVITY_TYPE] as any;
-
-			return {
-				id: page.id,
-				name: nameProp?.type === 'title' ? nameProp.title[0]?.plain_text ?? '' : '',
-				date: dateProp?.type === 'date' ? dateProp.date?.start ?? '' : '',
-				type: typeProp?.type === 'select' ? typeProp.select?.name ?? '' : '',
-				url: (page as any).public_url || page.url
-			};
-		});
-	});
-}
-
-/**
- * Searches for the president's name for a given semester prefix (e.g., '25-2').
- */
-export async function getPresidentName(semesterPrefix: string): Promise<string> {
-	return withCache(`president_${semesterPrefix}`, 3600000, async () => {
-		const dbId = env.NOTION_DB_MEMBERS;
-		if (!dbId) return '';
-
-		const roleName = `${semesterPrefix} 회장`;
-
-		const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
-			method: 'POST',
-			headers: {
-				'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-				'Notion-Version': '2022-06-28',
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({
-				filter: {
-					property: NOTION_PROPS.EXECUTIVES,
-					multi_select: { contains: roleName }
-				}
-			})
-		});
-
-		if (!response.ok) return '';
-
-		const data = await response.json() as QueryDatabaseResponse;
-		if (data.results.length === 0) return '';
-
-		const page = data.results[0] as PageObjectResponse;
-		const nameProp = page.properties[NOTION_PROPS.NAME] as any;
-		if (nameProp?.type === 'title' && nameProp.title.length > 0) {
-			return nameProp.title[0].plain_text;
-		}
-		return '';
-	});
-}
-
-/**
- * Fetches all activities within a specific date range.
- */
 export async function getActivities(startDate: string, endDate: string) {
 	return withCache(`activities_${startDate}_${endDate}`, 300000, async () => {
 		const dbId = env.NOTION_DB_ACTIVITIES;
 		if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
 
-		const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
-			method: 'POST',
-			headers: {
-				'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-				'Notion-Version': '2022-06-28',
-				'Content-Type': 'application/json'
+		const results = await notionQuery(dbId, {
+			filter: {
+				and: [
+					{ property: NOTION_PROPS.ACTIVITY_DATE, date: { on_or_after: startDate } },
+					{ property: NOTION_PROPS.ACTIVITY_DATE, date: { on_or_before: endDate } }
+				]
 			},
-			body: JSON.stringify({
-				filter: {
-					and: [
-						{ property: NOTION_PROPS.ACTIVITY_DATE, date: { on_or_after: startDate } },
-						{ property: NOTION_PROPS.ACTIVITY_DATE, date: { on_or_before: endDate } }
-					]
-				},
-				sorts: [{ property: NOTION_PROPS.ACTIVITY_DATE, direction: 'descending' }]
-			})
+			sorts: [{ property: NOTION_PROPS.ACTIVITY_DATE, direction: 'descending' }]
 		});
 
-		if (!response.ok) {
-			const error = await response.json();
-			throw new Error(JSON.stringify(error));
-		}
-
-		const data = await response.json() as QueryDatabaseResponse;
-		
-		return data.results
-			.filter((page: unknown): page is PageObjectResponse => 
-				typeof page === 'object' && page !== null && 'properties' in page
-			)
-			.map(page => {
-				const props = page.properties;
-				const nameProp = props[NOTION_PROPS.ACTIVITY_NAME] as any;
-				const dateProp = props[NOTION_PROPS.ACTIVITY_DATE] as any;
-				const typeProp = props[NOTION_PROPS.ACTIVITY_TYPE] as any;
-				const attendProp = props[NOTION_PROPS.ATTENDANCE] as any;
-
-				return {
-					id: page.id,
-					name: nameProp?.type === 'title' ? nameProp.title[0]?.plain_text ?? '' : '',
-					date: dateProp?.type === 'date' ? dateProp.date?.start ?? '' : '',
-					type: typeProp?.type === 'select' ? typeProp.select?.name ?? '' : '',
-					attendees: attendProp?.type === 'relation' ? attendProp.relation.map((r: any) => r.id) : [],
-					url: (page as any).public_url || page.url
-				};
-			});
+		return results.map(page => ({
+			id: page.id,
+			name: getPropertyValue(page.properties[NOTION_PROPS.ACTIVITY_NAME]),
+			date: getPropertyValue(page.properties[NOTION_PROPS.ACTIVITY_DATE]),
+			type: getPropertyValue(page.properties[NOTION_PROPS.ACTIVITY_TYPE]),
+			attendees: getPropertyValue(page.properties[NOTION_PROPS.ATTENDANCE]),
+			url: (page as any).public_url || page.url
+		}));
 	});
 }
 
-/**
- * Fetches all activities participated in by a specific member.
- */
+export async function getAllActivities() {
+	return withCache('all_activities', 60000, async () => {
+		const dbId = env.NOTION_DB_ACTIVITIES;
+		if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
+
+		const results = await notionQuery(dbId, {
+			sorts: [{ property: NOTION_PROPS.ACTIVITY_DATE, direction: 'descending' }]
+		});
+
+		return results.map(page => ({
+			id: page.id,
+			name: getPropertyValue(page.properties[NOTION_PROPS.ACTIVITY_NAME]),
+			date: getPropertyValue(page.properties[NOTION_PROPS.ACTIVITY_DATE]),
+			type: getPropertyValue(page.properties[NOTION_PROPS.ACTIVITY_TYPE]),
+			url: (page as any).public_url || page.url
+		}));
+	});
+}
+
 export async function getUserActivities(memberId: string) {
 	return withCache(`user_activities_${memberId}`, 300000, async () => {
 		const dbId = env.NOTION_DB_ACTIVITIES;
 		if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
 
-		let allResults: PageObjectResponse[] = [];
-		let hasMore = true;
-		let nextCursor: string | null = null;
-
-		while (hasMore) {
-			const response = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
-				method: 'POST',
-				headers: {
-					'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-					'Notion-Version': '2022-06-28',
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
-					filter: {
-						property: NOTION_PROPS.ATTENDANCE,
-						relation: { contains: memberId }
-					},
-					sorts: [{ property: NOTION_PROPS.ACTIVITY_DATE, direction: 'descending' }],
-					start_cursor: nextCursor ?? undefined
-				})
-			});
-
-			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(JSON.stringify(error));
-			}
-
-			const data = await response.json() as QueryDatabaseResponse;
-			const pages = data.results.filter((page: unknown): page is PageObjectResponse => 
-				typeof page === 'object' && page !== null && 'properties' in page
-			);
-			
-			allResults = [...allResults, ...pages];
-			hasMore = data.has_more;
-			nextCursor = data.next_cursor;
-		}
-		
-		return allResults.map(page => {
-			const props = page.properties;
-			const nameProp = props[NOTION_PROPS.ACTIVITY_NAME] as any;
-			const dateProp = props[NOTION_PROPS.ACTIVITY_DATE] as any;
-			const typeProp = props[NOTION_PROPS.ACTIVITY_TYPE] as any;
-
-			return {
-				id: page.id,
-				name: nameProp?.type === 'title' ? nameProp.title[0]?.plain_text ?? '' : '',
-				date: dateProp?.type === 'date' ? dateProp.date?.start ?? '' : '',
-				type: typeProp?.type === 'select' ? typeProp.select?.name ?? '' : '',
-				url: (page as any).public_url || page.url
-			};
+		const results = await notionQuery(dbId, {
+			filter: { property: NOTION_PROPS.ATTENDANCE, relation: { contains: memberId } },
+			sorts: [{ property: NOTION_PROPS.ACTIVITY_DATE, direction: 'descending' }]
 		});
-	});
-}
 
-/**
- * Updates personal information fields in the Private Info database.
- */
-export async function updatePrivateInfo(pageId: string, data: { phone?: string; background?: string }) {
-	const props: Record<string, any> = {};
-	if (data.phone !== undefined) props[NOTION_PROPS.PHONE] = { phone_number: data.phone };
-	if (data.background !== undefined) props[NOTION_PROPS.BACKGROUND] = { rich_text: [{ text: { content: data.background } }] };
-
-	const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
-		method: 'PATCH',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({ properties: props })
-	});
-
-	if (!response.ok) {
-		const error = await response.json();
-		throw new Error(JSON.stringify(error));
-	}
-}
-
-/**
- * Creates a new activity record in the Notion Activities database.
- */
-export async function createActivityPage(data: { title: string; date: string; type: string; attendeeIds?: string[]; timeZone?: string }) {
-	const dbId = env.NOTION_DB_ACTIVITIES;
-	if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
-
-	const dateObj: any = { start: data.date };
-	if (data.timeZone) {
-		dateObj.time_zone = data.timeZone;
-	}
-
-	const properties: any = {
-		[NOTION_PROPS.ACTIVITY_NAME]: { title: [{ text: { content: data.title } }] },
-		[NOTION_PROPS.ACTIVITY_DATE]: { date: dateObj },
-		[NOTION_PROPS.ACTIVITY_TYPE]: { select: { name: data.type } }
-	};
-
-	if (data.attendeeIds && data.attendeeIds.length > 0) {
-		properties[NOTION_PROPS.ATTENDANCE] = {
-			relation: data.attendeeIds.map(id => ({ id }))
-		};
-	}
-
-	const response = await fetch(`https://api.notion.com/v1/pages`, {
-		method: 'POST',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			parent: { database_id: dbId },
-			properties
-		})
-	});
-
-	if (!response.ok) {
-		const error = await response.json();
-		throw new Error('Failed to create activity page: ' + JSON.stringify(error));
-	}
-
-	return await response.json() as PageObjectResponse;
-}
-
-/**
- * Appends a member to the attendance list of an activity.
- */
-export async function addAttendeeToActivity(pageId: string, memberId: string) {
-	const notionClient = getNotionClient();
-	const page = await notionClient.pages.retrieve({ page_id: pageId }) as PageObjectResponse;
-	
-	const currentRelations = page.properties[NOTION_PROPS.ATTENDANCE];
-	let currentIds: string[] = [];
-	
-	if (currentRelations?.type === 'relation') {
-		currentIds = currentRelations.relation.map(r => r.id);
-	}
-
-	if (currentIds.includes(memberId)) return;
-
-	const newIds = [...currentIds, memberId].map(id => ({ id }));
-
-	await notionClient.pages.update({
-		page_id: pageId,
-		properties: {
-			[NOTION_PROPS.ATTENDANCE]: { relation: newIds }
-		}
-	});
-}
-
-/**
- * Retrieves full details from the Private Info database for a specific record.
- */
-export async function getPrivateInfo(pageId: string) {
-	const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
-		method: 'GET',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28'
-		}
-	});
-
-	if (!response.ok) return null;
-	const page = await response.json() as PageObjectResponse;
-	const props = page.properties;
-
-	const emailProp = props[NOTION_PROPS.EMAIL] as any;
-	const nameProp = props[NOTION_PROPS.NAME] as any;
-	const phoneProp = props[NOTION_PROPS.PHONE] as any;
-	const backProp = props[NOTION_PROPS.BACKGROUND] as any;
-
-	return {
-		email: emailProp?.type === 'email' ? emailProp.email : '',
-		name: nameProp?.type === 'title' ? nameProp.title[0]?.plain_text : '',
-		phone: phoneProp?.type === 'phone_number' ? phoneProp.phone_number : '',
-		background: backProp?.type === 'rich_text' ? backProp.rich_text[0]?.plain_text : ''
-	};
-}
-
-/**
- * Fetches all records from the Private Info database.
- */
-export async function getAllPrivateInfo() {
-	const dbId = env.NOTION_DB_PRIVATE_INFO;
-	if (!dbId) throw new Error('NOTION_DB_PRIVATE_INFO is not set');
-
-	const results = await queryDatabase(dbId);
-	
-	return results.map(page => {
-		const props = page.properties;
-		const emailProp = props[NOTION_PROPS.EMAIL] as any;
-		const nameProp = props[NOTION_PROPS.NAME] as any;
-		const relationProp = props[NOTION_PROPS.MEMBER_INFO] as any;
-
-		return {
+		return results.map(page => ({
 			id: page.id,
-			name: nameProp?.type === 'title' ? nameProp.title[0]?.plain_text ?? '' : '',
-			email: emailProp?.type === 'email' ? emailProp.email ?? '' : '',
-			memberId: relationProp?.type === 'relation' ? relationProp.relation[0]?.id : undefined
-		};
+			name: getPropertyValue(page.properties[NOTION_PROPS.ACTIVITY_NAME]),
+			date: getPropertyValue(page.properties[NOTION_PROPS.ACTIVITY_DATE]),
+			type: getPropertyValue(page.properties[NOTION_PROPS.ACTIVITY_TYPE]),
+			url: (page as any).public_url || page.url
+		}));
 	});
 }
 
-// --- Applications (Signups) ---
+export async function getUserSeminars(memberId: string) {
+	const dbId = env.NOTION_DB_SEMINARS;
+	if (!dbId) return [];
+
+	const results = await notionQuery(dbId, {
+		filter: { property: NOTION_PROPS.SEMINAR_SPEAKER, relation: { contains: memberId } },
+		sorts: [{ property: NOTION_PROPS.SEMINAR_SEMESTER, direction: 'descending' }]
+	});
+
+	return results.map(page => ({
+		id: page.id,
+		title: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_TITLE]),
+		remarks: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REMARKS]),
+		semester: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_SEMESTER])
+	}));
+}
 
 export async function getApplicationsFromNotion() {
 	const dbId = env.NOTION_DB_APPLICATIONS;
 	if (!dbId) return [];
 
-	const results = await queryDatabase(dbId);
-	
-	return results.map(page => {
-		const props = page.properties;
-		return {
-			id: page.id,
-			email: (props[NOTION_PROPS.EMAIL] as any)?.email ?? '',
-			name: (props[NOTION_PROPS.NAME] as any)?.title?.[0]?.plain_text ?? '',
-			phone: (props['전화 번호'] as any)?.phone_number ?? '', // Keep space as per schema check
-			department: (props[NOTION_PROPS.DEPT] as any)?.rich_text?.[0]?.plain_text ?? '',
-			background: (props[NOTION_PROPS.BACKGROUND] as any)?.rich_text?.[0]?.plain_text ?? '',
-			accepted: (props[NOTION_PROPS.APP_ACCEPTED] as any)?.checkbox ?? false,
-			submittedAt: (page as any).created_time
-		};
-	});
+	const results = await notionQuery(dbId);
+
+	return results.map(page => ({
+		id: page.id,
+		email: getPropertyValue(page.properties[NOTION_PROPS.EMAIL]),
+		name: getPropertyValue(page.properties[NOTION_PROPS.NAME]),
+		phone: getPropertyValue(page.properties['전화 번호']),
+		department: getPropertyValue(page.properties[NOTION_PROPS.DEPT]),
+		background: getPropertyValue(page.properties[NOTION_PROPS.BACKGROUND]),
+		accepted: getPropertyValue(page.properties[NOTION_PROPS.APP_ACCEPTED]),
+		submittedAt: (page as any).created_time
+	}));
 }
 
-/**
- * Updates the 'Accepted' checkbox in the signup applications database.
- */
 export async function markApplicationAsAccepted(id: string) {
-	const notion = getNotionClient();
 	const propertyName = NOTION_PROPS.APP_ACCEPTED.normalize('NFC');
-	
-	console.log(`[Notion] Marking application ${id} as accepted...`);
-	try {
-		await notion.pages.update({
-			page_id: id,
-			properties: {
-				[propertyName]: {
-					checkbox: true
-				}
-			}
-		});
-		console.log(`[Notion] Application ${id} successfully marked as accepted.`);
-	} catch (error) {
-		console.error(`[Notion] Error marking application ${id} as accepted:`, error);
-		throw new Error('Failed to update application status in Notion');
-	}
-}
-
-export async function removeSeminarRequestInNotion(id: string) {
-	const notion = getNotionClient();
-	try {
-		await notion.pages.update({
-			page_id: id,
-			archived: true
-		});
-	} catch (error) {
-		console.error('Notion Client Error (Remove Seminar Request):', error);
-		throw new Error('Failed to remove seminar request from Notion');
-	}
+	await notionUpdate(id, { [propertyName]: { checkbox: true } });
 }
 
 export async function createApplicationInNotion(data: {
@@ -805,156 +330,39 @@ export async function createApplicationInNotion(data: {
 	department: string;
 	background: string;
 }) {
-	const notion = getNotionClient();
 	const dbId = env.NOTION_DB_APPLICATIONS;
 	if (!dbId) return null;
 
-	try {
-		const page = await notion.pages.create({
-			parent: { database_id: dbId },
-			properties: {
-				'이름': { title: [{ text: { content: data.name } }] },
-				'이메일': { email: data.email },
-				'전화 번호': { phone_number: data.phone },
-				'학과': { rich_text: [{ text: { content: data.department } }] },
-				'배경 지식': { rich_text: [{ text: { content: data.background } }] }
-			}
-		});
-		return page.id;
-	} catch (error) {
-		console.error('Notion Client Error (Create Application):', error);
-		return null;
-	}
-}
-
-export async function removeApplicationInNotion(id: string) {
-	const response = await fetch(`https://api.notion.com/v1/pages/${id}`, {
-		method: 'PATCH',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({ archived: true })
+	const page = await notionCreate(dbId, {
+		'이름': { title: [{ text: { content: data.name } }] },
+		'이메일': { email: data.email },
+		'전화 번호': { phone_number: data.phone },
+		'학과': { rich_text: [{ text: { content: data.department } }] },
+		'배경 지식': { rich_text: [{ text: { content: data.background } }] }
 	});
-	return response.ok;
-}
-
-// --- Attendance Queue ---
-
-export async function getAttendanceQueueFromNotion() {
-	const dbId = env.NOTION_DB_ATTENDANCE_QUEUE;
-	if (!dbId) return [];
-
-	const results = await queryDatabase(dbId);
-	
-	return results.map(page => {
-		const props = page.properties;
-		return {
-			id: page.id,
-			eventId: (props.EventId as any)?.rich_text?.[0]?.plain_text ?? '',
-			userEmail: (props.UserEmail as any)?.email ?? '',
-			userName: (props.UserName as any)?.title?.[0]?.plain_text ?? '',
-			userDept: (props.UserDept as any)?.rich_text?.[0]?.plain_text ?? '',
-			startTime: (props.StartTime as any)?.date?.start ?? '',
-			endTime: (props.EndTime as any)?.date?.start ?? undefined,
-			status: (props.Status as any)?.select?.name ?? 'pending'
-		};
-	});
-}
-
-export async function createAttendanceRecordInNotion(data: {
-	eventId: string;
-	userEmail: string;
-	userName: string;
-	userDept: string;
-	startTime: string;
-}) {
-	const dbId = env.NOTION_DB_ATTENDANCE_QUEUE;
-	if (!dbId) return null;
-
-	const response = await fetch(`https://api.notion.com/v1/pages`, {
-		method: 'POST',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			parent: { database_id: dbId },
-			properties: {
-				UserName: { title: [{ text: { content: data.userName } }] },
-				UserEmail: { email: data.userEmail },
-				UserDept: { rich_text: [{ text: { content: data.userDept } }] },
-				EventId: { rich_text: [{ text: { content: data.eventId } }] },
-				StartTime: { date: { start: data.startTime } },
-				Status: { select: { name: 'pending' } }
-			}
-		})
-	});
-
-	if (!response.ok) return null;
-	const page = await response.json() as PageObjectResponse;
 	return page.id;
 }
 
-export async function updateAttendanceRecordInNotion(id: string, updates: { 
-	endTime?: string; 
-	status?: string; 
-	startTime?: string 
-}) {
-	const props: any = {};
-	if (updates.endTime) props.EndTime = { date: { start: updates.endTime } };
-	if (updates.startTime) props.StartTime = { date: { start: updates.startTime } };
-	if (updates.status) props.Status = { select: { name: updates.status } };
-
-	await fetch(`https://api.notion.com/v1/pages/${id}`, {
-		method: 'PATCH',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({ properties: props })
-	});
+export async function removeApplicationInNotion(id: string) {
+	await notionArchive(id);
 }
-
-export async function removeAttendanceRecordInNotion(id: string) {
-	await fetch(`https://api.notion.com/v1/pages/${id}`, {
-		method: 'PATCH',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({ archived: true })
-	});
-}
-
-// --- Seminar Requests ---
 
 export async function getSeminarRequestsFromNotion() {
 	const dbId = env.NOTION_DB_SEMINAR_REQUESTS;
 	if (!dbId) return [];
 
-	const results = await queryDatabase(dbId);
-	
-	return results.map(page => {
-		const props = page.properties;
-		const speakerRelation = (props[NOTION_PROPS.SEMINAR_REQ_SPEAKERS] as any)?.relation ?? [];
-		const approved = (props[NOTION_PROPS.SEMINAR_REQ_APPROVED] as any)?.checkbox ?? false;
+	const results = await notionQuery(dbId);
 
-		return {
-			id: page.id,
-			title: (props[NOTION_PROPS.SEMINAR_REQ_TITLE] as any)?.title?.[0]?.plain_text ?? '',
-			description: (props[NOTION_PROPS.SEMINAR_REQ_DESC] as any)?.rich_text?.[0]?.plain_text ?? '',
-			prerequisites: (props[NOTION_PROPS.SEMINAR_REQ_PREREQ] as any)?.rich_text?.[0]?.plain_text ?? '',
-			duration: (props[NOTION_PROPS.SEMINAR_REQ_DURATION] as any)?.rich_text?.[0]?.plain_text ?? '',
-			speakerIds: speakerRelation.map((r: any) => r.id),
-			status: approved ? 'approved' : 'pending',
-			submittedAt: (page as any).created_time
-		};
-	});
+	return results.map(page => ({
+		id: page.id,
+		title: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_TITLE]),
+		description: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_DESC]),
+		prerequisites: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_PREREQ]),
+		duration: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_DURATION]),
+		speakerIds: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_SPEAKERS]),
+		status: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_APPROVED]) ? 'approved' : 'pending',
+		submittedAt: (page as any).created_time
+	}));
 }
 
 export async function createSeminarRequestInNotion(data: {
@@ -967,81 +375,167 @@ export async function createSeminarRequestInNotion(data: {
 	const dbId = env.NOTION_DB_SEMINAR_REQUESTS;
 	if (!dbId) return null;
 
-	const properties: any = {
+	const page = await notionCreate(dbId, {
 		[NOTION_PROPS.SEMINAR_REQ_TITLE]: { title: [{ text: { content: data.title } }] },
 		[NOTION_PROPS.SEMINAR_REQ_DESC]: { rich_text: [{ text: { content: data.description } }] },
 		[NOTION_PROPS.SEMINAR_REQ_PREREQ]: { rich_text: [{ text: { content: data.prerequisites } }] },
-		[NOTION_PROPS.SEMINAR_REQ_DURATION]: { rich_text: [{ text: { content: data.duration } }] }
-	};
-
-	if (data.speakerIds.length > 0) {
-		properties[NOTION_PROPS.SEMINAR_REQ_SPEAKERS] = {
-			relation: data.speakerIds.map(id => ({ id }))
-		};
-	}
-
-	const response = await fetch(`https://api.notion.com/v1/pages`, {
-		method: 'POST',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			parent: { database_id: dbId },
-			properties
-		})
+		[NOTION_PROPS.SEMINAR_REQ_DURATION]: { rich_text: [{ text: { content: data.duration } }] },
+		[NOTION_PROPS.SEMINAR_REQ_SPEAKERS]: { relation: data.speakerIds.map(id => ({ id })) }
 	});
-
-	if (!response.ok) {
-		const errorData = await response.json();
-		console.error('Notion API Error (Create Seminar Request):', JSON.stringify(errorData, null, 2));
-		return null;
-	}
-
-	const page = await response.json() as PageObjectResponse;
 	return page.id;
 }
 
 export async function updateSeminarRequestStatusInNotion(id: string, status: string) {
-	await fetch(`https://api.notion.com/v1/pages/${id}`, {
-		method: 'PATCH',
-		headers: {
-			'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-			'Notion-Version': '2022-06-28',
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({
-			properties: {
-				[NOTION_PROPS.SEMINAR_REQ_APPROVED]: { checkbox: status === 'approved' }
-			}
-		})
+	await notionUpdate(id, { [NOTION_PROPS.SEMINAR_REQ_APPROVED]: { checkbox: status === 'approved' } });
+}
+
+export const removeSeminarRequestInNotion = notionArchive;
+
+export async function createActivityPage(data: { title: string; date: string; type: string; attendeeIds?: string[]; timeZone?: string }) {
+	const dbId = env.NOTION_DB_ACTIVITIES;
+	if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
+
+	const dateObj: any = { start: data.date };
+	if (data.timeZone) dateObj.time_zone = data.timeZone;
+
+	const properties: any = {
+		[NOTION_PROPS.ACTIVITY_NAME]: { title: [{ text: { content: data.title } }] },
+		[NOTION_PROPS.ACTIVITY_DATE]: { date: dateObj },
+		[NOTION_PROPS.ACTIVITY_TYPE]: { select: { name: data.type } }
+	};
+
+	if (data.attendeeIds && data.attendeeIds.length > 0) {
+		properties[NOTION_PROPS.ATTENDANCE] = { relation: data.attendeeIds.map(id => ({ id })) };
+	}
+
+	return await notionCreate(dbId, properties);
+}
+
+export async function updatePrivateInfo(pageId: string, data: { phone?: string; background?: string }) {
+	const props: any = {};
+	if (data.phone !== undefined) props[NOTION_PROPS.PHONE] = { phone_number: data.phone };
+	if (data.background !== undefined) props[NOTION_PROPS.BACKGROUND] = { rich_text: [{ text: { content: data.background } }] };
+	await notionUpdate(pageId, props);
+}
+
+export async function updateSeminar(pageId: string, data: { title?: string; remarks?: string }) {
+	const props: any = {};
+	if (data.title !== undefined) props[NOTION_PROPS.SEMINAR_TITLE] = { title: [{ text: { content: data.title } }] };
+	if (data.remarks !== undefined) props[NOTION_PROPS.SEMINAR_REMARKS] = { rich_text: [{ text: { content: data.remarks } }] };
+	await notionUpdate(pageId, props);
+}
+
+export async function getPrivateInfo(pageId: string) {
+	const page = await notionRetrieve(pageId);
+	return {
+		email: getPropertyValue(page.properties[NOTION_PROPS.EMAIL]),
+		name: getPropertyValue(page.properties[NOTION_PROPS.NAME]),
+		phone: getPropertyValue(page.properties[NOTION_PROPS.PHONE]),
+		background: getPropertyValue(page.properties[NOTION_PROPS.BACKGROUND])
+	};
+}
+
+export async function getAllPrivateInfo() {
+	const dbId = env.NOTION_DB_PRIVATE_INFO;
+	if (!dbId) throw new Error('NOTION_DB_PRIVATE_INFO is not set');
+
+	const results = await notionQuery(dbId);
+	
+	return results.map(page => ({
+		id: page.id,
+		name: getPropertyValue(page.properties[NOTION_PROPS.NAME]),
+		email: getPropertyValue(page.properties[NOTION_PROPS.EMAIL]),
+		memberId: (page.properties[NOTION_PROPS.MEMBER_INFO] as any)?.relation?.[0]?.id
+	}));
+}
+
+export async function getPresidentName(semesterPrefix: string): Promise<string> {
+	return withCache(`president_${semesterPrefix}`, 3600000, async () => {
+		const dbId = env.NOTION_DB_MEMBERS;
+		if (!dbId) return '';
+
+		const results = await notionQuery(dbId, {
+			filter: { property: NOTION_PROPS.EXECUTIVES, multi_select: { contains: `${semesterPrefix} 회장` } }
+		});
+
+		if (results.length === 0) return '';
+		return getPropertyValue(results[0].properties[NOTION_PROPS.NAME]);
 	});
 }
 
-/**
- * Checks if a Notion page exists and is accessible.
- */
-export async function checkPageExists(pageId: string): Promise<boolean> {
-	if (!pageId) return false;
-
-	return withCache(`page_exists_${pageId}`, 10000, async () => {
-		const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
-			method: 'GET',
-			headers: {
-				'Authorization': `Bearer ${env.NOTION_API_KEY}`,
-				'Notion-Version': '2022-06-28'
-			}
-		});
-		
-		if (response.status === 404) return false;
-		
-		// If it's archived (deleted in Notion UI), it still exists via API but property 'archived' is true.
-		if (response.ok) {
-			const page = await response.json() as { archived: boolean };
-			return !page.archived;
+export async function getDatabaseSchema(databaseId: string): Promise<Record<string, DatabasePropertySchema>> {
+	return withCache(`schema_${databaseId}`, 3600000, async () => {
+		const notion = getClient();
+		const response = await (notion as any).databases.retrieve({ database_id: databaseId });
+		const result: Record<string, DatabasePropertySchema> = {};
+		for (const [key, value] of Object.entries(response.properties)) {
+			const type = (value as any).type;
+			const options = (value as any)[type]?.options?.map((o: any) => o.name);
+			result[key] = { type, options };
 		}
-		
-		return false;
+		return result;
 	});
+}
+
+export async function addAttendeeToActivity(pageId: string, memberId: string) {
+	const page = await notionRetrieve(pageId);
+	const currentIds = getPropertyValue(page.properties[NOTION_PROPS.ATTENDANCE]) || [];
+	if (currentIds.includes(memberId)) return;
+	const newIds = [...currentIds, memberId].map((id: string) => ({ id }));
+	await notionUpdate(pageId, { [NOTION_PROPS.ATTENDANCE]: { relation: newIds } });
+}
+
+export async function checkPageExists(pageId: string): Promise<boolean> {
+	try {
+		const page = await notionRetrieve(pageId);
+		return !page.archived;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * --- Legacy/Misc fetch-based ones (if any left) ---
+ */
+
+export async function getAttendanceQueueFromNotion() {
+	const dbId = env.NOTION_DB_ATTENDANCE_QUEUE;
+	if (!dbId) return [];
+	const results = await notionQuery(dbId);
+	return results.map(page => ({
+		id: page.id,
+		eventId: getPropertyValue(page.properties.EventId),
+		userEmail: getPropertyValue(page.properties.UserEmail),
+		userName: getPropertyValue(page.properties.UserName),
+		userDept: getPropertyValue(page.properties.UserDept),
+		startTime: getPropertyValue(page.properties.StartTime),
+		endTime: getPropertyValue(page.properties.EndTime),
+		status: getPropertyValue(page.properties.Status) || 'pending'
+	}));
+}
+
+export async function createAttendanceRecordInNotion(data: any) {
+	const dbId = env.NOTION_DB_ATTENDANCE_QUEUE;
+	if (!dbId) return null;
+	const page = await notionCreate(dbId, {
+		UserName: { title: [{ text: { content: data.userName } }] },
+		UserEmail: { email: data.userEmail },
+		UserDept: { rich_text: [{ text: { content: data.userDept } }] },
+		EventId: { rich_text: [{ text: { content: data.eventId } }] },
+		StartTime: { date: { start: data.startTime } },
+		Status: { select: { name: 'pending' } }
+	});
+	return page.id;
+}
+
+export async function updateAttendanceRecordInNotion(id: string, updates: any) {
+	const props: any = {};
+	if (updates.endTime) props.EndTime = { date: { start: updates.endTime } };
+	if (updates.startTime) props.StartTime = { date: { start: updates.startTime } };
+	if (updates.status) props.Status = { select: { name: updates.status } };
+	await notionUpdate(id, props);
+}
+
+export async function removeAttendanceRecordInNotion(id: string) {
+	await notionArchive(id);
 }
