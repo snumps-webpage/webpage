@@ -15,7 +15,9 @@ export const NOTION_PROPS = {
 	ACTIVITY_NAME: '활동명',
 	ACTIVITY_DATE: '일정',
 	ACTIVITY_TYPE: '활동 종류',
-	MEMBER_INFO: '회원 정보',
+	// Relation Props
+	MEMBER_TO_PRIVATE: '개인 정보', // In Member DB
+	PRIVATE_TO_MEMBER: '회원 정보', // In Private Info DB
 	// Seminar Props
 	SEMINAR_TITLE: '제목',
 	SEMINAR_SPEAKER: '진행자',
