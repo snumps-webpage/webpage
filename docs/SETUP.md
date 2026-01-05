@@ -50,8 +50,14 @@ NOTION_DB_SEMINAR_REQUESTS=id_of_seminar_requests_db
 ## 🔍 Utilities
 **Schema Inspector**: Check any Notion database structure:
 ```bash
-node --env-file=.env inspect-db.js <database_id>
+node --env-file=.env.safe inspect-db.js <database_id>
 ```
+
+**Data Querier**: Retrieve all records from any Notion database:
+```bash
+node --env-file=.env.safe query-db.js <database_id>
+```
+
 
 ## 🚀 Running & Building
 ```bash
