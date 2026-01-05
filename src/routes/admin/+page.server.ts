@@ -32,7 +32,7 @@ export const load: PageServerLoad = async (event) => {
         getSeminarRequests()
 	]);
 
-    // Sort by date ASC
+    // Sort by date ASC (Oldest first)
     const sortedApps = apps
         .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime());
 

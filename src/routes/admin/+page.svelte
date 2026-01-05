@@ -13,7 +13,6 @@
 
     // Carousel state for applications
     let appStartIndex = $state(0);
-    let visibleApplications = $derived(applications.slice(appStartIndex, appStartIndex + 3));
 
     function nextApp() {
         if (appStartIndex + 3 < applications.length) {
@@ -279,58 +278,59 @@
                             &lt;
                         </button>
 
-                        <div class="grid carousel-grid">
-                            {#each visibleApplications as app (app.id)}
-                                <div class="card" class:accepted={app.accepted}>
-                                    <div class="card-header">
-                                        <h3>{app.name}</h3>	
-                                        <span class="dept">{app.department}</span>
-                                    </div>
-                                    
-                                    <div class="info">
-                                        <p><strong>이메일:</strong> {app.email}</p>
-                                        <p><strong>전화번호:</strong> {app.phone}</p>
-                                        <p><strong>신청일:</strong> {new Date(app.submittedAt).toLocaleDateString()}</p>
-                                    </div>
-
-                                    <details>
-                                        <summary>상세 정보 보기</summary>
-                                        <div class="details-content">
-                                            <p><strong>배경지식:</strong><br>{app.background || '-'}</p>
+                        <div class="carousel-viewport">
+                            <div class="carousel-track" style="transform: translateX(-{appStartIndex * (100 / 3)}%);">
+                                {#each applications as app (app.id)}
+                                    <div class="card carousel-card" class:accepted={app.accepted}>
+                                        <div class="card-header">
+                                            <h3>{app.name}</h3>	
+                                            <span class="dept">{app.department}</span>
                                         </div>
-                                    </details>
+                                        
+                                        <div class="info">
+                                            <p><strong>이메일:</strong> {app.email}</p>
+                                            <p><strong>전화번호:</strong> {app.phone}</p>
+                                            <p><strong>신청일:</strong> {new Date(app.submittedAt).toLocaleDateString()}</p>
+                                        </div>
 
-                                    <div class="actions">
-                                        {#if app.accepted}
-                                            <button class="btn approved-badge" disabled>승인됨</button>
-                                        {:else}
-                                            <form method="POST" action="?/approve" use:enhance={({ formData }) => {
-                                                return async ({ result }) => {
-                                                    if (result.type === 'success') {
-                                                        alert('회원 가입이 승인되었습니다.');
-                                                        
-                                                        // Update local state to accepted without reloading page
-                                                        const id = formData.get('id');
-                                                        const idx = applications.findIndex(a => a.id === id);
-                                                        if (idx !== -1) {
-                                                            const updatedApp = { ...applications[idx], accepted: true };
-                                                            applications[idx] = updatedApp;
+                                        <details>
+                                            <summary>상세 정보 보기</summary>
+                                            <div class="details-content">
+                                                <p><strong>배경지식:</strong><br>{app.background || '-'}</p>
+                                            </div>
+                                        </details>
+
+                                        <div class="actions">
+                                            {#if app.accepted}
+                                                <button class="btn approved-badge" disabled>승인됨</button>
+                                            {:else}
+                                                <form method="POST" action="?/approve" use:enhance={({ formData }) => {
+                                                    return async ({ result }) => {
+                                                        if (result.type === 'success') {
+                                                            alert('회원 가입이 승인되었습니다.');
+                                                            
+                                                            const id = formData.get('id');
+                                                            const idx = applications.findIndex(a => a.id === id);
+                                                            if (idx !== -1) {
+                                                                const updatedApp = { ...applications[idx], accepted: true };
+                                                                applications[idx] = updatedApp;
+                                                            }
                                                         }
-                                                    }
-                                                };
-                                            }}>
-                                                <input type="hidden" name="id" value={app.id} />
-                                                <button class="btn approve">승인</button>
-                                            </form>
-                                        {/if}
+                                                    };
+                                                }}>
+                                                    <input type="hidden" name="id" value={app.id} />
+                                                    <button class="btn approve">승인</button>
+                                                </form>
+                                            {/if}
 
-                                        <form method="POST" action="?/reject" use:enhance onsubmit={() => confirm(app.accepted ? '신청 내역을 삭제하시겠습니까?' : '정말 거절하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.')}>
-                                            <input type="hidden" name="id" value={app.id} />
-                                            <button class="btn reject">{app.accepted ? '삭제' : '거절'}</button>
-                                        </form>
+                                            <form method="POST" action="?/reject" use:enhance onsubmit={() => confirm(app.accepted ? '신청 내역을 삭제하시겠습니까?' : '정말 거절하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.')}>
+                                                <input type="hidden" name="id" value={app.id} />
+                                                <button class="btn reject">{app.accepted ? '삭제' : '거절'}</button>
+                                            </form>
+                                        </div>
                                     </div>
-                                </div>
-                            {/each}
+                                {/each}
+                            </div>
                         </div>
 
                         <button 
@@ -705,14 +705,26 @@
         gap: 1rem;
         position: relative;
         padding: 1rem 0;
+        width: 100%;
     }
 
-    .carousel-grid {
+    .carousel-viewport {
         flex: 1;
-        display: grid;
-        grid-template-columns: repeat(3, 1fr) !important;
+        overflow: hidden;
+        margin: 0 0.5rem;
+    }
+
+    .carousel-track {
+        display: flex;
         gap: 1.5rem;
-        min-height: 350px;
+        transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        padding: 0.5rem 0;
+    }
+
+    .carousel-card {
+        flex: 0 0 calc((100% - (2 * 1.5rem)) / 3); /* Exactly 1/3 minus gap */
+        min-width: 0; /* Allow shrinking if needed */
+        box-sizing: border-box;
     }
 
     .carousel-nav {
