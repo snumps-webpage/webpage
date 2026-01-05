@@ -86,32 +86,30 @@ export const actions = {
 		if (!app) return { error: 'Application not found' };
 
 		try {
-            console.log(`Starting approval for ${app.name} (${app.email})...`);
-            const normalizedPhone = normalizePhoneNumber(app.phone);
+            console.log(`[Admin] Processing approval for ${app.name} (${app.email})`);
             
-            // 1. Create Member record in Notion
+            // 1. Create Member record in Notion (Critical)
 			await createMember({
 				name: app.name,
 				email: app.email,
-				phone: normalizedPhone,
+				phone: normalizePhoneNumber(app.phone),
 				department: app.department,
 				background: app.background
 			});
-            console.log('Successfully created Notion member records.');
 			
 			invalidateCache(`member_${app.email}`);
             
-            // 2. Send Welcome Email
+            // 2. Send Welcome Email (Non-critical for data integrity)
+            // Note: sendWelcomeEmail now has its own internal try-catch
             await sendWelcomeEmail(app.email, app.name);
-            console.log('Successfully dispatched welcome email.');
 
-            // 3. Mark as accepted in Notion
+            // 3. Mark as accepted in Notion (Critical)
             await markApplicationAsAccepted(id);
-            console.log('Successfully updated application status in Notion.');
 
+            console.log(`[Admin] Approval flow completed for ${app.name}`);
 			return { success: true };
 		} catch (e) {
-			console.error(e);
+			console.error('[Admin] Approval flow failed:', e);
 			return { error: 'Approval failed: ' + (e as Error).message };
 		}
 	},
