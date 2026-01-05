@@ -26,37 +26,22 @@ To enable the system to send automated alerts from a preset Gmail account:
     *   In **Step 2**, click **Exchange authorization code for tokens**.
     *   Copy the **Refresh Token** provided.
 
-## ⚙️ Environment Configuration (.env)
+## ⚙️ Environment Configuration
+Rename `.env.example` to `.env.safe` or `.env` and configure the following variables:
 ```env
-# Auth
-AUTH_SECRET=your_secret
-GOOGLE_CLIENT_ID=your_id
-GOOGLE_CLIENT_SECRET=your_secret
-ADMIN_REFRESH_TOKEN=your_token
-
-# Access Control
-ADMINS_EMAILS=admin@snu.ac.kr,president@snu.ac.kr
-
 # Notion
 NOTION_API_KEY=your_integration_token
 NOTION_DB_MEMBERS=id_of_members_db
-NOTION_DB_ACTIVITIES=id_of_activities_db
 NOTION_DB_PRIVATE_INFO=id_of_private_info_db
-NOTION_DB_APPLICATIONS=id_of_applications_mirror_db
-NOTION_DB_ATTENDANCE_QUEUE=id_of_attendance_mirror_db
-NOTION_DB_SEMINAR_REQUESTS=id_of_seminar_requests_db
+NOTION_DB_ACTIVITIES=id_of_activities_db
+NOTION_DB_SEMINARS=id_of_seminars_db
+NOTION_DB_APPLICATIONS=id_of_applications_db
+NOTION_DB_SEMINAR_REQUESTS=id_of_seminar_proposals_db
 ```
 
 ## 🔍 Utilities
-**Schema Inspector**: Check any Notion database structure:
-```bash
-node --env-file=.env.safe inspect-db.js <database_id>
-```
-
-**Data Querier**: Retrieve all records from any Notion database:
-```bash
-node --env-file=.env.safe query-db.js <database_id>
-```
+- **Schema Inspector**: `node --env-file=.env.safe inspect-db.js <database_id>`
+- **Data Querier**: `node --env-file=.env.safe query-db.js <database_id>`
 
 
 ## 🚀 Running & Building
