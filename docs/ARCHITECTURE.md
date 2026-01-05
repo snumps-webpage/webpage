@@ -10,38 +10,38 @@ src/
 ├── lib/
 │   ├── assets/          # Static assets (favicon, instagram logo)
 │   └── server/
-│       ├── admin.ts     # Membership application queue logic
+│       ├── admin.ts     # Membership application workflow logic
 │       ├── cache.ts     # In-memory server-side caching utility
 │       ├── events.ts    # Event state & attendance queue management
 │       ├── mail.ts      # Google Gmail API service for notifications
-│       └── notion.ts    # Notion API Wrapper (Client, Pagers, Type Parsers)
-│   ├── constants.ts     # Centralized property and type constants
+│       └── notion.ts    # Centralized Notion API Service (CRUD Helpers, Parsers)
+│   ├── constants.ts     # Centralized property names and type constants
 │   ├── theme.ts         # Light/Dark mode state logic
-│   └── utils.ts         # Shared semester and date utilities
+│   └── utils.ts         # Shared semester, phone normalization, and date utilities
 └── routes/
     ├── +layout.server.ts # Global Context (President info, Admin status)
-    ├── +layout.svelte    # Global UI (Header with Logo/Profile/Admin, Footer)
-    ├── +page.server.ts   # Dashboard data fetching
+    ├── +layout.svelte    # Global UI (Footer with Theme Selector, Header)
+    ├── +page.server.ts   # Dashboard logic (Profile & Seminar management)
     ├── +page.svelte      # User Dashboard (Stats, Linked Activity Summary)
     ├── admin/            # Admin Dashboard (Applications, Events, Attendance Review)
-    ├── events/           # Public Event Pages (Attend/Leave actions)
+    ├── events/           # Public Event Pages (Attend actions)
     ├── login/            # Custom styled login page
-    ├── notion/           # Raw Database Viewer with Search (Admin only)
-    ├── profile/          # Member Profile with Semester Filtering
-    └── signup/           # Application Form
+    ├── notion/           # Raw Database Viewer (Admin only)
+    ├── seminar/          # Seminar application/proposal flow
+    └── signup/           # Membership Application Form
 ```
 
 ## 💾 Hybrid Storage & Scalability
 - **Notion Primary (Source of Truth)**: 
-  - **Members & Private Info**: Centralized member registry.
-  - **Applications (Signups)**: All membership requests are stored directly in the `APPLICATIONS` database.
-  - **Seminar Requests**: Member-led proposals are persisted in the `SEMINAR_REQUESTS` database.
+  - **Members & Private Info**: Centralized club registry.
+  - **Applications (Signups)**: Membership requests are stored directly in Notion for administrative processing.
+  - **Seminar Requests**: Member-led proposals are persisted in Notion until approval.
 - **Local JSON (Transactional Queue)**:
-  - **Events & Attendance**: Attendance timestamps are captured locally in `data/attendance_queue.json` for low-latency recording during high-traffic events. Once an admin approves a record, it is synced to the official `ACTIVITIES` database in Notion.
-- **Dual-Write Consistency**: Every creation or update action attempts to write to Notion first, ensuring data persistence and auditability across all club operations.
+  - **Events & Attendance**: For high-traffic events, check-ins are recorded locally in `data/attendance_queue.json` to minimize latency. Upon admin approval, these records are synced to the official `ACTIVITIES` database in Notion.
+- **Sustainability**: All Notion interactions use centralized generic helpers (`notionQuery`, `notionCreate`, `notionUpdate`) with explicit headers and official SDK support for maximum reliability.
 
 ## 🛡️ Operations & Error Handling
-- **Membership Enforcement**: `+layout.server.ts` verifies membership on every request. Non-members are redirected to `/signup`.
-- **In-Memory Caching**: Frequent queries (President name, Database Schema, Member lookups) are cached server-side to reduce latency and Notion API load.
-- **Resilience**: API checks are wrapped in `try-catch` blocks to prevent service outages during Notion API downtimes.
-- **Admin Security**: Unauthorized attempts to access `/admin` or `/notion` result in a silent `302 Redirect` to the homepage, concealing administrative paths.
+- **Membership Enforcement**: `+layout.server.ts` verifies membership status globally.
+- **Standardized Status Codes**: Actions return detailed HTTP status codes (400, 401, 403, 404, 409, 500) for precise error reporting.
+- **NFC Normalization**: Korean property names are normalized to NFC standard to ensure reliable API matching across different operating systems.
+- **In-Memory Caching**: Leverages a TTL-based cache to reduce API load and improve dashboard performance.

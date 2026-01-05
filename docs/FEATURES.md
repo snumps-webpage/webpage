@@ -20,11 +20,9 @@
 - **Attendance Tracking**: Users check in via time-sensitive, obfuscated links. One-click completion records both start and end times for admin review.
 
 ## 🎨 UI & UX
-- **Light/Dark Mode**: Native support for Light, Dark, and System themes with persistence and a dedicated toggle button.
-- **Smart Paging**: Handles large member lists via recursive fetching (bypassing the 100-record limit).
-- **Dynamic Context**: Automatically calculates the current semester and fetches the current Club President's name for the universal footer.
-- **Search & Filtering**: Real-time search by Name or Department in both Admin and Notion Database views.
-- **Native UI Feel**: Interactive elements use `user-select: none` to prevent accidental text highlighting.
-- **Fluid Transitions**: Utilizes the native View Transitions API for smooth, app-like page navigation.
-- **Skeleton Loaders**: Implements shimmering placeholder UI during asynchronous data streaming for immediate visual feedback.
-- **Automatic Linking**: Activity titles in the user dashboard link directly to their published Notion pages.
+- **Dynamic Theme Selection**: Easily switch between **Light, Dark, and System** themes via text-based controls in the universal footer.
+- **Form Integrity**: Textareas like the "Background" info are fixed-size to maintain dashboard layout.
+- **Standardized Error Feedback**: Detailed error messages and standard HTTP status codes provide clear feedback during form submissions.
+- **Smart Phone Normalization**: Automatically converts various input styles (e.g., `01012345678`, `010 1234 5678`) into the standardized `010-XXXX-XXXX` format.
+- **Smart Paging**: Handles large databases via automatic pagination helpers.
+- **Skeleton Loaders**: Shimmering placeholders ensure a smooth perceived performance during data loading.
