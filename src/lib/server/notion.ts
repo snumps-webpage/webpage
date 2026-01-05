@@ -3,11 +3,13 @@
  * Provides generic CRUD operations for databases and pages.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Client } from '@notionhq/client';
+import { Client, isNotionClientError } from '@notionhq/client';
 import { env } from '$env/dynamic/private';
 import type { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints';
 import { withCache } from './cache';
 import { NOTION_PROPS } from '../constants';
+
+console.log('>>> [Notion Service] Module loading start');
 
 export type NotionProperty = PageObjectResponse['properties'][string];
 
@@ -20,21 +22,44 @@ export interface DatabasePropertySchema {
  * --- GENERIC NOTION HELPERS ---
  */
 
+let _client: Client | null = null;
+
 function getClient(): any {
-	if (!env.NOTION_API_KEY) {
-		console.error('[Notion] Error: NOTION_API_KEY is not defined.');
+	if (_client) return _client;
+
+	const apiKey = env.NOTION_API_KEY;
+	if (!apiKey) {
+		console.log('>>> [Notion Service] CRITICAL ERROR: NOTION_API_KEY is missing from environment');
 		throw new Error('NOTION_API_KEY is missing');
 	}
-	return new Client({ auth: env.NOTION_API_KEY });
+
+	console.log('>>> [Notion Service] Initializing Client...');
+	_client = new Client({ auth: apiKey });
+	return _client;
+}
+
+/**
+ * Standardized error handler for Notion API calls.
+ */
+function handleNotionError(error: unknown, context: string) {
+	if (isNotionClientError(error)) {
+		console.log(`>>> [Notion Service] API Error during ${context}:`, {
+			status: (error as any).status,
+			code: error.code,
+			message: error.message
+		});
+	} else {
+		console.log(`>>> [Notion Service] Unexpected Error during ${context}:`, error);
+	}
 }
 
 /**
  * Generic database query with automatic pagination.
- * Filters out partial responses to ensure property access is safe.
  */
-export async function notionQuery(databaseId: string, options: any = {}): Promise<PageObjectResponse[]> {
+export async function notionQuery(databaseId: string, options: any = {}): Promise<any[]> {
+	console.log(`>>> [Notion Service] Querying DB: ${databaseId}`);
 	const notion = getClient();
-	let allResults: PageObjectResponse[] = [];
+	let allResults: any[] = [];
 	let hasMore = true;
 	let nextCursor: string | undefined = undefined;
 
@@ -46,37 +71,42 @@ export async function notionQuery(databaseId: string, options: any = {}): Promis
 				...options
 			});
 
-			const fullPages = (response.results || []).filter((page: any) => page && 'properties' in page);
+			if (!response || !response.results) {
+				console.log('>>> [Notion Service] Malformed response received');
+				break;
+			}
+
+			const fullPages = response.results.filter((page: any) => page && 'properties' in page);
 			allResults = [...allResults, ...fullPages];
 			
 			hasMore = response.has_more;
 			nextCursor = response.next_cursor ?? undefined;
 		}
+		console.log(`>>> [Notion Service] Query success. Count: ${allResults.length}`);
+		return allResults;
 	} catch (error) {
-		console.error(`[Notion] Query Error [DB: ${databaseId}]:`, error);
+		handleNotionError(error, `Query [DB: ${databaseId}]`);
 		throw error;
 	}
-
-	return allResults;
 }
 
-/**
- * Compatibility alias for notionQuery
- */
 export const queryDatabase = notionQuery;
 
 /**
  * Generic page creation.
  */
-export async function notionCreate(databaseId: string, properties: any): Promise<PageObjectResponse> {
+export async function notionCreate(databaseId: string, properties: any): Promise<any> {
+	console.log(`>>> [Notion Service] Creating page in DB: ${databaseId}`);
 	const notion = getClient();
 	try {
-		return await notion.pages.create({
+		const response = await notion.pages.create({
 			parent: { database_id: databaseId },
 			properties
-		}) as PageObjectResponse;
+		});
+		console.log(`>>> [Notion Service] Create success: ${response.id}`);
+		return response;
 	} catch (error) {
-		console.error(`[Notion] Create Error [DB: ${databaseId}]:`, error);
+		handleNotionError(error, `Create [DB: ${databaseId}]`);
 		throw error;
 	}
 }
@@ -84,15 +114,18 @@ export async function notionCreate(databaseId: string, properties: any): Promise
 /**
  * Generic page update.
  */
-export async function notionUpdate(pageId: string, properties: any): Promise<PageObjectResponse> {
+export async function notionUpdate(pageId: string, properties: any): Promise<any> {
+	console.log(`>>> [Notion Service] Updating page: ${pageId}`);
 	const notion = getClient();
 	try {
-		return await notion.pages.update({
+		const response = await notion.pages.update({
 			page_id: pageId,
 			properties
-		}) as PageObjectResponse;
+		});
+		console.log('>>> [Notion Service] Update success');
+		return response;
 	} catch (error) {
-		console.error(`[Notion] Update Error [Page: ${pageId}]:`, error);
+		handleNotionError(error, `Update [Page: ${pageId}]`);
 		throw error;
 	}
 }
@@ -101,14 +134,16 @@ export async function notionUpdate(pageId: string, properties: any): Promise<Pag
  * Generic page archive (delete).
  */
 export async function notionArchive(pageId: string): Promise<void> {
+	console.log(`>>> [Notion Service] Archiving page: ${pageId}`);
 	const notion = getClient();
 	try {
 		await notion.pages.update({
 			page_id: pageId,
 			archived: true
 		});
+		console.log('>>> [Notion Service] Archive success');
 	} catch (error) {
-		console.error(`[Notion] Archive Error [Page: ${pageId}]:`, error);
+		handleNotionError(error, `Archive [Page: ${pageId}]`);
 		throw error;
 	}
 }
@@ -116,16 +151,18 @@ export async function notionArchive(pageId: string): Promise<void> {
 /**
  * Generic page retrieval.
  */
-export async function notionRetrieve(pageId: string): Promise<PageObjectResponse> {
+export async function notionRetrieve(pageId: string): Promise<any> {
+	console.log(`>>> [Notion Service] Retrieving page: ${pageId}`);
 	const notion = getClient();
 	try {
 		const response = await notion.pages.retrieve({ page_id: pageId });
 		if (!response || !('properties' in response)) {
-			throw new Error(`Retrieved partial page or null for ID: ${pageId}`);
+			throw new Error('Retrieved object is not a full page');
 		}
-		return response as PageObjectResponse;
+		console.log('>>> [Notion Service] Retrieve success');
+		return response;
 	} catch (error) {
-		console.error(`[Notion] Retrieve Error [Page: ${pageId}]:`, error);
+		handleNotionError(error, `Retrieve [Page: ${pageId}]`);
 		throw error;
 	}
 }
@@ -134,11 +171,14 @@ export async function notionRetrieve(pageId: string): Promise<PageObjectResponse
  * Generic database retrieval.
  */
 export async function notionRetrieveDatabase(databaseId: string): Promise<any> {
+	console.log(`>>> [Notion Service] Retrieving DB metadata: ${databaseId}`);
 	const notion = getClient();
 	try {
-		return await notion.databases.retrieve({ database_id: databaseId });
+		const response = await notion.databases.retrieve({ database_id: databaseId });
+		console.log('>>> [Notion Service] Retrieve DB success');
+		return response;
 	} catch (error) {
-		console.error(`[Notion] Retrieve DB Error [DB: ${databaseId}]:`, error);
+		handleNotionError(error, `Retrieve DB [DB: ${databaseId}]`);
 		throw error;
 	}
 }
@@ -147,9 +187,6 @@ export async function notionRetrieveDatabase(databaseId: string): Promise<any> {
  * --- DATA PARSERS ---
  */
 
-/**
- * Extracts a readable string from a Notion property object.
- */
 export function getPropertyValue(property: any): any {
 	if (!property) return '';
 	
@@ -183,13 +220,13 @@ export function getPropertyValue(property: any): any {
 				return '';
 		}
 	} catch (e) {
-		console.error('[Notion] Property Parsing Error:', e, property);
+		console.log('>>> [Notion Service] Parsing Error:', e);
 		return '';
 	}
 }
 
 /**
- * --- SPECIFIC BUSINESS LOGIC ---
+ * --- BUSINESS LOGIC ---
  */
 
 export async function createMember(data: {
@@ -199,11 +236,11 @@ export async function createMember(data: {
 	department: string;
 	background: string;
 }) {
+	console.log('[Notion] createMember START');
 	const privateDbId = env.NOTION_DB_PRIVATE_INFO;
 	const memberDbId = env.NOTION_DB_MEMBERS;
-	if (!privateDbId || !memberDbId) throw new Error('DB IDs not set');
+	if (!privateDbId || !memberDbId) throw new Error('DB IDs missing');
 
-	// 1. Create Private Info Page
 	const privatePage = await notionCreate(privateDbId, {
 		[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
 		[NOTION_PROPS.EMAIL]: { email: data.email },
@@ -211,7 +248,6 @@ export async function createMember(data: {
 		[NOTION_PROPS.BACKGROUND]: { rich_text: [{ text: { content: data.background } }] }
 	});
 
-	// 2. Create Member Page
 	await notionCreate(memberDbId, {
 		[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
 		[NOTION_PROPS.DEPT]: { rich_text: [{ text: { content: data.department } }] },
@@ -221,9 +257,10 @@ export async function createMember(data: {
 }
 
 export async function getMemberByEmail(email: string) {
+	console.log(`[Notion] getMemberByEmail: ${email}`);
 	return withCache(`member_${email}`, 300000, async () => {
 		const dbId = env.NOTION_DB_PRIVATE_INFO;
-		if (!dbId) throw new Error('NOTION_DB_PRIVATE_INFO is not set');
+		if (!dbId) throw new Error('NOTION_DB_PRIVATE_INFO missing');
 
 		const results = await notionQuery(dbId, {
 			filter: { property: NOTION_PROPS.EMAIL, email: { equals: email } }
@@ -233,7 +270,9 @@ export async function getMemberByEmail(email: string) {
 
 		const page = results[0];
 		const relationProp: any = page.properties[NOTION_PROPS.PRIVATE_TO_MEMBER];
-		if (relationProp?.type !== 'relation' || !relationProp.relation || relationProp.relation.length === 0) return null;
+		if (!relationProp || relationProp.type !== 'relation' || !relationProp.relation?.length) {
+			return null;
+		}
 
 		return {
 			privateInfoId: page.id,
@@ -244,20 +283,17 @@ export async function getMemberByEmail(email: string) {
 
 export async function getMemberById(memberId: string) {
 	const page = await notionRetrieve(memberId);
-	const nameProp = page.properties[NOTION_PROPS.NAME] as any;
-	const relationProp = page.properties[NOTION_PROPS.MEMBER_TO_PRIVATE] as any;
-
 	return {
 		id: page.id,
-		name: getPropertyValue(nameProp),
-		privateInfoId: relationProp?.type === 'relation' ? relationProp.relation?.[0]?.id : undefined
+		name: getPropertyValue(page.properties[NOTION_PROPS.NAME]),
+		privateInfoId: (page.properties[NOTION_PROPS.MEMBER_TO_PRIVATE] as any)?.relation?.[0]?.id
 	};
 }
 
 export async function getAllMembers() {
 	return withCache('all_members', 60000, async () => {
 		const dbId = env.NOTION_DB_MEMBERS;
-		if (!dbId) throw new Error('NOTION_DB_MEMBERS is not set');
+		if (!dbId) throw new Error('NOTION_DB_MEMBERS missing');
 
 		const results = await notionQuery(dbId, {
 			filter: { property: NOTION_PROPS.NAME, title: { is_not_empty: true } },
@@ -276,7 +312,7 @@ export async function getAllMembers() {
 export async function getActivities(startDate: string, endDate: string) {
 	return withCache(`activities_${startDate}_${endDate}`, 300000, async () => {
 		const dbId = env.NOTION_DB_ACTIVITIES;
-		if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
+		if (!dbId) throw new Error('NOTION_DB_ACTIVITIES missing');
 
 		const results = await notionQuery(dbId, {
 			filter: {
@@ -302,7 +338,7 @@ export async function getActivities(startDate: string, endDate: string) {
 export async function getAllActivities() {
 	return withCache('all_activities', 60000, async () => {
 		const dbId = env.NOTION_DB_ACTIVITIES;
-		if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
+		if (!dbId) throw new Error('NOTION_DB_ACTIVITIES missing');
 
 		const results = await notionQuery(dbId, {
 			sorts: [{ property: NOTION_PROPS.ACTIVITY_DATE, direction: 'descending' }]
@@ -321,7 +357,7 @@ export async function getAllActivities() {
 export async function getUserActivities(memberId: string) {
 	return withCache(`user_activities_${memberId}`, 300000, async () => {
 		const dbId = env.NOTION_DB_ACTIVITIES;
-		if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
+		if (!dbId) throw new Error('NOTION_DB_ACTIVITIES missing');
 
 		const results = await notionQuery(dbId, {
 			filter: { property: NOTION_PROPS.ATTENDANCE, relation: { contains: memberId } },
@@ -448,7 +484,7 @@ export const removeSeminarRequestInNotion = notionArchive;
 
 export async function createActivityPage(data: { title: string; date: string; type: string; attendeeIds?: string[]; timeZone?: string }) {
 	const dbId = env.NOTION_DB_ACTIVITIES;
-	if (!dbId) throw new Error('NOTION_DB_ACTIVITIES is not set');
+	if (!dbId) throw new Error('NOTION_DB_ACTIVITIES missing');
 
 	const dateObj: any = { start: data.date };
 	if (data.timeZone) dateObj.time_zone = data.timeZone;
@@ -492,7 +528,7 @@ export async function getPrivateInfo(pageId: string) {
 
 export async function getAllPrivateInfo() {
 	const dbId = env.NOTION_DB_PRIVATE_INFO;
-	if (!dbId) throw new Error('NOTION_DB_PRIVATE_INFO is not set');
+	if (!dbId) throw new Error('NOTION_DB_PRIVATE_INFO missing');
 
 	const results = await notionQuery(dbId);
 	

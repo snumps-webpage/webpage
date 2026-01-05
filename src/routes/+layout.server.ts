@@ -5,6 +5,7 @@ import { getSemesterInfo } from '$lib/utils';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async (event) => {
+	console.log(`>>> [Layout Load] Starting for path: ${event.url.pathname}`);
 	const today = new Date();
 	const semester = getSemesterInfo(today);
 
