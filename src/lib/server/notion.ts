@@ -244,9 +244,9 @@ export function getPropertyValue(property: any): any {
 			case 'status':
 				return property.status?.name ?? '';
 			case 'relation':
-				return (property.relation || []).map((r: any) => r.id).join(', ');
+				return (property.relation || []).map((r: any) => r.id);
 			case 'people':
-				return (property.people || []).map((p: any) => p.name || p.id).join(', ');
+				return (property.people || []).map((p: any) => p.name || p.id);
 			default:
 				return '';
 		}
