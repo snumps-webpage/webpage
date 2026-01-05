@@ -6,10 +6,45 @@
     
     // State for applications to allow partial updates
     let applications = $state(data.applications);
+    let seminarRequests = $state(data.seminarRequests);
+
+    let refreshingApps = $state(false);
+    let refreshingSeminars = $state(false);
 
     $effect(() => {
         applications = data.applications;
+        seminarRequests = data.seminarRequests;
     });
+
+    async function refreshApplications() {
+        refreshingApps = true;
+        try {
+            const res = await fetch('/api/admin/applications');
+            if (res.ok) {
+                applications = await res.json();
+                appStartIndex = 0; // Reset carousel to start on refresh
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            refreshingApps = false;
+        }
+    }
+
+    async function refreshSeminars() {
+        refreshingSeminars = true;
+        try {
+            const res = await fetch('/api/admin/seminar-requests');
+            if (res.ok) {
+                seminarRequests = await res.json();
+                seminarPage = 1; // Reset pagination to first page
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            refreshingSeminars = false;
+        }
+    }
 
     // Carousel state for applications
     let appStartIndex = $state(0);
@@ -29,9 +64,9 @@
     // Pagination for seminar requests
     let seminarPage = $state(1);
     const seminarLimit = 5;
-    let totalSeminarPages = $derived(Math.ceil(data.seminarRequests.length / seminarLimit));
+    let totalSeminarPages = $derived(Math.ceil(seminarRequests.length / seminarLimit));
     let paginatedSeminars = $derived(
-        data.seminarRequests.slice((seminarPage - 1) * seminarLimit, seminarPage * seminarLimit)
+        seminarRequests.slice((seminarPage - 1) * seminarLimit, seminarPage * seminarLimit)
     );
 
     // State for editing attendance
@@ -209,10 +244,35 @@
             {/if}
         </dialog>
     
-    		<section class="mt-4">
-    			<h2>세미나 개설 신청 ({data.seminarRequests.length})</h2>
-    			
-    			{#if data.seminarRequests.length === 0}
+    			<section class="mt-4">
+    
+    				<div class="section-header">
+    
+    		            <h2>세미나 개설 신청 ({seminarRequests.length})</h2>
+    
+    		            <button 
+    
+    		                class="refresh-btn" 
+    
+    		                onclick={refreshSeminars} 
+    
+    		                disabled={refreshingSeminars}
+    
+    		                aria-label="Refresh seminars"
+    
+    		            >
+    
+    		                <span class="refresh-icon" class:spinning={refreshingSeminars}>🔄</span>
+    
+    		            </button>
+    
+    		        </div>
+    
+    				
+    
+    				{#if seminarRequests.length === 0}
+    
+    		
     				<p class="empty">대기 중인 세미나 신청이 없습니다.</p>
     			{:else}
     				<div class="table-container">
@@ -296,7 +356,17 @@
     		</section>
     	    		<section class="mt-4">
     
-    			<h2>가입 승인 대기 ({applications.length})</h2>
+    			<div class="section-header">
+                    <h2>가입 승인 대기 ({applications.length})</h2>
+                    <button 
+                        class="refresh-btn" 
+                        onclick={refreshApplications} 
+                        disabled={refreshingApps}
+                        aria-label="Refresh applications"
+                    >
+                        <span class="refresh-icon" class:spinning={refreshingApps}>🔄</span>
+                    </button>
+                </div>
     
     			
     
@@ -730,12 +800,115 @@
 		border-bottom: none;
 	}
 
-	.actions-cell {
-		display: flex;
-		gap: 0.5rem;
-	}
+	    .actions-cell {
 
-    /* Carousel Styles */
+			display: flex;
+
+			gap: 0.5rem;
+
+		}
+
+	
+
+	    .section-header {
+
+	        display: flex;
+
+	        align-items: center;
+
+	        gap: 1rem;
+
+	        margin-bottom: 1rem;
+
+	    }
+
+	
+
+	    .section-header h2 {
+
+	        margin: 0;
+
+	    }
+
+	
+
+	    .refresh-btn {
+
+	        background: transparent;
+
+	        border: none;
+
+	        cursor: pointer;
+
+	        font-size: 1.2rem;
+
+	        display: flex;
+
+	        align-items: center;
+
+	        justify-content: center;
+
+	        padding: 0.25rem;
+
+	        border-radius: 50%;
+
+	        transition: background 0.2s;
+
+	        color: var(--text-secondary);
+
+	    }
+
+	
+
+	    .refresh-btn:hover:not(:disabled) {
+
+	        background: var(--btn-secondary);
+
+	        color: var(--text-primary);
+
+	    }
+
+	
+
+	    .refresh-btn:disabled {
+
+	        opacity: 0.5;
+
+	        cursor: not-allowed;
+
+	    }
+
+	
+
+	    .refresh-icon {
+
+	        display: inline-block;
+
+	    }
+
+	
+
+	    .refresh-icon.spinning {
+
+	        animation: spin 1s linear infinite;
+
+	    }
+
+	
+
+	    @keyframes spin {
+
+	        from { transform: rotate(0deg); }
+
+	        to { transform: rotate(360deg); }
+
+	    }
+
+	
+
+	    /* Carousel Styles */
+
+	
     .carousel-container {
         display: flex;
         align-items: center;
