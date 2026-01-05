@@ -95,6 +95,14 @@ export async function notionRetrieve(pageId: string): Promise<PageObjectResponse
 }
 
 /**
+ * Generic database retrieval.
+ */
+export async function notionRetrieveDatabase(databaseId: string): Promise<any> {
+	const notion = getClient();
+	return await notion.databases.retrieve({ database_id: databaseId });
+}
+
+/**
  * --- DATA PARSERS ---
  */
 
@@ -465,8 +473,7 @@ export async function getPresidentName(semesterPrefix: string): Promise<string> 
 
 export async function getDatabaseSchema(databaseId: string): Promise<Record<string, DatabasePropertySchema>> {
 	return withCache(`schema_${databaseId}`, 3600000, async () => {
-		const notion = getClient();
-		const response = await (notion as any).databases.retrieve({ database_id: databaseId });
+		const response = await notionRetrieveDatabase(databaseId);
 		const result: Record<string, DatabasePropertySchema> = {};
 		for (const [key, value] of Object.entries(response.properties)) {
 			const type = (value as any).type;
