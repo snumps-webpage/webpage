@@ -318,7 +318,7 @@ export async function getApplicationsFromNotion() {
 		id: page.id,
 		email: getPropertyValue(page.properties[NOTION_PROPS.EMAIL]),
 		name: getPropertyValue(page.properties[NOTION_PROPS.NAME]),
-		phone: getPropertyValue(page.properties['전화 번호']),
+		phone: getPropertyValue(page.properties[NOTION_PROPS.PHONE_APP]),
 		department: getPropertyValue(page.properties[NOTION_PROPS.DEPT]),
 		background: getPropertyValue(page.properties[NOTION_PROPS.BACKGROUND]),
 		accepted: getPropertyValue(page.properties[NOTION_PROPS.APP_ACCEPTED]),
@@ -342,11 +342,11 @@ export async function createApplicationInNotion(data: {
 	if (!dbId) return null;
 
 	const page = await notionCreate(dbId, {
-		'이름': { title: [{ text: { content: data.name } }] },
-		'이메일': { email: data.email },
-		'전화 번호': { phone_number: data.phone },
-		'학과': { rich_text: [{ text: { content: data.department } }] },
-		'배경 지식': { rich_text: [{ text: { content: data.background } }] }
+		[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
+		[NOTION_PROPS.EMAIL]: { email: data.email },
+		[NOTION_PROPS.PHONE_APP]: { phone_number: data.phone },
+		[NOTION_PROPS.DEPT]: { rich_text: [{ text: { content: data.department } }] },
+		[NOTION_PROPS.BACKGROUND]: { rich_text: [{ text: { content: data.background } }] }
 	});
 	return page.id;
 }
