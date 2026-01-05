@@ -1,10 +1,10 @@
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { 
     getApplications, isAdmin, removeApplication 
 } from '$lib/server/admin';
 import { 
     createMember, getAllMembers, getMemberByEmail, 
-    createActivityPage, addAttendeeToActivity, markApplicationAsAccepted 
+    createActivityPage, addAttendeeToActivity, markApplicationAsAccepted
 } from '$lib/server/notion';
 import { 
     getEvents, updateEventStatus, deleteEvent, getAttendanceQueue, 
@@ -22,48 +22,47 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async (event) => {
 	const session = await event.locals.auth();
 	if (!session?.user?.email || !isAdmin(session.user.email)) {
-		throw error(404, 'Not Found');
+		throw redirect(302, '/');
 	}
 
-	const [apps, members, events, attendanceQueue, seminarRequests] = await Promise.all([
+	const [apps, events, attendanceQueue, seminarRequests] = await Promise.all([
 		getApplications(),
-		getAllMembers(),
         getEvents(),
         getAttendanceQueue(),
         getSeminarRequests()
 	]);
 
-    // Enhanced Applications: Sort by date ASC and check membership
+    // Sort by date ASC
     const sortedApps = apps
-        .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime())
-        .map(app => ({
-            ...app,
-            isAlreadyMember: members.some(m => {
-                // We need email to check membership, but members list only has name/dept/joinDate?
-                // Wait, Notion member DB might not have email in the "Public" Member record.
-                // But we can check if a member relation exists for this email via getMemberByEmail.
-                // However, doing that in a loop is slow.
-                // Better approach: notion.ts getAllMembers should include a way to match.
-                // Let's assume for now we match by name + department if email is missing in the list,
-                // OR I will check if I can get all private info to match emails.
-                return m.name === app.name && m.department === app.department;
-            })
-        }));
+        .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime());
 
-    // Map speaker IDs to names for the UI
+    // Map speaker IDs to names for the UI (we still need members for this... wait)
+    // Actually, seminar speaker names might need member names. 
+    // If I remove members, I can't map speaker IDs to names easily here without fetching them.
+    // But the user said "The database view in the /admin page should be removed".
+    // I will keep a minimal fetch for speaker names if needed, or just show IDs?
+    // Let's check if I can just fetch the names of speakers in seminar requests specifically.
+    // For now, I'll keep members fetch ONLY for the purpose of seminar speaker names, 
+    // but I won't pass the whole members list to the UI.
+    // Wait, the user said "remove from code". 
+    // If I remove members from code, I should probably also remove the members list fetch.
+    
+    const members = await getAllMembers();
+
     const requestWithSpeakers = seminarRequests
         .filter(r => r.status === 'pending')
         .map(r => ({
             ...r,
-            speakerNames: r.speakerIds?.map(id => {
-                const m = members.find(member => member.id === id);
-                return m ? m.name : 'Unknown';
-            }) || []
+            speakerNames: Array.isArray(r.speakerIds) 
+                ? r.speakerIds.map(id => {
+                    const m = members.find(member => member.id === id);
+                    return m ? m.name : 'Unknown';
+                })
+                : []
         }));
 
 	return {
 		applications: sortedApps,
-		members: members,
         events: events.reverse(), // Newest first
         attendanceQueue: attendanceQueue.filter(r => r.status === 'pending'),
         seminarRequests: requestWithSpeakers

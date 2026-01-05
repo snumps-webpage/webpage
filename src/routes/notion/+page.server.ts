@@ -35,7 +35,12 @@ export const load: PageServerLoad = async (event) => {
 		const rows = pages.map((page: any) => {
 			const row: Record<string, string> = {};
 			for (const [name, prop] of Object.entries(page.properties)) {
-				row[name] = getPropertyValue(prop as NotionProperty);
+				const val = getPropertyValue(prop as NotionProperty);
+                if (Array.isArray(val)) {
+                    row[name] = val.join(', ');
+                } else {
+                    row[name] = String(val);
+                }
 			}
 			return { id: page.id, ...row };
 		});
