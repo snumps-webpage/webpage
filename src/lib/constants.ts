@@ -6,6 +6,7 @@ export const NOTION_PROPS = {
 	NAME: '이름',
 	EMAIL: '이메일',
 	PHONE: '전화번호',
+	PHONE_APP: '전화 번호',
 	DEPT: '학과',
 	BACKGROUND: '배경 지식',
 	JOIN_DATE: '가입일',
