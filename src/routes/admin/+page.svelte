@@ -26,6 +26,14 @@
         }
     }
 
+    // Pagination for seminar requests
+    let seminarPage = $state(1);
+    const seminarLimit = 5;
+    let totalSeminarPages = $derived(Math.ceil(data.seminarRequests.length / seminarLimit));
+    let paginatedSeminars = $derived(
+        data.seminarRequests.slice((seminarPage - 1) * seminarLimit, seminarPage * seminarLimit)
+    );
+
     // State for editing attendance
     let editingRecord = $state<AttendanceRecord | null>(null);
     let editDialog: HTMLDialogElement;
@@ -201,63 +209,92 @@
             {/if}
         </dialog>
     
-    	<section class="mt-4">
-    		<h2>세미나 개설 신청 ({data.seminarRequests.length})</h2>
-    		
-    		{#if data.seminarRequests.length === 0}
-    			<p class="empty">대기 중인 세미나 신청이 없습니다.</p>
-    		{:else}
-    			<div class="table-container">
-    				<table>
-    					<thead>
-    						<tr>
-    							<th>주제</th>
-    							<th>발표자</th>
-    							<th>신청일</th>
-    							<th>관리</th>
-    						</tr>
-    					</thead>
-    					<tbody>
-    						{#each data.seminarRequests as req (req.id)}
-    							<tr>
-    								<td>{req.title}</td>
-    								<td>
-    									{#if req.speakerNames && req.speakerNames.length > 0}
-    										{req.speakerNames.join(', ')}
-    									{:else}
-    										<span class="hint">미지정</span>
-    									{/if}
-    								</td>
-    								<td>{new Date(req.submittedAt).toLocaleDateString()}</td>
-    								<td class="actions-cell">
-    									<form method="POST" action="?/approveSeminar" use:enhance={() => {
-    										return ({ result, update }) => {
-    											if (result.type === 'success') alert('세미나가 승인되었습니다.');
-    											update();
-    										};
-    									}} onsubmit={() => confirm(`'${req.title}' 세미나 개설을 승인하시겠습니까?`)}>
-    										<input type="hidden" name="id" value={req.id} />
-    										<button class="btn approve small">승인</button>
-    									</form>
-    									<form method="POST" action="?/rejectSeminar" use:enhance={() => {
-    										return ({ result, update }) => {
-    											if (result.type === 'success') alert('신청이 반려/삭제되었습니다.');
-    											update();
-    										};
-    									}} onsubmit={() => confirm('반려하시겠습니까?')}>
-    										<input type="hidden" name="id" value={req.id} />
-    										<button class="btn reject small">반려</button>
-    									</form>
-    								</td>
-    							</tr>
-    						{/each}
-    					</tbody>
-    				</table>
-    			</div>
-    		{/if}
-    	</section>
-    
     		<section class="mt-4">
+    			<h2>세미나 개설 신청 ({data.seminarRequests.length})</h2>
+    			
+    			{#if data.seminarRequests.length === 0}
+    				<p class="empty">대기 중인 세미나 신청이 없습니다.</p>
+    			{:else}
+    				<div class="table-container">
+    					<table>
+    						<thead>
+    							<tr>
+    								<th>주제</th>
+    								<th>발표자</th>
+    								<th>신청일</th>
+    								<th>관리</th>
+    							</tr>
+    						</thead>
+    						<tbody>
+    							{#each paginatedSeminars as req (req.id)}
+    								<tr>
+    									<td>{req.title}</td>
+    									<td>
+    										{#if req.speakerNames && req.speakerNames.length > 0}
+    											{req.speakerNames.join(', ')}
+    										{:else}
+    											<span class="hint">미지정</span>
+    										{/if}
+    									</td>
+    									<td>{new Date(req.submittedAt).toLocaleDateString()}</td>
+    									<td class="actions-cell">
+    										<form method="POST" action="?/approveSeminar" use:enhance={() => {
+    											return ({ result, update }) => {
+    												if (result.type === 'success') alert('세미나가 승인되었습니다.');
+    												update();
+    											};
+    										}} onsubmit={() => confirm(`'${req.title}' 세미나 개설을 승인하시겠습니까?`)}>
+    											<input type="hidden" name="id" value={req.id} />
+    											<button class="btn approve small">승인</button>
+    										</form>
+    										<form method="POST" action="?/rejectSeminar" use:enhance={() => {
+    											return ({ result, update }) => {
+    												if (result.type === 'success') alert('신청이 반려/삭제되었습니다.');
+    												update();
+    											};
+    										}} onsubmit={() => confirm('반려하시겠습니까?')}>
+    											<input type="hidden" name="id" value={req.id} />
+    											<button class="btn reject small">반려</button>
+    										</form>
+    									</td>
+    								</tr>
+    							{/each}
+    						</tbody>
+    					</table>
+    				</div>
+    	
+    	            {#if totalSeminarPages > 1}
+    	                <div class="pagination">
+    	                    <button 
+    	                        class="page-btn" 
+    	                        disabled={seminarPage === 1} 
+    	                        onclick={() => seminarPage--}
+    	                    >
+    	                        이전
+    	                    </button>
+    	                    
+    	                    {#each Array.from({ length: totalSeminarPages }) as _, i}
+    	                        <button 
+    	                            class="page-btn" 
+    	                            class:active={seminarPage === i + 1} 
+    	                            onclick={() => seminarPage = i + 1}
+    	                        >
+    	                            {i + 1}
+    	                        </button>
+    	                    {/each}
+    	
+    	                    <button 
+    	                        class="page-btn" 
+    	                        disabled={seminarPage === totalSeminarPages} 
+    	                        onclick={() => seminarPage++}
+    	                    >
+    	                        다음
+    	                    </button>
+    	                </div>
+    	            {/if}
+    			{/if}
+    		</section>
+    	    		<section class="mt-4">
     
     			<h2>가입 승인 대기 ({applications.length})</h2>
     
@@ -766,5 +803,40 @@
         .carousel-grid {
             grid-template-columns: 1fr !important;
         }
+    }
+
+    /* Pagination Styles */
+    .pagination {
+        display: flex;
+        justify-content: center;
+        gap: 0.5rem;
+        margin-top: 1.5rem;
+    }
+
+    .page-btn {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        padding: 0.4rem 0.8rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+        user-select: none;
+    }
+
+    .page-btn:hover:not(:disabled) {
+        background: var(--btn-secondary);
+    }
+
+    .page-btn.active {
+        background: #667eea;
+        color: white;
+        border-color: #667eea;
+    }
+
+    .page-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
     }
 </style>
