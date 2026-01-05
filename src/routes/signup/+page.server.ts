@@ -1,4 +1,4 @@
-import { redirect } from '@sveltejs/kit';
+import { redirect, fail } from '@sveltejs/kit';
 import { getMemberByEmail } from '$lib/server/notion';
 import type { PageServerLoad } from './$types';
 import { getApplications, isAdmin } from '$lib/server/admin';
@@ -36,7 +36,9 @@ export const load: PageServerLoad = async (event) => {
 export const actions = {
 	default: async ({ request, locals }) => {
 		const session = await locals.auth();
-		if (!session?.user?.email || !session.user.name) return { error: 'Unauthorized' };
+		if (!session?.user?.email || !session.user.name) {
+			return fail(401, { error: 'Authentication required to submit application.' });
+		}
 
 		// Re-parse from session for security (do not trust form input for name/dept)
 		const parts = session.user.name.split('/').map(p => p.trim());
@@ -49,28 +51,33 @@ export const actions = {
 		const agreement = data.get('agreement');
 
 		if (!agreement) {
-			return { error: '개인정보 수집 및 이용에 동의해야 합니다.' };
+			return fail(400, { error: '개인정보 수집 및 이용에 동의해야 합니다.' });
 		}
 
-		if (!phone) {
-			return { error: '필수 정보를 모두 입력해주세요.' };
+		if (!phone || phone.length < 10) {
+			return fail(400, { error: '유효한 전화번호를 입력해주세요.' });
 		}
 
-		const { addApplication } = await import('$lib/server/admin');
-		const { sendSignupNotification } = await import('$lib/server/mail');
-		
-		await addApplication({
-			email: session.user.email,
-			name,
-			department,
-			phone,
-			background,
-			accepted: false
-		});
+		try {
+			const { addApplication } = await import('$lib/server/admin');
+			const { sendSignupNotification } = await import('$lib/server/mail');
+			
+			await addApplication({
+				email: session.user.email,
+				name,
+				department,
+				phone,
+				background,
+				accepted: false
+			});
 
-		// Notify admins via the automated admin email account
-		await sendSignupNotification(name);
+			// Notify admins via the automated admin email account
+			await sendSignupNotification(name);
 
-		return { success: true };
+			return { success: true };
+		} catch (e) {
+			console.error('[Signup] Action failed:', e);
+			return fail(500, { error: '가입 신청 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' });
+		}
 	}
 };

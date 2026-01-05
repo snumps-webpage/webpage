@@ -1,4 +1,4 @@
-import { error } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
 import { 
     getApplications, isAdmin, removeApplication 
 } from '$lib/server/admin';
@@ -74,7 +74,7 @@ export const actions = {
 	approve: async ({ request, locals }) => {
 		const session = await locals.auth();
 		if (!session?.user?.email || !isAdmin(session.user.email)) {
-			return { error: 'Forbidden' };
+			return fail(403, { error: 'Access denied. Administrator privileges required.' });
 		}
 
 		const data = await request.formData();
@@ -83,7 +83,7 @@ export const actions = {
 		const apps = await getApplications();
 		const app = apps.find(a => a.id === id);
 
-		if (!app) return { error: 'Application not found' };
+		if (!app) return fail(404, { error: 'Membership application not found' });
 
 		try {
             console.log(`[Admin] Processing approval for ${app.name} (${app.email})`);
@@ -99,45 +99,47 @@ export const actions = {
 			
 			invalidateCache(`member_${app.email}`);
             
-            // 2. Send Welcome Email (Non-critical for data integrity)
-            // Note: sendWelcomeEmail now has its own internal try-catch
+            // 2. Send Welcome Email (Non-critical)
             await sendWelcomeEmail(app.email, app.name);
 
             // 3. Mark as accepted in Notion (Critical)
             await markApplicationAsAccepted(id);
 
-            console.log(`[Admin] Approval flow completed for ${app.name}`);
 			return { success: true };
 		} catch (e) {
 			console.error('[Admin] Approval flow failed:', e);
-			return { error: 'Approval failed: ' + (e as Error).message };
+			return fail(500, { error: 'Internal server error during approval: ' + (e as Error).message });
 		}
 	},
 
 	reject: async ({ request, locals }) => {
 		const session = await locals.auth();
 		if (!session?.user?.email || !isAdmin(session.user.email)) {
-			return { error: 'Forbidden' };
+			return fail(403, { error: 'Access denied' });
 		}
 
 		const data = await request.formData();
 		const id = data.get('id') as string;
 
-		await removeApplication(id);
-		return { success: true };
+		try {
+			await removeApplication(id);
+			return { success: true };
+		} catch (e) {
+			return fail(500, { error: 'Failed to delete application' });
+		}
 	},
 
     // --- Event Management ---
 
     activateEvent: async ({ request, locals }) => {
         const session = await locals.auth();
-        if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
+        if (!session?.user?.email || !isAdmin(session.user.email)) return fail(403, { error: 'Forbidden' });
         
         const data = await request.formData();
         const id = data.get('id') as string;
         
         const event = await getEvent(id);
-        if (!event) return { error: 'Event not found' };
+        if (!event) return fail(404, { error: 'Event not found' });
 
         // Ensure a corresponding activity page exists in Notion before activation
         if (!event.notionPageId) {
@@ -151,7 +153,7 @@ export const actions = {
                 await updateEventStatus(id, 'active', page.id);
             } catch(e) {
                 console.error(e);
-                return { error: 'Failed to create Notion Page' };
+                return fail(502, { error: 'Failed to create Notion Page' });
             }
         } else {
             await updateEventStatus(id, 'active');
@@ -161,7 +163,7 @@ export const actions = {
 
     expireEvent: async ({ request, locals }) => {
         const session = await locals.auth();
-        if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
+        if (!session?.user?.email || !isAdmin(session.user.email)) return fail(403, { error: 'Forbidden' });
         const data = await request.formData();
         await updateEventStatus(data.get('id') as string, 'expired');
         return { success: true };
@@ -169,7 +171,7 @@ export const actions = {
 
     deleteEvent: async ({ request, locals }) => {
         const session = await locals.auth();
-        if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
+        if (!session?.user?.email || !isAdmin(session.user.email)) return fail(403, { error: 'Forbidden' });
         const data = await request.formData();
         await deleteEvent(data.get('id') as string);
         return { success: true };
@@ -179,7 +181,7 @@ export const actions = {
 
     approveAttendance: async ({ request, locals }) => {
         const session = await locals.auth();
-        if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
+        if (!session?.user?.email || !isAdmin(session.user.email)) return fail(403, { error: 'Forbidden' });
         
         const data = await request.formData();
         const recordId = data.get('id') as string;
@@ -189,11 +191,11 @@ export const actions = {
         try {
             // 1. Get Event & Notion Page
             const event = await getEvent(eventId);
-            if (!event || !event.notionPageId) throw new Error('Event or Notion Page not found');
+            if (!event || !event.notionPageId) return fail(404, { error: 'Event or Notion Page not found' });
 
             // 2. Get Member ID
             const memberLink = await getMemberByEmail(userEmail);
-            if (!memberLink) throw new Error('Member not found in DB');
+            if (!memberLink) return fail(404, { error: 'Member not found in database' });
 
             // 3. Add to Notion
             await addAttendeeToActivity(event.notionPageId, memberLink.memberId);
@@ -204,13 +206,13 @@ export const actions = {
             return { success: true };
         } catch (e) {
             console.error(e);
-            return { error: 'Approval failed: ' + (e as Error).message };
+            return fail(500, { error: 'Approval failed: ' + (e as Error).message });
         }
     },
 
     rejectAttendance: async ({ request, locals }) => {
         const session = await locals.auth();
-        if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
+        if (!session?.user?.email || !isAdmin(session.user.email)) return fail(403, { error: 'Forbidden' });
         const data = await request.formData();
         await updateAttendanceStatus(data.get('id') as string, 'rejected');
         return { success: true };
@@ -218,7 +220,7 @@ export const actions = {
 
     updateAttendanceTime: async ({ request, locals }) => {
         const session = await locals.auth();
-        if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
+        if (!session?.user?.email || !isAdmin(session.user.email)) return fail(403, { error: 'Forbidden' });
         
         const data = await request.formData();
         const id = data.get('id') as string;
@@ -235,7 +237,7 @@ export const actions = {
 
     deleteAttendanceRecord: async ({ request, locals }) => {
         const session = await locals.auth();
-        if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
+        if (!session?.user?.email || !isAdmin(session.user.email)) return fail(403, { error: 'Forbidden' });
         const data = await request.formData();
         await removeAttendanceRecord(data.get('id') as string);
         return { success: true };
@@ -245,14 +247,14 @@ export const actions = {
 
     approveSeminar: async ({ request, locals }) => {
         const session = await locals.auth();
-        if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
+        if (!session?.user?.email || !isAdmin(session.user.email)) return fail(403, { error: 'Forbidden' });
 
         const data = await request.formData();
         const id = data.get('id') as string;
         const requests = await getSeminarRequests();
         const seminar = requests.find(r => r.id === id);
 
-        if (!seminar) return { error: 'Request not found' };
+        if (!seminar) return fail(404, { error: 'Seminar request not found' });
 
         try {
             const now = new Date().toISOString();
@@ -291,20 +293,20 @@ export const actions = {
             return { success: true };
         } catch (e) {
             console.error(e);
-            return { error: 'Approval failed: ' + (e as Error).message };
+            return fail(500, { error: 'Approval failed: ' + (e as Error).message });
         }
     },
 
     rejectSeminar: async ({ request, locals }) => {
         const session = await locals.auth();
-        if (!session?.user?.email || !isAdmin(session.user.email)) return { error: 'Forbidden' };
+        if (!session?.user?.email || !isAdmin(session.user.email)) return fail(403, { error: 'Forbidden' });
 
         const data = await request.formData();
         const id = data.get('id') as string;
         const requests = await getSeminarRequests();
         const seminar = requests.find(r => r.id === id);
 
-        if (!seminar) return { error: 'Request not found' };
+        if (!seminar) return fail(404, { error: 'Seminar request not found' });
 
         try {
             // Notify Speaker(s) before deletion
@@ -323,7 +325,7 @@ export const actions = {
             return { success: true };
         } catch (e) {
             console.error(e);
-            return { error: 'Rejection/Deletion failed' };
+            return fail(500, { error: 'Internal error during rejection/deletion' });
         }
     }
 };

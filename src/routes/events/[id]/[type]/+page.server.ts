@@ -1,4 +1,4 @@
-import { error, redirect } from '@sveltejs/kit';
+import { error, redirect, fail } from '@sveltejs/kit';
 import { getEventByPathId, recordAttendance, deleteEvent } from '$lib/server/events';
 import { getMemberByEmail, getAllMembers, checkPageExists } from '$lib/server/notion';
 import type { PageServerLoad } from './$types';
@@ -40,12 +40,18 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 export const actions = {
     attend: async ({ params, locals }) => {
         const session = await locals.auth();
-        if (!session?.user?.email || !session.user.name) return { error: 'Unauthorized' };
+        if (!session?.user?.email || !session.user.name) {
+            return fail(401, { error: 'Authentication required to record attendance.' });
+        }
 
         const event = await getEventByPathId(params.id);
-        if (!event || event.status !== 'active') return { error: 'Invalid event' };
+        if (!event || event.status !== 'active') {
+            return fail(404, { error: 'Event not found or is not currently active.' });
+        }
 
-        if (params.type !== event.attendCode) return { error: 'Invalid code for attendance' };
+        if (params.type !== event.attendCode) {
+            return fail(404, { error: 'Invalid attendance link or code.' });
+        }
 
         // Fetch Department
         let dept = 'Unknown';
@@ -57,27 +63,32 @@ export const actions = {
                 if (member) dept = member.department;
             }
         } catch (e) {
-            console.error('Failed to fetch department:', e);
+            console.error('[Attendance] Failed to fetch department:', e);
         }
         
-        const result = await recordAttendance(event.id, {
-            email: session.user.email,
-            name: session.user.name,
-            dept
-        });
-
-        if (!result.isNew) {
-            return { error: 'Duplicate', message: '이미 출석하셨습니다.' };
-        }
-
-        // Notify admins
-        const { sendAttendanceNotification } = await import('$lib/server/mail');
         try {
-            await sendAttendanceNotification(session.user.name, event.title);
+            const result = await recordAttendance(event.id, {
+                email: session.user.email,
+                name: session.user.name,
+                dept
+            });
+
+            if (!result.isNew) {
+                return fail(409, { error: 'Duplicate', message: '이미 출석하셨습니다.' });
+            }
+
+            // Notify admins
+            const { sendAttendanceNotification } = await import('$lib/server/mail');
+            try {
+                await sendAttendanceNotification(session.user.name, event.title);
+            } catch (e) {
+                console.error('[Attendance] Failed to send admin notification:', e);
+            }
+            
+            return { success: true };
         } catch (e) {
-            console.error('Failed to send admin notification:', e);
+            console.error('[Attendance] Action Error:', e);
+            return fail(500, { error: 'Internal server error while recording attendance.' });
         }
-        
-        return { success: true };
     }
 };
