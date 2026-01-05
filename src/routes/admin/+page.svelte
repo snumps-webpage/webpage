@@ -8,310 +8,340 @@
     let memberSearchQuery = $state('');
     let memberSearchType = $state('이름'); // '이름' or '학과'
 
-    let filteredMembers = $derived(
-        memberSearchQuery.trim() === '' 
-            ? data.members 
-            : data.members.filter(m => {
-                const value = memberSearchType === '이름' ? m.name : m.department;
-                return value.toLowerCase().includes(memberSearchQuery.toLowerCase());
-            })
-    );
-
-    // State for editing attendance
-    let editingRecord = $state<AttendanceRecord | null>(null);
-    let editDialog: HTMLDialogElement;
-
-    function openEdit(record: AttendanceRecord) {
-        editingRecord = record;
-        editDialog.showModal();
-    }
-
-    function closeEdit() {
-        editDialog.close();
-        editingRecord = null;
-    }
+    	let filteredMembers = $derived(
+            memberSearchQuery.trim() === '' 
+                ? data.members 
+                : data.members.filter(m => {
+                    const value = memberSearchType === '이름' ? m.name : m.department;
+                    return value.toLowerCase().includes(memberSearchQuery.toLowerCase());
+                })
+        );
     
-    /**
-     * Converts an ISO string to a format compatible with <input type="datetime-local">.
-     * datetime-local expects YYYY-MM-DDTHH:MM in local time.
-     */
-    function toDateTimeLocal(iso?: string) {
-        if (!iso) return '';
-        const d = new Date(iso);
-        return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    }
-</script>
-
-<div class="admin-container">
-	<header>
-		<h1>관리자 대시보드</h1>
-		<div class="header-actions">
-			<a href="/admin/events/new" class="admin-action-btn">📅 새 이벤트 만들기</a>
-			<a href="/admin/events/connect" class="admin-action-btn secondary">🔗 기존 이벤트 연결</a>
-			<a href="/signup" class="admin-action-btn signup">📝 회원 가입 페이지</a>
-		</div>
-	</header>
-
-	<section class="events-section">
-		<h2>이벤트 관리</h2>
-		{#if data.events.length === 0}
-			<p class="empty">생성된 이벤트가 없습니다.</p>
-		{:else}
-			<div class="table-container">
-				<table>
-					<thead>
-						<tr>
-							<th>제목</th>
-							<th>일시</th>
-							<th>종류</th>
-							<th>상태</th>
-							<th>링크</th>
-							<th>관리</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each data.events as event (event.id)}
-							<tr class={event.status}>
-								<td>{event.title}</td>
-								<td>{event.date}</td>
-								<td><span class="tag">{event.type}</span></td>
-								<td><span class="status-badge {event.status}">{event.status.toUpperCase()}</span></td>
-								<td>
-									{#if event.status !== 'draft'}
-										<div class="links">
-											<button class="copy-btn" onclick={() => navigator.clipboard.writeText(`${window.location.origin}/events/${event.pathId}/${event.attendCode}`)}>Copy Link 📋</button>
-										</div>
-									{:else}
-										<span class="hint">Not Published</span>
-									{/if}
-								</td>
-								<td class="actions-cell">
-									{#if event.status === 'draft' || event.status === 'expired'}
-										<form method="POST" action="?/activateEvent" use:enhance>
-											<input type="hidden" name="id" value={event.id} />
-											<button class="btn activate small">Activate</button>
-										</form>
-									{:else if event.status === 'active'}
-										<form method="POST" action="?/expireEvent" use:enhance>
-											<input type="hidden" name="id" value={event.id} />
-											<button class="btn expire small">Expire</button>
-										</form>
-									{/if}
-									<form method="POST" action="?/deleteEvent" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까?')}>
-										<input type="hidden" name="id" value={event.id} />
-										<button class="btn delete small">Delete</button>
-									</form>
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-		{/if}
-	</section>
-
-	<section class="mt-4">
-		<h2>출석 승인 대기 ({data.attendanceQueue.length})</h2>
-		{#if data.attendanceQueue.length === 0}
-			<p class="empty">대기 중인 출석 요청이 없습니다.</p>
-		{:else}
-			<div class="table-container">
-				<table>
-					<thead>
-						<tr>
-							<th>이름</th>
-							<th>학과</th>
-							<th>이벤트</th>
-							<th>시작 시간</th>
-							<th>종료 시간</th>
-							<th>관리</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each data.attendanceQueue as record (record.id)}
-							{@const event = data.events.find(e => e.id === record.eventId)}
-							<tr>
-								<td>{record.userName}</td>
-								<td>{record.userDept}</td>
-								<td>{event?.title ?? 'Unknown'}</td>
-								<td>{new Date(record.startTime).toLocaleTimeString()}</td>
-								<td>{record.endTime ? new Date(record.endTime).toLocaleTimeString() : '-'}</td>
-								<td class="actions-cell">
-									<form method="POST" action="?/approveAttendance" use:enhance>
-										<input type="hidden" name="id" value={record.id} />
-										<input type="hidden" name="eventId" value={record.eventId} />
-										<input type="hidden" name="userEmail" value={record.userEmail} />
-										<button class="btn approve small">승인</button>
-									</form>
-									<form method="POST" action="?/rejectAttendance" use:enhance>
-										<input type="hidden" name="id" value={record.id} />
-										<button class="btn reject small">거절</button>
-									</form>
-                                    <button class="btn edit small" onclick={() => openEdit(record)}>수정</button>
-                                    <form method="POST" action="?/deleteAttendanceRecord" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까?')}>
-                                        <input type="hidden" name="id" value={record.id} />
-                                        <button class="btn delete small">삭제</button>
-                                    </form>
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-		{/if}
-	</section>
-
-    <!-- Edit Dialog -->
-    <dialog bind:this={editDialog} class="edit-dialog">
-        {#if editingRecord}
-            <h3>출석 기록 수정</h3>
-            <p><strong>{editingRecord.userName}</strong> ({editingRecord.userEmail})</p>
-            
-            <form method="POST" action="?/updateAttendanceTime" use:enhance={() => {
-                return ({ result }) => {
-                    if (result.type === 'success') closeEdit();
-                };
-            }}>
-                <input type="hidden" name="id" value={editingRecord.id} />
+        // State for applications to allow partial updates
+        let applications = $state(data.applications);
+    
+        $effect(() => {
+            applications = data.applications;
+        });
+    
+        // State for editing attendance
+        let editingRecord = $state<AttendanceRecord | null>(null);
+        let editDialog: HTMLDialogElement;
+    
+        function openEdit(record: AttendanceRecord) {
+            editingRecord = record;
+            editDialog.showModal();
+        }
+    
+        function closeEdit() {
+            editDialog.close();
+            editingRecord = null;
+        }
+        
+        /**
+         * Converts an ISO string to a format compatible with <input type="datetime-local">.
+         * datetime-local expects YYYY-MM-DDTHH:MM in local time.
+         */
+        function toDateTimeLocal(iso?: string) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        }
+    </script>
+    
+    <div class="admin-container">
+    	<header>
+    		<h1>관리자 대시보드</h1>
+    		<div class="header-actions">
+    			<a href="/admin/events/new" class="admin-action-btn">📅 새 이벤트 만들기</a>
+    			<a href="/admin/events/connect" class="admin-action-btn secondary">🔗 기존 이벤트 연결</a>
+    			<a href="/signup" class="admin-action-btn signup">📝 회원 가입 페이지</a>
+    		</div>
+    	</header>
+    
+    	<section class="events-section">
+    		<h2>이벤트 관리</h2>
+    		{#if data.events.length === 0}
+    			<p class="empty">생성된 이벤트가 없습니다.</p>
+    		{:else}
+    			<div class="table-container">
+    				<table>
+    					<thead>
+    						<tr>
+    							<th>제목</th>
+    							<th>일시</th>
+    							<th>종류</th>
+    							<th>상태</th>
+    							<th>링크</th>
+    							<th>관리</th>
+    						</tr>
+    					</thead>
+    					<tbody>
+    						{#each data.events as event (event.id)}
+    							<tr class={event.status}>
+    								<td>{event.title}</td>
+    								<td>{event.date}</td>
+    								<td><span class="tag">{event.type}</span></td>
+    								<td><span class="status-badge {event.status}">{event.status.toUpperCase()}</span></td>
+    								<td>
+    									{#if event.status !== 'draft'}
+    										<div class="links">
+    											<button class="copy-btn" onclick={() => navigator.clipboard.writeText(`${window.location.origin}/events/${event.pathId}/${event.attendCode}`)}>Copy Link 📋</button>
+    										</div>
+    									{:else}
+    										<span class="hint">Not Published</span>
+    									{/if}
+    								</td>
+    								<td class="actions-cell">
+    									{#if event.status === 'draft' || event.status === 'expired'}
+    										<form method="POST" action="?/activateEvent" use:enhance>
+    											<input type="hidden" name="id" value={event.id} />
+    											<button class="btn activate small">Activate</button>
+    										</form>
+    									{:else if event.status === 'active'}
+    										<form method="POST" action="?/expireEvent" use:enhance>
+    											<input type="hidden" name="id" value={event.id} />
+    											<button class="btn expire small">Expire</button>
+    										</form>
+    									{/if}
+    									<form method="POST" action="?/deleteEvent" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까?')}>
+    										<input type="hidden" name="id" value={event.id} />
+    										<button class="btn delete small">Delete</button>
+    									</form>
+    								</td>
+    							</tr>
+    						{/each}
+    					</tbody>
+    				</table>
+    			</div>
+    		{/if}
+    	</section>
+    
+    	<section class="mt-4">
+    		<h2>출석 승인 대기 ({data.attendanceQueue.length})</h2>
+    		{#if data.attendanceQueue.length === 0}
+    			<p class="empty">대기 중인 출석 요청이 없습니다.</p>
+    		{:else}
+    			<div class="table-container">
+    				<table>
+    					<thead>
+    						<tr>
+    							<th>이름</th>
+    							<th>학과</th>
+    							<th>이벤트</th>
+    							<th>시작 시간</th>
+    							<th>종료 시간</th>
+    							<th>관리</th>
+    						</tr>
+    					</thead>
+    					<tbody>
+    						{#each data.attendanceQueue as record (record.id)}
+    							{@const event = data.events.find(e => e.id === record.eventId)}
+    							<tr>
+    								<td>{record.userName}</td>
+    								<td>{record.userDept}</td>
+    								<td>{event?.title ?? 'Unknown'}</td>
+    								<td>{new Date(record.startTime).toLocaleTimeString()}</td>
+    								<td>{record.endTime ? new Date(record.endTime).toLocaleTimeString() : '-'}</td>
+    								<td class="actions-cell">
+    									<form method="POST" action="?/approveAttendance" use:enhance>
+    										<input type="hidden" name="id" value={record.id} />
+    										<input type="hidden" name="eventId" value={record.eventId} />
+    										<input type="hidden" name="userEmail" value={record.userEmail} />
+    										<button class="btn approve small">승인</button>
+    									</form>
+    									<form method="POST" action="?/rejectAttendance" use:enhance>
+    										<input type="hidden" name="id" value={record.id} />
+    										<button class="btn reject small">거절</button>
+    									</form>
+                                        <button class="btn edit small" onclick={() => openEdit(record)}>수정</button>
+                                        <form method="POST" action="?/deleteAttendanceRecord" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까?')}>
+                                            <input type="hidden" name="id" value={record.id} />
+                                            <button class="btn delete small">삭제</button>
+                                        </form>
+    								</td>
+    							</tr>
+    						{/each}
+    					</tbody>
+    				</table>
+    			</div>
+    		{/if}
+    	</section>
+    
+        <!-- Edit Dialog -->
+        <dialog bind:this={editDialog} class="edit-dialog">
+            {#if editingRecord}
+                <h3>출석 기록 수정</h3>
+                <p><strong>{editingRecord.userName}</strong> ({editingRecord.userEmail})</p>
                 
-                <div class="field">
-                    <label for="startTime">시작 시간</label>
-                    <input type="datetime-local" id="startTime" name="startTime" value={toDateTimeLocal(editingRecord.startTime)} required />
-                </div>
-                
-                <div class="field">
-                    <label for="endTime">종료 시간</label>
-                    <input type="datetime-local" id="endTime" name="endTime" value={toDateTimeLocal(editingRecord.endTime)} />
-                </div>
-
-                <div class="dialog-actions">
-                    <button type="button" class="btn cancel" onclick={closeEdit}>취소</button>
-                    <button class="btn submit">저장</button>
-                </div>
-            </form>
-        {/if}
-    </dialog>
-
-	<section class="mt-4">
-		<h2>세미나 개설 신청 ({data.seminarRequests.length})</h2>
-		
-		{#if data.seminarRequests.length === 0}
-			<p class="empty">대기 중인 세미나 신청이 없습니다.</p>
-		{:else}
-			<div class="table-container">
-				<table>
-					<thead>
-						<tr>
-							<th>주제</th>
-							<th>발표자</th>
-							<th>신청일</th>
-							<th>관리</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each data.seminarRequests as req (req.id)}
-							<tr>
-								<td>{req.title}</td>
-								<td>
-									{#if req.speakerNames && req.speakerNames.length > 0}
-										{req.speakerNames.join(', ')}
-									{:else}
-										<span class="hint">미지정</span>
-									{/if}
-								</td>
-								<td>{new Date(req.submittedAt).toLocaleDateString()}</td>
-								<td class="actions-cell">
-									<form method="POST" action="?/approveSeminar" use:enhance onsubmit={() => confirm(`'${req.title}' 세미나 개설을 승인하시겠습니까?`)}>
-										<input type="hidden" name="id" value={req.id} />
-										<button class="btn approve small">승인</button>
-									</form>
-									<form method="POST" action="?/rejectSeminar" use:enhance onsubmit={() => confirm('반려하시겠습니까?')}>
-										<input type="hidden" name="id" value={req.id} />
-										<button class="btn reject small">반려</button>
-									</form>
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-		{/if}
-	</section>
-
-	<section class="mt-4">
-		<h2>가입 승인 대기 ({data.applications.length})</h2>
-		
-		{#if data.applications.length === 0}
-			<p class="empty">대기 중인 가입 신청이 없습니다.</p>
-		{:else}
-			<div class="grid">
-				{#each data.applications as app (app.id)}
-					<div class="card" class:accepted={app.accepted}>
-						<div class="card-header">
-							<h3>{app.name}</h3>	
-							<span class="dept">{app.department}</span>
-						</div>
-						
-						<div class="info">
-							<p><strong>이메일:</strong> {app.email}</p>
-							<p><strong>전화번호:</strong> {app.phone}</p>
-							<p><strong>신청일:</strong> {new Date(app.submittedAt).toLocaleDateString()}</p>
-						</div>
-
-						<details>
-							<summary>상세 정보 보기</summary>
-							<div class="details-content">
-								<p><strong>배경지식:</strong><br>{app.background || '-'}</p>
-							</div>
-						</details>
-
-												<div class="actions">
-
-													{#if app.accepted}
-
-														<button class="btn approved-badge" disabled>승인됨</button>
-
-													{:else}
-
-														<form method="POST" action="?/approve" use:enhance>
-
-															<input type="hidden" name="id" value={app.id} />
-
-															<button class="btn approve">승인</button>
-
-														</form>
-
-													{/if}
-
-													
-
-																					<form method="POST" action="?/reject" use:enhance onsubmit={() => confirm(app.accepted ? '신청 내역을 삭제하시겠습니까?' : '정말 거절하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.')}>
-
-													
-
-																						<input type="hidden" name="id" value={app.id} />
-
-													
-
-																						<button class="btn reject">{app.accepted ? '삭제' : '거절'}</button>
-
-													
-
-																					</form>
-
-													
-
-													
-
-												</div>
-
-						
-					</div>
-				{/each}
-			</div>
-		{/if}
-	</section>
-</div>
+                <form method="POST" action="?/updateAttendanceTime" use:enhance={() => {
+                    return ({ result }) => {
+                        if (result.type === 'success') closeEdit();
+                    };
+                }}>
+                    <input type="hidden" name="id" value={editingRecord.id} />
+                    
+                    <div class="field">
+                        <label for="startTime">시작 시간</label>
+                        <input type="datetime-local" id="startTime" name="startTime" value={toDateTimeLocal(editingRecord.startTime)} required />
+                    </div>
+                    
+                    <div class="field">
+                        <label for="endTime">종료 시간</label>
+                        <input type="datetime-local" id="endTime" name="endTime" value={toDateTimeLocal(editingRecord.endTime)} />
+                    </div>
+    
+                    <div class="dialog-actions">
+                        <button type="button" class="btn cancel" onclick={closeEdit}>취소</button>
+                        <button class="btn submit">저장</button>
+                    </div>
+                </form>
+            {/if}
+        </dialog>
+    
+    	<section class="mt-4">
+    		<h2>세미나 개설 신청 ({data.seminarRequests.length})</h2>
+    		
+    		{#if data.seminarRequests.length === 0}
+    			<p class="empty">대기 중인 세미나 신청이 없습니다.</p>
+    		{:else}
+    			<div class="table-container">
+    				<table>
+    					<thead>
+    						<tr>
+    							<th>주제</th>
+    							<th>발표자</th>
+    							<th>신청일</th>
+    							<th>관리</th>
+    						</tr>
+    					</thead>
+    					<tbody>
+    						{#each data.seminarRequests as req (req.id)}
+    							<tr>
+    								<td>{req.title}</td>
+    								<td>
+    									{#if req.speakerNames && req.speakerNames.length > 0}
+    										{req.speakerNames.join(', ')}
+    									{:else}
+    										<span class="hint">미지정</span>
+    									{/if}
+    								</td>
+    								<td>{new Date(req.submittedAt).toLocaleDateString()}</td>
+    								<td class="actions-cell">
+    									<form method="POST" action="?/approveSeminar" use:enhance={() => {
+    										return ({ result, update }) => {
+    											if (result.type === 'success') alert('세미나가 승인되었습니다.');
+    											update();
+    										};
+    									}} onsubmit={() => confirm(`'${req.title}' 세미나 개설을 승인하시겠습니까?`)}>
+    										<input type="hidden" name="id" value={req.id} />
+    										<button class="btn approve small">승인</button>
+    									</form>
+    									<form method="POST" action="?/rejectSeminar" use:enhance={() => {
+    										return ({ result, update }) => {
+    											if (result.type === 'success') alert('신청이 반려/삭제되었습니다.');
+    											update();
+    										};
+    									}} onsubmit={() => confirm('반려하시겠습니까?')}>
+    										<input type="hidden" name="id" value={req.id} />
+    										<button class="btn reject small">반려</button>
+    									</form>
+    								</td>
+    							</tr>
+    						{/each}
+    					</tbody>
+    				</table>
+    			</div>
+    		{/if}
+    	</section>
+    
+    	<section class="mt-4">
+    		<h2>가입 승인 대기 ({applications.length})</h2>
+    		
+    		{#if applications.length === 0}
+    			<p class="empty">대기 중인 가입 신청이 없습니다.</p>
+    		{:else}
+    			<div class="grid">
+    				{#each applications as app (app.id)}
+    					<div class="card" class:accepted={app.accepted}>
+    						<div class="card-header">
+    							<h3>{app.name}</h3>	
+    							<span class="dept">{app.department}</span>
+    						</div>
+    						
+    						<div class="info">
+    							<p><strong>이메일:</strong> {app.email}</p>
+    							<p><strong>전화번호:</strong> {app.phone}</p>
+    							<p><strong>신청일:</strong> {new Date(app.submittedAt).toLocaleDateString()}</p>
+    						</div>
+    
+    						<details>
+    							<summary>상세 정보 보기</summary>
+    							<div class="details-content">
+    								<p><strong>배경지식:</strong><br>{app.background || '-'}</p>
+    							</div>
+    						</details>
+    
+    												<div class="actions">
+    
+    													{#if app.accepted}
+    
+    														<button class="btn approved-badge" disabled>승인됨</button>
+    
+    													{:else}
+    
+    														<form method="POST" action="?/approve" use:enhance={({ formData }) => {
+    															return async ({ result }) => {
+    																if (result.type === 'success') {
+    																	alert('회원 가입이 승인되었습니다.');
+                                                                        
+                                                                        // Update local state to accepted without reloading page
+                                                                        const id = formData.get('id');
+                                                                        const idx = applications.findIndex(a => a.id === id);
+                                                                        if (idx !== -1) {
+                                                                            const updatedApp = { ...applications[idx], accepted: true };
+                                                                            applications[idx] = updatedApp;
+                                                                        }
+    																}
+    															};
+    														}}>
+    
+    															<input type="hidden" name="id" value={app.id} />
+    
+    															<button class="btn approve">승인</button>
+    
+    														</form>
+    
+    													{/if}
+    
+    													
+    
+    																					<form method="POST" action="?/reject" use:enhance onsubmit={() => confirm(app.accepted ? '신청 내역을 삭제하시겠습니까?' : '정말 거절하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.')}>
+    
+    													
+    
+    																						<input type="hidden" name="id" value={app.id} />
+    
+    													
+    
+    																						<button class="btn reject">{app.accepted ? '삭제' : '거절'}</button>
+    
+    													
+    
+    																					</form>
+    
+    													
+    
+    													
+    
+    												</div>
+    
+    						
+    					</div>
+    				{/each}
+    			</div>
+    		{/if}
+    	</section></div>
 
 <style>
 	.mt-4 {
