@@ -5,14 +5,18 @@
 	let { data } = $props();
     
     // State for applications to allow partial updates
-    let applications = $state(data.applications);
+    let applications = $state(data.applications.map(app => ({ ...app, processing: false })));
     let seminarRequests = $state(data.seminarRequests);
 
     let refreshingApps = $state(false);
     let refreshingSeminars = $state(false);
 
     $effect(() => {
-        applications = data.applications;
+        // Merge processing state if data refreshes, or just reset
+        applications = data.applications.map(app => {
+            const existing = applications.find(a => a.id === app.id);
+            return { ...app, processing: existing ? existing.processing : false };
+        });
         seminarRequests = data.seminarRequests;
     });
 
@@ -21,7 +25,8 @@
         try {
             const res = await fetch('/api/admin/applications');
             if (res.ok) {
-                applications = await res.json();
+                const newApps = await res.json();
+                applications = newApps.map((app: any) => ({ ...app, processing: false }));
                 appStartIndex = 0; // Reset carousel to start on refresh
             }
         } catch (e) {
@@ -408,34 +413,93 @@
                                                 </div>
                                             </details>
 
-                                            <div class="actions">
-                                                {#if app.accepted}
-                                                    <button class="btn approved-badge" disabled>승인됨</button>
-                                                {:else}
-                                                    <form method="POST" action="?/approve" use:enhance={({ formData }) => {
-                                                        return async ({ result }) => {
-                                                            if (result.type === 'success') {
-                                                                alert('회원 가입이 승인되었습니다.');
-                                                                
-                                                                const id = formData.get('id');
-                                                                const idx = applications.findIndex(a => a.id === id);
-                                                                if (idx !== -1) {
-                                                                    const updatedApp = { ...applications[idx], accepted: true };
-                                                                    applications[idx] = updatedApp;
-                                                                }
-                                                            }
-                                                        };
-                                                    }}>
-                                                        <input type="hidden" name="id" value={app.id} />
-                                                        <button class="btn approve">승인</button>
-                                                    </form>
-                                                {/if}
+                                                                                    <div class="actions">
 
-                                                <form method="POST" action="?/reject" use:enhance onsubmit={() => confirm(app.accepted ? '신청 내역을 삭제하시겠습니까?' : '정말 거절하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.')}>
-                                                    <input type="hidden" name="id" value={app.id} />
-                                                    <button class="btn reject">{app.accepted ? '삭제' : '거절'}</button>
-                                                </form>
-                                            </div>
+                                                                                        {#if app.accepted}
+
+                                                                                            <button class="btn approved-badge" disabled>승인됨</button>
+
+                                                                                        {:else}
+
+                                                                                            <form method="POST" action="?/approve" use:enhance={({ formData }) => {
+
+                                                                                                // Instant deactivation
+
+                                                                                                const id = formData.get('id');
+
+                                                                                                const idx = applications.findIndex(a => a.id === id);
+
+                                                                                                if (idx !== -1) applications[idx].processing = true;
+
+                                            
+
+                                                                                                return async ({ result }) => {
+
+                                                                                                    if (result.type === 'success') {
+
+                                                                                                        alert('회원 가입이 승인되었습니다.');
+
+                                                                                                        if (idx !== -1) {
+
+                                                                                                            applications[idx].accepted = true;
+
+                                                                                                            applications[idx].processing = false;
+
+                                                                                                        }
+
+                                                                                                    } else {
+
+                                                                                                        if (idx !== -1) applications[idx].processing = false;
+
+                                                                                                    }
+
+                                                                                                };
+
+                                                                                            }}>
+
+                                                                                                <input type="hidden" name="id" value={app.id} />
+
+                                                                                                <button class="btn approve" disabled={app.processing}>승인</button>
+
+                                                                                            </form>
+
+                                                                                        {/if}
+
+                                            
+
+                                                                                        <form method="POST" action="?/reject" use:enhance={({ formData }) => {
+
+                                                                                            const id = formData.get('id');
+
+                                                                                            const idx = applications.findIndex(a => a.id === id);
+
+                                                                                            if (idx !== -1) applications[idx].processing = true;
+
+                                            
+
+                                                                                            return async ({ result, update }) => {
+
+                                                                                                if (result.type === 'failure' || result.type === 'error') {
+
+                                                                                                    if (idx !== -1) applications[idx].processing = false;
+
+                                                                                                }
+
+                                                                                                update();
+
+                                                                                            };
+
+                                                                                        }} onsubmit={() => confirm(app.accepted ? '신청 내역을 삭제하시겠습니까?' : '정말 거절하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.')}>
+
+                                                                                            <input type="hidden" name="id" value={app.id} />
+
+                                                                                            <button class="btn reject" disabled={app.processing}>{app.accepted ? '삭제' : '거절'}</button>
+
+                                                                                        </form>
+
+                                                                                    </div>
+
+                                            
                                         </div>
                                     </div>
                                 {/each}
