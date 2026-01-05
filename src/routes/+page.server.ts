@@ -106,41 +106,41 @@ export const load: PageServerLoad = async (event) => {
 export const actions = {
 	updateProfile: async ({ request, locals }) => {
 		const session = await locals.auth();
-		if (!session?.user?.email) return fail(401);
+		if (!session?.user?.email) return fail(401, { error: 'Authentication required' });
 		
 		const data = await request.formData();
 		const phone = normalizePhoneNumber(data.get('phone') as string);
 		const background = data.get('background') as string;
 		
 		const member = await getMemberByEmail(session.user.email);
-		if (!member) return fail(404, { error: 'Member not found' });
+		if (!member) return fail(404, { error: 'Member record not found in the database' });
 		
 		try {
 			await updatePrivateInfo(member.privateInfoId, { phone, background });
 			return { success: true };
 		} catch (e) {
-			console.error(e);
-			return fail(500, { error: 'Failed to update profile' });
+			console.error('[Dashboard] Profile update failed:', e);
+			return fail(500, { error: 'Internal server error during profile update' });
 		}
 	},
 
 	updateSeminar: async ({ request, locals }) => {
 		const session = await locals.auth();
-		if (!session?.user?.email) return fail(401);
+		if (!session?.user?.email) return fail(401, { error: 'Authentication required' });
 
 		const data = await request.formData();
 		const id = data.get('id') as string;
 		const title = data.get('title') as string;
 		const remarks = data.get('remarks') as string;
 
-		if (!id) return fail(400, { error: 'ID is required' });
+		if (!id) return fail(400, { error: 'Seminar ID is required for update' });
 
 		try {
 			await updateSeminar(id, { title, remarks });
 			return { success: true };
 		} catch (e) {
-			console.error(e);
-			return fail(500, { error: 'Seminar update failed' });
+			console.error('[Dashboard] Seminar update failed:', e);
+			return fail(500, { error: 'Failed to update seminar record in Notion' });
 		}
 	}
 };

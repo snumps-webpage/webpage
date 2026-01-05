@@ -36,7 +36,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 export const actions: Actions = {
     default: async ({ request, locals }) => {
         const session = await locals.auth();
-        if (!session?.user?.email || !session.user.name) return fail(401, { error: 'Unauthorized' });
+        if (!session?.user?.email || !session.user.name) {
+            return fail(401, { error: 'Authentication required to apply for a seminar.' });
+        }
 
         const data = await request.formData();
         const title = data.get('title') as string;
@@ -46,7 +48,7 @@ export const actions: Actions = {
         const speakerIdsRaw = data.get('speakerIds') as string;
         
         const member = await getMemberByEmail(session.user.email);
-        if (!member) return fail(404, { error: 'Member record not found' });
+        if (!member) return fail(404, { error: 'Member record not found. Please ensure you are a registered member.' });
 
         let speakerIds: string[] = [];
         if (speakerIdsRaw) {
@@ -63,7 +65,7 @@ export const actions: Actions = {
         }
 
         if (!title || !description) {
-            return fail(400, { error: 'Missing required fields' });
+            return fail(400, { error: 'Seminar title and description are required.' });
         }
 
         try {
@@ -81,8 +83,8 @@ export const actions: Actions = {
 
             return { success: true };
         } catch (e) {
-            console.error('Seminar Application Action Error:', e);
-            return fail(500, { error: 'Application failed: ' + (e as Error).message });
+            console.error('[Seminar Apply] Action Error:', e);
+            return fail(500, { error: 'Internal server error while processing seminar application.' });
         }
     }
 };
