@@ -1,17 +1,15 @@
 /**
  * Core service for interacting with the Notion API.
- * Provides generic CRUD operations for databases and pages.
+ * Provides generic CRUD operations using standard fetch with explicit headers.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Client, isNotionClientError } from '@notionhq/client';
 import { env } from '$env/dynamic/private';
-import type { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints';
 import { withCache } from './cache';
 import { NOTION_PROPS } from '../constants';
 
-console.log('>>> [Notion Service] Module loading start');
+const NOTION_VERSION = '2022-06-28';
 
-export type NotionProperty = PageObjectResponse['properties'][string];
+export type NotionProperty = any;
 
 export interface DatabasePropertySchema {
 	type: string;
@@ -22,35 +20,19 @@ export interface DatabasePropertySchema {
  * --- GENERIC NOTION HELPERS ---
  */
 
-let _client: Client | null = null;
-
-function getClient(): any {
-	if (_client) return _client;
-
-	const apiKey = env.NOTION_API_KEY;
-	if (!apiKey) {
-		console.log('>>> [Notion Service] CRITICAL ERROR: NOTION_API_KEY is missing from environment');
+/**
+ * Returns the required headers for any Notion API request.
+ */
+function getHeaders() {
+	if (!env.NOTION_API_KEY) {
+		console.error('>>> [Notion Service] FATAL: NOTION_API_KEY is missing.');
 		throw new Error('NOTION_API_KEY is missing');
 	}
-
-	console.log('>>> [Notion Service] Initializing Client...');
-	_client = new Client({ auth: apiKey });
-	return _client;
-}
-
-/**
- * Standardized error handler for Notion API calls.
- */
-function handleNotionError(error: unknown, context: string) {
-	if (isNotionClientError(error)) {
-		console.log(`>>> [Notion Service] API Error during ${context}:`, {
-			status: (error as any).status,
-			code: error.code,
-			message: error.message
-		});
-	} else {
-		console.log(`>>> [Notion Service] Unexpected Error during ${context}:`, error);
-	}
+	return {
+		'Authorization': `Bearer ${env.NOTION_API_KEY}`,
+		'Notion-Version': NOTION_VERSION,
+		'Content-Type': 'application/json'
+	};
 }
 
 /**
@@ -58,34 +40,38 @@ function handleNotionError(error: unknown, context: string) {
  */
 export async function notionQuery(databaseId: string, options: any = {}): Promise<any[]> {
 	console.log(`>>> [Notion Service] notionQuery START [DB: ${databaseId}]`);
-	const notion = getClient();
 	let allResults: any[] = [];
 	let hasMore = true;
 	let nextCursor: string | undefined = undefined;
 
 	try {
 		while (hasMore) {
-			const response: any = await notion.databases.query({
-				database_id: databaseId,
-				start_cursor: nextCursor,
-				...options
+			const fetchRes = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
+				method: 'POST',
+				headers: getHeaders(),
+				body: JSON.stringify({
+					start_cursor: nextCursor,
+					...options
+				})
 			});
 
-			if (!response || !response.results) {
-				console.log('>>> [Notion Service] Malformed response received');
-				break;
+			const data: any = await fetchRes.json();
+
+			if (!fetchRes.ok) {
+				console.error(`>>> [Notion Service] Query Failed:`, data);
+				throw new Error(data.message || 'Notion API Query Error');
 			}
 
-			const fullPages = response.results.filter((page: any) => page && 'properties' in page);
+			const fullPages = (data.results || []).filter((page: any) => page && 'properties' in page);
 			allResults = [...allResults, ...fullPages];
 			
-			hasMore = response.has_more;
-			nextCursor = response.next_cursor ?? undefined;
+			hasMore = data.has_more;
+			nextCursor = data.next_cursor ?? undefined;
 		}
 		console.log(`>>> [Notion Service] Query success. Count: ${allResults.length}`);
 		return allResults;
 	} catch (error) {
-		handleNotionError(error, `Query [DB: ${databaseId}]`);
+		console.error(`>>> [Notion Service] Error in notionQuery:`, error);
 		throw error;
 	}
 }
@@ -96,17 +82,28 @@ export const queryDatabase = notionQuery;
  * Generic page creation.
  */
 export async function notionCreate(databaseId: string, properties: any): Promise<any> {
-	console.log(`>>> [Notion Service] Creating page in DB: ${databaseId}`);
-	const notion = getClient();
+	console.log(`>>> [Notion Service] notionCreate START [DB: ${databaseId}]`);
 	try {
-		const response = await notion.pages.create({
-			parent: { database_id: databaseId },
-			properties
+		const response = await fetch(`https://api.notion.com/v1/pages`, {
+			method: 'POST',
+			headers: getHeaders(),
+			body: JSON.stringify({
+				parent: { database_id: databaseId },
+				properties
+			})
 		});
-		console.log(`>>> [Notion Service] Create success: ${response.id}`);
-		return response;
+
+		const data: any = await response.json();
+
+		if (!response.ok) {
+			console.error(`>>> [Notion Service] Create Failed:`, data);
+			throw new Error(data.message || 'Notion API Create Error');
+		}
+
+		console.log(`>>> [Notion Service] Create success: ${data.id}`);
+		return data;
 	} catch (error) {
-		handleNotionError(error, `Create [DB: ${databaseId}]`);
+		console.error(`>>> [Notion Service] Error in notionCreate:`, error);
 		throw error;
 	}
 }
@@ -115,17 +112,25 @@ export async function notionCreate(databaseId: string, properties: any): Promise
  * Generic page update.
  */
 export async function notionUpdate(pageId: string, properties: any): Promise<any> {
-	console.log(`>>> [Notion Service] Updating page: ${pageId}`);
-	const notion = getClient();
+	console.log(`>>> [Notion Service] notionUpdate START [Page: ${pageId}]`);
 	try {
-		const response = await notion.pages.update({
-			page_id: pageId,
-			properties
+		const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+			method: 'PATCH',
+			headers: getHeaders(),
+			body: JSON.stringify({ properties })
 		});
+
+		const data: any = await response.json();
+
+		if (!response.ok) {
+			console.error(`>>> [Notion Service] Update Failed:`, data);
+			throw new Error(data.message || 'Notion API Update Error');
+		}
+
 		console.log('>>> [Notion Service] Update success');
-		return response;
+		return data;
 	} catch (error) {
-		handleNotionError(error, `Update [Page: ${pageId}]`);
+		console.error(`>>> [Notion Service] Error in notionUpdate:`, error);
 		throw error;
 	}
 }
@@ -134,16 +139,23 @@ export async function notionUpdate(pageId: string, properties: any): Promise<any
  * Generic page archive (delete).
  */
 export async function notionArchive(pageId: string): Promise<void> {
-	console.log(`>>> [Notion Service] Archiving page: ${pageId}`);
-	const notion = getClient();
+	console.log(`>>> [Notion Service] notionArchive START [Page: ${pageId}]`);
 	try {
-		await notion.pages.update({
-			page_id: pageId,
-			archived: true
+		const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+			method: 'PATCH',
+			headers: getHeaders(),
+			body: JSON.stringify({ archived: true })
 		});
+
+		if (!response.ok) {
+			const data: any = await response.json();
+			console.error(`>>> [Notion Service] Archive Failed:`, data);
+			throw new Error(data.message || 'Notion API Archive Error');
+		}
+
 		console.log('>>> [Notion Service] Archive success');
 	} catch (error) {
-		handleNotionError(error, `Archive [Page: ${pageId}]`);
+		console.error(`>>> [Notion Service] Error in notionArchive:`, error);
 		throw error;
 	}
 }
@@ -152,14 +164,24 @@ export async function notionArchive(pageId: string): Promise<void> {
  * Generic page retrieval.
  */
 export async function notionRetrieve(pageId: string): Promise<any> {
-	console.log(`>>> [Notion Service] Retrieving page: ${pageId}`);
-	const notion = getClient();
+	console.log(`>>> [Notion Service] notionRetrieve START [Page: ${pageId}]`);
 	try {
-		const response = await notion.pages.retrieve({ page_id: pageId });
+		const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+			method: 'GET',
+			headers: getHeaders()
+		});
+
+		const data: any = await response.json();
+
+		if (!response.ok) {
+			console.error(`>>> [Notion Service] Retrieve Failed:`, data);
+			throw new Error(data.message || 'Notion API Retrieve Error');
+		}
+
 		console.log('>>> [Notion Service] Retrieve success');
-		return response;
+		return data;
 	} catch (error) {
-		handleNotionError(error, `Retrieve [Page: ${pageId}]`);
+		console.error(`>>> [Notion Service] Error in notionRetrieve:`, error);
 		throw error;
 	}
 }
@@ -168,14 +190,24 @@ export async function notionRetrieve(pageId: string): Promise<any> {
  * Generic database retrieval.
  */
 export async function notionRetrieveDatabase(databaseId: string): Promise<any> {
-	console.log(`>>> [Notion Service] Retrieving DB metadata: ${databaseId}`);
-	const notion = getClient();
+	console.log(`>>> [Notion Service] notionRetrieveDatabase START [DB: ${databaseId}]`);
 	try {
-		const response = await notion.databases.retrieve({ database_id: databaseId });
+		const response = await fetch(`https://api.notion.com/v1/databases/${databaseId}`, {
+			method: 'GET',
+			headers: getHeaders()
+		});
+
+		const data: any = await response.json();
+
+		if (!response.ok) {
+			console.error(`>>> [Notion Service] Retrieve DB Failed:`, data);
+			throw new Error(data.message || 'Notion API Retrieve DB Error');
+		}
+
 		console.log('>>> [Notion Service] Retrieve DB success');
-		return response;
+		return data;
 	} catch (error) {
-		handleNotionError(error, `Retrieve DB [DB: ${databaseId}]`);
+		console.error(`>>> [Notion Service] Error in notionRetrieveDatabase:`, error);
 		throw error;
 	}
 }
@@ -554,10 +586,10 @@ export async function getPresidentName(semesterPrefix: string): Promise<string> 
 	});
 }
 
-export async function getDatabaseSchema(databaseId: string): Promise<Record<string, DatabasePropertySchema>> {
+export async function getDatabaseSchema(databaseId: string): Promise<any> {
 	return withCache(`schema_${databaseId}`, 3600000, async () => {
 		const response = await notionRetrieveDatabase(databaseId);
-		const result: Record<string, DatabasePropertySchema> = {};
+		const result: any = {};
 		if (response && response.properties) {
 			for (const [key, value] of Object.entries(response.properties)) {
 				const type = (value as any).type;
