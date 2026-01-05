@@ -21,11 +21,16 @@ export interface DatabasePropertySchema {
  */
 
 function getClient(): any {
+	if (!env.NOTION_API_KEY) {
+		console.error('[Notion] Error: NOTION_API_KEY is not defined.');
+		throw new Error('NOTION_API_KEY is missing');
+	}
 	return new Client({ auth: env.NOTION_API_KEY });
 }
 
 /**
  * Generic database query with automatic pagination.
+ * Filters out partial responses to ensure property access is safe.
  */
 export async function notionQuery(databaseId: string, options: any = {}): Promise<PageObjectResponse[]> {
 	const notion = getClient();
@@ -33,16 +38,24 @@ export async function notionQuery(databaseId: string, options: any = {}): Promis
 	let hasMore = true;
 	let nextCursor: string | undefined = undefined;
 
-	while (hasMore) {
-		const response: any = await notion.databases.query({
-			database_id: databaseId,
-			start_cursor: nextCursor,
-			...options
-		});
+	try {
+		while (hasMore) {
+			const response: any = await notion.databases.query({
+				database_id: databaseId,
+				start_cursor: nextCursor,
+				...options
+			});
 
-		allResults = [...allResults, ...(response.results as PageObjectResponse[])];
-		hasMore = response.has_more;
-		nextCursor = response.next_cursor ?? undefined;
+			// Filter out PartialPageObjectResponse items which lack properties
+			const fullPages = (response.results || []).filter((page: any) => page && 'properties' in page);
+			allResults = [...allResults, ...fullPages];
+			
+			hasMore = response.has_more;
+			nextCursor = response.next_cursor ?? undefined;
+		}
+	} catch (error) {
+		console.error(`[Notion] Query Error [DB: ${databaseId}]:`, error);
+		throw error;
 	}
 
 	return allResults;
@@ -58,10 +71,15 @@ export const queryDatabase = notionQuery;
  */
 export async function notionCreate(databaseId: string, properties: any): Promise<PageObjectResponse> {
 	const notion = getClient();
-	return await notion.pages.create({
-		parent: { database_id: databaseId },
-		properties
-	}) as PageObjectResponse;
+	try {
+		return await notion.pages.create({
+			parent: { database_id: databaseId },
+			properties
+		}) as PageObjectResponse;
+	} catch (error) {
+		console.error(`[Notion] Create Error [DB: ${databaseId}]:`, error);
+		throw error;
+	}
 }
 
 /**
@@ -69,10 +87,15 @@ export async function notionCreate(databaseId: string, properties: any): Promise
  */
 export async function notionUpdate(pageId: string, properties: any): Promise<PageObjectResponse> {
 	const notion = getClient();
-	return await notion.pages.update({
-		page_id: pageId,
-		properties
-	}) as PageObjectResponse;
+	try {
+		return await notion.pages.update({
+			page_id: pageId,
+			properties
+		}) as PageObjectResponse;
+	} catch (error) {
+		console.error(`[Notion] Update Error [Page: ${pageId}]:`, error);
+		throw error;
+	}
 }
 
 /**
@@ -80,10 +103,15 @@ export async function notionUpdate(pageId: string, properties: any): Promise<Pag
  */
 export async function notionArchive(pageId: string): Promise<void> {
 	const notion = getClient();
-	await notion.pages.update({
-		page_id: pageId,
-		archived: true
-	});
+	try {
+		await notion.pages.update({
+			page_id: pageId,
+			archived: true
+		});
+	} catch (error) {
+		console.error(`[Notion] Archive Error [Page: ${pageId}]:`, error);
+		throw error;
+	}
 }
 
 /**
@@ -91,7 +119,16 @@ export async function notionArchive(pageId: string): Promise<void> {
  */
 export async function notionRetrieve(pageId: string): Promise<PageObjectResponse> {
 	const notion = getClient();
-	return await notion.pages.retrieve({ page_id: pageId }) as PageObjectResponse;
+	try {
+		const response = await notion.pages.retrieve({ page_id: pageId });
+		if (!response || !('properties' in response)) {
+			throw new Error(`Retrieved partial page or null for ID: ${pageId}`);
+		}
+		return response as PageObjectResponse;
+	} catch (error) {
+		console.error(`[Notion] Retrieve Error [Page: ${pageId}]:`, error);
+		throw error;
+	}
 }
 
 /**
@@ -99,7 +136,12 @@ export async function notionRetrieve(pageId: string): Promise<PageObjectResponse
  */
 export async function notionRetrieveDatabase(databaseId: string): Promise<any> {
 	const notion = getClient();
-	return await notion.databases.retrieve({ database_id: databaseId });
+	try {
+		return await notion.databases.retrieve({ database_id: databaseId });
+	} catch (error) {
+		console.error(`[Notion] Retrieve DB Error [DB: ${databaseId}]:`, error);
+		throw error;
+	}
 }
 
 /**
@@ -111,33 +153,39 @@ export async function notionRetrieveDatabase(databaseId: string): Promise<any> {
  */
 export function getPropertyValue(property: any): any {
 	if (!property) return '';
-	switch (property.type) {
-		case 'title':
-			return property.title.map((t: any) => t.plain_text).join('');
-		case 'rich_text':
-			return property.rich_text.map((t: any) => t.plain_text).join('');
-		case 'number':
-			return property.number ?? 0;
-		case 'select':
-			return property.select?.name ?? '';
-		case 'multi_select':
-			return property.multi_select.map((s: any) => s.name).join(', ');
-		case 'date':
-			return property.date?.start ?? '';
-		case 'checkbox':
-			return property.checkbox;
-		case 'email':
-			return property.email ?? '';
-		case 'phone_number':
-			return property.phone_number ?? '';
-		case 'url':
-			return property.url ?? '';
-		case 'status':
-			return property.status?.name ?? '';
-		case 'relation':
-			return property.relation.map((r: any) => r.id);
-		default:
-			return '';
+	
+	try {
+		switch (property.type) {
+			case 'title':
+				return (property.title || []).map((t: any) => t.plain_text).join('');
+			case 'rich_text':
+				return (property.rich_text || []).map((t: any) => t.plain_text).join('');
+			case 'number':
+				return property.number ?? 0;
+			case 'select':
+				return property.select?.name ?? '';
+			case 'multi_select':
+				return (property.multi_select || []).map((s: any) => s.name).join(', ');
+			case 'date':
+				return property.date?.start ?? '';
+			case 'checkbox':
+				return property.checkbox ?? false;
+			case 'email':
+				return property.email ?? '';
+			case 'phone_number':
+				return property.phone_number ?? '';
+			case 'url':
+				return property.url ?? '';
+			case 'status':
+				return property.status?.name ?? '';
+			case 'relation':
+				return (property.relation || []).map((r: any) => r.id);
+			default:
+				return '';
+		}
+	} catch (e) {
+		console.error('[Notion] Property Parsing Error:', e, property);
+		return '';
 	}
 }
 
@@ -186,7 +234,7 @@ export async function getMemberByEmail(email: string) {
 
 		const page = results[0];
 		const relationProp: any = page.properties[NOTION_PROPS.MEMBER_INFO];
-		if (relationProp?.type !== 'relation' || relationProp.relation.length === 0) return null;
+		if (relationProp?.type !== 'relation' || !relationProp.relation || relationProp.relation.length === 0) return null;
 
 		return {
 			privateInfoId: page.id,
@@ -203,7 +251,7 @@ export async function getMemberById(memberId: string) {
 	return {
 		id: page.id,
 		name: getPropertyValue(nameProp),
-		privateInfoId: relationProp?.type === 'relation' ? relationProp.relation[0]?.id : undefined
+		privateInfoId: relationProp?.type === 'relation' ? relationProp.relation?.[0]?.id : undefined
 	};
 }
 
@@ -388,7 +436,7 @@ export async function createSeminarRequestInNotion(data: {
 		[NOTION_PROPS.SEMINAR_REQ_DESC]: { rich_text: [{ text: { content: data.description } }] },
 		[NOTION_PROPS.SEMINAR_REQ_PREREQ]: { rich_text: [{ text: { content: data.prerequisites } }] },
 		[NOTION_PROPS.SEMINAR_REQ_DURATION]: { rich_text: [{ text: { content: data.duration } }] },
-		[NOTION_PROPS.SEMINAR_REQ_SPEAKERS]: { relation: data.speakerIds.map(id => ({ id })) }
+		[NOTION_PROPS.SEMINAR_REQ_SPEAKERS]: { relation: (data.speakerIds || []).map(id => ({ id })) }
 	});
 	return page.id;
 }
@@ -475,10 +523,12 @@ export async function getDatabaseSchema(databaseId: string): Promise<Record<stri
 	return withCache(`schema_${databaseId}`, 3600000, async () => {
 		const response = await notionRetrieveDatabase(databaseId);
 		const result: Record<string, DatabasePropertySchema> = {};
-		for (const [key, value] of Object.entries(response.properties)) {
-			const type = (value as any).type;
-			const options = (value as any)[type]?.options?.map((o: any) => o.name);
-			result[key] = { type, options };
+		if (response && response.properties) {
+			for (const [key, value] of Object.entries(response.properties)) {
+				const type = (value as any).type;
+				const options = (value as any)[type]?.options?.map((o: any) => o.name);
+				result[key] = { type, options };
+			}
 		}
 		return result;
 	});
@@ -495,7 +545,7 @@ export async function addAttendeeToActivity(pageId: string, memberId: string) {
 export async function checkPageExists(pageId: string): Promise<boolean> {
 	try {
 		const page = await notionRetrieve(pageId);
-		return !page.archived;
+		return !!page && !page.archived;
 	} catch {
 		return false;
 	}
