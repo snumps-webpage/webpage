@@ -15,7 +15,7 @@
 
 	// Visibility states
 	let showProfile = $state(false); // Default to false to keep view clean
-	let showSeminars = $state(true);
+	let showSeminars = $state(false);
 
 	// Filtering state
 	let selectedSemester = $state('all');
