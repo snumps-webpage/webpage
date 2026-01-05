@@ -761,19 +761,26 @@ export async function getApplicationsFromNotion() {
 	});
 }
 
+/**
+ * Updates the 'Accepted' checkbox in the signup applications database.
+ */
 export async function markApplicationAsAccepted(id: string) {
 	const notion = getNotionClient();
+	const propertyName = NOTION_PROPS.APP_ACCEPTED.normalize('NFC');
+	
+	console.log(`[Notion] Marking application ${id} as accepted...`);
 	try {
 		await notion.pages.update({
 			page_id: id,
 			properties: {
-				[NOTION_PROPS.APP_ACCEPTED]: {
+				[propertyName]: {
 					checkbox: true
 				}
 			}
 		});
+		console.log(`[Notion] Application ${id} successfully marked as accepted.`);
 	} catch (error) {
-		console.error('Notion Client Error (Mark Application Accepted):', error);
+		console.error(`[Notion] Error marking application ${id} as accepted:`, error);
 		throw new Error('Failed to update application status in Notion');
 	}
 }

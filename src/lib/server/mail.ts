@@ -122,12 +122,18 @@ export async function sendSeminarApplicationNotification(applicantName: string, 
  * Sends a welcome email to a new member upon acceptance.
  */
 export async function sendWelcomeEmail(recipientEmail: string, recipientName: string) {
-	console.log(`Attempting to send welcome email to ${recipientName} (${recipientEmail})...`);
-	const accessToken = await getAdminAccessToken();
-	const subject = `[SNUMPS] 가입이 승인되었습니다!`;
-	const body = `안녕하세요, ${recipientName}님!\n\nSNUMPS 가입 신청이 성공적으로 승인되었습니다. 동아리의 일원이 되신 것을 진심으로 환영합니다.\n\n앞으로의 활동을 위해 아래의 단톡방에 입장해 주세요:\n동아리 단톡방 링크: ${CHATROOM_LINK} (비밀번호: ${CHATROOM_PASSWORD})\n\n감사합니다.`;
+	try {
+		console.log(`[Mail] Attempting welcome email: ${recipientName} (${recipientEmail})`);
+		const accessToken = await getAdminAccessToken();
+		const subject = `[SNUMPS] 가입이 승인되었습니다!`;
+		const body = `안녕하세요, ${recipientName}님!\n\nSNUMPS 가입 신청이 성공적으로 승인되었습니다. 동아리의 일원이 되신 것을 진심으로 환영합니다.\n\n앞으로의 활동을 위해 아래의 단톡방에 입장해 주세요:\n동아리 단톡방 링크: ${CHATROOM_LINK} (비밀번호: ${CHATROOM_PASSWORD})\n\n감사합니다.`;
 
-	await dispatchEmail(accessToken, [recipientEmail], subject, body);
+		await dispatchEmail(accessToken, [recipientEmail], subject, body);
+		console.log(`[Mail] Welcome email sent to ${recipientEmail}`);
+	} catch (e) {
+		console.error(`[Mail] Failed to send welcome email to ${recipientEmail}:`, e);
+		// We don't re-throw here to prevent blocking the Notion DB update
+	}
 }
 
 /**
