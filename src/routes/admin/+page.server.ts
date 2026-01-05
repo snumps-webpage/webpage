@@ -25,48 +25,37 @@ export const load: PageServerLoad = async (event) => {
 		throw redirect(302, '/');
 	}
 
-	const [apps, events, attendanceQueue, seminarRequests] = await Promise.all([
-		getApplications(),
-        getEvents(),
-        getAttendanceQueue(),
-        getSeminarRequests()
-	]);
-
-    // Sort by date ASC (Oldest first)
-    const sortedApps = apps
-        .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime());
-
-    // Map speaker IDs to names for the UI (we still need members for this... wait)
-    // Actually, seminar speaker names might need member names. 
-    // If I remove members, I can't map speaker IDs to names easily here without fetching them.
-    // But the user said "The database view in the /admin page should be removed".
-    // I will keep a minimal fetch for speaker names if needed, or just show IDs?
-    // Let's check if I can just fetch the names of speakers in seminar requests specifically.
-    // For now, I'll keep members fetch ONLY for the purpose of seminar speaker names, 
-    // but I won't pass the whole members list to the UI.
-    // Wait, the user said "remove from code". 
-    // If I remove members from code, I should probably also remove the members list fetch.
-    
-    const members = await getAllMembers();
-
-    const requestWithSpeakers = seminarRequests
-        .filter(r => r.status === 'pending')
-        .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime())
-        .map(r => ({
-            ...r,
-            speakerNames: Array.isArray(r.speakerIds) 
-                ? r.speakerIds.map(id => {
-                    const m = members.find(member => member.id === id);
-                    return m ? m.name : 'Unknown';
-                })
-                : []
-        }));
-
 	return {
-		applications: sortedApps,
-        events: events.reverse(), // Newest first
-        attendanceQueue: attendanceQueue.filter(r => r.status === 'pending'),
-        seminarRequests: requestWithSpeakers
+		applications: (async () => {
+            const apps = await getApplications();
+            return apps.sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime());
+        })(),
+        events: (async () => {
+            const events = await getEvents();
+            return events.reverse();
+        })(),
+        attendanceQueue: (async () => {
+            const queue = await getAttendanceQueue();
+            return queue.filter(r => r.status === 'pending');
+        })(),
+        seminarRequests: (async () => {
+            const [requests, members] = await Promise.all([
+                getSeminarRequests(),
+                getAllMembers()
+            ]);
+            return requests
+                .filter(r => r.status === 'pending')
+                .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime())
+                .map(r => ({
+                    ...r,
+                    speakerNames: Array.isArray(r.speakerIds) 
+                        ? r.speakerIds.map(id => {
+                            const m = members.find(member => member.id === id);
+                            return m ? m.name : 'Unknown';
+                        })
+                        : []
+                }));
+        })()
 	};
 };
 

@@ -1,23 +1,52 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import type { AttendanceRecord } from '$lib/types';
+    import Skeleton from '$lib/components/Skeleton.svelte';
 
 	let { data } = $props();
     
     // State for applications to allow partial updates
-    let applications = $state(data.applications.map(app => ({ ...app, processing: false })));
-    let seminarRequests = $state(data.seminarRequests);
+    let applications = $state<any[]>([]);
+    let seminarRequests = $state<any[]>([]);
+    let events = $state<any[]>([]);
+    let attendanceQueue = $state<any[]>([]);
+
+    let loadingApps = $state(true);
+    let loadingSeminars = $state(true);
+    let loadingEvents = $state(true);
+    let loadingQueue = $state(true);
 
     let refreshingApps = $state(false);
     let refreshingSeminars = $state(false);
 
+    // Resolve streamed data
     $effect(() => {
-        // Merge processing state if data refreshes, or just reset
-        applications = data.applications.map(app => {
-            const existing = applications.find(a => a.id === app.id);
-            return { ...app, processing: existing ? existing.processing : false };
+        data.applications.then(val => {
+            applications = val.map((app: any) => ({ ...app, processing: false }));
+            loadingApps = false;
         });
-        seminarRequests = data.seminarRequests;
+        data.seminarRequests.then(val => {
+            seminarRequests = val;
+            loadingSeminars = false;
+        });
+        data.events.then(val => {
+            events = val;
+            loadingEvents = false;
+        });
+        data.attendanceQueue.then(val => {
+            attendanceQueue = val;
+            loadingQueue = false;
+        });
+    });
+
+    // Clamp indices if data length changes
+    $effect(() => {
+        if (applications.length > 0 && appStartIndex > 0 && appStartIndex + 3 > applications.length) {
+            appStartIndex = Math.max(0, applications.length - 3);
+        }
+        if (seminarRequests.length > 0 && seminarPage > totalSeminarPages && totalSeminarPages > 0) {
+            seminarPage = totalSeminarPages;
+        }
     });
 
     async function refreshApplications() {
@@ -109,116 +138,125 @@
     		</div>
     	</header>
     
-    	<section class="events-section">
-    		<h2>이벤트 관리</h2>
-    		{#if data.events.length === 0}
-    			<p class="empty">생성된 이벤트가 없습니다.</p>
-    		{:else}
-    			<div class="table-container">
-    				<table>
-    					<thead>
-    						<tr>
-    							<th>제목</th>
-    							<th>일시</th>
-    							<th>종류</th>
-    							<th>상태</th>
-    							<th>링크</th>
-    							<th>관리</th>
-    						</tr>
-    					</thead>
-    					<tbody>
-    						{#each data.events as event (event.id)}
-    							<tr class={event.status}>
-    								<td>{event.title}</td>
-    								<td>{event.date}</td>
-    								<td><span class="tag">{event.type}</span></td>
-    								<td><span class="status-badge {event.status}">{event.status.toUpperCase()}</span></td>
-    								<td>
-    									{#if event.status !== 'draft'}
-    										<div class="links">
-    											<button class="copy-btn" onclick={() => navigator.clipboard.writeText(`${window.location.origin}/events/${event.pathId}/${event.attendCode}`)}>Copy Link 📋</button>
-    										</div>
-    									{:else}
-    										<span class="hint">Not Published</span>
-    									{/if}
-    								</td>
-    								<td class="actions-cell">
-    									{#if event.status === 'draft' || event.status === 'expired'}
-    										<form method="POST" action="?/activateEvent" use:enhance>
-    											<input type="hidden" name="id" value={event.id} />
-    											<button class="btn activate small">Activate</button>
-    										</form>
-    									{:else if event.status === 'active'}
-    										<form method="POST" action="?/expireEvent" use:enhance>
-    											<input type="hidden" name="id" value={event.id} />
-    											<button class="btn expire small">Expire</button>
-    										</form>
-    									{/if}
-    									<form method="POST" action="?/deleteEvent" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까?')}>
-    										<input type="hidden" name="id" value={event.id} />
-    										<button class="btn delete small">Delete</button>
-    									</form>
-    								</td>
-    							</tr>
-    						{/each}
-    					</tbody>
-    				</table>
-    			</div>
-    		{/if}
-    	</section>
-    
-    	<section class="mt-4">
-    		<h2>출석 승인 대기 ({data.attendanceQueue.length})</h2>
-    		{#if data.attendanceQueue.length === 0}
-    			<p class="empty">대기 중인 출석 요청이 없습니다.</p>
-    		{:else}
-    			<div class="table-container">
-    				<table>
-    					<thead>
-    						<tr>
-    							<th>이름</th>
-    							<th>학과</th>
-    							<th>이벤트</th>
-    							<th>시작 시간</th>
-    							<th>종료 시간</th>
-    							<th>관리</th>
-    						</tr>
-    					</thead>
-    					<tbody>
-    						{#each data.attendanceQueue as record (record.id)}
-    							{@const event = data.events.find(e => e.id === record.eventId)}
+    		<section class="events-section">
+    			<h2>이벤트 관리</h2>
+    			{#if loadingEvents}
+    	            <div class="skeleton-list">
+    	                <Skeleton height="3rem" className="mb-2" />
+    	                <Skeleton height="3rem" className="mb-2" />
+    	                <Skeleton height="3rem" />
+    	            </div>
+    	        {:else if events.length === 0}
+    				<p class="empty">생성된 이벤트가 없습니다.</p>
+    			{:else}
+    				<div class="table-container">
+    					<table>
+    						<thead>
     							<tr>
-    								<td>{record.userName}</td>
-    								<td>{record.userDept}</td>
-    								<td>{event?.title ?? 'Unknown'}</td>
-    								<td>{new Date(record.startTime).toLocaleTimeString()}</td>
-    								<td>{record.endTime ? new Date(record.endTime).toLocaleTimeString() : '-'}</td>
-    								<td class="actions-cell">
-    									<form method="POST" action="?/approveAttendance" use:enhance>
-    										<input type="hidden" name="id" value={record.id} />
-    										<input type="hidden" name="eventId" value={record.eventId} />
-    										<input type="hidden" name="userEmail" value={record.userEmail} />
-    										<button class="btn approve small">승인</button>
-    									</form>
-    									<form method="POST" action="?/rejectAttendance" use:enhance>
-    										<input type="hidden" name="id" value={record.id} />
-    										<button class="btn reject small">거절</button>
-    									</form>
-                                        <button class="btn edit small" onclick={() => openEdit(record)}>수정</button>
-                                        <form method="POST" action="?/deleteAttendanceRecord" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까?')}>
-                                            <input type="hidden" name="id" value={record.id} />
-                                            <button class="btn delete small">삭제</button>
-                                        </form>
-    								</td>
+    								<th>제목</th>
+    								<th>일시</th>
+    								<th>종류</th>
+    								<th>상태</th>
+    								<th>링크</th>
+    								<th>관리</th>
     							</tr>
-    						{/each}
-    					</tbody>
-    				</table>
-    			</div>
-    		{/if}
-    	</section>
-    
-        <!-- Edit Dialog -->
+    						</thead>
+    						<tbody>
+    							{#each events as event (event.id)}
+    								<tr class={event.status}>
+    									<td>{event.title}</td>
+    									<td>{event.date}</td>
+    									<td><span class="tag">{event.type}</span></td>
+    									<td><span class="status-badge {event.status}">{event.status.toUpperCase()}</span></td>
+    									<td>
+    										{#if event.status !== 'draft'}
+    											<div class="links">
+    												<button class="copy-btn" onclick={() => navigator.clipboard.writeText(`${window.location.origin}/events/${event.pathId}/${event.attendCode}`)}>Copy Link 📋</button>
+    											</div>
+    										{:else}
+    											<span class="hint">Not Published</span>
+    										{/if}
+    									</td>
+    									<td class="actions-cell">
+    										{#if event.status === 'draft' || event.status === 'expired'}
+    											<form method="POST" action="?/activateEvent" use:enhance>
+    												<input type="hidden" name="id" value={event.id} />
+    												<button class="btn activate small">Activate</button>
+    											</form>
+    										{:else if event.status === 'active'}
+    											<form method="POST" action="?/expireEvent" use:enhance>
+    												<input type="hidden" name="id" value={event.id} />
+    												<button class="btn expire small">Expire</button>
+    											</form>
+    										{/if}
+    										<form method="POST" action="?/deleteEvent" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까?')}>
+    											<input type="hidden" name="id" value={event.id} />
+    											<button class="btn delete small">Delete</button>
+    										</form>
+    									</td>
+    								</tr>
+    							{/each}
+    						</tbody>
+    					</table>
+    				</div>
+    			{/if}
+    		</section>
+    	    		<section class="mt-4">
+    	    			<h2>출석 승인 대기 ({attendanceQueue.length})</h2>
+    	    			{#if loadingQueue}
+    	    	            <div class="skeleton-list">
+    	    	                <Skeleton height="3rem" className="mb-2" />
+    	    	                <Skeleton height="3rem" />
+    	    	            </div>
+    	    	        {:else if attendanceQueue.length === 0}
+    	    				<p class="empty">대기 중인 출석 요청이 없습니다.</p>
+    	    			{:else}
+    	    				<div class="table-container">
+    	    					<table>
+    	    						<thead>
+    	    							<tr>
+    	    								<th>이름</th>
+    	    								<th>학과</th>
+    	    								<th>이벤트</th>
+    	    								<th>시작 시간</th>
+    	    								<th>종료 시간</th>
+    	    								<th>관리</th>
+    	    							</tr>
+    	    						</thead>
+    	    						<tbody>
+    	    							{#each attendanceQueue as record (record.id)}
+    	    								{@const event = events.find(e => e.id === record.eventId)}
+    	    								<tr>
+    	    									<td>{record.userName}</td>
+    	    									<td>{record.userDept}</td>
+    	    									<td>{event?.title ?? 'Unknown'}</td>
+    	    									<td>{new Date(record.startTime).toLocaleTimeString()}</td>
+    	    									<td>{record.endTime ? new Date(record.endTime).toLocaleTimeString() : '-'}</td>
+    	    									<td class="actions-cell">
+    	    										<form method="POST" action="?/approveAttendance" use:enhance>
+    	    											<input type="hidden" name="id" value={record.id} />
+    	    											<input type="hidden" name="eventId" value={record.eventId} />
+    	    											<input type="hidden" name="userEmail" value={record.userEmail} />
+    	    											<button class="btn approve small">승인</button>
+    	    										</form>
+    	    										<form method="POST" action="?/rejectAttendance" use:enhance>
+    	    											<input type="hidden" name="id" value={record.id} />
+    	    											<button class="btn reject small">거절</button>
+    	    										</form>
+    	    	                                    <button class="btn edit small" onclick={() => openEdit(record)}>수정</button>
+    	    	                                    <form method="POST" action="?/deleteAttendanceRecord" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까?')}>
+    	    	                                        <input type="hidden" name="id" value={record.id} />
+    	    	                                        <button class="btn delete small">삭제</button>
+    	    	                                    </form>
+    	    									</td>
+    	    								</tr>
+    	    							{/each}
+    	    						</tbody>
+    	    					</table>
+    	    				</div>
+    	    			{/if}
+    	    		</section>
+    	    	        <!-- Edit Dialog -->
         <dialog bind:this={editDialog} class="edit-dialog">
             {#if editingRecord}
                 <h3>출석 기록 수정</h3>
@@ -249,273 +287,579 @@
             {/if}
         </dialog>
     
-    			<section class="mt-4">
+    				<section class="mt-4">
     
-    				<div class="section-header">
+    					<div class="section-header">
     
-    		            <h2>세미나 개설 신청 ({seminarRequests.length})</h2>
+    			            <h2>세미나 개설 신청 ({seminarRequests.length})</h2>
     
-    		            <button 
+    			            <button 
     
-    		                class="refresh-btn" 
+    			                class="refresh-btn" 
     
-    		                onclick={refreshSeminars} 
+    			                onclick={refreshSeminars} 
     
-    		                disabled={refreshingSeminars}
+    			                disabled={refreshingSeminars || loadingSeminars}
     
-    		                aria-label="Refresh seminars"
+    			                aria-label="Refresh seminars"
     
-    		            >
+    			            >
     
-    		                <span class="refresh-icon" class:spinning={refreshingSeminars}>🔄</span>
+    			                <span class="refresh-icon" class:spinning={refreshingSeminars}>🔄</span>
     
-    		            </button>
+    			            </button>
     
-    		        </div>
+    			        </div>
     
-    				
+    					
     
-    				{#if seminarRequests.length === 0}
+    					{#if loadingSeminars}
     
-    		
-    				<p class="empty">대기 중인 세미나 신청이 없습니다.</p>
-    			{:else}
-    				<div class="table-container">
-    					<table>
-    						<thead>
-    							<tr>
-    								<th>주제</th>
-    								<th>발표자</th>
-    								<th>신청일</th>
-    								<th>관리</th>
-    							</tr>
-    						</thead>
-    						<tbody>
-    							{#each paginatedSeminars as req (req.id)}
-    								<tr>
-    									<td>{req.title}</td>
-    									<td>
-    										{#if req.speakerNames && req.speakerNames.length > 0}
-    											{req.speakerNames.join(', ')}
-    										{:else}
-    											<span class="hint">미지정</span>
-    										{/if}
-    									</td>
-    									<td>{new Date(req.submittedAt).toLocaleDateString()}</td>
-    									<td class="actions-cell">
-    										<form method="POST" action="?/approveSeminar" use:enhance={() => {
-    											return ({ result, update }) => {
-    												if (result.type === 'success') alert('세미나가 승인되었습니다.');
-    												update();
-    											};
-    										}} onsubmit={() => confirm(`'${req.title}' 세미나 개설을 승인하시겠습니까?`)}>
-    											<input type="hidden" name="id" value={req.id} />
-    											<button class="btn approve small">승인</button>
-    										</form>
-    										<form method="POST" action="?/rejectSeminar" use:enhance={() => {
-    											return ({ result, update }) => {
-    												if (result.type === 'success') alert('신청이 반려/삭제되었습니다.');
-    												update();
-    											};
-    										}} onsubmit={() => confirm('반려하시겠습니까?')}>
-    											<input type="hidden" name="id" value={req.id} />
-    											<button class="btn reject small">반려</button>
-    										</form>
-    									</td>
-    								</tr>
-    							{/each}
-    						</tbody>
-    					</table>
-    				</div>
-    	
-    	            {#if totalSeminarPages > 1}
-    	                <div class="pagination">
-    	                    <button 
-    	                        class="page-btn" 
-    	                        disabled={seminarPage === 1} 
-    	                        onclick={() => seminarPage--}
-    	                    >
-    	                        이전
-    	                    </button>
-    	                    
-    	                    {#each Array.from({ length: totalSeminarPages }) as _, i}
-    	                        <button 
-    	                            class="page-btn" 
-    	                            class:active={seminarPage === i + 1} 
-    	                            onclick={() => seminarPage = i + 1}
-    	                        >
-    	                            {i + 1}
-    	                        </button>
-    	                    {/each}
-    	
-    	                    <button 
-    	                        class="page-btn" 
-    	                        disabled={seminarPage === totalSeminarPages} 
-    	                        onclick={() => seminarPage++}
-    	                    >
-    	                        다음
-    	                    </button>
-    	                </div>
-    	            {/if}
-    			{/if}
-    		</section>
-    	    		<section class="mt-4">
+    			            <div class="skeleton-list">
     
-    			<div class="section-header">
-                    <h2>가입 승인 대기 ({applications.length})</h2>
-                    <button 
-                        class="refresh-btn" 
-                        onclick={refreshApplications} 
-                        disabled={refreshingApps}
-                        aria-label="Refresh applications"
-                    >
-                        <span class="refresh-icon" class:spinning={refreshingApps}>🔄</span>
-                    </button>
-                </div>
+    			                <Skeleton height="3rem" className="mb-2" />
+    
+    			                <Skeleton height="3rem" className="mb-2" />
+    
+    			                <Skeleton height="3rem" />
+    
+    			            </div>
+    
+    			        {:else if seminarRequests.length === 0}
+    
+    						<p class="empty">대기 중인 세미나 신청이 없습니다.</p>
+    
+    					{:else}
+    
+    						<div class="table-container">
+    
+    							<table>
+    
+    								<thead>
+    
+    									<tr>
+    
+    										<th>주제</th>
+    
+    										<th>발표자</th>
+    
+    										<th>신청일</th>
+    
+    										<th>관리</th>
+    
+    									</tr>
+    
+    								</thead>
+    
+    								<tbody>
+    
+    									{#each paginatedSeminars as req (req.id)}
+    
+    										<tr>
+    
+    											<td>{req.title}</td>
+    
+    											<td>
+    
+    												{#if req.speakerNames && req.speakerNames.length > 0}
+    
+    													{req.speakerNames.join(', ')}
+    
+    												{:else}
+    
+    													<span class="hint">미지정</span>
+    
+    												{/if}
+    
+    											</td>
+    
+    											<td>{new Date(req.submittedAt).toLocaleDateString()}</td>
+    
+    											<td class="actions-cell">
+    
+    												<form method="POST" action="?/approveSeminar" use:enhance={() => {
+    
+    													return ({ result, update }) => {
+    
+    														if (result.type === 'success') alert('세미나가 승인되었습니다.');
+    
+    														update();
+    
+    													};
+    
+    												}} onsubmit={() => confirm(`'${req.title}' 세미나 개설을 승인하시겠습니까?`)}>
+    
+    													<input type="hidden" name="id" value={req.id} />
+    
+    													<button class="btn approve small">승인</button>
+    
+    												</form>
+    
+    												<form method="POST" action="?/rejectSeminar" use:enhance={() => {
+    
+    													return ({ result, update }) => {
+    
+    														if (result.type === 'success') alert('신청이 반려/삭제되었습니다.');
+    
+    														update();
+    
+    													};
+    
+    												}} onsubmit={() => confirm('반려하시겠습니까?')}>
+    
+    													<input type="hidden" name="id" value={req.id} />
+    
+    													<button class="btn reject small">반려</button>
+    
+    												</form>
+    
+    											</td>
+    
+    										</tr>
+    
+    									{/each}
+    
+    								</tbody>
+    
+    							</table>
+    
+    						</div>
     
     			
     
-    			{#if applications.length === 0}
+    			            {#if totalSeminarPages > 1}
     
-    				<p class="empty">대기 중인 가입 신청이 없습니다.</p>
+    			                <div class="pagination">
     
-    			{:else}
-                    <div class="carousel-container">
-                        <button 
-                            class="carousel-nav prev" 
-                            onclick={prevApp} 
-                            disabled={appStartIndex === 0}
-                            aria-label="Previous application"
-                        >
-                            &lt;
-                        </button>
-
-                        <div class="carousel-viewport">
-                            <div class="carousel-track" style="transform: translateX(-{appStartIndex * (100 / 3)}%);">
-                                {#each applications as app (app.id)}
-                                    <div class="carousel-card-wrapper">
-                                        <div class="card carousel-card" class:accepted={app.accepted}>
-                                            <div class="card-header">
-                                                <h3>{app.name}</h3>	
-                                                <span class="dept">{app.department}</span>
-                                            </div>
-                                            
-                                            <div class="info">
-                                                <p><strong>이메일:</strong> {app.email}</p>
-                                                <p><strong>전화번호:</strong> {app.phone}</p>
-                                                <p><strong>신청일:</strong> {new Date(app.submittedAt).toLocaleDateString()}</p>
-                                            </div>
-
-                                            <details>
-                                                <summary>상세 정보 보기</summary>
-                                                <div class="details-content">
-                                                    <p><strong>배경지식:</strong><br>{app.background || '-'}</p>
-                                                </div>
-                                            </details>
-
-                                                                                    <div class="actions">
-
-                                                                                        {#if app.accepted}
-
-                                                                                            <button class="btn approved-badge" disabled>승인됨</button>
-
-                                                                                        {:else}
-
-                                                                                            <form method="POST" action="?/approve" use:enhance={({ formData }) => {
-
-                                                                                                // Instant deactivation
-
-                                                                                                const id = formData.get('id');
-
-                                                                                                const idx = applications.findIndex(a => a.id === id);
-
-                                                                                                if (idx !== -1) applications[idx].processing = true;
-
-                                            
-
-                                                                                                return async ({ result }) => {
-
-                                                                                                    if (result.type === 'success') {
-
-                                                                                                        alert('회원 가입이 승인되었습니다.');
-
-                                                                                                        if (idx !== -1) {
-
-                                                                                                            applications[idx].accepted = true;
-
-                                                                                                            applications[idx].processing = false;
-
-                                                                                                        }
-
-                                                                                                    } else {
-
-                                                                                                        if (idx !== -1) applications[idx].processing = false;
-
-                                                                                                    }
-
-                                                                                                };
-
-                                                                                            }}>
-
-                                                                                                <input type="hidden" name="id" value={app.id} />
-
-                                                                                                <button class="btn approve" disabled={app.processing}>승인</button>
-
-                                                                                            </form>
-
-                                                                                        {/if}
-
-                                            
-
-                                                                                        <form method="POST" action="?/reject" use:enhance={({ formData }) => {
-
-                                                                                            const id = formData.get('id');
-
-                                                                                            const idx = applications.findIndex(a => a.id === id);
-
-                                                                                            if (idx !== -1) applications[idx].processing = true;
-
-                                            
-
-                                                                                            return async ({ result, update }) => {
-
-                                                                                                if (result.type === 'failure' || result.type === 'error') {
-
-                                                                                                    if (idx !== -1) applications[idx].processing = false;
-
-                                                                                                }
-
-                                                                                                update();
-
-                                                                                            };
-
-                                                                                        }} onsubmit={() => confirm(app.accepted ? '신청 내역을 삭제하시겠습니까?' : '정말 거절하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.')}>
-
-                                                                                            <input type="hidden" name="id" value={app.id} />
-
-                                                                                            <button class="btn reject" disabled={app.processing}>{app.accepted ? '삭제' : '거절'}</button>
-
-                                                                                        </form>
-
-                                                                                    </div>
-
-                                            
-                                        </div>
-                                    </div>
-                                {/each}
-                            </div>
-                        </div>
-
-                        <button 
-                            class="carousel-nav next" 
-                            onclick={nextApp} 
-                            disabled={appStartIndex + 3 >= applications.length}
-                            aria-label="Next application"
-                        >
-                            &gt;
-                        </button>
-                    </div>
-    			{/if}
+    			                    <button 
+    
+    			                        class="page-btn" 
+    
+    			                        disabled={seminarPage === 1} 
+    
+    			                        onclick={() => seminarPage--}
+    
+    			                    >
+    
+    			                        이전
+    
+    			                    </button>
+    
+    			                    
+    
+    			                    {#each Array.from({ length: totalSeminarPages }) as _, i}
+    
+    			                        <button 
+    
+    			                            class="page-btn" 
+    
+    			                            class:active={seminarPage === i + 1} 
+    
+    			                            onclick={() => seminarPage = i + 1}
+    
+    			                        >
+    
+    			                            {i + 1}
+    
+    			                        </button>
+    
+    			                    {/each}
+    
+    			
+    
+    			                    <button 
+    
+    			                        class="page-btn" 
+    
+    			                        disabled={seminarPage === totalSeminarPages} 
+    
+    			                        onclick={() => seminarPage++}
+    
+    			                    >
+    
+    			                        다음
+    
+    			                    </button>
+    
+    			                </div>
+    
+    			            {/if}
+    
+    					{/if}
+    
+    				</section>
+    
+    			
+    	    		    		<section class="mt-4">
+    
+    			
+    	    		    
+    
+    			
+    	    		    			<div class="section-header">
+    
+    			
+    	    		                    <h2>가입 승인 대기 ({applications.length})</h2>
+    
+    			
+    	    		                    <button 
+    
+    			
+    	    		                        class="refresh-btn" 
+    
+    			
+    	    		                        onclick={refreshApplications} 
+    
+    			
+    	    		                        disabled={refreshingApps || loadingApps}
+    
+    			
+    	    		                        aria-label="Refresh applications"
+    
+    			
+    	    		                    >
+    
+    			
+    	    		                        <span class="refresh-icon" class:spinning={refreshingApps}>🔄</span>
+    
+    			
+    	    		                    </button>
+    
+    			
+    	    		                </div>
+    
+    			
+    	    		    
+    
+    			
+    	    		    			
+    
+    			
+    	    		    
+    
+    			
+    	    		    			{#if loadingApps}
+    
+    			
+    	    		                    <div class="carousel-container skeleton-carousel">
+    
+    			
+    	    		                        <div class="carousel-viewport">
+    
+    			
+    	    		                            <div class="carousel-track">
+    
+    			
+    	    		                                <div class="carousel-card-wrapper"><Skeleton height="350px" borderRadius="12px" /></div>
+    
+    			
+    	    		                                <div class="carousel-card-wrapper"><Skeleton height="350px" borderRadius="12px" /></div>
+    
+    			
+    	    		                                <div class="carousel-card-wrapper"><Skeleton height="350px" borderRadius="12px" /></div>
+    
+    			
+    	    		                            </div>
+    
+    			
+    	    		                        </div>
+    
+    			
+    	    		                    </div>
+    
+    			
+    	    		                {:else if applications.length === 0}
+    
+    			
+    	    		    
+    
+    			
+    	    		    				<p class="empty">대기 중인 가입 신청이 없습니다.</p>
+    
+    			
+    	    		    
+    
+    			
+    	    		    			{:else}
+    
+    			
+    	    		                    <div class="carousel-container">
+    
+    			
+    	    		                        <button 
+    
+    			
+    	    		                            class="carousel-nav prev" 
+    
+    			
+    	    		                            onclick={prevApp} 
+    
+    			
+    	    		                            disabled={appStartIndex === 0}
+    
+    			
+    	    		                            aria-label="Previous application"
+    
+    			
+    	    		                        >
+    
+    			
+    	    		                            &lt;
+    
+    			
+    	    		                        </button>
+    
+    			
+    	    		
+    
+    			
+    	    		                        <div class="carousel-viewport">
+    
+    			
+    	    		                            <div class="carousel-track" style="transform: translateX(-{appStartIndex * (100 / 3)}%);">
+    
+    			
+    	    		                                {#each applications as app (app.id)}
+    
+    			
+    	    		                                    <div class="carousel-card-wrapper">
+    
+    			
+    	    		                                        <div class="card carousel-card" class:accepted={app.accepted}>
+    
+    			
+    	    		                                            <div class="card-header">
+    
+    			
+    	    		                                                <h3>{app.name}</h3>	
+    
+    			
+    	    		                                                <span class="dept">{app.department}</span>
+    
+    			
+    	    		                                            </div>
+    
+    			
+    	    		                                            
+    
+    			
+    	    		                                            <div class="info">
+    
+    			
+    	    		                                                <p><strong>이메일:</strong> {app.email}</p>
+    
+    			
+    	    		                                                <p><strong>전화번호:</strong> {app.phone}</p>
+    
+    			
+    	    		                                                <p><strong>신청일:</strong> {new Date(app.submittedAt).toLocaleDateString()}</p>
+    
+    			
+    	    		                                            </div>
+    
+    			
+    	    		
+    
+    			
+    	    		                                            <details>
+    
+    			
+    	    		                                                <summary>상세 정보 보기</summary>
+    
+    			
+    	    		                                                <div class="details-content">
+    
+    			
+    	    		                                                    <p><strong>배경지식:</strong><br>{app.background || '-'}</p>
+    
+    			
+    	    		                                                </div>
+    
+    			
+    	    		                                            </details>
+    
+    			
+    	    		
+    
+    			
+    	    		                                            <div class="actions">
+    
+    			
+    	    		                                                {#if app.accepted}
+    
+    			
+    	    		                                                    <button class="btn approved-badge" disabled>승인됨</button>
+    
+    			
+    	    		                                                {:else}
+    
+    			
+    	    		                                                    <form method="POST" action="?/approve" use:enhance={({ formData }) => {
+    
+    			
+    	    		                                                        // Instant deactivation
+    
+    			
+    	    		                                                        const id = formData.get('id');
+    
+    			
+    	    		                                                        const idx = applications.findIndex(a => a.id === id);
+    
+    			
+    	    		                                                        if (idx !== -1) applications[idx].processing = true;
+    
+    			
+    	    		
+    
+    			
+    	    		                                                        return async ({ result }) => {
+    
+    			
+    	    		                                                            if (result.type === 'success') {
+    
+    			
+    	    		                                                                alert('회원 가입이 승인되었습니다.');
+    
+    			
+    	    		                                                                if (idx !== -1) {
+    
+    			
+    	    		                                                                    applications[idx].accepted = true;
+    
+    			
+    	    		                                                                    applications[idx].processing = false;
+    
+    			
+    	    		                                                                }
+    
+    			
+    	    		                                                            } else {
+    
+    			
+    	    		                                                                if (idx !== -1) applications[idx].processing = false;
+    
+    			
+    	    		                                                            }
+    
+    			
+    	    		                                                        };
+    
+    			
+    	    		                                                    }}>
+    
+    			
+    	    		                                                        <input type="hidden" name="id" value={app.id} />
+    
+    			
+    	    		                                                        <button class="btn approve" disabled={app.processing}>승인</button>
+    
+    			
+    	    		                                                    </form>
+    
+    			
+    	    		                                                {/if}
+    
+    			
+    	    		
+    
+    			
+    	    		                                                <form method="POST" action="?/reject" use:enhance={({ formData }) => {
+    
+    			
+    	    		                                                    const id = formData.get('id');
+    
+    			
+    	    		                                                    const idx = applications.findIndex(a => a.id === id);
+    
+    			
+    	    		                                                    if (idx !== -1) applications[idx].processing = true;
+    
+    			
+    	    		
+    
+    			
+    	    		                                                    return async ({ result, update }) => {
+    
+    			
+    	    		                                                        if (result.type === 'failure' || result.type === 'error') {
+    
+    			
+    	    		                                                            if (idx !== -1) applications[idx].processing = false;
+    
+    			
+    	    		                                                        }
+    
+    			
+    	    		                                                        update();
+    
+    			
+    	    		                                                    };
+    
+    			
+    	    		                                                }} onsubmit={() => confirm(app.accepted ? '신청 내역을 삭제하시겠습니까?' : '정말 거절하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.')}>
+    
+    			
+    	    		                                                    <input type="hidden" name="id" value={app.id} />
+    
+    			
+    	    		                                                    <button class="btn reject" disabled={app.processing}>{app.accepted ? '삭제' : '거절'}</button>
+    
+    			
+    	    		                                                </form>
+    
+    			
+    	    		                                            </div>
+    
+    			
+    	    		                                        </div>
+    
+    			
+    	    		                                    </div>
+    
+    			
+    	    		                                {/each}
+    
+    			
+    	    		                            </div>
+    
+    			
+    	    		                        </div>
+    
+    			
+    	    		
+    
+    			
+    	    		                        <button 
+    
+    			
+    	    		                            class="carousel-nav next" 
+    
+    			
+    	    		                            onclick={nextApp} 
+    
+    			
+    	    		                            disabled={appStartIndex + 3 >= applications.length}
+    
+    			
+    	    		                            aria-label="Next application"
+    
+    			
+    	    		                        >
+    
+    			
+    	    		                            &gt;
+    
+    			
+    	    		                        </button>
+    
+    			
+    	    		                    </div>
+    
+    			
+    	    		    			{/if}
+    
+    			
+    	    		
     
     				</section>
     
@@ -1034,6 +1378,20 @@
     .carousel-nav:disabled {
         opacity: 0.3;
         cursor: not-allowed;
+    }
+
+    .mb-2 {
+        margin-bottom: 0.5rem;
+    }
+
+    .skeleton-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .skeleton-carousel {
+        pointer-events: none;
     }
 
     @media (max-width: 1024px) {
