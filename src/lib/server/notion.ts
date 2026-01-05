@@ -244,7 +244,9 @@ export function getPropertyValue(property: any): any {
 			case 'status':
 				return property.status?.name ?? '';
 			case 'relation':
-				return (property.relation || []).map((r: any) => r.id);
+				return (property.relation || []).map((r: any) => r.id).join(', ');
+			case 'people':
+				return (property.people || []).map((p: any) => p.name || p.id).join(', ');
 			default:
 				return '';
 		}
@@ -280,7 +282,7 @@ export async function createMember(data: {
 		[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
 		[NOTION_PROPS.DEPT]: { rich_text: [{ text: { content: data.department } }] },
 		[NOTION_PROPS.MEMBER_TO_PRIVATE]: { relation: [{ id: privatePage.id }] },
-		[NOTION_PROPS.JOIN_DATE]: { date: { start: new Date().toISOString().split('T')[0] } }
+		[NOTION_PROPS.JOIN_DATE]: { date: { start: new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().split('T')[0] } }
 	});
 }
 
