@@ -82,29 +82,28 @@
 	</div>
 </nav>
 
-<main style="view-transition-name: page">
+<main>
 	{@render children()}
 </main>
 
-<button class="theme-toggle" onclick={toggleTheme} aria-label="Theme Toggle">
-	{#if currentTheme === 'light'}
-		☀️
-	{:else if currentTheme === 'dark'}
-		🌙
-	{:else}
-		🖥️
-	{/if}
-</button>
-
 <footer>
-	<div class="footer-info">
-		<p>
-			회장: {page.data.presidentName} | 
-			<a href="mailto:snumps0@gmail.com">snumps0@gmail.com</a> |
-			<a href="https://instagram.com/snu_mps" target="_blank" rel="noopener noreferrer" class="social-link" aria-label="Instagram">
-				<img src="/src/lib/assets/instagram.svg" alt="Instagram" class="social-icon" />
-			</a>
-		</p>
+	<div class="footer-content">
+		<div class="footer-info">
+			<p>
+				회장: {page.data.presidentName} | 
+				<a href="mailto:snumps0@gmail.com">snumps0@gmail.com</a> |
+				<a href="https://instagram.com/snu_mps" target="_blank" rel="noopener noreferrer" class="social-link" aria-label="Instagram">
+					<img src="/src/lib/assets/instagram.svg" alt="Instagram" class="social-icon" />
+				</a>
+			</p>
+		</div>
+		<div class="theme-selector">
+			<button class="theme-btn" class:active={currentTheme === 'light'} onclick={() => currentTheme = 'light'}>Light</button>
+			<span class="sep">|</span>
+			<button class="theme-btn" class:active={currentTheme === 'dark'} onclick={() => currentTheme = 'dark'}>Dark</button>
+			<span class="sep">|</span>
+			<button class="theme-btn" class:active={currentTheme === 'system'} onclick={() => currentTheme = 'system'}>System</button>
+		</div>
 	</div>
 </footer>
 
@@ -319,40 +318,26 @@
 		color: var(--text-primary);
 	}
 
-	.theme-toggle {
-		position: fixed;
-		bottom: 2rem;
-		right: 2rem;
-		width: 48px;
-		height: 48px;
-		border-radius: 50%;
-		background: var(--bg-secondary);
-		border: 1px solid var(--border-color);
-		box-shadow: var(--shadow);
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 1.25rem;
-		z-index: 100;
-		transition: all 0.2s;
-	}
-
-	.theme-toggle:hover {
-		transform: scale(1.1);
-	}
-
 	/* Footer */
 	footer {
 		margin-top: auto;
 		padding: 2rem 1.5rem;
 		border-top: 1px solid var(--border-color);
-		display: flex;
-		justify-content: center;
 		color: var(--text-secondary);
 		font-size: 0.875rem;
 		background: var(--bg-secondary);
 	}
+
+	.footer-content {
+		max-width: 1200px;
+		margin: 0 auto;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.footer-info p { margin: 0; }
 
 	.footer-info a {
 		color: var(--text-secondary);
@@ -362,6 +347,30 @@
 	.footer-info a:hover {
 		text-decoration: underline;
 	}
+
+	.theme-selector {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		color: var(--text-secondary);
+		opacity: 0.8;
+	}
+
+	.theme-btn {
+		background: none;
+		border: none;
+		padding: 0;
+		color: inherit;
+		cursor: pointer;
+		font-size: 0.75rem;
+		font-weight: 500;
+		transition: color 0.2s;
+	}
+
+	.theme-btn:hover { color: var(--text-primary); }
+	.theme-btn.active { font-weight: 700; color: var(--text-primary); text-decoration: underline; }
+
+	.sep { font-size: 0.7rem; opacity: 0.5; }
 
 	.social-link {
 		display: inline-flex;
