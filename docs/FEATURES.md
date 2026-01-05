@@ -26,3 +26,4 @@
 - **Smart Phone Normalization**: Automatically converts various input styles (e.g., `01012345678`, `010 1234 5678`) into the standardized `010-XXXX-XXXX` format.
 - **Smart Paging**: Handles large databases via automatic pagination helpers.
 - **Skeleton Loaders**: Shimmering placeholders ensure a smooth perceived performance during data loading.
+- **Instant Admin Feedback**: Optimistic UI updates provide immediate feedback for critical actions like membership approval.
