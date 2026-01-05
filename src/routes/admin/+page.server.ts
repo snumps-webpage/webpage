@@ -99,12 +99,10 @@ export const actions = {
 			
 			invalidateCache(`member_${app.email}`);
             
-            // 2. Send Welcome Email (Non-critical)
-            await sendWelcomeEmail(app.email, app.name);
-
-            // 3. Mark as accepted in Notion (Critical)
+            // 2. Mark as accepted in Notion (Critical)
             await markApplicationAsAccepted(id);
 
+            console.log(`[Admin] Approval flow completed for ${app.name}`);
 			return { success: true };
 		} catch (e) {
 			console.error('[Admin] Approval flow failed:', e);
