@@ -51,6 +51,7 @@ export const load: PageServerLoad = async (event) => {
 
     const requestWithSpeakers = seminarRequests
         .filter(r => r.status === 'pending')
+        .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime())
         .map(r => ({
             ...r,
             speakerNames: Array.isArray(r.speakerIds) 
