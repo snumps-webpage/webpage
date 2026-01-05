@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
-import { queryDatabase, getDatabaseSchema, getPropertyValue, type NotionProperty } from '$lib/server/notion';
+import { queryDatabase, getDatabaseSchema, getPropertyValue, type NotionProperty, type DatabasePropertySchema } from '$lib/server/notion';
 import { isAdmin } from '$lib/server/admin';
 import type { PageServerLoad } from './$types';
 
@@ -29,10 +29,10 @@ export const load: PageServerLoad = async (event) => {
 
 		const columns = Object.entries(schema).map(([name, prop]) => ({
 			name,
-			type: prop.type
+			type: (prop as DatabasePropertySchema).type
 		}));
 
-		const rows = pages.map((page) => {
+		const rows = pages.map((page: any) => {
 			const row: Record<string, string> = {};
 			for (const [name, prop] of Object.entries(page.properties)) {
 				row[name] = getPropertyValue(prop as NotionProperty);
