@@ -57,7 +57,7 @@ function handleNotionError(error: unknown, context: string) {
  * Generic database query with automatic pagination.
  */
 export async function notionQuery(databaseId: string, options: any = {}): Promise<any[]> {
-	console.log(`>>> [Notion Service] Querying DB: ${databaseId}`);
+	console.log(`>>> [Notion Service] notionQuery START [DB: ${databaseId}]`);
 	const notion = getClient();
 	let allResults: any[] = [];
 	let hasMore = true;
@@ -156,9 +156,6 @@ export async function notionRetrieve(pageId: string): Promise<any> {
 	const notion = getClient();
 	try {
 		const response = await notion.pages.retrieve({ page_id: pageId });
-		if (!response || !('properties' in response)) {
-			throw new Error('Retrieved object is not a full page');
-		}
 		console.log('>>> [Notion Service] Retrieve success');
 		return response;
 	} catch (error) {
@@ -236,7 +233,6 @@ export async function createMember(data: {
 	department: string;
 	background: string;
 }) {
-	console.log('[Notion] createMember START');
 	const privateDbId = env.NOTION_DB_PRIVATE_INFO;
 	const memberDbId = env.NOTION_DB_MEMBERS;
 	if (!privateDbId || !memberDbId) throw new Error('DB IDs missing');
@@ -257,7 +253,6 @@ export async function createMember(data: {
 }
 
 export async function getMemberByEmail(email: string) {
-	console.log(`[Notion] getMemberByEmail: ${email}`);
 	return withCache(`member_${email}`, 300000, async () => {
 		const dbId = env.NOTION_DB_PRIVATE_INFO;
 		if (!dbId) throw new Error('NOTION_DB_PRIVATE_INFO missing');
