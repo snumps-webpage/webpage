@@ -217,8 +217,8 @@
         {/if}
 	{:else}
 		<div class="landing-hero">
-			<h1>SNUMPS 자동화</h1>
-			<p class="subtitle">SNU Mathematical Problem solving Society</p>
+			<h1>SNUMPS Webpage</h1>
+			<p class="subtitle">서울대학교 수학 문제 연구회</p>
             <div class="login-container">
                 <button class="google-login-btn" onclick={() => signIn('google')}>
                     <svg viewBox="0 0 24 24" width="24" height="24">
@@ -229,7 +229,7 @@
                     </svg>
                     <span>서울대학교 구글 계정으로 로그인</span>
                 </button>
-                <p class="login-hint">@snu.ac.kr 계정으로만 이용 가능합니다.</p>
+                <p class="login-hint">@snu.ac.kr 계정만 이용 가능합니다.</p>
             </div>
 		</div>
 	{/if}
