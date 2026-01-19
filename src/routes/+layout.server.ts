@@ -30,15 +30,23 @@ export const load: LayoutServerLoad = async (event) => {
 
 	
 
-				const path = event.url.pathname;
+								const path = event.url.pathname;
 
 	
 
-				const isSignupPage = path === '/signup';
+				
 
 	
 
-				const isWaitPage = path === '/wait';
+								const isSignupPage = path.startsWith('/signup');
+
+	
+
+				
+
+	
+
+								const isWaitPage = path === '/wait';
 
 	
 
