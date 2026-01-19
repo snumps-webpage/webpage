@@ -4,6 +4,13 @@ import { env } from '$env/dynamic/private';
 
 const ALLOWED_DOMAIN = 'snu.ac.kr';
 
+// Fix for Vercel: explicit AUTH_URL ensures basePath resolution works
+// Prioritize process.env.VERCEL_URL if AUTH_URL is missing
+if (!env.AUTH_URL && process.env.VERCEL_URL) {
+    // VERCEL_URL doesn't include https://
+    process.env.AUTH_URL = `https://${process.env.VERCEL_URL}/auth`;
+}
+
 export const { handle, signIn, signOut } = SvelteKitAuth({
 	providers: [
 		Google({
