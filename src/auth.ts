@@ -13,6 +13,7 @@ export const { handle, signIn, signOut } = SvelteKitAuth({
 	],
 	secret: env.AUTH_SECRET,
 	trustHost: true,
+    basePath: '/auth',
 	callbacks: {
 		signIn: async ({ user }) => {
 			const email = user.email;
