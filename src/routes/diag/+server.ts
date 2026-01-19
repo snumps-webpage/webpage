@@ -1,8 +1,15 @@
 import { json } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { Client } from '@notionhq/client';
+import { isAdmin } from '$lib/server/admin';
+import type { RequestHandler } from './$types';
 
-export const GET = async () => {
+export const GET: RequestHandler = async ({ locals }) => {
+    const session = await locals.auth();
+    if (!session?.user?.email || !isAdmin(session.user.email)) {
+        return json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     interface DiagInfo {
         env: {
             NOTION_API_KEY: boolean;
