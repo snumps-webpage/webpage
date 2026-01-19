@@ -28,12 +28,22 @@ export async function getApplications(): Promise<Application[]> {
 	}
 }
 
-export async function addApplication(app: Omit<Application, 'id' | 'submittedAt'>) {
+export async function addApplication(app: Omit<Application, 'id' | 'submittedAt' | 'accepted'>) {
 	try {
 		const id = await createApplicationInNotion(app);
-		return { ...app, id, submittedAt: new Date().toISOString() };
+		return { ...app, id, submittedAt: new Date().toISOString(), accepted: false };
 	} catch (e) {
 		console.error('Failed to create application in Notion:', e);
+		throw e;
+	}
+}
+
+export async function updateApplication(id: string, app: Omit<Application, 'id' | 'submittedAt' | 'accepted' | 'email'>) {
+	try {
+		const { updateApplicationInNotion } = await import('./notion');
+		await updateApplicationInNotion(id, app);
+	} catch (e) {
+		console.error('Failed to update application in Notion:', e);
 		throw e;
 	}
 }

@@ -1,4 +1,4 @@
-import { error, fail, redirect } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { 
     getApplications, isAdmin, removeApplication 
 } from '$lib/server/admin';
@@ -14,7 +14,7 @@ import {
 import { 
     getSeminarRequests, deleteSeminarRequest, updateSeminarRequestStatus 
 } from '$lib/server/seminars';
-import { sendSeminarStatusNotification, sendWelcomeEmail } from '$lib/server/mail';
+import { sendSeminarStatusNotification } from '$lib/server/mail';
 import { invalidateCache } from '$lib/server/cache';
 import { normalizePhoneNumber } from '$lib/utils';
 import type { PageServerLoad } from './$types';
@@ -111,7 +111,7 @@ export const actions = {
 		try {
 			await removeApplication(id);
 			return { success: true };
-		} catch (e) {
+		} catch {
 			return fail(500, { error: 'Failed to delete application' });
 		}
 	},

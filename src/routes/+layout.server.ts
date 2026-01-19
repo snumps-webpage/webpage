@@ -1,6 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { getMemberByEmail, getPresidentName } from '$lib/server/notion';
-import { isAdmin } from '$lib/server/admin';
+import { isAdmin, getApplications, type Application } from '$lib/server/admin';
 import { getSemesterInfo } from '$lib/utils';
 import type { LayoutServerLoad } from './$types';
 
@@ -18,33 +18,176 @@ export const load: LayoutServerLoad = async (event) => {
 		})
 	]);
 
-	const isUserAdmin = session?.user?.email ? isAdmin(session.user.email) : false;
+		const isUserAdmin = session?.user?.email ? isAdmin(session.user.email) : false;
 
-	if (session?.user?.email) {
-		const isSignupPage = event.url.pathname === '/signup';
-		const isLoginPage = event.url.pathname === '/login';
-		const isApi = event.url.pathname.startsWith('/api');
-		const isAuth = event.url.pathname.startsWith('/auth');
-		const isSignOut = event.url.pathname.includes('signout');
+	    let userMember = null;
 
-		// Prevent infinite loops and redundant checks during authentication flows
-		if (!isSignupPage && !isLoginPage && !isApi && !isAuth && !isSignOut && !isUserAdmin) {
-			try {
-				const member = await getMemberByEmail(session.user.email);
-				if (!member) {
-					throw redirect(302, '/signup');
-				}
-			} catch (e) {
-				// Re-throw redirects to ensure SvelteKit handles them correctly
-				if (e && typeof e === 'object' && 'status' in e && e.status === 302) throw e;
-				console.error('Layout Membership Verification Error:', e);
+	    let userApplication = null;
+
+	
+
+			if (session?.user?.email) {
+
+	
+
+				const path = event.url.pathname;
+
+	
+
+				const isSignupPage = path === '/signup';
+
+	
+
+				const isWaitPage = path === '/wait';
+
+	
+
+				const isApi = path.startsWith('/api');
+
+	
+
+				const isAuth = path.startsWith('/auth');
+
+	
+
+				const isSignOut = path.includes('signout');
+
+	
+
+		
+
+	
+
+				try {
+
+	
+
+		            const [member, apps] = await Promise.all([
+
+	
+
+		                getMemberByEmail(session.user.email),
+
+	
+
+		                getApplications()
+
+	
+
+		            ]);
+
+	
+
+		            userMember = member;
+
+	
+
+		            userApplication = apps.find((a: Application) => a.email === session.user?.email);
+
+	
+
+		
+
+	
+
+		            const isAllowedPath = isSignupPage || isWaitPage || isApi || isAuth || isSignOut;
+
+	
+
+		
+
+	
+
+		            if (!userMember && !isUserAdmin) {
+
+	
+
+		                if (userApplication && !userApplication.accepted) {
+
+	
+
+		                    // Pending state: only allow /wait, /signup (edit), and auth/api
+
+	
+
+		                    if (!isAllowedPath) {
+
+	
+
+		                        throw redirect(302, '/wait');
+
+	
+
+		                    }
+
+	
+
+		                } else if (!userApplication) {
+
+	
+
+		                    // New user state: only allow /signup and auth/api
+
+	
+
+		                    if (!isSignupPage && !isApi && !isAuth && !isSignOut) {
+
+	
+
+		                        throw redirect(302, '/signup');
+
+	
+
+		                    }
+
+	
+
+		                }
+
+	
+
+		            }
+
+	
+
+		        } catch (e) {
+
+	
+
+		            if (e && typeof e === 'object' && 'status' in e && e.status === 302) throw e;
+
+	
+
+		            console.error('Layout Membership Verification Error:', e);
+
+	
+
+		        }
+
+	
+
 			}
-		}
-	}
 
-	return {
-		session,
-		isAdmin: isUserAdmin,
-		presidentName
+	
+
+		
+
+	
+
+		return {
+
+			session,
+
+			isAdmin: isUserAdmin,
+
+	        isMember: !!userMember,
+
+	        application: userApplication,
+
+			presidentName
+
+		};
+
 	};
-};
+
+	

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
 	let { data, form } = $props();
 </script>
 
@@ -10,8 +9,10 @@
 		{#if data.pending}
 			<div class="status-box pending">
 				<h2>⏳ 가입 승인 대기중</h2>
-				<p>가입 신청이 접수되었습니다. 관리자 승인을 기다려주세요.</p>
-				<p>승인이 완료되면 메인 페이지로 접근할 수 있습니다.</p>
+				<p>가입 신청이 이미 접수되었습니다. 관리자 승인을 기다려주세요.</p>
+                <div class="alert-actions mt-4">
+                    <a href="/wait" class="btn-home">대기 페이지로 가기</a>
+                </div>
 			</div>
 		{:else}
 			<p class="desc">
@@ -23,51 +24,52 @@
 				<div class="error">{form.error}</div>
 			{/if}
 
-		<form method="POST" use:enhance>
-			<div class="field">
-				<label for="name">이름 <span class="req">*</span></label>
-				<input id="name" type="text" name="name" value={data.parsedName} disabled />
-				<span class="hint">Google 계정 정보에서 가져온 이름입니다.</span>
-			</div>
-
-			<div class="field">
-				<label for="department">학과 <span class="req">*</span></label>
-				<input id="department" type="text" name="department" value={data.parsedDept} disabled />
-				<span class="hint">Google 계정 정보에서 가져온 학과입니다.</span>
-			</div>
-
-				<div class="form-group">
-					<label for="phone">전화번호 <span class="req">*</span></label>
-					<input 
-						type="tel" 
-						id="phone" 
-						name="phone" 
-						required 
-						placeholder="010-1234-5678" 
-						pattern="010[- ]?\d&#123;3,4&#125;[- ]?\d&#123;4&#125;"
-						title="숫자만 입력하거나 하이픈(-) 또는 공백을 포함할 수 있습니다."
-					/>
+			{#if form?.success}
+				<div class="success-box">
+					<h2>✅ 신청 완료</h2>
+					<p>가입 신청이 성공적으로 접수되었습니다. 관리자 승인 후 대시보드 이용이 가능합니다.</p>
+					<a href="/" class="btn-home">메인으로 가기</a>
 				</div>
-
-				<div class="form-group">
-					<label for="background">배경지식</label>
-					<textarea id="background" name="background" rows="3" placeholder="관심 분야나 관련 경험을 적어주세요." style="resize: none;"></textarea>
-				</div>
-
-				<div class="agreement">
-					<label>
-						<input type="checkbox" name="agreement" required />
-						<span>[필수] 개인정보 수집 및 이용에 동의합니다.</span>
-					</label>
-					<div class="terms">
-						수집 항목: 이름, 학과, 전화번호, 이메일<br>
-						수집 목적: 동아리 회원 관리 및 연락<br>
-						보유 기간: 동아리 탈퇴 시까지
+			{:else}
+				<form method="POST">
+					<div class="form-group">
+						<label for="email">이메일</label>
+						<input type="text" id="email" value={data.user?.email} disabled />
+						<span class="hint">로그인된 계정입니다.</span>
 					</div>
-				</div>
 
-				<button type="submit" class="submit-btn">가입 신청하기</button>
-			</form>
+					<div class="form-group">
+						<label for="name">이름 <span class="req">*</span></label>
+						<input type="text" id="name" name="name" value={data.user?.name} required placeholder="홍길동" />
+					</div>
+
+					<div class="form-group">
+						<label for="department">학과 <span class="req">*</span></label>
+						<input type="text" id="department" name="department" required placeholder="수리과학부" />
+					</div>
+
+					<div class="form-group">
+						<label for="phone">전화번호 <span class="req">*</span></label>
+						<input type="tel" id="phone" name="phone" required placeholder="010-0000-0000" />
+					</div>
+
+					<div class="form-group">
+						<label for="background">배경지식</label>
+						<textarea id="background" name="background" rows="4" placeholder="관심 분야나 관련 경험을 적어주세요."></textarea>
+					</div>
+
+					<div class="agreement">
+						<label class="checkbox-container">
+							<input type="checkbox" name="agreement" required />
+							<span class="checkmark"></span>
+							개인정보 수집 및 이용에 동의합니다. (필수)
+						</label>
+					</div>
+
+					<button type="submit" class="btn-submit">가입 신청하기</button>
+                    <a href="/" class="btn-cancel-link">취소</a>
+				</form>
+			{/if}
 		{/if}
 	</div>
 </div>
@@ -100,124 +102,189 @@
         text-align: center;
     }
 
-	.desc { color: var(--text-secondary); margin-bottom: 2rem; font-size: 0.9rem; }
+	.desc { color: var(--text-secondary); margin-bottom: 2rem; font-size: 0.95rem; text-align: center; }
 
-	.field { margin-bottom: 1.5rem; }
-
-	label {
-		display: block;
-		margin-bottom: 0.5rem;
-		font-weight: 600;
-		color: var(--text-secondary);
-	}
-
-    .req {
-        color: #ef4444; /* Red color for required asterisk */
-        margin-left: 0.1rem;
+    .form-group {
+        margin-bottom: 1.5rem;
     }
 
-    input, textarea {
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        font-size: 0.9rem;
+    }
+
+    .form-group label span.req {
+        color: var(--color-danger-text);
+    }
+
+    .form-group input, .form-group textarea {
         width: 100%;
-        padding: 0.75rem 1rem;
+        padding: 0.75rem;
         border: 1px solid var(--border-color);
         border-radius: 8px;
         font-size: 1rem;
-        transition: border-color 0.2s, box-shadow 0.2s;
-        box-sizing: border-box;
         background: var(--bg-primary);
         color: var(--text-primary);
+        box-sizing: border-box;
     }
 
-    input:focus, textarea:focus {
+    .form-group input:focus, .form-group textarea:focus {
         outline: none;
         border-color: #667eea;
         box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
 
-    input[disabled] {
-        background: var(--btn-secondary);
+    .form-group .hint {
+        font-size: 0.8rem;
         color: var(--text-secondary);
-        cursor: not-allowed;
-    }
-
-    textarea {
-        resize: vertical;
-        min-height: 100px;
-    }
-
-    .hint {
-        font-size: 0.75rem;
-        color: var(--text-secondary);
-        margin-top: 0.4rem;
+        margin-top: 0.25rem;
         display: block;
     }
 
-    .submit-btn {
-        width: 100%;
-        padding: 0.875rem;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-size: 1rem;
-        font-weight: 600;
+    .agreement {
+        margin: 2rem 0;
+    }
+
+    .checkbox-container {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
         cursor: pointer;
-        transition: opacity 0.2s;
-        box-shadow: 0 4px 6px rgba(102, 126, 234, 0.25);
-        margin-top: 1rem;
+        font-size: 0.95rem;
+        color: var(--text-secondary);
+        position: relative;
+        padding-left: 35px;
         user-select: none;
     }
 
-    .submit-btn:hover {
-        opacity: 0.9;
+    .checkbox-container input {
+        position: absolute;
+        opacity: 0;
+        cursor: pointer;
+        height: 0;
+        width: 0;
     }
 
-    .error {
-        background: #fee2e2;
-        color: #dc2626;
-        padding: 1rem;
-        border-radius: 8px;
-        margin-bottom: 1.5rem;
-        font-size: 0.9rem;
+    .checkmark {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 25px;
+        width: 25px;
+        background-color: var(--btn-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
     }
 
-    .status-box {
-        background: #fff7ed;
-        border: 1px solid #ffedd5;
+    .checkbox-container:hover input ~ .checkmark {
+        background-color: var(--border-color);
+    }
+
+    .checkbox-container input:checked ~ .checkmark {
+        background-color: #667eea;
+        border-color: #667eea;
+    }
+
+    .checkmark:after {
+        content: "";
+        position: absolute;
+        display: none;
+    }
+
+    .checkbox-container input:checked ~ .checkmark:after {
+        display: block;
+    }
+
+    .checkbox-container .checkmark:after {
+        left: 9px;
+        top: 5px;
+        width: 5px;
+        height: 10px;
+        border: solid white;
+        border-width: 0 3px 3px 0;
+        transform: rotate(45deg);
+    }
+
+    .btn-submit {
+        width: 100%;
         padding: 1rem;
+        background: var(--brand-gradient);
+        color: white;
+        border: none;
         border-radius: 8px;
-        margin-bottom: 2rem;
-        color: #9a3412;
-        font-size: 0.9rem;
-        line-height: 1.5;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.1s, opacity 0.2s;
+    }
+
+    .btn-submit:active {
+        transform: scale(0.98);
+    }
+
+	.btn-submit:hover {
+		opacity: 0.9;
+	}
+
+    .status-box.pending {
+        background: var(--color-warning-bg);
+        color: var(--color-warning-text);
+        padding: 2rem;
+        border-radius: 12px;
         text-align: center;
     }
 
-    .agreement {
-        margin: 1.5rem 0;
-        padding: 1rem;
-        background: var(--btn-secondary);
+    .status-box h2 {
+        margin-top: 0;
+        font-size: 1.25rem;
+    }
+
+
+    .btn-home {
+        display: inline-block;
+        margin-top: 1.5rem;
+        padding: 0.75rem 1.5rem;
+        background: var(--text-primary);
+        color: var(--bg-primary);
+        text-decoration: none;
         border-radius: 8px;
+        font-weight: 600;
     }
 
-    .agreement label {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        color: var(--text-primary);
-        cursor: pointer;
-        margin-bottom: 0.5rem;
-    }
-
-    .agreement input {
-        width: auto;
-        margin: 0;
-    }
-
-    .terms {
-        font-size: 0.8rem;
+    .btn-cancel-link {
+        display: block;
+        text-align: center;
+        margin-top: 1rem;
         color: var(--text-secondary);
-        padding-left: 1.8rem;
-        line-height: 1.4;
+        font-size: 0.9rem;
+        text-decoration: underline;
+    }
+
+    .success-box {
+        text-align: center;
+        padding: 2rem 0;
+    }
+
+    .success-box h2 {
+        color: #10b981;
+        margin-bottom: 1rem;
+    }
+
+    .error {
+        background: var(--color-danger-bg);
+        color: var(--color-danger-text);
+        padding: 0.75rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        font-size: 0.9rem;
+        text-align: center;
+    }
+
+    .mt-4 {
+        margin-top: 1rem;
     }
 </style>
+

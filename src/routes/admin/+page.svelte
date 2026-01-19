@@ -5,11 +5,41 @@
 
 	let { data } = $props();
     
+    interface Application {
+        id: string;
+        name: string;
+        email: string;
+        phone: string;
+        department: string;
+        background: string;
+        submittedAt: string;
+        accepted: boolean;
+        processing?: boolean;
+    }
+
+    interface SeminarRequest {
+        id: string;
+        title: string;
+        speakerNames: string[];
+        submittedAt: string;
+        status: string;
+    }
+
+    interface Event {
+        id: string;
+        title: string;
+        date: string;
+        type: string;
+        status: string;
+        pathId?: string;
+        attendCode?: string;
+    }
+
     // State for applications to allow partial updates
-    let applications = $state<any[]>([]);
-    let seminarRequests = $state<any[]>([]);
-    let events = $state<any[]>([]);
-    let attendanceQueue = $state<any[]>([]);
+    let applications = $state<Application[]>([]);
+    let seminarRequests = $state<SeminarRequest[]>([]);
+    let events = $state<Event[]>([]);
+    let attendanceQueue = $state<AttendanceRecord[]>([]);
 
     let loadingApps = $state(true);
     let loadingSeminars = $state(true);
@@ -22,15 +52,15 @@
     // Resolve streamed data
     $effect(() => {
         data.applications.then(val => {
-            applications = val.map((app: any) => ({ ...app, processing: false }));
+            applications = (val as Application[]).map((app) => ({ ...app, processing: false }));
             loadingApps = false;
         });
         data.seminarRequests.then(val => {
-            seminarRequests = val;
+            seminarRequests = val as SeminarRequest[];
             loadingSeminars = false;
         });
         data.events.then(val => {
-            events = val;
+            events = val as Event[];
             loadingEvents = false;
         });
         data.attendanceQueue.then(val => {
@@ -55,7 +85,7 @@
             const res = await fetch('/api/admin/applications');
             if (res.ok) {
                 const newApps = await res.json();
-                applications = newApps.map((app: any) => ({ ...app, processing: false }));
+                applications = newApps.map((app: Application) => ({ ...app, processing: false }));
                 appStartIndex = 0; // Reset carousel to start on refresh
             }
         } catch (e) {
@@ -447,15 +477,15 @@
     
     			                    
     
-    			                    {#each Array.from({ length: totalSeminarPages }) as _, i}
+    			                    {#each Array.from({ length: totalSeminarPages }).map((_, i) => i) as i (i)}
     
     			                        <button 
-    
-    			                            class="page-btn" 
     
     			                            class:active={seminarPage === i + 1} 
     
     			                            onclick={() => seminarPage = i + 1}
+    
+    			                            class="page-btn"
     
     			                        >
     

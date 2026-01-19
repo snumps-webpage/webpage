@@ -15,12 +15,6 @@
 		applyTheme(currentTheme);
 	});
 
-	function toggleTheme() {
-		if (currentTheme === 'light') currentTheme = 'dark';
-		else if (currentTheme === 'dark') currentTheme = 'system';
-		else currentTheme = 'light';
-	}
-
 	onNavigate((navigation) => {
 		if (!document.startViewTransition) return;
 
