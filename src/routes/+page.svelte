@@ -1,17 +1,15 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
-    import { signIn, signOut } from '@auth/sveltekit/client';
+    import { signIn } from '@auth/sveltekit/client';
 	import { getSemesterKeyFromDate } from '$lib/utils';
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import type { PageData } from './$types';
-	import type { Activity } from '$lib/types';
 
 	let { data }: { data: PageData } = $props();
 	const session = $derived(page.data.session);
     const isAdmin = $derived(page.data.isAdmin);
     const isMember = $derived(data.isMember);
-    const application = $derived(data.application);
 
 	// Visibility states
 	let showProfile = $state(false); // Default to false to keep view clean
@@ -30,7 +28,7 @@
 	let editingSeminarId = $state<string | null>(null);
 </script>
 
-{#snippet collapsibleCard(title: string, bindValue: boolean, toggle: () => void, children: any)}
+{#snippet collapsibleCard(title: string, bindValue: boolean, toggle: () => void, children: import('svelte').Snippet)}
 	<section class="card {bindValue ? '' : 'collapsed'}">
 		<button 
 			type="button"
@@ -102,7 +100,7 @@
                                     <p class="empty-hint">참여 중인 세미나나 신청 내역이 없습니다.</p>
                                 {:else}
                                     <div class="seminar-list">
-                                        {#each result.approvedSeminars as seminar}
+                                        {#each result.approvedSeminars as seminar (seminar.id)}
                                             <div class="seminar-item approved">
                                                 <div class="seminar-info">
                                                     <span class="sem-tag">기록됨</span>
@@ -128,7 +126,7 @@
                                                 </div>
                                             </div>
                                         {/each}
-                                        {#each result.seminarRequests as req}
+                                        {#each result.seminarRequests as req (req.id)}
                                             <div class="seminar-item request {req.status}">
                                                 <div class="seminar-info">
                                                     <span class="sem-tag status">{req.status === 'approved' ? '승인됨' : req.status === 'rejected' ? '반려됨' : '승인 대기'}</span>
@@ -171,13 +169,13 @@
                             <h3>활동 목록</h3>
                             <select bind:value={selectedSemester} class="semester-select">
                                 <option value="all">전체 활동</option>
-                                {#each result.semesters as sem}
+                                {#each result.semesters as sem (sem)}
                                     <option value={sem}>{sem}학기</option>
                                 {/each}
                             </select>
                         </div>
 
-                        {#if result.activities.filter((a: any) => selectedSemester === 'all' || getSemesterKeyFromDate(a.date) === selectedSemester).length === 0}
+                        {#if result.activities.filter((a) => selectedSemester === 'all' || getSemesterKeyFromDate(a.date) === selectedSemester).length === 0}
                             <p class="empty-state">활동 내역이 없습니다.</p>
                         {:else}
                             <div class="table-container">
@@ -191,7 +189,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {#each result.activities.filter((a: any) => selectedSemester === 'all' || getSemesterKeyFromDate(a.date) === selectedSemester) as activity (activity.id)}
+                                        {#each result.activities.filter((a) => selectedSemester === 'all' || getSemesterKeyFromDate(a.date) === selectedSemester) as activity (activity.id)}
                                             <tr class={activity.attended ? 'attended' : 'absent'}>
                                                 <td class="date">{activity.date}</td>
                                                 <td class="name">
@@ -216,31 +214,6 @@
                     </section>
                 {/if}
             {/await}
-        {:else if application && !application.accepted}
-            <div class="pending-view">
-                <div class="alert-box">
-                    <span class="icon">⌛</span>
-                    <h2>가입 승인 대기 중</h2>
-                    <p class="msg">
-                        {session.user.name}님, 회원 가입 신청이 정상적으로 접수되었습니다.<br>
-                        현재 관리자의 승인을 기다리고 있습니다.
-                    </p>
-                    <p class="hint">승인이 완료되면 시스템을 정상적으로 이용하실 수 있습니다.</p>
-                    
-                    <div class="alert-actions">
-                        <a href="/signup" class="btn-edit">📝 신청 정보 수정하기</a>
-                    </div>
-                </div>
-            </div>
-        {:else}
-            <!-- Logged in SNU user but NO application and NO member record -->
-            <div class="new-user-view">
-                <div class="welcome-box">
-                    <h1>SNUMPS에 오신 것을 환영합니다!</h1>
-                    <p>시스템 이용을 위해 회원 가입 신청이 필요합니다.</p>
-                    <a href="/signup" class="btn-signup-large">가입 신청하러 가기</a>
-                </div>
-            </div>
         {/if}
 	{:else}
 		<div class="landing-hero">
@@ -551,39 +524,6 @@
 
 	.loading, .error-banner, .empty-hint, .empty-state { text-align: center; padding: 2rem; color: var(--text-secondary); }
 
-	/* Pending View */
-    .pending-view, .new-user-view {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 60vh;
-    }
-
-    .alert-box, .welcome-box {
-        background: var(--bg-secondary);
-        padding: 3rem;
-        border-radius: 20px;
-        border: 1px solid var(--border-color);
-        box-shadow: var(--shadow);
-        text-align: center;
-        max-width: 500px;
-    }
-
-    .alert-box .icon { font-size: 3rem; display: block; margin-bottom: 1rem; }
-    .alert-box .msg { font-size: 1.1rem; line-height: 1.6; margin-bottom: 1rem; }
-    .alert-box .hint { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 2rem; }
-    
-    .alert-actions { display: flex; flex-direction: column; gap: 0.75rem; }
-    .btn-edit, .btn-signup-large { 
-        display: block;
-        padding: 0.8rem;
-        background: #667eea;
-        color: white;
-        text-decoration: none;
-        border-radius: 8px;
-        font-weight: 600;
-    }
-
 	/* Landing Hero */
     .landing-hero {
         display: flex;
@@ -598,6 +538,7 @@
         font-size: 3.5rem;
         margin-bottom: 0.5rem;
         background: var(--brand-gradient);
+        background-clip: text;
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
     }

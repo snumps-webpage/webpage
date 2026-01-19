@@ -1,6 +1,5 @@
 <script lang="ts">
     import { enhance } from '$app/forms';
-    import { TIMEZONES, DEFAULT_TIMEZONE } from '$lib/constants';
     import type { SeminarSpeaker } from '$lib/types';
 
     let { data, form } = $props();

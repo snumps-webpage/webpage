@@ -3,9 +3,27 @@ import {
 	getPrivateInfo, updatePrivateInfo, getUserSeminars, updateSeminar 
 } from '$lib/server/notion';
 import { getSeminarRequests } from '$lib/server/seminars';
+import { getApplications, type Application } from '$lib/server/admin';
 import { getSemesterInfo, getSemesterKeyFromDate, normalizePhoneNumber } from '$lib/utils';
-import { fail, error } from '@sveltejs/kit';
+import { fail } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
+
+interface DashboardActivity {
+	id: string;
+	name: string;
+	date: string;
+	type: string;
+	attendees: string[];
+	url: string;
+}
+
+interface UserAttendedActivity {
+	id: string;
+	name: string;
+	date: string;
+	type: string;
+	url: string;
+}
 
 export const load: PageServerLoad = async (event) => {
 	const session = await event.locals.auth();
@@ -23,10 +41,15 @@ export const load: PageServerLoad = async (event) => {
 
 	try {
 		const member = await getMemberByEmail(session.user.email);
+        let userApplication = null;
+        if (!member) {
+            const apps = await getApplications();
+            userApplication = apps.find((a: Application) => a.email === session.user?.email);
+        }
 		
 		const dashboardPromise = async () => {
 			if (!member) {
-				return { error: '회원 DB에서 이메일을 찾을 수 없습니다.' };
+				return null; // Local handled
 			}
 
 			try {
@@ -49,7 +72,7 @@ export const load: PageServerLoad = async (event) => {
 					req.speakerIds.includes(member.memberId)
 				);
 
-				const currentActivities = rawCurrentActivities.map((act: any) => ({
+				const currentActivities = (rawCurrentActivities as DashboardActivity[]).map((act) => ({
 					id: act.id,
 					name: act.name,
 					date: act.date,
@@ -59,15 +82,15 @@ export const load: PageServerLoad = async (event) => {
 					semester: semester.key
 				}));
 
-				const attendedCount = currentActivities.filter((a: any) => a.attended).length;
+				const attendedCount = currentActivities.filter((a) => a.attended).length;
 
-				const semesters = Array.from(new Set(allAttendedActivities.map((a: any) => getSemesterKeyFromDate(a.date))));
+				const semesters = Array.from(new Set((allAttendedActivities as UserAttendedActivity[]).map((a) => getSemesterKeyFromDate(a.date))));
 				if (!semesters.includes(semester.key)) semesters.push(semester.key);
 				semesters.sort().reverse();
 
-				const pastAttended = allAttendedActivities
-					.filter((a: any) => getSemesterKeyFromDate(a.date) !== semester.key)
-					.map((a: any) => ({
+				const pastAttended = (allAttendedActivities as UserAttendedActivity[])
+					.filter((a) => getSemesterKeyFromDate(a.date) !== semester.key)
+					.map((a) => ({
 						...a,
 						attended: true,
 						semester: getSemesterKeyFromDate(a.date),
@@ -97,6 +120,8 @@ export const load: PageServerLoad = async (event) => {
 		return {
 			semester: semester.name,
 			currentSemesterKey: semester.key,
+            isMember: !!member,
+            application: userApplication,
 			streamed: {
 				dashboard: dashboardPromise()
 			}

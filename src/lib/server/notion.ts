@@ -443,6 +443,20 @@ export async function markApplicationAsAccepted(id: string) {
 	await notionUpdate(id, { [propertyName]: { checkbox: true } });
 }
 
+export async function updateApplicationInNotion(id: string, data: {
+	name: string;
+	phone: string;
+	department: string;
+	background: string;
+}) {
+	await notionUpdate(id, {
+		[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
+		[NOTION_PROPS.PHONE_APP]: { phone_number: data.phone },
+		[NOTION_PROPS.DEPT]: { rich_text: [{ text: { content: data.department } }] },
+		[NOTION_PROPS.BACKGROUND]: { rich_text: [{ text: { content: data.background } }] }
+	});
+}
+
 export async function createApplicationInNotion(data: {
 	email: string;
 	name: string;

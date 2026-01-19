@@ -32,9 +32,9 @@ export const load: PageServerLoad = async (event) => {
 			type: (prop as DatabasePropertySchema).type
 		}));
 
-		const rows = pages.map((page: any) => {
+		const rows = pages.map((page) => {
 			const row: Record<string, string> = {};
-			for (const [name, prop] of Object.entries(page.properties)) {
+			for (const [name, prop] of Object.entries((page as { properties: Record<string, NotionProperty> }).properties)) {
 				const val = getPropertyValue(prop as NotionProperty);
                 if (Array.isArray(val)) {
                     row[name] = val.join(', ');
@@ -42,7 +42,7 @@ export const load: PageServerLoad = async (event) => {
                     row[name] = String(val);
                 }
 			}
-			return { id: page.id, ...row };
+			return { id: (page as { id: string }).id, ...row };
 		});
 
 		return {
