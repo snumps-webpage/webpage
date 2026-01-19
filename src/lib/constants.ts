@@ -35,7 +35,16 @@ export const NOTION_PROPS = {
 	SEMINAR_REQ_PREREQ: n('선수 지식'),
 	SEMINAR_REQ_DURATION: n('예상 소요 시간'),
 	SEMINAR_REQ_APPROVED: n('승인됨'),
-	APP_ACCEPTED: n('수락됨')
+	APP_ACCEPTED: n('수락됨'),
+    // Event Props
+    EVENT_TITLE: n('Title'),
+    EVENT_DATE: n('Date'),
+    EVENT_TYPE: n('Type'),
+    EVENT_STATUS: n('Status'),
+    EVENT_PATH_ID: n('PathId'),
+    EVENT_ATTEND_CODE: n('AttendCode'),
+    EVENT_NOTION_PAGE_ID: n('NotionPageId'),
+    EVENT_TIME_ZONE: n('TimeZone')
 };
 
 export const ACTIVITY_TYPES = [

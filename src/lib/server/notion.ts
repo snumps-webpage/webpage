@@ -679,3 +679,61 @@ export async function updateAttendanceRecordInNotion(id: string, updates: any) {
 export async function removeAttendanceRecordInNotion(id: string) {
 	await notionArchive(id);
 }
+
+// --- Event Persistence (Replacing JSON) ---
+
+export async function getEventsFromNotion() {
+    const dbId = env.NOTION_DB_EVENTS;
+    if (!dbId) return [];
+
+    const results = await notionQuery(dbId);
+    return results.map(page => ({
+        id: page.id,
+        title: getPropertyValue(page.properties[NOTION_PROPS.EVENT_TITLE]),
+        date: getPropertyValue(page.properties[NOTION_PROPS.EVENT_DATE]),
+        type: getPropertyValue(page.properties[NOTION_PROPS.EVENT_TYPE]),
+        status: getPropertyValue(page.properties[NOTION_PROPS.EVENT_STATUS]) || 'draft',
+        pathId: getPropertyValue(page.properties[NOTION_PROPS.EVENT_PATH_ID]),
+        attendCode: getPropertyValue(page.properties[NOTION_PROPS.EVENT_ATTEND_CODE]),
+        notionPageId: getPropertyValue(page.properties[NOTION_PROPS.EVENT_NOTION_PAGE_ID]),
+        timeZone: getPropertyValue(page.properties[NOTION_PROPS.EVENT_TIME_ZONE])
+    }));
+}
+
+export async function createEventInNotion(data: any) {
+    const dbId = env.NOTION_DB_EVENTS;
+    if (!dbId) return null;
+
+    const props: any = {
+        [NOTION_PROPS.EVENT_TITLE]: { title: [{ text: { content: data.title } }] },
+        [NOTION_PROPS.EVENT_DATE]: { date: { start: data.date } },
+        [NOTION_PROPS.EVENT_TYPE]: { select: { name: data.type } },
+        [NOTION_PROPS.EVENT_STATUS]: { select: { name: data.status } },
+        [NOTION_PROPS.EVENT_PATH_ID]: { rich_text: [{ text: { content: data.pathId } }] },
+        [NOTION_PROPS.EVENT_ATTEND_CODE]: { rich_text: [{ text: { content: data.attendCode } }] }
+    };
+
+    if (data.notionPageId) {
+        props[NOTION_PROPS.EVENT_NOTION_PAGE_ID] = { rich_text: [{ text: { content: data.notionPageId } }] };
+    }
+    if (data.timeZone) {
+        props[NOTION_PROPS.EVENT_TIME_ZONE] = { rich_text: [{ text: { content: data.timeZone } }] };
+    }
+
+    const page = await notionCreate(dbId, props);
+    return page.id;
+}
+
+export async function updateEventStatusInNotion(id: string, status: string, notionPageId?: string) {
+    const props: any = {
+        [NOTION_PROPS.EVENT_STATUS]: { select: { name: status } }
+    };
+    if (notionPageId) {
+        props[NOTION_PROPS.EVENT_NOTION_PAGE_ID] = { rich_text: [{ text: { content: notionPageId } }] };
+    }
+    await notionUpdate(id, props);
+}
+
+export async function deleteEventInNotion(id: string) {
+    await notionArchive(id);
+}
