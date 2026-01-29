@@ -138,11 +138,7 @@ export async function removeAttendanceRecord(recordId: string) {
  */
 export async function syncEventStatuses() {
     const events = await getEvents();
-    const validEvents: Event[] = [];
-
     const now = new Date();
-    // Get local date string YYYY-MM-DD
-    const localDateStr = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0];
 
     for (const event of events) {
         // Validation: Check if Notion page exists
@@ -160,15 +156,22 @@ export async function syncEventStatuses() {
             }
         }
 
+        const eventDate = new Date(event.date);
+        const tz = event.timeZone || 'Asia/Seoul';
+        
+        // Get YYYY-MM-DD of 'now' and 'event' in the target timezone
+        const nowInTz = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now);
+        const eventDayInTz = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(eventDate);
+        
         // Status Logic
-        // Activate draft events on their start time (or day)
-        if (event.status === 'draft' && localDateStr >= event.date) {
+        // Activate draft events on their scheduled day
+        if (event.status === 'draft' && nowInTz >= eventDayInTz) {
             await updateEventStatusInNotion(event.id, 'active');
             console.log(`Event '${event.title}' activated.`);
         }
 
         // Expire active events after their day is over
-        if (event.status === 'active' && localDateStr > event.date) {
+        if (event.status === 'active' && nowInTz > eventDayInTz) {
             await updateEventStatusInNotion(event.id, 'expired');
             console.log(`Event '${event.title}' expired.`);
         }
