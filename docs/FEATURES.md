@@ -7,7 +7,7 @@
 - **Input Validation**: Robust server-side checks prevent IDOR attacks and unauthorized data manipulation.
 
 ## 👥 Membership System
-- **Signup Flow**: New users must apply for membership. Applications are processed through a hybrid system (Notion primary, Local JSON cache) for Admin approval.
+- **Signup Flow**: New users must apply for membership. Applications are processed through Notion for Admin approval.
 - **User Profile**: Members can view their full participation history with standardized semester filtering and manage personal details (Phone, Bio, Background).
 - **Seminar Application**: Members can propose and organize their own seminars directly through the web interface.
 - **Automated Alerts**: Admins receive instant email notifications for new signups and completed attendance requests via the Gmail API.

@@ -7,12 +7,12 @@
 *   **Membership System:** Google OAuth login (restricted to `@snu.ac.kr`), automated signup flow, and profile management.
 *   **Event & Attendance:** Admin-managed events with automated activation/expiration based on IANA timezones. One-click attendance tracking for members.
 *   **Seminar System:** Member-led seminar proposals with a full approval workflow, including automated Notion page creation and email notifications.
-*   **Hybrid Storage:** "JSON-First, Notion-Fallback" architecture ensures high availability and resilience against Notion API limits or downtime.
+*   **Performance Caching:** In-memory caching layer reduces Notion API load and improves dashboard responsiveness.
 
 ### Tech Stack
 *   **Framework:** SvelteKit (Svelte 5 Runes)
 *   **Language:** TypeScript
-*   **Database:** Notion API (Primary), Local JSON (Cache)
+*   **Database:** Notion API (Primary), In-Memory Cache
 *   **Auth:** Auth.js (Google Provider)
 *   **Styling:** Custom CSS with CSS Variables (Dark Mode supported)
 
@@ -58,7 +58,6 @@ npm run lint
     *   `seminars.ts`: Seminar request queue logic.
     *   `admin.ts`: Membership application logic.
     *   `mail.ts`: Gmail API integration for notifications.
-*   `data/`: Local JSON storage for transactional data (Signups, Attendance, Seminars).
 
 ### Operational Protocols
 
@@ -83,9 +82,9 @@ npm run lint
 *   **Data Safety**: Always sanitize inputs and use strict typing for Notion interactions.
 *   **Production Hardening**: Source maps are disabled; `robots.txt` blocks crawling.
 
-#### 4. Hybrid Storage
-*   **Dual-Write**: All write operations must attempt to write to Notion *first*, then update the local JSON cache.
-*   **Fallback-Read**: Read operations prioritize the local cache but automatically fall back to Notion and sync the cache if it is empty.
+#### 4. In-Memory Caching
+*   **Ephemeral Nature**: Caches are per-instance and ephemeral. Do not rely on them for persistent storage or critical data consistency.
+*   **TTL Strategy**: Use short TTLs (e.g. 1-5 minutes) for frequent reads to balance performance with data freshness.
 
 #### 5. Development Performance
 *   **Up to date**: Ensure that all the modules used are up to date, checked for deprecations, updates, and API changes.
