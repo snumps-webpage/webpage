@@ -282,7 +282,7 @@ export async function createMember(data: {
 		[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
 		[NOTION_PROPS.DEPT]: { rich_text: [{ text: { content: data.department } }] },
 		[NOTION_PROPS.MEMBER_TO_PRIVATE]: { relation: [{ id: privatePage.id }] },
-		[NOTION_PROPS.JOIN_DATE]: { date: { start: new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().split('T')[0] } }
+		[NOTION_PROPS.JOIN_DATE]: { date: { start: new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date()) } }
 	});
 }
 
