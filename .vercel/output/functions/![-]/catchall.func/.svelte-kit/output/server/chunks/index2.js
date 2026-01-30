@@ -1,5 +1,5 @@
 import { t as to_class, b as to_style, c as clsx, a as attr } from "./attributes.js";
-import { j as is_promise, n as noop } from "./utils2.js";
+import { n as noop, k as is_promise } from "./utils2.js";
 import { e as escape_html } from "./escaping.js";
 import { a as set_ssr_context, b as ssr_context, p as push, c as pop } from "./context.js";
 import * as devalue from "devalue";
@@ -254,6 +254,8 @@ class Renderer {
       });
       promises.push(promise);
     }
+    promise.catch(noop);
+    this.promise = promise;
     return promises;
   }
   /**
