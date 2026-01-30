@@ -286,7 +286,7 @@ export async function createMember(data: {
 	});
 }
 
-export async function getMemberByEmail(email: string) {
+export async function getMemberByEmail(email: string, skipCache = false) {
 	return withCache(`member_${email}`, 300000, async () => {
 		const dbId = env.NOTION_DB_PRIVATE_INFO;
 		if (!dbId) throw new Error('NOTION_DB_PRIVATE_INFO missing');
@@ -307,7 +307,7 @@ export async function getMemberByEmail(email: string) {
 			privateInfoId: page.id,
 			memberId: relationProp.relation[0].id
 		};
-	});
+	}, { skipCache });
 }
 
 export async function getMemberById(memberId: string) {
@@ -319,7 +319,7 @@ export async function getMemberById(memberId: string) {
 	};
 }
 
-export async function getAllMembers() {
+export async function getAllMembers(skipCache = false) {
 	return withCache('all_members', 60000, async () => {
 		const dbId = env.NOTION_DB_MEMBERS;
 		if (!dbId) throw new Error('NOTION_DB_MEMBERS missing');
@@ -338,7 +338,7 @@ export async function getAllMembers() {
 	});
 }
 
-export async function getActivities(startDate: string, endDate: string) {
+export async function getActivities(startDate: string, endDate: string, skipCache = false) {
 	return withCache(`activities_${startDate}_${endDate}`, 300000, async () => {
 		const dbId = env.NOTION_DB_ACTIVITIES;
 		if (!dbId) throw new Error('NOTION_DB_ACTIVITIES missing');
