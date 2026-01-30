@@ -1,6 +1,6 @@
-import { fail, redirect } from "@sveltejs/kit";
+import { redirect, fail } from "@sveltejs/kit";
 import { b as getMemberByEmail } from "../../../../chunks/notion.js";
-import { updateApplication, getApplications, isAdmin } from "../../../../chunks/admin.js";
+import { getApplications, isAdmin, updateApplication } from "../../../../chunks/admin.js";
 import { n as normalizePhoneNumber } from "../../../../chunks/utils3.js";
 const load = async (event) => {
   const session = await event.locals.auth();

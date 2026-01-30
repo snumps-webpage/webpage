@@ -1,4 +1,4 @@
-import { p as checkPageExists, q as updateEventStatusInNotion, r as createEventInNotion, s as removeAttendanceRecordInNotion, t as updateAttendanceRecordInNotion, v as deleteEventInNotion, w as getAttendanceQueueFromNotion, x as withCache, y as createAttendanceRecordInNotion, z as getEventsFromNotion } from "./notion.js";
+import { p as checkPageExists, q as updateEventStatusInNotion, r as getAttendanceQueueFromNotion, w as withCache, s as createEventInNotion, t as removeAttendanceRecordInNotion, v as updateAttendanceRecordInNotion, x as deleteEventInNotion, y as createAttendanceRecordInNotion, z as getEventsFromNotion } from "./notion.js";
 async function getEvents() {
   return withCache("all_events", 6e4, async () => {
     try {
@@ -120,13 +120,13 @@ async function syncEventStatuses() {
   }
 }
 export {
-  updateAttendanceStatus as a,
-  updateEventStatus as b,
+  getEvents as a,
+  updateAttendanceStatus as b,
   createEvent as c,
-  deleteEvent as d,
-  getAttendanceQueue as e,
-  getEvents as f,
-  getEvent as g,
+  getEvent as d,
+  deleteEvent as e,
+  updateEventStatus as f,
+  getAttendanceQueue as g,
   getEventByPathId as h,
   recordAttendance as i,
   removeAttendanceRecord as r,

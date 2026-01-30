@@ -1,7 +1,7 @@
-import { u as updateSeminar, b as getMemberByEmail, c as updatePrivateInfo, d as getActivities, e as getUserActivities, f as getPrivateInfo, h as getUserSeminars } from "../../chunks/notion.js";
+import { b as getMemberByEmail, c as getActivities, d as getUserActivities, e as getPrivateInfo, f as getUserSeminars, u as updateSeminar, h as updatePrivateInfo } from "../../chunks/notion.js";
 import { g as getSeminarRequests } from "../../chunks/seminars.js";
 import { getApplications } from "../../chunks/admin.js";
-import { n as normalizePhoneNumber, g as getSemesterInfo, a as getSemesterKeyFromDate } from "../../chunks/utils3.js";
+import { g as getSemesterInfo, a as getSemesterKeyFromDate, n as normalizePhoneNumber } from "../../chunks/utils3.js";
 import { fail } from "@sveltejs/kit";
 const load = async (event) => {
   const session = await event.locals.auth();
