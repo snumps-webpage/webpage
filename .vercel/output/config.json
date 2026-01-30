@@ -1,89 +1,75 @@
 {
-  "version": 3,
-  "routes": [
-    {
-      "src": "/_app/immutable/.+",
-      "headers": {
-        "cache-control": "public, immutable, max-age=31536000"
-      }
-    },
-    {
-      "handle": "error"
-    },
-    {
-      "status": 404,
-      "src": "^(?!/api).*$",
-      "dest": "/404.html"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "^/?(?:/__data.json)?$",
-      "dest": "/"
-    },
-    {
-      "src": "^/admin/?(?:/__data.json)?$",
-      "dest": "/admin"
-    },
-    {
-      "src": "^/admin/events/connect/?(?:/__data.json)?$",
-      "dest": "/admin/events/connect"
-    },
-    {
-      "src": "^/admin/events/new/?(?:/__data.json)?$",
-      "dest": "/admin/events/new"
-    },
-    {
-      "src": "^/api/admin/applications/?(?:/__data.json)?$",
-      "dest": "/api/admin/applications"
-    },
-    {
-      "src": "^/api/admin/seminar-requests/?(?:/__data.json)?$",
-      "dest": "/api/admin/seminar-requests"
-    },
-    {
-      "src": "^/api/cron/sync-events/?(?:/__data.json)?$",
-      "dest": "/api/cron/sync-events"
-    },
-    {
-      "src": "^/diag/?(?:/__data.json)?$",
-      "dest": "/diag"
-    },
-    {
-      "src": "^/events/([^/]+?)/([^/]+?)/?(?:/__data.json)?$",
-      "dest": "/events/[id]/[type]"
-    },
-    {
-      "src": "^/notion/?(?:/__data.json)?$",
-      "dest": "/notion"
-    },
-    {
-      "src": "^/seminar/apply/?(?:/__data.json)?$",
-      "dest": "/seminar/apply"
-    },
-    {
-      "src": "^/signup/?(?:/__data.json)?$",
-      "dest": "/signup"
-    },
-    {
-      "src": "^/signup/edit/?(?:/__data.json)?$",
-      "dest": "/signup/edit"
-    },
-    {
-      "src": "^/wait/?(?:/__data.json)?$",
-      "dest": "/wait"
-    },
-    {
-      "src": "/.*",
-      "dest": "/![-]/catchall"
-    }
-  ],
-  "overrides": {},
-  "crons": [
-    {
-      "path": "/api/cron/sync-events",
-      "schedule": "0 0 * * *"
-    }
-  ]
+	"version": 3,
+	"routes": [
+		{
+			"src": "/_app/immutable/.+",
+			"headers": {
+				"cache-control": "public, immutable, max-age=31536000"
+			}
+		},
+		{
+			"handle": "filesystem"
+		},
+		{
+			"src": "^/?(?:/__data.json)?$",
+			"dest": "/"
+		},
+		{
+			"src": "^/admin/?(?:/__data.json)?$",
+			"dest": "/admin"
+		},
+		{
+			"src": "^/admin/events/connect/?(?:/__data.json)?$",
+			"dest": "/admin/events/connect"
+		},
+		{
+			"src": "^/admin/events/new/?(?:/__data.json)?$",
+			"dest": "/admin/events/new"
+		},
+		{
+			"src": "^/api/admin/applications/?(?:/__data.json)?$",
+			"dest": "/api/admin/applications"
+		},
+		{
+			"src": "^/api/admin/seminar-requests/?(?:/__data.json)?$",
+			"dest": "/api/admin/seminar-requests"
+		},
+		{
+			"src": "^/api/cron/sync-events/?(?:/__data.json)?$",
+			"dest": "/api/cron/sync-events"
+		},
+		{
+			"src": "^/diag/?(?:/__data.json)?$",
+			"dest": "/diag"
+		},
+		{
+			"src": "^/events/([^/]+?)/([^/]+?)/?(?:/__data.json)?$",
+			"dest": "/events/[id]/[type]"
+		},
+		{
+			"src": "^/notion/?(?:/__data.json)?$",
+			"dest": "/notion"
+		},
+		{
+			"src": "^/seminar/apply/?(?:/__data.json)?$",
+			"dest": "/seminar/apply"
+		},
+		{
+			"src": "^/signup/?(?:/__data.json)?$",
+			"dest": "/signup"
+		},
+		{
+			"src": "^/signup/edit/?(?:/__data.json)?$",
+			"dest": "/signup/edit"
+		},
+		{
+			"src": "^/wait/?(?:/__data.json)?$",
+			"dest": "/wait"
+		},
+		{
+			"src": "/.*",
+			"dest": "/![-]/catchall"
+		}
+	],
+	"overrides": {}
 }
