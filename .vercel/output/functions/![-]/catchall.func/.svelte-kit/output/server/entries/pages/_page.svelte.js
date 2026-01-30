@@ -3,7 +3,7 @@ import { p as page } from "../../chunks/index3.js";
 import "@sveltejs/kit/internal";
 import "../../chunks/exports.js";
 import "../../chunks/utils.js";
-import { a as attr, c as clsx } from "../../chunks/attributes.js";
+import { c as clsx, a as attr } from "../../chunks/attributes.js";
 import "@sveltejs/kit/internal/server";
 import "../../chunks/state.svelte.js";
 import { S as Skeleton } from "../../chunks/Skeleton.js";
