@@ -1,4 +1,4 @@
-import { redirect, fail } from "@sveltejs/kit";
+import { fail, redirect } from "@sveltejs/kit";
 import { b as getMemberByEmail } from "../../../chunks/notion.js";
 import { getApplications, isAdmin } from "../../../chunks/admin.js";
 import { n as normalizePhoneNumber } from "../../../chunks/utils3.js";

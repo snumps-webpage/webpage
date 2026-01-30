@@ -1,6 +1,6 @@
-import { redirect, error, fail } from "@sveltejs/kit";
-import { h as getEventByPathId, e as deleteEvent, i as recordAttendance } from "../../../../../chunks/events.js";
-import { p as checkPageExists, g as getAllMembers, b as getMemberByEmail } from "../../../../../chunks/notion.js";
+import { fail, redirect, error } from "@sveltejs/kit";
+import { h as getEventByPathId, i as recordAttendance, d as deleteEvent } from "../../../../../chunks/events.js";
+import { g as getAllMembers, b as getMemberByEmail, p as checkPageExists } from "../../../../../chunks/notion.js";
 const load = async ({ params, locals, url }) => {
   const session = await locals.auth();
   if (!session?.user?.email) {
