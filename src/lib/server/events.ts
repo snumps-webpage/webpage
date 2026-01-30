@@ -1,44 +1,29 @@
 import type { Event, AttendanceRecord } from '$lib/types';
-import fs from 'fs/promises';
-import path from 'path';
 import { 
 	getAttendanceQueueFromNotion, 
 	createAttendanceRecordInNotion, 
 	updateAttendanceRecordInNotion, 
 	removeAttendanceRecordInNotion,
-    checkPageExists 
+    checkPageExists,
+    getEventsFromNotion,
+    createEventInNotion,
+    updateEventStatusInNotion,
+    deleteEventInNotion
 } from './notion';
+import { withCache } from './cache';
 
-const EVENTS_DB_PATH = 'data/events.json';
-const ATTENDANCE_QUEUE_PATH = 'data/attendance_queue.json';
+// --- Events Management (Notion Only) ---
 
-async function ensureDir(filePath: string) {
-	const dir = path.dirname(filePath);
-	try {
-		await fs.access(dir);
-	} catch {
-		await fs.mkdir(dir, { recursive: true });
-	}
-}
-
-async function readJson<T>(filePath: string): Promise<T[]> {
-	try {
-		await ensureDir(filePath);
-		const data = await fs.readFile(filePath, 'utf-8');
-		return JSON.parse(data);
-	} catch {
-		return [];
-	}
-}
-
-async function writeJson(filePath: string, data: unknown) {
-	await ensureDir(filePath);
-	await fs.writeFile(filePath, JSON.stringify(data, null, 2));
-}
-
-// ... Event functions (unchanged) ...
 export async function getEvents(): Promise<Event[]> {
-	return readJson<Event>(EVENTS_DB_PATH);
+    // Cache events for 1 minute to reduce API calls
+    return withCache('all_events', 60000, async () => {
+        try {
+            return await getEventsFromNotion() as Event[];
+        } catch (e) {
+            console.error('Failed to fetch events from Notion:', e);
+            return [];
+        }
+    });
 }
 
 export async function getEvent(id: string): Promise<Event | undefined> {
@@ -52,74 +37,40 @@ export async function getEventByPathId(pathId: string): Promise<Event | undefine
 }
 
 export async function createEvent(data: { title: string; date: string; type: string; notionPageId?: string; timeZone?: string }) {
-	const events = await getEvents();
-	const newEvent: Event = {
-		id: crypto.randomUUID(),
-		pathId: crypto.randomUUID().slice(0, 8),
-        attendCode: crypto.randomUUID().slice(0, 12),
+	const newEventData = {
 		title: data.title,
 		date: data.date,
         timeZone: data.timeZone,
 		type: data.type,
 		status: 'draft',
+        pathId: crypto.randomUUID().slice(0, 8),
+        attendCode: crypto.randomUUID().slice(0, 12),
 		notionPageId: data.notionPageId
 	};
-	events.push(newEvent);
-	await writeJson(EVENTS_DB_PATH, events);
-	return newEvent;
+
+    const id = await createEventInNotion(newEventData);
+    if (!id) throw new Error('Failed to create event in Notion');
+
+    return { ...newEventData, id } as Event;
 }
 
 export async function updateEventStatus(id: string, status: Event['status'], notionPageId?: string) {
-	const events = await getEvents();
-	const event = events.find(e => e.id === id);
-	if (event) {
-		event.status = status;
-		if (notionPageId) event.notionPageId = notionPageId;
-		await writeJson(EVENTS_DB_PATH, events);
-	}
+    await updateEventStatusInNotion(id, status, notionPageId);
 }
 
 export async function deleteEvent(id: string) {
-	let events = await getEvents();
-	events = events.filter(e => e.id !== id);
-	await writeJson(EVENTS_DB_PATH, events);
+    await deleteEventInNotion(id);
 }
 
-// --- Attendance Queue with Hybrid Storage ---
+// --- Attendance Queue (Notion Only) ---
 
 export async function getAttendanceQueue(): Promise<AttendanceRecord[]> {
-	try {
-        const queue = await readJson<AttendanceRecord>(ATTENDANCE_QUEUE_PATH);
-        
-        // Simplified Sync: If queue empty, try Notion
-        if (queue.length === 0) {
-            console.log('Local attendance queue empty, checking Notion...');
-            try {
-                const notionQueue = await getAttendanceQueueFromNotion();
-                if (notionQueue.length > 0) {
-                    // map notion structure to local if needed, currently they match roughly
-                    const mapped = notionQueue.map(r => ({
-                        ...r,
-                        notionId: r.id
-                    })) as AttendanceRecord[];
-                    
-                    await writeJson(ATTENDANCE_QUEUE_PATH, mapped);
-                    return mapped;
-                }
-            } catch (e) {
-                console.error('Failed to sync attendance from Notion:', e);
-            }
-        }
-        return queue;
+    try {
+        const results = await getAttendanceQueueFromNotion();
+        return results.map(r => ({ ...r, notionId: r.id })) as AttendanceRecord[];
     } catch (e) {
-        // Fallback to Notion completely if FS fails
-        console.warn('FS read failed, fetching from Notion', e);
-        try {
-            const results = await getAttendanceQueueFromNotion();
-            return results.map(r => ({ ...r, notionId: r.id })) as AttendanceRecord[];
-        } catch {
-            return [];
-        }
+        console.error('Failed to fetch attendance queue from Notion:', e);
+        return [];
     }
 }
 
@@ -135,86 +86,50 @@ export async function recordAttendance(eventId: string, user: { email: string; n
 
     const now = new Date().toISOString();
 
-    // 1. Notion Write
-    let notionId: string | undefined;
     try {
-        const nid = await createAttendanceRecordInNotion({
+        const notionId = await createAttendanceRecordInNotion({
             eventId,
             userEmail: user.email,
             userName: user.name,
             userDept: user.dept,
             startTime: now
         });
-        if (nid) notionId = nid;
         
-        // If successful, immediately update end time in Notion too (or handle in create if supported)
-        if (nid) {
-             updateAttendanceRecordInNotion(nid, { endTime: now }).catch(console.error);
+        if (notionId) {
+             // Immediately update end time for complete record
+             updateAttendanceRecordInNotion(notionId, { endTime: now }).catch(console.error);
+             
+             const newRecord: AttendanceRecord = {
+                id: notionId,
+                notionId,
+                eventId,
+                userEmail: user.email,
+                userName: user.name,
+                userDept: user.dept,
+                startTime: now,
+                endTime: now,
+                status: 'pending'
+             };
+             return { record: newRecord, isNew: true };
         }
     } catch (e) {
         console.error('Notion attendance write failed:', e);
     }
-
-    // 2. Local Write
-	const newRecord: AttendanceRecord = {
-		id: notionId ?? crypto.randomUUID(),
-        notionId,
-		eventId,
-		userEmail: user.email,
-		userName: user.name,
-		userDept: user.dept,
-		startTime: now,
-        endTime: now, // Complete attendance
-		status: 'pending'
-	};
-	queue.push(newRecord);
-	await writeJson(ATTENDANCE_QUEUE_PATH, queue);
-	return { record: newRecord, isNew: true };
+    
+    throw new Error('Failed to record attendance in Notion');
 }
 
 export async function updateAttendanceRecord(recordId: string, updates: { startTime?: string; endTime?: string }) {
-	const queue = await getAttendanceQueue();
-	const record = queue.find(r => r.id === recordId);
-	if (record) {
-		if (updates.startTime) record.startTime = updates.startTime;
-		if (updates.endTime) record.endTime = updates.endTime;
-        
-        // Sync to Notion
-        if (record.notionId) {
-            updateAttendanceRecordInNotion(record.notionId, updates).catch(console.error);
-        }
-
-		await writeJson(ATTENDANCE_QUEUE_PATH, queue);
-		return record;
-	}
-	return null;
+    // recordId is assumed to be Notion ID in this architecture
+    await updateAttendanceRecordInNotion(recordId, updates);
 }
 
 export async function updateAttendanceStatus(recordId: string, status: AttendanceRecord['status']) {
-	const queue = await getAttendanceQueue();
-	const record = queue.find(r => r.id === recordId);
-	if (record) {
-		record.status = status;
-        
-        // Sync to Notion
-        if (record.notionId) {
-            updateAttendanceRecordInNotion(record.notionId, { status }).catch(console.error);
-        }
-
-		await writeJson(ATTENDANCE_QUEUE_PATH, queue);
-	}
+    await updateAttendanceRecordInNotion(recordId, { status });
 }
 
 export async function removeAttendanceRecord(recordId: string) {
-    let queue = await getAttendanceQueue();
-    const record = queue.find(r => r.id === recordId);
-    
-    if (record && record.notionId) {
-        removeAttendanceRecordInNotion(record.notionId).catch(console.error);
-    }
-
-    queue = queue.filter(r => r.id !== recordId);
-    await writeJson(ATTENDANCE_QUEUE_PATH, queue);
+    await removeAttendanceRecordInNotion(recordId);
 }
 
 /**
@@ -223,12 +138,7 @@ export async function removeAttendanceRecord(recordId: string) {
  */
 export async function syncEventStatuses() {
     const events = await getEvents();
-    let hasChanged = false;
-    const validEvents: Event[] = [];
-
     const now = new Date();
-    // Get local date string YYYY-MM-DD
-    const localDateStr = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0];
 
     for (const event of events) {
         // Validation: Check if Notion page exists
@@ -236,30 +146,34 @@ export async function syncEventStatuses() {
             const exists = await checkPageExists(event.notionPageId);
             if (!exists) {
                 console.warn(`Event '${event.title}' (ID: ${event.id}) removed because Notion page ${event.notionPageId} is missing or archived.`);
-                hasChanged = true;
-                continue; // Skip adding this event to validEvents, effectively deleting it
+                // Effectively "deleted" from our valid list, but technically still in Notion DB unless we delete it there too.
+                // For now, let's mark it as expired or just log it. 
+                // To keep it clean, we might want to update status to 'expired' in Notion.
+                if (event.status !== 'expired') {
+                    await updateEventStatusInNotion(event.id, 'expired');
+                }
+                continue; 
             }
         }
 
+        const eventDate = new Date(event.date);
+        const tz = event.timeZone || 'Asia/Seoul';
+        
+        // Get YYYY-MM-DD of 'now' and 'event' in the target timezone
+        const nowInTz = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now);
+        const eventDayInTz = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(eventDate);
+        
         // Status Logic
-        // Activate draft events on their start time (or day)
-        if (event.status === 'draft' && localDateStr >= event.date) {
-            event.status = 'active';
-            hasChanged = true;
+        // Activate draft events on their scheduled day
+        if (event.status === 'draft' && nowInTz >= eventDayInTz) {
+            await updateEventStatusInNotion(event.id, 'active');
             console.log(`Event '${event.title}' activated.`);
         }
 
         // Expire active events after their day is over
-        if (event.status === 'active' && localDateStr > event.date) {
-            event.status = 'expired';
-            hasChanged = true;
+        if (event.status === 'active' && nowInTz > eventDayInTz) {
+            await updateEventStatusInNotion(event.id, 'expired');
             console.log(`Event '${event.title}' expired.`);
         }
-        
-        validEvents.push(event);
-    }
-
-    if (hasChanged) {
-        await writeJson(EVENTS_DB_PATH, validEvents);
     }
 }
