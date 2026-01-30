@@ -282,11 +282,11 @@ export async function createMember(data: {
 		[NOTION_PROPS.NAME]: { title: [{ text: { content: data.name } }] },
 		[NOTION_PROPS.DEPT]: { rich_text: [{ text: { content: data.department } }] },
 		[NOTION_PROPS.MEMBER_TO_PRIVATE]: { relation: [{ id: privatePage.id }] },
-		[NOTION_PROPS.JOIN_DATE]: { date: { start: new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().split('T')[0] } }
+		[NOTION_PROPS.JOIN_DATE]: { date: { start: new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date()) } }
 	});
 }
 
-export async function getMemberByEmail(email: string) {
+export async function getMemberByEmail(email: string, skipCache = false) {
 	return withCache(`member_${email}`, 300000, async () => {
 		const dbId = env.NOTION_DB_PRIVATE_INFO;
 		if (!dbId) throw new Error('NOTION_DB_PRIVATE_INFO missing');
@@ -307,7 +307,7 @@ export async function getMemberByEmail(email: string) {
 			privateInfoId: page.id,
 			memberId: relationProp.relation[0].id
 		};
-	});
+	}, { skipCache });
 }
 
 export async function getMemberById(memberId: string) {
@@ -319,7 +319,7 @@ export async function getMemberById(memberId: string) {
 	};
 }
 
-export async function getAllMembers() {
+export async function getAllMembers(skipCache = false) {
 	return withCache('all_members', 60000, async () => {
 		const dbId = env.NOTION_DB_MEMBERS;
 		if (!dbId) throw new Error('NOTION_DB_MEMBERS missing');
@@ -338,7 +338,7 @@ export async function getAllMembers() {
 	});
 }
 
-export async function getActivities(startDate: string, endDate: string) {
+export async function getActivities(startDate: string, endDate: string, skipCache = false) {
 	return withCache(`activities_${startDate}_${endDate}`, 300000, async () => {
 		const dbId = env.NOTION_DB_ACTIVITIES;
 		if (!dbId) throw new Error('NOTION_DB_ACTIVITIES missing');
@@ -678,4 +678,62 @@ export async function updateAttendanceRecordInNotion(id: string, updates: any) {
 
 export async function removeAttendanceRecordInNotion(id: string) {
 	await notionArchive(id);
+}
+
+// --- Event Persistence (Replacing JSON) ---
+
+export async function getEventsFromNotion() {
+    const dbId = env.NOTION_DB_EVENTS;
+    if (!dbId) return [];
+
+    const results = await notionQuery(dbId);
+    return results.map(page => ({
+        id: page.id,
+        title: getPropertyValue(page.properties[NOTION_PROPS.EVENT_TITLE]),
+        date: getPropertyValue(page.properties[NOTION_PROPS.EVENT_DATE]),
+        type: getPropertyValue(page.properties[NOTION_PROPS.EVENT_TYPE]),
+        status: getPropertyValue(page.properties[NOTION_PROPS.EVENT_STATUS]) || 'draft',
+        pathId: getPropertyValue(page.properties[NOTION_PROPS.EVENT_PATH_ID]),
+        attendCode: getPropertyValue(page.properties[NOTION_PROPS.EVENT_ATTEND_CODE]),
+        notionPageId: getPropertyValue(page.properties[NOTION_PROPS.EVENT_NOTION_PAGE_ID]),
+        timeZone: getPropertyValue(page.properties[NOTION_PROPS.EVENT_TIME_ZONE])
+    }));
+}
+
+export async function createEventInNotion(data: any) {
+    const dbId = env.NOTION_DB_EVENTS;
+    if (!dbId) return null;
+
+    const props: any = {
+        [NOTION_PROPS.EVENT_TITLE]: { title: [{ text: { content: data.title } }] },
+        [NOTION_PROPS.EVENT_DATE]: { date: { start: data.date } },
+        [NOTION_PROPS.EVENT_TYPE]: { select: { name: data.type } },
+        [NOTION_PROPS.EVENT_STATUS]: { select: { name: data.status } },
+        [NOTION_PROPS.EVENT_PATH_ID]: { rich_text: [{ text: { content: data.pathId } }] },
+        [NOTION_PROPS.EVENT_ATTEND_CODE]: { rich_text: [{ text: { content: data.attendCode } }] }
+    };
+
+    if (data.notionPageId) {
+        props[NOTION_PROPS.EVENT_NOTION_PAGE_ID] = { rich_text: [{ text: { content: data.notionPageId } }] };
+    }
+    if (data.timeZone) {
+        props[NOTION_PROPS.EVENT_TIME_ZONE] = { rich_text: [{ text: { content: data.timeZone } }] };
+    }
+
+    const page = await notionCreate(dbId, props);
+    return page.id;
+}
+
+export async function updateEventStatusInNotion(id: string, status: string, notionPageId?: string) {
+    const props: any = {
+        [NOTION_PROPS.EVENT_STATUS]: { select: { name: status } }
+    };
+    if (notionPageId) {
+        props[NOTION_PROPS.EVENT_NOTION_PAGE_ID] = { rich_text: [{ text: { content: notionPageId } }] };
+    }
+    await notionUpdate(id, props);
+}
+
+export async function deleteEventInNotion(id: string) {
+    await notionArchive(id);
 }

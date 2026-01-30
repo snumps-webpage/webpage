@@ -2,7 +2,6 @@ node_modules
 
 # Output
 .output
-.vercel
 .netlify
 .wrangler
 /.svelte-kit
@@ -27,3 +26,4 @@ vite.config.ts.timestamp-*
 
 # Extra
 .extra/
+.env*.local

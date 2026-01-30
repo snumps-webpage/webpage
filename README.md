@@ -17,7 +17,7 @@ A secure SvelteKit web application designed to automate membership management an
 - **Frontend**: Svelte 5 (Runes) & SvelteKit.
 - **Backend**: SvelteKit Server Routes with In-memory Caching.
 - **Authentication**: Auth.js with Google OAuth.
-- **Storage**: Notion (Primary) + Local JSON Cache.
+- **Storage**: Notion (Primary) + In-Memory Cache.
 - **Communication**: Google Gmail API.
 
 ---
