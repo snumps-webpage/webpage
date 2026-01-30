@@ -1,7 +1,7 @@
-import { fail, redirect } from "@sveltejs/kit";
-import { isAdmin, removeApplication, getApplications } from "../../../chunks/admin.js";
-import { i as createActivityPage, b as getMemberByEmail, j as addAttendeeToActivity, k as invalidateCache, l as createMember, m as markApplicationAsAccepted, g as getAllMembers } from "../../../chunks/notion.js";
-import { c as createEvent, r as removeAttendanceRecord, u as updateAttendanceRecord, a as updateAttendanceStatus, g as getEvent, d as deleteEvent, b as updateEventStatus, e as getAttendanceQueue, f as getEvents } from "../../../chunks/events.js";
+import { redirect, fail } from "@sveltejs/kit";
+import { isAdmin, getApplications, removeApplication } from "../../../chunks/admin.js";
+import { g as getAllMembers, i as createActivityPage, b as getMemberByEmail, j as addAttendeeToActivity, k as invalidateCache, l as createMember, m as markApplicationAsAccepted } from "../../../chunks/notion.js";
+import { g as getAttendanceQueue, a as getEvents, c as createEvent, r as removeAttendanceRecord, u as updateAttendanceRecord, b as updateAttendanceStatus, d as getEvent, e as deleteEvent, f as updateEventStatus } from "../../../chunks/events.js";
 import { g as getSeminarRequests, d as deleteSeminarRequest, u as updateSeminarRequestStatus } from "../../../chunks/seminars.js";
 import { sendSeminarStatusNotification } from "../../../chunks/mail.js";
 import { n as normalizePhoneNumber } from "../../../chunks/utils3.js";

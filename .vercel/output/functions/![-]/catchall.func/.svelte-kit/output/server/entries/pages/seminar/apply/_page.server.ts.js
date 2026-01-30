@@ -1,6 +1,6 @@
-import { fail, redirect } from "@sveltejs/kit";
+import { redirect, fail } from "@sveltejs/kit";
 import { c as createSeminarRequest } from "../../../../chunks/seminars.js";
-import { b as getMemberByEmail, g as getAllMembers, C as getAllPrivateInfo } from "../../../../chunks/notion.js";
+import { g as getAllMembers, C as getAllPrivateInfo, b as getMemberByEmail } from "../../../../chunks/notion.js";
 const load = async ({ locals, url }) => {
   const session = await locals.auth();
   if (!session?.user) throw redirect(302, `/login?redirect=${encodeURIComponent(url.pathname)}`);
