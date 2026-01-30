@@ -1,6 +1,5 @@
 var is_array = Array.isArray;
 var index_of = Array.prototype.indexOf;
-var includes = Array.prototype.includes;
 var array_from = Array.from;
 var define_property = Object.defineProperty;
 var get_descriptor = Object.getOwnPropertyDescriptor;
@@ -30,15 +29,14 @@ function deferred() {
 export {
   array_prototype as a,
   get_prototype_of as b,
-  is_array as c,
+  is_extensible as c,
   deferred as d,
-  is_extensible as e,
-  index_of as f,
+  index_of as e,
+  define_property as f,
   get_descriptor as g,
-  define_property as h,
-  includes as i,
-  array_from as j,
-  is_promise as k,
+  array_from as h,
+  is_array as i,
+  is_promise as j,
   noop as n,
   object_prototype as o,
   run_all as r
