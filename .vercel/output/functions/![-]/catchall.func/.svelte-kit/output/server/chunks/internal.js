@@ -1,4 +1,4 @@
-import { H as HYDRATION_ERROR, C as COMMENT_NODE, a as HYDRATION_END, b as HYDRATION_START, c as HYDRATION_START_ELSE, B as BOUNDARY_EFFECT, E as ERROR_VALUE, d as EFFECT_RAN, e as CONNECTED, f as CLEAN, M as MAYBE_DIRTY, D as DIRTY, g as DERIVED, W as WAS_MARKED, I as INERT, h as EFFECT, i as BLOCK_EFFECT, U as UNINITIALIZED, j as BRANCH_EFFECT, R as ROOT_EFFECT, k as RENDER_EFFECT, l as MANAGED_EFFECT, m as DESTROYED, A as ASYNC, n as HEAD_EFFECT, o as EFFECT_TRANSPARENT, p as EFFECT_PRESERVED, q as EAGER_EFFECT, S as STATE_SYMBOL, r as STALE_REACTION, s as USER_EFFECT, t as REACTION_IS_UPDATING, u as is_passive_event, L as LEGACY_PROPS, v as render } from "./index2.js";
+import { H as HYDRATION_ERROR, C as COMMENT_NODE, a as HYDRATION_END, b as HYDRATION_START, c as HYDRATION_START_ELSE, B as BOUNDARY_EFFECT, E as ERROR_VALUE, d as EFFECT_RAN, e as CONNECTED, f as CLEAN, M as MAYBE_DIRTY, D as DIRTY, g as DERIVED, W as WAS_MARKED, I as INERT, h as EFFECT, i as BLOCK_EFFECT, U as UNINITIALIZED, j as BRANCH_EFFECT, R as ROOT_EFFECT, k as RENDER_EFFECT, l as MANAGED_EFFECT, m as HEAD_EFFECT, n as DESTROYED, A as ASYNC, o as EFFECT_TRANSPARENT, p as EFFECT_PRESERVED, q as EAGER_EFFECT, S as STATE_SYMBOL, r as STALE_REACTION, s as USER_EFFECT, t as REACTION_IS_UPDATING, u as is_passive_event, L as LEGACY_PROPS, v as render } from "./index2.js";
 import { d as dev } from "./environment.js";
 import { r as run_all, d as deferred, i as includes, o as object_prototype, a as array_prototype, g as get_descriptor, b as get_prototype_of, c as is_array, e as is_extensible, f as index_of, h as define_property, j as array_from } from "./utils2.js";
 import { s as safe_equals, e as equals } from "./equality.js";
@@ -272,15 +272,45 @@ class Batch {
    */
   #maybe_dirty_effects = /* @__PURE__ */ new Set();
   /**
-   * A set of branches that still exist, but will be destroyed when this batch
-   * is committed — we skip over these during `process`
-   * @type {Set<Effect>}
+   * A map of branches that still exist, but will be destroyed when this batch
+   * is committed — we skip over these during `process`.
+   * The value contains child effects that were dirty/maybe_dirty before being reset,
+   * so they can be rescheduled if the branch survives.
+   * @type {Map<Effect, { d: Effect[], m: Effect[] }>}
    */
-  skipped_effects = /* @__PURE__ */ new Set();
+  #skipped_branches = /* @__PURE__ */ new Map();
   is_fork = false;
   #decrement_queued = false;
   is_deferred() {
     return this.is_fork || this.#blocking_pending > 0;
+  }
+  /**
+   * Add an effect to the #skipped_branches map and reset its children
+   * @param {Effect} effect
+   */
+  skip_effect(effect) {
+    if (!this.#skipped_branches.has(effect)) {
+      this.#skipped_branches.set(effect, { d: [], m: [] });
+    }
+  }
+  /**
+   * Remove an effect from the #skipped_branches map and reschedule
+   * any tracked dirty/maybe_dirty child effects
+   * @param {Effect} effect
+   */
+  unskip_effect(effect) {
+    var tracked = this.#skipped_branches.get(effect);
+    if (tracked) {
+      this.#skipped_branches.delete(effect);
+      for (var e of tracked.d) {
+        set_signal_status(e, DIRTY);
+        schedule_effect(e);
+      }
+      for (e of tracked.m) {
+        set_signal_status(e, MAYBE_DIRTY);
+        schedule_effect(e);
+      }
+    }
   }
   /**
    *
@@ -297,8 +327,8 @@ class Batch {
     if (this.is_deferred()) {
       this.#defer_effects(render_effects);
       this.#defer_effects(effects);
-      for (const e of this.skipped_effects) {
-        reset_branch(e);
+      for (const [e, t] of this.#skipped_branches) {
+        reset_branch(e, t);
       }
     } else {
       for (const fn of this.#commit_callbacks) fn();
@@ -328,7 +358,7 @@ class Batch {
       var flags2 = effect.f;
       var is_branch = (flags2 & (BRANCH_EFFECT | ROOT_EFFECT)) !== 0;
       var is_skippable_branch = is_branch && (flags2 & CLEAN) !== 0;
-      var skip = is_skippable_branch || (flags2 & INERT) !== 0 || this.skipped_effects.has(effect);
+      var skip = is_skippable_branch || (flags2 & INERT) !== 0 || this.#skipped_branches.has(effect);
       if (!skip && effect.fn !== null) {
         if (is_branch) {
           effect.f ^= CLEAN;
@@ -564,6 +594,7 @@ function flush_effects() {
       if (dev) ;
     }
   } finally {
+    queued_root_effects = [];
     is_flushing = false;
     last_scheduled_effect = null;
   }
@@ -682,14 +713,19 @@ function schedule_effect(signal) {
   }
   queued_root_effects.push(effect);
 }
-function reset_branch(effect) {
+function reset_branch(effect, tracked) {
   if ((effect.f & BRANCH_EFFECT) !== 0 && (effect.f & CLEAN) !== 0) {
     return;
+  }
+  if ((effect.f & DIRTY) !== 0) {
+    tracked.d.push(effect);
+  } else if ((effect.f & MAYBE_DIRTY) !== 0) {
+    tracked.m.push(effect);
   }
   set_signal_status(effect, CLEAN);
   var e = effect.first;
   while (e !== null) {
-    reset_branch(e);
+    reset_branch(e, tracked);
     e = e.next;
   }
 }
@@ -2291,14 +2327,12 @@ function _mount(Component, { target, anchor, props = {}, events, context, intro 
         }
       },
       (anchor_node2) => {
-        if (context) {
-          push({});
-          var ctx = (
-            /** @type {ComponentContext} */
-            component_context
-          );
-          ctx.c = context;
-        }
+        push({});
+        var ctx = (
+          /** @type {ComponentContext} */
+          component_context
+        );
+        if (context) ctx.c = context;
         if (events) {
           props.$$events = events;
         }
@@ -2318,9 +2352,7 @@ function _mount(Component, { target, anchor, props = {}, events, context, intro 
             throw HYDRATION_ERROR;
           }
         }
-        if (context) {
-          pop();
-        }
+        pop();
       }
     );
     return () => {
@@ -2529,7 +2561,7 @@ function Root($$renderer, $$props) {
     if (constructors[1]) {
       $$renderer2.push("<!--[-->");
       const Pyramid_0 = constructors[0];
-      $$renderer2.push(`<!---->`);
+      $$renderer2.push("<!---->");
       Pyramid_0?.($$renderer2, {
         data: data_0,
         form,
@@ -2538,13 +2570,13 @@ function Root($$renderer, $$props) {
           if (constructors[2]) {
             $$renderer3.push("<!--[-->");
             const Pyramid_1 = constructors[1];
-            $$renderer3.push(`<!---->`);
+            $$renderer3.push("<!---->");
             Pyramid_1?.($$renderer3, {
               data: data_1,
               form,
               params: page.params,
               children: ($$renderer4) => {
-                $$renderer4.push(`<!---->`);
+                $$renderer4.push("<!---->");
                 Pyramid_2?.($$renderer4, { data: data_2, form, params: page.params });
                 $$renderer4.push(`<!---->`);
               },
@@ -2554,7 +2586,7 @@ function Root($$renderer, $$props) {
           } else {
             $$renderer3.push("<!--[!-->");
             const Pyramid_1 = constructors[1];
-            $$renderer3.push(`<!---->`);
+            $$renderer3.push("<!---->");
             Pyramid_1?.($$renderer3, { data: data_1, form, params: page.params });
             $$renderer3.push(`<!---->`);
           }
@@ -2566,7 +2598,7 @@ function Root($$renderer, $$props) {
     } else {
       $$renderer2.push("<!--[!-->");
       const Pyramid_0 = constructors[0];
-      $$renderer2.push(`<!---->`);
+      $$renderer2.push("<!---->");
       Pyramid_0?.($$renderer2, { data: data_0, form, params: page.params });
       $$renderer2.push(`<!---->`);
     }
@@ -2667,7 +2699,7 @@ const options = {
 		<div class="error">
 			<span class="status">` + status + '</span>\n			<div class="message">\n				<h1>' + message + "</h1>\n			</div>\n		</div>\n	</body>\n</html>\n"
   },
-  version_hash: "wcz0kb"
+  version_hash: "t7hjjk"
 };
 async function get_hooks() {
   let handle;

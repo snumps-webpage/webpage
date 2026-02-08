@@ -51,6 +51,8 @@ const ACTIVITY_TYPES = [
   n("회의"),
   n("기타")
 ];
+const CHATROOM_LINK = "https://chat.placeholder.link";
+const CHATROOM_PASSWORD = "snumps";
 const TIMEZONES = [
   { "label": "Africa/Abidjan", "value": "Africa/Abidjan" },
   { "label": "Africa/Accra", "value": "Africa/Accra" },
@@ -474,7 +476,9 @@ const TIMEZONES = [
 const DEFAULT_TIMEZONE = "Asia/Seoul";
 export {
   ACTIVITY_TYPES as A,
+  CHATROOM_LINK as C,
   DEFAULT_TIMEZONE as D,
   NOTION_PROPS as N,
-  TIMEZONES as T
+  TIMEZONES as T,
+  CHATROOM_PASSWORD as a
 };

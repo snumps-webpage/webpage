@@ -128,7 +128,11 @@ async function sha256(data) {
   text_encoder ??= new TextEncoder();
   crypto ??= globalThis.crypto?.subtle?.digest ? globalThis.crypto : (
     // @ts-ignore - we don't install node types in the prod build
-    (await import("node:crypto")).webcrypto
+    // don't use 'node:crypto' because static analysers will think we rely on node when we don't
+    (await import(
+      /* @vite-ignore */
+      "node:crypto"
+    )).webcrypto
   );
   const hash_buffer = await crypto.subtle.digest("SHA-256", text_encoder.encode(data));
   return base64_encode(hash_buffer);
@@ -257,6 +261,14 @@ class Renderer {
     promise.catch(noop);
     this.promise = promise;
     return promises;
+  }
+  /**
+   * @param {(renderer: Renderer) => MaybePromise<void>} fn
+   */
+  child_block(fn) {
+    this.#out.push(BLOCK_OPEN);
+    this.child(fn);
+    this.#out.push(BLOCK_CLOSE);
   }
   /**
    * Create a child renderer. The child renderer inherits the state from the parent,
@@ -631,15 +643,11 @@ class Renderer {
       new SSRState(mode, options.idPrefix ? options.idPrefix + "-" : "", options.csp)
     );
     renderer.push(BLOCK_OPEN);
-    if (options.context) {
-      push();
-      ssr_context.c = options.context;
-      ssr_context.r = renderer;
-    }
+    push();
+    if (options.context) ssr_context.c = options.context;
+    ssr_context.r = renderer;
     component(renderer, options.props ?? {});
-    if (options.context) {
-      pop();
-    }
+    pop();
     renderer.push(BLOCK_CLOSE);
     return renderer;
   }
@@ -859,8 +867,8 @@ export {
   BRANCH_EFFECT as j,
   RENDER_EFFECT as k,
   MANAGED_EFFECT as l,
-  DESTROYED as m,
-  HEAD_EFFECT as n,
+  HEAD_EFFECT as m,
+  DESTROYED as n,
   EFFECT_TRANSPARENT as o,
   EFFECT_PRESERVED as p,
   EAGER_EFFECT as q,
