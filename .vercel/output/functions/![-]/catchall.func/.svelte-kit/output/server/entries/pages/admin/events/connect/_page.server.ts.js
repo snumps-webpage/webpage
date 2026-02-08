@@ -1,4 +1,4 @@
-import { redirect, error } from "@sveltejs/kit";
+import { r as redirect, e as error } from "../../../../../chunks/index.js";
 import { n as getAllActivities } from "../../../../../chunks/notion.js";
 import { c as createEvent } from "../../../../../chunks/events.js";
 import { a as getSemesterKeyFromDate } from "../../../../../chunks/utils3.js";

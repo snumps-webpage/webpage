@@ -1,4 +1,4 @@
-import { x as attr_class, G as ensure_array_like } from "../../../chunks/index2.js";
+import { x as attr_class, G as ensure_array_like } from "../../../chunks/index3.js";
 import { e as escape_html } from "../../../chunks/escaping.js";
 import { a as attr } from "../../../chunks/attributes.js";
 function _page($$renderer, $$props) {

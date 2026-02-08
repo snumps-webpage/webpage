@@ -1,4 +1,4 @@
-import { error } from "@sveltejs/kit";
+import { e as error } from "../../../chunks/index.js";
 import { b as private_env } from "../../../chunks/shared-server.js";
 import { o as getDatabaseSchema, A as queryDatabase, B as getPropertyValue } from "../../../chunks/notion.js";
 import { isAdmin } from "../../../chunks/admin.js";

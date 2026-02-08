@@ -1,10 +1,9 @@
-import { y as await_block, z as attr_style, F as stringify, G as ensure_array_like, x as attr_class } from "../../chunks/index2.js";
-import { p as page } from "../../chunks/index3.js";
-import "@sveltejs/kit/internal";
+import { y as await_block, z as attr_style, F as stringify, G as ensure_array_like, x as attr_class } from "../../chunks/index3.js";
+import { p as page } from "../../chunks/index4.js";
 import "../../chunks/exports.js";
 import "../../chunks/utils.js";
 import { c as clsx, a as attr } from "../../chunks/attributes.js";
-import "@sveltejs/kit/internal/server";
+import "../../chunks/event.js";
 import "../../chunks/state.svelte.js";
 import { S as Skeleton } from "../../chunks/Skeleton.js";
 import { e as escape_html } from "../../chunks/escaping.js";

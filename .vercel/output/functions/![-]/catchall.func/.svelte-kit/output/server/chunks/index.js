@@ -1,60 +1,122 @@
-import { n as noop } from "./utils2.js";
-import { a as safe_not_equal } from "./equality.js";
-import "clsx";
-const subscriber_queue = [];
-function readable(value, start) {
-  return {
-    subscribe: writable(value, start).subscribe
-  };
+import { a as text_encoder } from "./utils.js";
+class HttpError {
+  /**
+   * @param {number} status
+   * @param {{message: string} extends App.Error ? (App.Error | string | undefined) : App.Error} body
+   */
+  constructor(status, body) {
+    this.status = status;
+    if (typeof body === "string") {
+      this.body = { message: body };
+    } else if (body) {
+      this.body = body;
+    } else {
+      this.body = { message: `Error: ${status}` };
+    }
+  }
+  toString() {
+    return JSON.stringify(this.body);
+  }
 }
-function writable(value, start = noop) {
-  let stop = null;
-  const subscribers = /* @__PURE__ */ new Set();
-  function set(new_value) {
-    if (safe_not_equal(value, new_value)) {
-      value = new_value;
-      if (stop) {
-        const run_queue = !subscriber_queue.length;
-        for (const subscriber of subscribers) {
-          subscriber[1]();
-          subscriber_queue.push(subscriber, value);
-        }
-        if (run_queue) {
-          for (let i = 0; i < subscriber_queue.length; i += 2) {
-            subscriber_queue[i][0](subscriber_queue[i + 1]);
-          }
-          subscriber_queue.length = 0;
-        }
-      }
-    }
+class Redirect {
+  /**
+   * @param {300 | 301 | 302 | 303 | 304 | 305 | 306 | 307 | 308} status
+   * @param {string} location
+   */
+  constructor(status, location) {
+    this.status = status;
+    this.location = location;
   }
-  function update(fn) {
-    set(fn(
-      /** @type {T} */
-      value
-    ));
+}
+class SvelteKitError extends Error {
+  /**
+   * @param {number} status
+   * @param {string} text
+   * @param {string} message
+   */
+  constructor(status, text2, message) {
+    super(message);
+    this.status = status;
+    this.text = text2;
   }
-  function subscribe(run, invalidate = noop) {
-    const subscriber = [run, invalidate];
-    subscribers.add(subscriber);
-    if (subscribers.size === 1) {
-      stop = start(set, update) || noop;
-    }
-    run(
-      /** @type {T} */
-      value
-    );
-    return () => {
-      subscribers.delete(subscriber);
-      if (subscribers.size === 0 && stop) {
-        stop();
-        stop = null;
-      }
-    };
+}
+class ActionFailure {
+  /**
+   * @param {number} status
+   * @param {T} data
+   */
+  constructor(status, data) {
+    this.status = status;
+    this.data = data;
   }
-  return { set, update, subscribe };
+}
+class ValidationError extends Error {
+  /**
+   * @param {StandardSchemaV1.Issue[]} issues
+   */
+  constructor(issues) {
+    super("Validation failed");
+    this.name = "ValidationError";
+    this.issues = issues;
+  }
+}
+function error(status, body) {
+  if (isNaN(status) || status < 400 || status > 599) {
+    throw new Error(`HTTP error status codes must be between 400 and 599 — ${status} is invalid`);
+  }
+  throw new HttpError(status, body);
+}
+function redirect(status, location) {
+  if (isNaN(status) || status < 300 || status > 308) {
+    throw new Error("Invalid status code");
+  }
+  throw new Redirect(
+    // @ts-ignore
+    status,
+    location.toString()
+  );
+}
+function json(data, init) {
+  const body = JSON.stringify(data);
+  const headers = new Headers(init?.headers);
+  if (!headers.has("content-length")) {
+    headers.set("content-length", text_encoder.encode(body).byteLength.toString());
+  }
+  if (!headers.has("content-type")) {
+    headers.set("content-type", "application/json");
+  }
+  return new Response(body, {
+    ...init,
+    headers
+  });
+}
+function text(body, init) {
+  const headers = new Headers(init?.headers);
+  if (!headers.has("content-length")) {
+    const encoded = text_encoder.encode(body);
+    headers.set("content-length", encoded.byteLength.toString());
+    return new Response(encoded, {
+      ...init,
+      headers
+    });
+  }
+  return new Response(body, {
+    ...init,
+    headers
+  });
+}
+function fail(status, data) {
+  return new ActionFailure(status, data);
 }
 export {
-  readable as r,
-  writable as w
+  ActionFailure as A,
+  HttpError as H,
+  Redirect as R,
+  SvelteKitError as S,
+  ValidationError as V,
+  error as e,
+  fail as f,
+  json as j,
+  redirect as r,
+  text as t
 };

@@ -1,4 +1,4 @@
-import { json } from "@sveltejs/kit";
+import { j as json } from "../../../../../chunks/index.js";
 import { b as private_env } from "../../../../../chunks/shared-server.js";
 import { s as syncEventStatuses } from "../../../../../chunks/events.js";
 const GET = async ({ request }) => {

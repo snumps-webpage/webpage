@@ -1,12 +1,11 @@
+import { w as with_request_store, N as NULL_BODY_STATUS, t as try_get_request_store, I as IN_WEBCONTAINER } from "./chunks/event.js";
 import { d as dev, a as assets, b as base, c as app_dir, r as relative, o as override, e as reset } from "./chunks/environment.js";
-import { json, text, error } from "@sveltejs/kit";
-import { Redirect, SvelteKitError, ActionFailure, HttpError } from "@sveltejs/kit/internal";
-import { with_request_store, merge_tracing, try_get_request_store } from "@sveltejs/kit/internal/server";
-import { E as ENDPOINT_METHODS, P as PAGE_METHODS, n as negotiate, m as method_not_allowed, h as handle_error_and_jsonify, g as get_status, i as is_form_content_type, a as normalize_error, b as get_global_name, s as serialize_uses, c as clarify_devalue_error, d as get_node_type, e as escape_html, S as SVELTE_KIT_ASSETS, f as create_remote_key, j as static_error_page, r as redirect_response, p as parse_remote_arg, k as stringify, l as deserialize_binary_form, o as has_prerendered_path, T as TRAILING_SLASH_PARAM, I as INVALIDATED_PARAM, q as handle_fatal_error, t as format_server_error } from "./chunks/shared.js";
+import { R as Redirect, j as json, S as SvelteKitError, A as ActionFailure, H as HttpError, t as text, e as error } from "./chunks/index.js";
+import { E as ENDPOINT_METHODS, P as PAGE_METHODS, n as negotiate, m as method_not_allowed, h as handle_error_and_jsonify, g as get_status, i as is_form_content_type, a as normalize_error, b as get_global_name, s as serialize_uses, c as clarify_devalue_error, d as get_node_type, v as validate_depends, e as escape_html, S as SVELTE_KIT_ASSETS, f as create_remote_key, j as static_error_page, r as redirect_response, p as parse_remote_arg, k as stringify, l as deserialize_binary_form, o as has_prerendered_path, T as TRAILING_SLASH_PARAM, I as INVALIDATED_PARAM, q as handle_fatal_error, t as format_server_error } from "./chunks/shared.js";
 import * as devalue from "devalue";
 import { m as make_trackable, d as disable_search, a as decode_params, S as SCHEME, v as validate_layout_server_exports, b as validate_layout_exports, c as validate_page_server_exports, e as validate_page_exports, n as normalize_path, r as resolve, f as decode_pathname, g as validate_server_exports } from "./chunks/exports.js";
 import { b as base64_encode, t as text_decoder, a as text_encoder, g as get_relative_path } from "./chunks/utils.js";
-import { w as writable, r as readable } from "./chunks/index.js";
+import { w as writable, r as readable } from "./chunks/index2.js";
 import { p as public_env, s as set_private_env, a as set_public_env } from "./chunks/shared-server.js";
 import { parse, serialize } from "cookie";
 import * as set_cookie_parser from "set-cookie-parser";
@@ -20,8 +19,40 @@ function with_resolvers() {
   });
   return { promise, resolve: resolve2, reject };
 }
-const NULL_BODY_STATUS = [101, 103, 204, 205, 304];
-const IN_WEBCONTAINER = !!globalThis.process?.versions?.webcontainer;
+const DATA_SUFFIX = "/__data.json";
+const HTML_DATA_SUFFIX = ".html__data.json";
+function has_data_suffix(pathname) {
+  return pathname.endsWith(DATA_SUFFIX) || pathname.endsWith(HTML_DATA_SUFFIX);
+}
+function add_data_suffix(pathname) {
+  if (pathname.endsWith(".html")) return pathname.replace(/\.html$/, HTML_DATA_SUFFIX);
+  return pathname.replace(/\/$/, "") + DATA_SUFFIX;
+}
+function strip_data_suffix(pathname) {
+  if (pathname.endsWith(HTML_DATA_SUFFIX)) {
+    return pathname.slice(0, -HTML_DATA_SUFFIX.length) + ".html";
+  }
+  return pathname.slice(0, -DATA_SUFFIX.length);
+}
+const ROUTE_SUFFIX = "/__route.js";
+function has_resolution_suffix(pathname) {
+  return pathname.endsWith(ROUTE_SUFFIX);
+}
+function add_resolution_suffix(pathname) {
+  return pathname.replace(/\/$/, "") + ROUTE_SUFFIX;
+}
+function strip_resolution_suffix(pathname) {
+  return pathname.slice(0, -ROUTE_SUFFIX.length);
+}
+function merge_tracing(event_like, current2) {
+  return {
+    ...event_like,
+    tracing: {
+      ...event_like.tracing,
+      current: current2
+    }
+  };
+}
 async function render_endpoint(event, event_state, mod, state) {
   const method = (
     /** @type {import('types').HttpMethod} */
@@ -104,31 +135,6 @@ function compact(arr) {
     /** @returns {val is NonNullable<T>} */
     (val) => val != null
   );
-}
-const DATA_SUFFIX = "/__data.json";
-const HTML_DATA_SUFFIX = ".html__data.json";
-function has_data_suffix(pathname) {
-  return pathname.endsWith(DATA_SUFFIX) || pathname.endsWith(HTML_DATA_SUFFIX);
-}
-function add_data_suffix(pathname) {
-  if (pathname.endsWith(".html")) return pathname.replace(/\.html$/, HTML_DATA_SUFFIX);
-  return pathname.replace(/\/$/, "") + DATA_SUFFIX;
-}
-function strip_data_suffix(pathname) {
-  if (pathname.endsWith(HTML_DATA_SUFFIX)) {
-    return pathname.slice(0, -HTML_DATA_SUFFIX.length) + ".html";
-  }
-  return pathname.slice(0, -DATA_SUFFIX.length);
-}
-const ROUTE_SUFFIX = "/__route.js";
-function has_resolution_suffix(pathname) {
-  return pathname.endsWith(ROUTE_SUFFIX);
-}
-function add_resolution_suffix(pathname) {
-  return pathname.replace(/\/$/, "") + ROUTE_SUFFIX;
-}
-function strip_resolution_suffix(pathname) {
-  return pathname.slice(0, -ROUTE_SUFFIX.length);
 }
 const noop_span = {
   spanContext() {
@@ -662,6 +668,7 @@ async function load_server_data({ event, event_state, state, node, parent }) {
   if (state.prerendering) {
     disable_search(url);
   }
+  let done = false;
   const result = await record_span({
     name: "sveltekit.load",
     attributes: {
@@ -676,18 +683,21 @@ async function load_server_data({ event, event_state, state, node, parent }) {
         () => load.call(null, {
           ...traced_event,
           fetch: (info, init2) => {
-            new URL(info instanceof Request ? info.url : info, event.url);
+            const url2 = new URL(info instanceof Request ? info.url : info, event.url);
+            if (dev && done && !uses.dependencies.has(url2.href)) ;
             return event.fetch(info, init2);
           },
           /** @param {string[]} deps */
           depends: (...deps) => {
             for (const dep of deps) {
               const { href } = new URL(dep, event.url);
+              if (dev) ;
               uses.dependencies.add(href);
             }
           },
           params: new Proxy(event.params, {
             get: (target, key2) => {
+              if (dev && done && typeof key2 === "string" && !uses.params.has(key2)) ;
               if (is_tracking) {
                 uses.params.add(key2);
               }
@@ -698,6 +708,7 @@ async function load_server_data({ event, event_state, state, node, parent }) {
             }
           }),
           parent: async () => {
+            if (dev && done && !uses.parent) ;
             if (is_tracking) {
               uses.parent = true;
             }
@@ -705,6 +716,7 @@ async function load_server_data({ event, event_state, state, node, parent }) {
           },
           route: new Proxy(event.route, {
             get: (target, key2) => {
+              if (dev && done && typeof key2 === "string" && !uses.route) ;
               if (is_tracking) {
                 uses.route = true;
               }
@@ -728,6 +740,7 @@ async function load_server_data({ event, event_state, state, node, parent }) {
       return result2;
     }
   });
+  done = true;
   return {
     type: "data",
     data: result ?? null,

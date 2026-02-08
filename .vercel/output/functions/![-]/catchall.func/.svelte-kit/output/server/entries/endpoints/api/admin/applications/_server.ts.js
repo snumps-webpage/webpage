@@ -1,4 +1,4 @@
-import { json } from "@sveltejs/kit";
+import { j as json } from "../../../../../chunks/index.js";
 import { isAdmin, getApplications } from "../../../../../chunks/admin.js";
 const GET = async ({ locals }) => {
   const session = await locals.auth();
