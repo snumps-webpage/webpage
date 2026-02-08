@@ -5,5 +5,8 @@ export default defineConfig({
 	plugins: [sveltekit()],
 	build: {
 		sourcemap: false
+	},
+	ssr: {
+		noExternal: ["@sveltejs/kit"]
 	}
 });
