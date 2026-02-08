@@ -1,4 +1,4 @@
-const DEV = false;
+const dev = false;
 let base = "";
 let assets = base;
 const app_dir = "_app";
@@ -24,14 +24,14 @@ function set_prerendering() {
   prerendering = true;
 }
 export {
-  DEV as D,
   assets as a,
   base as b,
   app_dir as c,
-  reset as d,
-  set_building as e,
-  set_prerendering as f,
-  building as g,
+  dev as d,
+  reset as e,
+  set_building as f,
+  set_prerendering as g,
+  building as h,
   override as o,
   prerendering as p,
   relative as r,

@@ -1,5 +1,5 @@
 import { H as HYDRATION_ERROR, C as COMMENT_NODE, a as HYDRATION_END, b as HYDRATION_START, c as HYDRATION_START_ELSE, B as BOUNDARY_EFFECT, E as ERROR_VALUE, d as EFFECT_RAN, e as CONNECTED, f as CLEAN, M as MAYBE_DIRTY, D as DIRTY, g as DERIVED, W as WAS_MARKED, I as INERT, h as EFFECT, i as BLOCK_EFFECT, U as UNINITIALIZED, j as BRANCH_EFFECT, R as ROOT_EFFECT, k as RENDER_EFFECT, l as MANAGED_EFFECT, m as DESTROYED, A as ASYNC, n as HEAD_EFFECT, o as EFFECT_TRANSPARENT, p as EFFECT_PRESERVED, q as EAGER_EFFECT, S as STATE_SYMBOL, r as STALE_REACTION, s as USER_EFFECT, t as REACTION_IS_UPDATING, u as is_passive_event, L as LEGACY_PROPS, v as render } from "./index2.js";
-import { D as DEV } from "./environment.js";
+import { d as dev } from "./environment.js";
 import { r as run_all, d as deferred, i as includes, o as object_prototype, a as array_prototype, g as get_descriptor, b as get_prototype_of, c as is_array, e as is_extensible, f as index_of, h as define_property, j as array_from } from "./utils2.js";
 import { s as safe_equals, e as equals } from "./equality.js";
 import "clsx";
@@ -556,12 +556,12 @@ function flush_effects() {
       var batch = Batch.ensure();
       if (flush_count++ > 1e3) {
         var updates, entry;
-        if (DEV) ;
+        if (dev) ;
         infinite_loop_guard();
       }
       batch.process(queued_root_effects);
       old_values.clear();
-      if (DEV) ;
+      if (dev) ;
     }
   } finally {
     is_flushing = false;
@@ -2005,7 +2005,7 @@ function update_effect(effect) {
     effect.teardown = typeof teardown === "function" ? teardown : null;
     effect.wv = write_version;
     var dep;
-    if (DEV && tracing_mode_flag && (effect.f & DIRTY) !== 0 && effect.deps !== null) ;
+    if (dev && tracing_mode_flag && (effect.f & DIRTY) !== 0 && effect.deps !== null) ;
   } finally {
     is_updating_effect = was_updating_effect;
     active_effect = previous_effect;
@@ -2667,7 +2667,7 @@ const options = {
 		<div class="error">
 			<span class="status">` + status + '</span>\n			<div class="message">\n				<h1>' + message + "</h1>\n			</div>\n		</div>\n	</body>\n</html>\n"
   },
-  version_hash: "1astqxf"
+  version_hash: "wcz0kb"
 };
 async function get_hooks() {
   let handle;
