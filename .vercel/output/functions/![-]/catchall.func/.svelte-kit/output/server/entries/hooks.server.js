@@ -1,12 +1,11 @@
 import { b as private_env } from "../chunks/shared-server.js";
-import { D as DEV, b as base, g as building } from "../chunks/environment.js";
+import { d as dev, b as base, h as building } from "../chunks/environment.js";
 import { redirect } from "@sveltejs/kit";
 import { skipCSRFCheck, setEnvDefaults as setEnvDefaults$1, createActionURL, Auth, raw, isAuthAction } from "@auth/core";
 import "@sveltejs/kit/internal/server";
 import { parse } from "set-cookie-parser";
 import "@auth/core/errors";
 import Google from "@auth/core/providers/google";
-const dev = DEV;
 function setEnvDefaults(envObject, config) {
   config.trustHost ??= dev;
   config.basePath = `${base}/auth`;
