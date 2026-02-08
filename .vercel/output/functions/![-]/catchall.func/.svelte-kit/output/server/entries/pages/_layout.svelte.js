@@ -17,7 +17,8 @@ function _layout($$renderer, $$props) {
     const session = page.data.session;
     let currentTheme = getInitialTheme();
     head("12qhfyh", $$renderer2, ($$renderer3) => {
-      $$renderer3.push(`<link rel="icon"${attr("href", favicon)} class="svelte-12qhfyh"/> <script class="svelte-12qhfyh">
+      $$renderer3.push(`<link rel="icon"${attr("href", favicon)} class="svelte-12qhfyh"/> `);
+      $$renderer3.push(`<script class="svelte-12qhfyh">
 		// Inline script to prevent theme flicker on page load
 		(function() {
 			try {

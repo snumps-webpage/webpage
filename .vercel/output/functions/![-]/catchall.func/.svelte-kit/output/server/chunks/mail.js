@@ -1,5 +1,5 @@
 import { b as private_env } from "./shared-server.js";
-import "./constants.js";
+import { C as CHATROOM_LINK, a as CHATROOM_PASSWORD } from "./constants.js";
 async function getAdminAccessToken() {
   const refreshToken = private_env.ADMIN_REFRESH_TOKEN;
   const clientId = private_env.GOOGLE_CLIENT_ID;
@@ -26,6 +26,24 @@ async function getAdminAccessToken() {
   }
   const data = await response.json();
   return data.access_token;
+}
+async function sendSignupNotification(applicantName) {
+  try {
+    const accessToken = await getAdminAccessToken();
+    const adminEmails = (private_env.ADMINS_EMAILS || "").split(",").map((e) => e.trim());
+    if (adminEmails.length === 0) return;
+    const subject = `[SNUMPS] 새 회원 가입 신청: ${applicantName}`;
+    const body = `안녕하세요, 관리자님.
+
+새로운 회원 가입 신청이 접수되었습니다.
+
+신청자 이름: ${applicantName}
+
+관리자 페이지에서 확인 후 승인해주세요.`;
+    await dispatchEmail(accessToken, adminEmails, subject, body);
+  } catch (e) {
+    console.error("Signup notification error:", e);
+  }
 }
 async function sendAttendanceNotification(userName, eventName) {
   try {
@@ -78,6 +96,25 @@ ${applicantName}님으로부터 새로운 세미나 개설 신청이 접수되�
     console.error("Seminar application notification error:", e);
   }
 }
+async function sendWelcomeEmail(recipientEmail, recipientName) {
+  try {
+    console.log(`[Mail] Attempting welcome email: ${recipientName} (${recipientEmail})`);
+    const accessToken = await getAdminAccessToken();
+    const subject = `[SNUMPS] 가입이 승인되었습니다!`;
+    const body = `안녕하세요, ${recipientName}님!
+
+SNUMPS 가입 신청이 성공적으로 승인되었습니다. 동아리의 일원이 되신 것을 진심으로 환영합니다.
+
+앞으로의 활동을 위해 아래의 단톡방에 입장해 주세요:
+동아리 단톡방 링크: ${CHATROOM_LINK} (비밀번호: ${CHATROOM_PASSWORD})
+
+감사합니다.`;
+    await dispatchEmail(accessToken, [recipientEmail], subject, body);
+    console.log(`[Mail] Welcome email sent to ${recipientEmail}`);
+  } catch (e) {
+    console.error(`[Mail] Failed to send welcome email to ${recipientEmail}:`, e);
+  }
+}
 async function dispatchEmail(accessToken, recipients, subject, body) {
   console.log(`Dispatching email to: ${recipients.join(", ")}`);
   const message = [
@@ -107,5 +144,7 @@ async function dispatchEmail(accessToken, recipients, subject, body) {
 export {
   sendAttendanceNotification,
   sendSeminarApplicationNotification,
-  sendSeminarStatusNotification
+  sendSeminarStatusNotification,
+  sendSignupNotification,
+  sendWelcomeEmail
 };
