@@ -1,4 +1,4 @@
-import { redirect } from "@sveltejs/kit";
+import { r as redirect } from "../../chunks/index.js";
 import { a as getPresidentName, b as getMemberByEmail } from "../../chunks/notion.js";
 import { isAdmin, getApplications } from "../../chunks/admin.js";
 import { g as getSemesterInfo } from "../../chunks/utils3.js";

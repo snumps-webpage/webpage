@@ -1,6 +1,5 @@
-import { json, text } from "@sveltejs/kit";
-import { SvelteKitError, HttpError } from "@sveltejs/kit/internal";
-import { with_request_store } from "@sveltejs/kit/internal/server";
+import { S as SvelteKitError, H as HttpError, j as json, t as text } from "./index.js";
+import { w as with_request_store } from "./event.js";
 import * as devalue from "devalue";
 import { t as text_decoder, b as base64_encode, c as base64_decode } from "./utils.js";
 const SVELTE_KIT_ASSETS = "/_svelte_kit_assets";
@@ -711,6 +710,14 @@ function get_node_type(node_id) {
   const dot_parts = filename.split(".");
   return dot_parts.slice(0, -1).join(".");
 }
+function validate_depends(route_id, dep) {
+  const match = /^(moz-icon|view-source|jar):/.exec(dep);
+  if (match) {
+    console.warn(
+      `${route_id}: Calling \`depends('${dep}')\` will throw an error in Firefox because \`${match[1]}\` is a special URI scheme`
+    );
+  }
+}
 const INVALIDATED_PARAM = "x-sveltekit-invalidated";
 const TRAILING_SLASH_PARAM = "x-sveltekit-trailing-slash";
 function stringify(data, transport) {
@@ -736,6 +743,7 @@ function create_remote_key(id, payload) {
   return id + "/" + payload;
 }
 export {
+  deep_set as A,
   ENDPOINT_METHODS as E,
   INVALIDATED_PARAM as I,
   PAGE_METHODS as P,
@@ -762,9 +770,9 @@ export {
   serialize_uses as s,
   format_server_error as t,
   stringify_remote_arg as u,
-  flatten_issues as v,
-  create_field_proxy as w,
-  normalize_issue as x,
-  set_nested_value as y,
-  deep_set as z
+  validate_depends as v,
+  flatten_issues as w,
+  create_field_proxy as x,
+  normalize_issue as y,
+  set_nested_value as z
 };

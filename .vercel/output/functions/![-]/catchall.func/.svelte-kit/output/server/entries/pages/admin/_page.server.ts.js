@@ -1,4 +1,4 @@
-import { fail, redirect } from "@sveltejs/kit";
+import { f as fail, r as redirect } from "../../../chunks/index.js";
 import { isAdmin, removeApplication, getApplications } from "../../../chunks/admin.js";
 import { i as createActivityPage, b as getMemberByEmail, j as addAttendeeToActivity, k as invalidateCache, l as createMember, m as markApplicationAsAccepted, g as getAllMembers } from "../../../chunks/notion.js";
 import { c as createEvent, r as removeAttendanceRecord, u as updateAttendanceRecord, a as updateAttendanceStatus, g as getEvent, d as deleteEvent, b as updateEventStatus, e as getAttendanceQueue, f as getEvents } from "../../../chunks/events.js";

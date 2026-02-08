@@ -1,4 +1,4 @@
-import { redirect } from "@sveltejs/kit";
+import { r as redirect } from "../../../chunks/index.js";
 const load = async (event) => {
   const { session, isMember, application, isAdmin } = await event.parent();
   if (!session?.user) {

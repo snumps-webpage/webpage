@@ -1,4 +1,4 @@
-import { json } from "@sveltejs/kit";
+import { j as json } from "../../../../../chunks/index.js";
 import { isAdmin } from "../../../../../chunks/admin.js";
 import { g as getSeminarRequests } from "../../../../../chunks/seminars.js";
 import { g as getAllMembers } from "../../../../../chunks/notion.js";

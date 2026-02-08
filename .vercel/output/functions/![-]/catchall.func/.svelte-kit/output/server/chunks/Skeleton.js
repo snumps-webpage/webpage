@@ -1,4 +1,4 @@
-import { x as attr_class, z as attr_style, F as stringify } from "./index2.js";
+import { x as attr_class, z as attr_style, F as stringify } from "./index3.js";
 function Skeleton($$renderer, $$props) {
   let {
     width = "100%",

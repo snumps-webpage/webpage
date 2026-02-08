@@ -2,7 +2,7 @@ import { u as updateSeminar, b as getMemberByEmail, c as updatePrivateInfo, d as
 import { g as getSeminarRequests } from "../../chunks/seminars.js";
 import { getApplications } from "../../chunks/admin.js";
 import { n as normalizePhoneNumber, g as getSemesterInfo, a as getSemesterKeyFromDate } from "../../chunks/utils3.js";
-import { fail } from "@sveltejs/kit";
+import { f as fail } from "../../chunks/index.js";
 const load = async (event) => {
   const session = await event.locals.auth();
   const semester = getSemesterInfo();

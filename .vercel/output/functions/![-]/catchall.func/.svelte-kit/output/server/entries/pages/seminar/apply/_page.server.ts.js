@@ -1,4 +1,4 @@
-import { fail, redirect } from "@sveltejs/kit";
+import { f as fail, r as redirect } from "../../../../chunks/index.js";
 import { c as createSeminarRequest } from "../../../../chunks/seminars.js";
 import { b as getMemberByEmail, g as getAllMembers, C as getAllPrivateInfo } from "../../../../chunks/notion.js";
 const load = async ({ locals, url }) => {

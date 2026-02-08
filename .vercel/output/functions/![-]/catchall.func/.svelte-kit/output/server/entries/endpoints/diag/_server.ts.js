@@ -1,4 +1,4 @@
-import { json } from "@sveltejs/kit";
+import { j as json } from "../../../chunks/index.js";
 import { b as private_env } from "../../../chunks/shared-server.js";
 import { Client } from "@notionhq/client";
 import { isAdmin } from "../../../chunks/admin.js";

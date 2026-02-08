@@ -1,8 +1,9 @@
 import { b as private_env } from "../chunks/shared-server.js";
 import { d as dev, b as base, h as building } from "../chunks/environment.js";
-import { redirect } from "@sveltejs/kit";
+import "../chunks/utils.js";
 import { skipCSRFCheck, setEnvDefaults as setEnvDefaults$1, createActionURL, Auth, raw, isAuthAction } from "@auth/core";
-import "@sveltejs/kit/internal/server";
+import "../chunks/event.js";
+import { r as redirect } from "../chunks/index.js";
 import { parse } from "set-cookie-parser";
 import "@auth/core/errors";
 import Google from "@auth/core/providers/google";

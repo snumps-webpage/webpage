@@ -1,4 +1,4 @@
-import { redirect } from "@sveltejs/kit";
+import { r as redirect } from "../../../../../chunks/index.js";
 import { isAdmin } from "../../../../../chunks/admin.js";
 const load = async (event) => {
   const session = await event.locals.auth();

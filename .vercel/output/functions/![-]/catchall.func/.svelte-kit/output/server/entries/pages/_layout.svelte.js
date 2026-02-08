@@ -1,10 +1,9 @@
-import { w as head, x as attr_class } from "../../chunks/index2.js";
-import { p as page, n as navigating } from "../../chunks/index3.js";
-import "@sveltejs/kit/internal";
+import { w as head, x as attr_class } from "../../chunks/index3.js";
+import { p as page, n as navigating } from "../../chunks/index4.js";
 import "../../chunks/exports.js";
 import "../../chunks/utils.js";
 import { a as attr } from "../../chunks/attributes.js";
-import "@sveltejs/kit/internal/server";
+import "../../chunks/event.js";
 import "../../chunks/state.svelte.js";
 import { e as escape_html } from "../../chunks/escaping.js";
 const favicon = "/_app/immutable/assets/favicon.BhOLQc4l.svg";

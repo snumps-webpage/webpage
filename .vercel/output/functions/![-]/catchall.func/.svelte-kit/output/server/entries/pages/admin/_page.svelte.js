@@ -1,9 +1,8 @@
-import { x as attr_class } from "../../../chunks/index2.js";
-import "@sveltejs/kit/internal";
+import { x as attr_class } from "../../../chunks/index3.js";
 import "../../../chunks/exports.js";
 import "../../../chunks/utils.js";
 import { a as attr } from "../../../chunks/attributes.js";
-import "@sveltejs/kit/internal/server";
+import "../../../chunks/event.js";
 import "../../../chunks/state.svelte.js";
 import { S as Skeleton } from "../../../chunks/Skeleton.js";
 import { e as escape_html } from "../../../chunks/escaping.js";
