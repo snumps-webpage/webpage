@@ -36,7 +36,7 @@ src/
   - **Members & Private Info**: Centralized club registry.
   - **Applications (Signups)**: Membership requests are stored directly in Notion for administrative processing.
   - **Seminar Requests**: Member-led proposals are persisted in Notion until approval.
-- **In-Memory Caching (Performance)**: Server-side `Map` cache with TTL is used to reduce Notion API calls for frequent reads (Members, Events). Note: This cache is ephemeral (per-lambda).
+- **In-Memory Caching (Performance)**: Server-side `Map` cache with TTL is used to reduce Notion API calls for frequent reads (Members, Events). Note: This cache is ephemeral (per-lambda). See [**Caching Policy**](CACHE.md) for specific durations and details.
 - **Sustainability**: All Notion interactions use centralized generic helpers (`notionQuery`, `notionCreate`, `notionUpdate`) with explicit headers and official SDK support for maximum reliability.
 
 ## 🛡️ Operations & Error Handling

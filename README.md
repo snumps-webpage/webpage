@@ -20,4 +20,8 @@ A secure SvelteKit web application designed to automate membership management an
 - **Communication**: Google Gmail API.
 
 ---
-*For more detailed information, please refer to the files in the [docs/](./docs/) directory.*
+*   [**Setup Guide**](docs/SETUP.md) - Environment variables and initial configuration.
+*   [**Architecture**](docs/ARCHITECTURE.md) - System design and operational protocols.
+*   [**Features**](docs/FEATURES.md) - Detailed breakdown of application capabilities.
+*   [**Caching Policy**](docs/CACHE.md) - Cache durations and management strategy.
+*   [**Database Schema**](docs/schema.md) - Notion database structures and property mappings.
