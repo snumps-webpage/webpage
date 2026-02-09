@@ -49,7 +49,7 @@
     .card {
         background: var(--bg-secondary);
         padding: 3rem;
-        border-radius: 16px;
+        border-radius: 8px; /* Sharper */
         box-shadow: var(--shadow);
         text-align: center;
         max-width: 400px;
@@ -57,12 +57,18 @@
         border: 1px solid var(--border-color);
     }
 
-    h1 { margin: 0 0 1rem; color: var(--text-primary); }
+    h1 { 
+        margin: 0 0 1rem; 
+        color: var(--text-primary); 
+        font-family: "Playfair Display", "Nanum Myeongjo", serif;
+        font-weight: 700;
+    }
 
     .meta {
         margin-bottom: 2rem;
         color: var(--text-secondary);
         font-size: 0.9rem;
+        font-family: "Inter", "Noto Sans KR", sans-serif;
     }
 
     .type {
@@ -70,33 +76,40 @@
         padding: 0.2rem 0.5rem;
         border-radius: 4px;
         margin-right: 0.5rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-size: 0.75rem;
     }
 
     .user-info {
         margin-bottom: 2rem;
         padding: 1rem;
-        background: var(--btn-secondary);
-        border-radius: 8px;
-        font-size: 0.9rem;
-        color: var(--text-secondary);
+        background: var(--bg-primary);
+        border-radius: 4px;
+        font-size: 0.85rem;
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+        font-family: var(--font-mono);
     }
 
     .btn {
         width: 100%;
         padding: 1rem;
         border: none;
-        border-radius: 8px;
+        border-radius: 4px;
         font-size: 1.1rem;
         font-weight: 700;
         cursor: pointer;
         transition: transform 0.1s;
         user-select: none;
+        font-family: "Playfair Display", "Nanum Myeongjo", serif;
     }
 
     .btn:active { transform: scale(0.98); }
 
     .attend {
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        background: var(--brand-gradient);
         color: white;
     }
 </style>

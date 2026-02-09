@@ -911,47 +911,56 @@
 		justify-content: space-between;
 		align-items: center;
 		margin-bottom: 2rem;
-		border-bottom: 1px solid #e5e7eb;
+		border-bottom: 2px solid var(--border-color);
 		padding-bottom: 1rem;
 	}
 
-	h1 { margin: 0; }
+	h1 { 
+		margin: 0; 
+		color: var(--text-primary);
+		font-family: "Playfair Display", "Nanum Myeongjo", serif;
+		font-weight: 700;
+	}
 
 	.home-link {
-		color: #6b7280;
+		color: var(--text-secondary);
 		text-decoration: none;
 	}
 
 	.header-actions {
 		display: flex;
 		align-items: center;
-		gap: 1rem;
+		gap: 0.75rem;
 	}
 
 	.admin-action-btn {
-		background: #667eea;
-		color: white;
-		padding: 0.5rem 1rem;
-		border-radius: 6px;
+		background: var(--text-primary);
+		color: var(--bg-primary);
+		padding: 0.6rem 1rem;
+		border-radius: 4px;
 		text-decoration: none;
-		font-weight: 600;
+		font-weight: 700;
 		font-size: 0.9rem;
 		user-select: none;
+		font-family: "Inter", "Noto Sans KR", sans-serif;
+		transition: opacity 0.2s;
 	}
 
 	.admin-action-btn:hover { opacity: 0.9; }
-	.admin-action-btn.secondary { background: #4b5563; }
-	.admin-action-btn.signup { background: #10b981; }
+	.admin-action-btn.secondary { background: var(--text-secondary); }
+	.admin-action-btn.signup { background: var(--color-success-text); }
 
 	.status-badge {
 		display: inline-block;
-		padding: 0.2rem 0.75rem;
+		padding: 0.2rem 0.6rem;
 		border-radius: 4px;
 		font-size: 0.7rem;
 		font-weight: 700;
 		white-space: nowrap;
 		width: max-content;
 		user-select: none;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
 	}
 	.status-badge.draft { background: var(--btn-secondary); color: var(--text-secondary); }
 	.status-badge.active { background: var(--color-success-bg); color: var(--color-success-text); }
@@ -959,34 +968,35 @@
 
 	.links { display: flex; gap: 0.5rem; flex-direction: column; }
 	.copy-btn {
-		background: white;
-		border: 1px solid #d1d5db;
-		padding: 0.2rem 0.4rem;
+		background: var(--bg-primary);
+		border: 1px solid var(--border-color);
+		padding: 0.3rem 0.6rem;
 		border-radius: 4px;
 		font-size: 0.75rem;
 		cursor: pointer;
 		user-select: none;
+		color: var(--text-primary);
 	}
-	.copy-btn:hover { background: #f9fafb; }
-	.hint { color: #9ca3af; font-size: 0.8rem; }
+	.copy-btn:hover { background: var(--btn-secondary); }
+	.hint { color: var(--text-secondary); font-size: 0.8rem; font-style: italic; }
 
     .copy-link-btn {
         background: none;
         border: none;
         padding: 0;
-        color: #667eea;
+        color: var(--text-primary);
         font-weight: 600;
         cursor: pointer;
         text-decoration: underline;
         font-size: inherit;
     }
 
-    .copy-link-btn:hover { color: #764ba2; }
+    .copy-link-btn:hover { color: var(--text-secondary); }
 
-	.activate { background: #10b981; color: white; }
-	.expire { background: #fbbf24; color: white; }
-	.delete { background: #6b7280; color: white; }
-    .edit { background: #667eea; color: white; }
+	.activate { background: var(--color-success-text); color: white; }
+	.expire { background: var(--color-warning-text); color: white; }
+	.delete { background: var(--text-secondary); color: white; }
+    .edit { background: var(--text-primary); color: white; }
 
 	.empty {
 		color: var(--text-secondary);
@@ -996,6 +1006,8 @@
 		border-radius: 8px;
 		border: 1px solid var(--border-color);
 		user-select: none;
+		font-family: "Playfair Display", "Nanum Myeongjo", serif;
+		font-style: italic;
 	}
 
     .edit-dialog {
@@ -1012,21 +1024,27 @@
         background: rgba(0,0,0,0.5);
     }
     
-    .edit-dialog h3 { margin-top: 0; color: var(--text-primary); }
+    .edit-dialog h3 { 
+		margin-top: 0; 
+		color: var(--text-primary); 
+		font-family: "Playfair Display", "Nanum Myeongjo", serif;
+	}
     
     .edit-dialog .field { margin-bottom: 1rem; }
     
     .edit-dialog label {
         display: block;
         margin-bottom: 0.5rem;
-        font-size: 0.9rem;
-        font-weight: 600;
-        color: var(--text-secondary);
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--text-primary);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
     }
     
     .edit-dialog input {
         width: 100%;
-        padding: 0.5rem;
+        padding: 0.6rem;
         border: 1px solid var(--border-color);
         border-radius: 4px;
         background: var(--bg-primary);
@@ -1036,7 +1054,7 @@
     .dialog-actions {
         display: flex;
         justify-content: flex-end;
-        gap: 0.5rem;
+        gap: 0.75rem;
         margin-top: 1.5rem;
     }
     
@@ -1049,8 +1067,8 @@
         user-select: none;
     }
     
-    .dialog-actions .submit { background: #10b981; color: white; }
-    .dialog-actions .cancel { background: var(--btn-secondary); color: var(--text-secondary); }
+    .dialog-actions .submit { background: var(--color-success-text); color: white; }
+    .dialog-actions .cancel { background: var(--text-secondary); color: white; }
 
     /* Search Bar */
 	.search-bar {
@@ -1066,11 +1084,11 @@
 
 	.search-input {
 		width: 100%;
-		padding: 0.6rem 1rem;
+		padding: 0.75rem;
 		border: 1px solid var(--border-color);
-		border-radius: 8px;
+		border-radius: 4px;
 		font-size: 0.95rem;
-        background: var(--bg-secondary);
+        background: var(--bg-primary);
         color: var(--text-primary);
 	}
 
@@ -1078,7 +1096,7 @@
 		display: flex;
 		background: var(--btn-secondary);
 		padding: 0.25rem;
-		border-radius: 8px;
+		border-radius: 4px;
 		border: 1px solid var(--border-color);
 		user-select: none;
 	}
@@ -1087,18 +1105,19 @@
 		padding: 0.4rem 1rem;
 		border: none;
 		background: transparent;
-		border-radius: 6px;
+		border-radius: 4px;
 		font-size: 0.875rem;
 		cursor: pointer;
 		color: var(--text-secondary);
 		transition: all 0.2s;
 		user-select: none;
+		font-weight: 600;
 	}
 
 	.toggle-btn.active {
-		background: var(--bg-secondary);
+		background: var(--bg-primary);
 		color: var(--text-primary);
-		box-shadow: var(--shadow);
+		box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 	}
 
     .search-empty {
@@ -1117,7 +1136,7 @@
 	.card {
 		background: var(--bg-secondary);
 		border: 1px solid var(--border-color);
-		border-radius: 12px;
+		border-radius: 8px; /* Sharper */
 		padding: 1.5rem;
 		box-shadow: var(--shadow);
 		transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -1125,24 +1144,33 @@
 
 	.card:hover {
 		transform: translateY(-2px);
-		box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+		box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 	}
 
-	.card-header h3 { margin: 0; font-size: 1.1rem; color: var(--text-primary); }
+	.card-header h3 { 
+		margin: 0; 
+		font-size: 1.1rem; 
+		color: var(--text-primary); 
+		font-family: "Playfair Display", "Nanum Myeongjo", serif;
+	}
 	.dept { 
-		font-size: 0.85rem; 
-		color: var(--text-secondary); 
+		font-size: 0.75rem; 
+		color: var(--text-primary); 
 		background: var(--btn-secondary);
 		padding: 0.2rem 0.5rem;
 		border-radius: 4px;
 		user-select: none;
+		font-weight: 700;
+		text-transform: uppercase;
 	}
 
 	.info p {
 		margin: 0.5rem 0;
 		font-size: 0.9rem;
 		color: var(--text-primary);
+		font-family: "Inter", "Noto Sans KR", sans-serif;
 	}
+	.info p:has(strong) { font-family: var(--font-mono); font-size: 0.85rem; }
 
 	details {
 		margin: 1rem 0;
@@ -1152,17 +1180,20 @@
 	
 	summary {
 		cursor: pointer;
-		color: #667eea;
+		color: var(--text-primary);
+		font-weight: 600;
 		user-select: none;
+		text-decoration: underline;
 	}
 
 	.details-content {
 		margin-top: 0.5rem;
 		padding: 0.75rem;
-		background: var(--btn-secondary);
+		background: var(--bg-primary);
 		border-radius: 4px;
 		color: var(--text-primary);
 		white-space: pre-wrap;
+		border: 1px solid var(--border-color);
 	}
 
 	.actions {
@@ -1185,28 +1216,29 @@
 	.btn:hover { opacity: 0.9; }
 
 	.approve {
-		background: #10b981;
+		background: var(--color-success-text);
 		color: white;
 	}
 
 	.reject {
-		background: #ef4444;
+		background: var(--color-danger-text);
 		color: white;
 	}
 
 	.approved-badge {
-		background: #d1fae5;
-		color: #059669;
+		background: var(--color-success-bg);
+		color: var(--color-success-text);
 		cursor: default !important;
 	}
 
 	.card.accepted {
-		opacity: 0.7;
+		opacity: 0.6;
 		border-style: dashed;
+		background: var(--bg-primary);
 	}
 
 	.small {
-		padding: 0.25rem 0.5rem;
+		padding: 0.3rem 0.6rem;
 		font-size: 0.8rem;
 		width: auto;
 	}
@@ -1225,15 +1257,29 @@
 	}
 
 	th, td {
-		padding: 0.75rem 1rem;
+		padding: 0.8rem 1rem;
 		border-bottom: 1px solid var(--border-color);
 		color: var(--text-primary);
 	}
 
+	td { font-family: "Inter", "Noto Sans KR", sans-serif; }
+	
+	/* Monospace for data-heavy columns */
+	td:nth-child(2), /* Date/Time */
+	td:nth-child(5), /* Links/Codes */
+	.links, .hint { 
+		font-family: var(--font-mono); 
+		font-size: 0.85rem; 
+	}
+
 	th {
-		background: var(--btn-secondary);
-		font-weight: 600;
+		background: var(--bg-primary);
+		font-weight: 700;
 		color: var(--text-primary);
+		text-transform: uppercase;
+		font-size: 0.8rem;
+		letter-spacing: 0.05em;
+		border-bottom: 2px solid var(--border-color);
 	}
 
 	tr:last-child td {
@@ -1241,114 +1287,62 @@
 	}
 
 	    .actions-cell {
-
 			display: flex;
-
 			gap: 0.5rem;
-
 		}
 
-	
-
 	    .section-header {
-
 	        display: flex;
-
 	        align-items: center;
-
 	        gap: 1rem;
-
 	        margin-bottom: 1rem;
-
 	    }
-
-	
 
 	    .section-header h2 {
-
 	        margin: 0;
-
+			font-family: "Playfair Display", "Nanum Myeongjo", serif;
+			font-size: 1.5rem;
+			color: var(--text-primary);
 	    }
-
-	
 
 	    .refresh-btn {
-
 	        background: transparent;
-
 	        border: none;
-
 	        cursor: pointer;
-
 	        font-size: 1.2rem;
-
 	        display: flex;
-
 	        align-items: center;
-
 	        justify-content: center;
-
-	        padding: 0.25rem;
-
-	        border-radius: 50%;
-
+	        padding: 0.4rem;
+	        border-radius: 4px;
 	        transition: background 0.2s;
-
 	        color: var(--text-secondary);
-
 	    }
-
-	
 
 	    .refresh-btn:hover:not(:disabled) {
-
 	        background: var(--btn-secondary);
-
 	        color: var(--text-primary);
-
 	    }
-
-	
 
 	    .refresh-btn:disabled {
-
 	        opacity: 0.5;
-
 	        cursor: not-allowed;
-
 	    }
-
-	
 
 	    .refresh-icon {
-
 	        display: inline-block;
-
 	    }
-
-	
 
 	    .refresh-icon.spinning {
-
 	        animation: spin 1s linear infinite;
-
 	    }
-
-	
 
 	    @keyframes spin {
-
 	        from { transform: rotate(0deg); }
-
 	        to { transform: rotate(360deg); }
-
 	    }
 
-	
-
 	    /* Carousel Styles */
-
-	
     .carousel-container {
         display: flex;
         align-items: center;
@@ -1372,7 +1366,7 @@
 
     .carousel-card-wrapper {
         flex: 0 0 33.333333%; /* Strictly 1/3 of the viewport */
-        padding: 0 0.75rem; /* Gap replacement */
+        padding: 0 1rem; /* Gap replacement */
         box-sizing: border-box;
     }
 
@@ -1382,12 +1376,12 @@
     }
 
     .carousel-nav {
-        background: var(--bg-secondary);
+        background: var(--bg-primary);
         border: 1px solid var(--border-color);
         color: var(--text-primary);
         width: 40px;
         height: 40px;
-        border-radius: 50%;
+        border-radius: 4px; /* Square nav buttons */
         display: flex;
         align-items: center;
         justify-content: center;
@@ -1398,11 +1392,12 @@
         box-shadow: var(--shadow);
         user-select: none;
         z-index: 10;
+        font-family: "Playfair Display", "Nanum Myeongjo", serif;
     }
 
     .carousel-nav:hover:not(:disabled) {
         background: var(--btn-secondary);
-        transform: scale(1.1);
+        transform: scale(1.05);
     }
 
     .carousel-nav:disabled {
@@ -1441,19 +1436,20 @@
         display: flex;
         justify-content: center;
         gap: 0.5rem;
-        margin-top: 1.5rem;
+        margin-top: 2rem;
     }
 
     .page-btn {
-        background: var(--bg-secondary);
+        background: var(--bg-primary);
         border: 1px solid var(--border-color);
         color: var(--text-primary);
-        padding: 0.4rem 0.8rem;
-        border-radius: 6px;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
         cursor: pointer;
         font-size: 0.9rem;
         transition: all 0.2s;
         user-select: none;
+        font-weight: 600;
     }
 
     .page-btn:hover:not(:disabled) {
@@ -1461,9 +1457,9 @@
     }
 
     .page-btn.active {
-        background: #667eea;
-        color: white;
-        border-color: #667eea;
+        background: var(--text-primary);
+        color: var(--bg-primary);
+        border-color: var(--text-primary);
     }
 
     .page-btn:disabled {

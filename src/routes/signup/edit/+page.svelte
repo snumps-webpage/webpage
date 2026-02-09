@@ -73,7 +73,7 @@
     .card {
         background: var(--bg-secondary);
         padding: 2.5rem;
-        border-radius: 16px;
+        border-radius: 8px; /* Sharper */
         box-shadow: var(--shadow);
         width: 100%;
         max-width: 500px;
@@ -86,9 +86,10 @@
         margin-bottom: 0.5rem;
         color: var(--text-primary);
         text-align: center;
+        font-family: "Playfair Display", "Nanum Myeongjo", serif;
     }
 
-	.desc { color: var(--text-secondary); margin-bottom: 2rem; font-size: 0.95rem; text-align: center; }
+	.desc { color: var(--text-secondary); margin-bottom: 2rem; font-size: 0.95rem; text-align: center; font-family: "Inter", "Noto Sans KR", sans-serif; }
 
     .form-group {
         margin-bottom: 1.5rem;
@@ -97,9 +98,11 @@
     .form-group label {
         display: block;
         margin-bottom: 0.5rem;
-        font-weight: 600;
+        font-weight: 700;
         color: var(--text-primary);
-        font-size: 0.9rem;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
     }
 
     .form-group label span.req {
@@ -110,17 +113,23 @@
         width: 100%;
         padding: 0.75rem;
         border: 1px solid var(--border-color);
-        border-radius: 8px;
+        border-radius: 4px;
         font-size: 1rem;
         background: var(--bg-primary);
         color: var(--text-primary);
         box-sizing: border-box;
+        font-family: "Inter", "Noto Sans KR", sans-serif;
+    }
+
+    .form-group input[id="email"], .form-group input[id="phone"] {
+        font-family: var(--font-mono);
+        font-size: 0.95rem;
     }
 
     .form-group input:focus, .form-group textarea:focus {
         outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        border-color: var(--text-primary);
+        box-shadow: 0 0 0 1px var(--text-primary);
     }
 
     .form-group .hint {
@@ -128,19 +137,21 @@
         color: var(--text-secondary);
         margin-top: 0.25rem;
         display: block;
+        font-style: italic;
     }
 
     .btn-submit {
         width: 100%;
         padding: 1rem;
-        background: var(--brand-gradient);
-        color: white;
+        background: var(--text-primary);
+        color: var(--bg-primary);
         border: none;
-        border-radius: 8px;
+        border-radius: 4px;
         font-size: 1.1rem;
         font-weight: 600;
         cursor: pointer;
         transition: transform 0.1s, opacity 0.2s;
+        font-family: "Playfair Display", "Nanum Myeongjo", serif;
     }
 
     .btn-submit:active {
@@ -158,7 +169,7 @@
         background: var(--text-primary);
         color: var(--bg-primary);
         text-decoration: none;
-        border-radius: 8px;
+        border-radius: 4px;
         font-weight: 600;
     }
 
@@ -177,15 +188,16 @@
     }
 
     .success-box h2 {
-        color: #10b981;
+        color: var(--color-success-text);
         margin-bottom: 1rem;
+        font-family: "Playfair Display", "Nanum Myeongjo", serif;
     }
 
     .error {
         background: var(--color-danger-bg);
         color: var(--color-danger-text);
         padding: 0.75rem;
-        border-radius: 8px;
+        border-radius: 4px;
         margin-bottom: 1.5rem;
         font-size: 0.9rem;
         text-align: center;

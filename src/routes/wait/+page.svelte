@@ -34,7 +34,7 @@
 	.alert-box {
 		background: var(--bg-secondary);
 		padding: 3.5rem 2rem;
-		border-radius: 24px;
+		border-radius: 8px; /* Sharper */
 		border: 1px solid var(--border-color);
 		box-shadow: var(--shadow);
 		text-align: center;
@@ -52,6 +52,8 @@
 		font-size: 1.75rem;
 		margin-bottom: 1.5rem;
 		color: var(--text-primary);
+		font-family: "Playfair Display", "Nanum Myeongjo", serif;
+		font-weight: 700;
 	}
 
 	.msg { 
@@ -59,12 +61,14 @@
 		line-height: 1.7; 
 		margin-bottom: 1rem;
 		color: var(--text-primary);
+		font-family: "Inter", "Noto Sans KR", sans-serif;
 	}
 
 	.hint { 
 		color: var(--text-secondary); 
 		font-size: 0.95rem; 
 		margin-bottom: 2.5rem; 
+		font-family: "Inter", "Noto Sans KR", sans-serif;
 	}
 	
 	.alert-actions { 
@@ -78,12 +82,13 @@
 	.btn-edit { 
 		display: block;
 		padding: 1rem;
-		background: #667eea;
-		color: white;
+		background: var(--text-primary);
+		color: var(--bg-primary);
 		text-decoration: none;
-		border-radius: 12px;
+		border-radius: 4px;
 		font-weight: 600;
 		transition: transform 0.2s, opacity 0.2s;
+		font-family: "Playfair Display", "Nanum Myeongjo", serif;
 	}
 
 	.btn-edit:hover {
@@ -96,10 +101,11 @@
 		background: transparent;
 		border: 1px solid var(--border-color);
 		color: var(--text-secondary);
-		border-radius: 12px;
+		border-radius: 4px;
 		cursor: pointer;
 		font-weight: 600;
 		transition: background-color 0.2s;
+		font-family: "Inter", "Noto Sans KR", sans-serif;
 	}
 
 	.btn-logout:hover {

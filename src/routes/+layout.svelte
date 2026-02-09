@@ -1,5 +1,6 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.svg';
+	import instagram from '$lib/assets/instagram.svg';
 	import { page, navigating } from '$app/state';
 	import { onNavigate } from '$app/navigation';
 	import { signOut } from '@auth/sveltekit/client';
@@ -39,6 +40,7 @@
 			} catch (e) {}
 		})();
 	</script>
+	<title>서울대학교 수학문제연구회 SNUMPS</title>
 </svelte:head>
 
 {#if navigating.to}
@@ -87,7 +89,7 @@
 				회장: {page.data.presidentName} | 
 				<a href="mailto:snumps0@gmail.com">snumps0@gmail.com</a> |
 				<a href="https://instagram.com/snu_mps" target="_blank" rel="noopener noreferrer" class="social-link" aria-label="Instagram">
-					<img src="/src/lib/assets/instagram.svg" alt="Instagram" class="social-icon" />
+					<img src={instagram} alt="Instagram" class="social-icon" />
 				</a>
 			</p>
 		</div>
@@ -103,31 +105,37 @@
 
 <style>
 	:root {
-		--bg-primary: #f8fafc; /* Slightly cooler gray for modern feel */
-		--bg-secondary: #ffffff;
-		--text-primary: #1e293b; /* Slate-900 */
-		--text-secondary: #64748b; /* Slate-500 */
-		--border-color: #e2e8f0; /* Slate-200 */
-		--btn-secondary: #f1f5f9; /* Slate-100 */
-		--shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025); /* Softer, diffuse shadow */
+		/* Ivy League / Academic Theme */
+		--bg-primary: #fdfbf7; /* Warm Paper */
+		--bg-secondary: #f4f1ea; /* Darker Beige/Paper */
+		--text-primary: #1c2b33; /* Deep Charcoal/Navy */
+		--text-secondary: #5c6b73; /* Slate Grey */
+		--border-color: #d1d5db; /* Classic Grey */
+		--btn-secondary: #eae6db; /* Matches secondary bg */
 		
-		/* Status Colors */
-		--color-success-bg: #dcfce7;
-		--color-success-text: #166534;
-		--color-danger-bg: #fee2e2;
-		--color-danger-text: #991b1b;
-		--color-warning-bg: #fef3c7;
-		--color-warning-text: #92400e;
-		--brand-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		/* Refined Shadows - Flatter, more defined */
+		--shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); 
+		
+		/* Status Colors - Slightly muted/classic */
+		--color-success-bg: #e6fffa;
+		--color-success-text: #2c7a7b;
+		--color-danger-bg: #fff5f5;
+		--color-danger-text: #c53030;
+		--color-warning-bg: #fffaf0;
+		--color-warning-text: #c05621;
+		
+		/* Brand - Deep Academic Navy/Teal */
+		--brand-gradient: linear-gradient(135deg, #1b3a4b 0%, #2c5364 100%);
+		--font-mono: "JetBrains Mono", monospace;
 	}
 
 	:global(.dark) {
-		--bg-primary: #0f172a; /* Slate-950 */
-		--bg-secondary: #1e293b; /* Slate-800 */
-		--text-primary: #f8fafc;
-		--text-secondary: #94a3b8;
-		--border-color: #334155;
-		--btn-secondary: #334155;
+		--bg-primary: #181a1b; /* Warm Black */
+		--bg-secondary: #222426; /* Darker Warm Black */
+		--text-primary: #e8e6e3; /* Off-white */
+		--text-secondary: #b0b3b8; /* Grey */
+		--border-color: #3f4245;
+		--btn-secondary: #2c2e30;
 		--shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
 
 		/* Status Colors (Dark Mode) */
@@ -137,26 +145,32 @@
 		--color-danger-text: #fca5a5;
 		--color-warning-bg: #78350f;
 		--color-warning-text: #fcd34d;
-		--brand-gradient: linear-gradient(135deg, #818cf8 0%, #a78bfa 100%);
+		--brand-gradient: linear-gradient(135deg, #2c5364 0%, #1b3a4b 100%);
 	}
 
 	:global(body) {
 		margin: 0;
-		font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; /* Prefer Inter if available */
+		font-family: "Inter", "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 		background: var(--bg-primary);
 		color: var(--text-primary);
 		display: flex;
 		flex-direction: column;
 		min-height: 100vh;
 		transition: background-color 0.3s, color 0.2s;
-		-webkit-font-smoothing: antialiased; /* Smoother fonts */
+		-webkit-font-smoothing: antialiased;
+	}
+
+	:global(h1), :global(h2), :global(h3), :global(h4), :global(h5), :global(h6) {
+		font-family: "Playfair Display", "Nanum Myeongjo", serif;
+		font-weight: 700;
+		letter-spacing: -0.02em;
 	}
 
 	.global-nav {
-		background: rgba(255, 255, 255, 0.8); /* Translucent for glass effect */
+		background: rgba(253, 251, 247, 0.9); /* Matches bg-primary with opacity */
 		backdrop-filter: blur(12px);
 		-webkit-backdrop-filter: blur(12px);
-		border-bottom: 1px solid var(--border-color);
+		border-bottom: 2px solid var(--border-color); /* Thicker classic border */
 		padding: 0.75rem 1.5rem;
 		position: sticky;
 		top: 0;
@@ -165,7 +179,7 @@
 	}
 
 	:global(.dark) .global-nav {
-		background: rgba(30, 41, 59, 0.8); /* Dark translucent */
+		background: rgba(24, 26, 27, 0.9);
 	}
 
 	.nav-content {
@@ -196,7 +210,7 @@
 	}
 
 	.logo-btn:hover {
-		transform: scale(1.1);
+		transform: scale(1.05);
 	}
 
 	.logo-btn img {
@@ -207,7 +221,7 @@
 	.nav-menus {
 		display: flex;
 		align-items: center;
-		margin: 0 4rem; /* Balanced margins for the entire menu group */
+		margin: 0 4rem;
 	}
 
 	/* Dropdown Menu */
@@ -219,55 +233,65 @@
 	.nav-link {
 		background: none;
 		border: none;
+		font-family: "Playfair Display", "Nanum Myeongjo", serif; /* Serif for nav links */
 		font-size: 1rem;
-		font-weight: 600;
+		font-weight: 700;
 		color: var(--text-primary);
 		cursor: pointer;
-		padding: 0.5rem 0.5rem; /* Reduced horizontal padding */
-		border-radius: 6px;
-		transition: color 0.2s;
-		user-select: none; /* Prevent text selection */
+		padding: 0.5rem 0.75rem;
+		border-radius: 4px; /* Sharper corners */
+		transition: color 0.2s, background-color 0.2s;
+		user-select: none;
+	}
+
+	.nav-link:hover {
+		background-color: var(--btn-secondary);
 	}
 
 	.dropdown-content {
 		position: absolute;
 		top: 100%;
-		left: 50%; /* Align to middle */
+		left: 50%;
 		background-color: var(--bg-secondary);
-		width: max-content; /* Fit exactly to content */
+		width: max-content;
 		box-shadow: var(--shadow);
-		border-radius: 8px;
+		border-radius: 4px;
 		border: 1px solid var(--border-color);
 		z-index: 100;
 		overflow: hidden;
-		user-select: none; /* Prevent text selection */
+		user-select: none;
 		
-		/* Rolling Scroll Animation + Centering */
 		max-height: 0;
 		opacity: 0;
 		visibility: hidden;
-		transform: translateX(-50%) scaleY(0); /* Center and collapse */
+		transform: translateX(-50%) scaleY(0.95);
 		transform-origin: top;
 		transition: 
-			max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-			transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-			opacity 0.2s ease-out;
+			max-height 0.3s ease,
+			transform 0.3s ease,
+			opacity 0.2s ease;
 	}
 
 	.dropdown:hover .dropdown-content {
 		max-height: 300px;
 		opacity: 1;
 		visibility: visible;
-		transform: translateX(-50%) scaleY(1); /* Center and expand */
+		transform: translateX(-50%) scaleY(1);
 	}
 
 	.dropdown-content a {
 		color: var(--text-primary);
-		padding: 0.75rem 1rem;
+		padding: 0.75rem 1.25rem;
 		text-decoration: none;
 		display: block;
 		font-size: 0.9rem;
+		font-family: "Inter", "Noto Sans KR", sans-serif;
 		transition: background-color 0.2s;
+		border-bottom: 1px solid var(--border-color);
+	}
+
+	.dropdown-content a:last-child {
+		border-bottom: none;
 	}
 
 	.dropdown-content a:hover {
@@ -278,47 +302,52 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 40px;
-		height: 40px;
-		border-radius: 50%;
+		padding: 0 1rem;
+		height: 36px; /* Pill shape */
+		border-radius: 4px; /* Classic Rect */
 		background: var(--btn-secondary);
-		color: var(--text-secondary);
+		color: var(--text-primary);
 		text-decoration: none;
-		font-size: 0.65rem;
+		font-size: 0.75rem;
 		font-weight: 700;
+		font-family: "Playfair Display", "Nanum Myeongjo", serif;
 		border: 1px solid var(--border-color);
 		transition: all 0.2s;
 		text-transform: uppercase;
 		user-select: none;
+		letter-spacing: 0.05em;
 	}
 
 	.circle-btn:hover {
-		background: var(--border-color);
-		color: var(--text-primary);
-		transform: scale(1.1);
+		background: var(--text-primary);
+		color: var(--bg-primary);
+		border-color: var(--text-primary);
 	}
 
 	.logout-btn {
 		font-size: 0.8rem;
-		padding: 0.3rem 0.6rem;
+		padding: 0.4rem 0.8rem;
 		background: transparent;
 		border: 1px solid var(--border-color);
-		border-radius: 6px;
+		border-radius: 4px;
 		color: var(--text-secondary);
 		cursor: pointer;
 		user-select: none;
+		font-family: "Inter", "Noto Sans KR", sans-serif;
+		font-weight: 500;
+		transition: all 0.2s;
 	}
 
 	.logout-btn:hover {
-		background: var(--btn-secondary);
+		border-color: var(--text-primary);
 		color: var(--text-primary);
 	}
 
 	/* Footer */
 	footer {
 		margin-top: auto;
-		padding: 2rem 1.5rem;
-		border-top: 1px solid var(--border-color);
+		padding: 3rem 1.5rem;
+		border-top: 2px solid var(--border-color);
 		color: var(--text-secondary);
 		font-size: 0.875rem;
 		background: var(--bg-secondary);
@@ -330,26 +359,42 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 1rem;
+		gap: 1.5rem;
 	}
 
-	.footer-info p { margin: 0; }
+	.footer-info p { 
+		margin: 0; 
+		font-family: "Playfair Display", "Nanum Myeongjo", serif;
+		font-size: 0.8rem;
+	}
+
+	.footer-info a[href^="mailto:"] {
+		font-family: var(--font-mono);
+		font-size: 0.85rem;
+	}
 
 	.footer-info a {
-		color: var(--text-secondary);
+		color: var(--text-primary);
 		text-decoration: none;
+		border-bottom: 1px solid transparent;
+		transition: border-color 0.2s;
 	}
 
 	.footer-info a:hover {
-		text-decoration: underline;
+		text-decoration: none;
+		border-bottom-color: var(--text-primary);
 	}
 
 	.theme-selector {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.75rem;
 		color: var(--text-secondary);
 		opacity: 0.8;
+		font-family: "Inter", "Noto Sans KR", sans-serif;
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
 	}
 
 	.theme-btn {
@@ -358,15 +403,15 @@
 		padding: 0;
 		color: inherit;
 		cursor: pointer;
-		font-size: 0.75rem;
+		font-size: inherit;
 		font-weight: 500;
 		transition: color 0.2s;
 	}
 
 	.theme-btn:hover { color: var(--text-primary); }
-	.theme-btn.active { font-weight: 700; color: var(--text-primary); text-decoration: underline; }
+	.theme-btn.active { font-weight: 700; color: var(--text-primary); border-bottom: 1px solid currentColor; }
 
-	.sep { font-size: 0.7rem; opacity: 0.5; }
+	.sep { font-size: 0.7rem; opacity: 0.3; }
 
 	.social-link {
 		display: inline-flex;
@@ -379,13 +424,12 @@
 
 	.social-link:hover {
 		opacity: 1;
-		text-decoration: none !important;
 	}
 
 	.social-icon {
 		width: 18px;
 		height: 18px;
-		filter: grayscale(1) invert(0.5);
+		filter: grayscale(1); /* Classic b&w look */
 	}
 
 	:global(.dark) .social-icon {

@@ -217,8 +217,8 @@
         {/if}
 	{:else}
 		<div class="landing-hero">
-			<h1>SNUMPS Webpage</h1>
-			<p class="subtitle">서울대학교 수학 문제 연구회</p>
+			<h1>서울대학교 수학문제연구회</h1>
+			<p class="subtitle">SNUMPS</p>
             <div class="login-container">
                 <button class="google-login-btn" onclick={() => signIn('google')}>
                     <svg viewBox="0 0 24 24" width="24" height="24">
@@ -243,23 +243,23 @@
 	}
 
 	.dashboard-header {
-		margin-bottom: 1.5rem;
-		border-bottom: 1px solid var(--border-color);
+		margin-bottom: 2rem;
+		border-bottom: 2px solid var(--border-color);
 		padding-bottom: 1rem;
 	}
 
-	h1 { font-size: 1.75rem; color: var(--text-primary); margin: 0; }
-	.welcome { color: var(--text-secondary); margin: 0; font-size: 0.95rem; }
+	h1 { font-size: 2rem; color: var(--text-primary); margin: 0; letter-spacing: -0.02em; }
+	.welcome { color: var(--text-secondary); margin: 0; font-size: 1rem; font-family: "Inter", "Noto Sans KR", sans-serif; }
 
 	.dashboard-grid {
 		display: grid;
-		gap: 1.5rem;
+		gap: 2rem;
 	}
 
 	/* Card Styles */
 	.card {
 		background: var(--bg-secondary);
-		border-radius: 12px;
+		border-radius: 8px; /* Sharper */
 		border: 1px solid var(--border-color);
 		box-shadow: var(--shadow);
 		overflow: hidden;
@@ -268,52 +268,77 @@
 	.card-header-toggle {
 		width: 100%;
 		border: none;
+		border-bottom: 1px solid var(--border-color);
 		padding: 1rem 1.5rem;
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
 		cursor: pointer;
 		user-select: none;
-		background: var(--btn-secondary);
+		background: var(--bg-primary);
 		transition: background 0.2s;
 		text-align: left;
 	}
 
-	.card-header-toggle:hover { background: var(--border-color); }
-	.card-header-toggle h2 { margin: 0; font-size: 1.1rem; color: var(--text-primary); font-weight: 600; }
+	.card-header-toggle:hover { background: var(--btn-secondary); }
+	.card-header-toggle h2 { 
+		margin: 0; 
+		font-size: 1.1rem; 
+		color: var(--text-primary); 
+		font-weight: 700; 
+		font-family: "Playfair Display", "Nanum Myeongjo", serif;
+	}
 	.chevron { color: var(--text-secondary); font-size: 0.8rem; }
 
-	.card-content { padding: 1.5rem; }
+	.card-content { padding: 1.5rem; background: var(--bg-secondary); }
 
 	/* Profile Summary */
-	.profile-summary { display: grid; gap: 1rem; }
-	.form-group { display: flex; flex-direction: column; gap: 0.4rem; }
-	.form-group label { font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); }
+	.profile-summary { display: grid; gap: 1.25rem; }
+	.form-group { display: flex; flex-direction: column; gap: 0.5rem; }
+	.form-group label { 
+		font-size: 0.85rem; 
+		font-weight: 700; 
+		color: var(--text-primary); 
+		font-family: "Inter", "Noto Sans KR", sans-serif;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
 	.form-group input, .form-group textarea {
-		padding: 0.6rem;
+		padding: 0.75rem;
 		border: 1px solid var(--border-color);
-		border-radius: 6px;
+		border-radius: 4px;
 		background: var(--bg-primary);
 		color: var(--text-primary);
 		font-size: 0.95rem;
 		resize: none;
+		font-family: "Inter", "Noto Sans KR", sans-serif;
+	}
+	.form-group input[type="tel"] {
+		font-family: var(--font-mono);
+	}
+	.form-group input:focus, .form-group textarea:focus {
+		outline: 2px solid var(--text-primary);
+		border-color: transparent;
 	}
 	.btn-save {
-		padding: 0.6rem;
+		padding: 0.75rem;
 		background: var(--text-primary);
 		color: var(--bg-primary);
 		border: none;
-		border-radius: 6px;
-		font-weight: 600;
+		border-radius: 4px;
+		font-weight: 700;
 		cursor: pointer;
+		font-family: "Inter", "Noto Sans KR", sans-serif;
+		transition: opacity 0.2s;
 	}
+	.btn-save:hover { opacity: 0.9; }
 
 	/* Seminar Management */
-	.seminar-section { display: grid; gap: 1rem; }
-	.seminar-list { display: grid; gap: 0.75rem; }
+	.seminar-section { display: grid; gap: 1.25rem; }
+	.seminar-list { display: grid; gap: 1rem; }
 	.seminar-item {
-		padding: 1rem;
-		border-radius: 8px;
+		padding: 1.25rem;
+		border-radius: 6px;
 		border: 1px solid var(--border-color);
 		background: var(--bg-primary);
 	}
@@ -321,90 +346,114 @@
 		font-size: 0.7rem;
 		font-weight: 700;
 		text-transform: uppercase;
-		background: #e5e7eb;
-		color: #4b5563;
-		padding: 0.1rem 0.4rem;
+		background: var(--btn-secondary);
+		color: var(--text-secondary);
+		padding: 0.2rem 0.5rem;
 		border-radius: 4px;
-		margin-bottom: 0.4rem;
+		margin-bottom: 0.5rem;
 		display: inline-block;
+		letter-spacing: 0.05em;
 	}
-	.sem-title { display: block; font-weight: 600; color: var(--text-primary); margin-bottom: 0.2rem; }
-	.sem-meta { font-size: 0.85rem; color: var(--text-secondary); }
+	.sem-title { 
+		display: block; 
+		font-weight: 700; 
+		color: var(--text-primary); 
+		margin-bottom: 0.25rem; 
+		font-family: "Playfair Display", "Nanum Myeongjo", serif;
+		font-size: 1.1rem;
+	}
+	.sem-meta { font-size: 0.85rem; color: var(--text-secondary); font-family: "Inter", "Noto Sans KR", sans-serif; }
 	
 	.btn-edit-inline {
-		margin-top: 0.5rem;
+		margin-top: 0.75rem;
 		font-size: 0.8rem;
 		background: transparent;
 		border: 1px solid var(--border-color);
-		padding: 0.2rem 0.5rem;
+		padding: 0.3rem 0.6rem;
 		border-radius: 4px;
-		color: var(--text-secondary);
+		color: var(--text-primary);
 		cursor: pointer;
+		font-weight: 600;
 	}
+	.btn-edit-inline:hover { background: var(--btn-secondary); }
 
-	.edit-form { display: grid; gap: 0.5rem; margin-top: 0.5rem; }
+	.edit-form { display: grid; gap: 0.75rem; margin-top: 0.75rem; }
 	.edit-input, .edit-textarea {
 		width: 100%;
-		padding: 0.5rem;
+		padding: 0.75rem;
 		border: 1px solid var(--border-color);
 		border-radius: 4px;
 		background: var(--bg-secondary);
 		color: var(--text-primary);
+		font-family: "Inter", "Noto Sans KR", sans-serif;
 	}
-	.edit-actions { display: flex; gap: 0.5rem; }
-	.btn-confirm { background: #10b981; color: white; border: none; padding: 0.3rem 0.8rem; border-radius: 4px; cursor: pointer; }
-	.btn-cancel { background: #6b7280; color: white; border: none; padding: 0.3rem 0.8rem; border-radius: 4px; cursor: pointer; }
+	.edit-actions { display: flex; gap: 0.75rem; }
+	.btn-confirm { 
+		background: var(--color-success-text); 
+		color: white; 
+		border: none; 
+		padding: 0.5rem 1rem; 
+		border-radius: 4px; 
+		cursor: pointer; 
+		font-weight: 600; 
+	}
+	.btn-cancel { 
+		background: var(--text-secondary); 
+		color: white; 
+		border: none; 
+		padding: 0.5rem 1rem; 
+		border-radius: 4px; 
+		cursor: pointer; 
+		font-weight: 600; 
+	}
 
 	.btn-apply {
 		text-align: center;
-		padding: 0.75rem;
-		background: #667eea;
-		color: white;
+		padding: 0.8rem;
+		background: var(--text-primary);
+		color: var(--bg-primary);
 		text-decoration: none;
-		border-radius: 8px;
-		font-weight: 600;
-		font-size: 0.9rem;
+		border-radius: 4px;
+		font-weight: 700;
+		font-size: 0.95rem;
+		transition: opacity 0.2s;
 	}
+	.btn-apply:hover { opacity: 0.9; }
 
 	/* Stats Card */
 	.stats-card {
 		background: var(--bg-secondary);
-		border-radius: 16px;
+		border-radius: 8px;
 		padding: 2rem;
 		box-shadow: var(--shadow);
 		margin-bottom: 2rem;
 		border: 1px solid var(--border-color);
-		transition: transform 0.2s ease, box-shadow 0.2s ease;
-	}
-
-	.stats-card:hover {
-		transform: translateY(-2px);
-		box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 	}
 
 	.stats-card h2 {
 		margin: 0 0 1.5rem 0;
 		font-size: 1.25rem;
 		color: var(--text-primary);
-		font-weight: 600;
+		font-weight: 700;
+		font-family: "Playfair Display", "Nanum Myeongjo", serif;
 	}
 
-	.stats-grid { display: flex; align-items: center; gap: 1rem; }
+	.stats-grid { display: flex; align-items: center; gap: 2rem; }
 	.stat-item { display: flex; flex-direction: column; align-items: center; }
-	.stat-value { font-size: 2rem; font-weight: 700; color: var(--color-success-text); }
-	.stat-value.total { color: var(--text-secondary); }
-	.stat-label { font-size: 0.875rem; color: var(--text-secondary); }
-	.stat-divider { font-size: 2rem; color: var(--border-color); font-weight: 300; }
+	.stat-value { font-size: 2.5rem; font-weight: 700; color: var(--text-primary); font-family: "Playfair Display", "Nanum Myeongjo", serif; }
+	.stat-value.total { color: var(--text-secondary); opacity: 0.5; }
+	.stat-label { font-size: 0.875rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.5rem; }
+	.stat-divider { font-size: 2.5rem; color: var(--border-color); font-weight: 300; font-family: "Playfair Display", "Nanum Myeongjo", serif; }
 
 	.stat-chart {
 		margin-left: auto;
 	}
 
 	.pie-chart {
-		width: 60px;
-		height: 60px;
+		width: 70px;
+		height: 70px;
 		border-radius: 50%;
-		background: conic-gradient(var(--color-success-text) var(--percent), var(--border-color) 0);
+		background: conic-gradient(var(--text-primary) var(--percent), var(--border-color) 0);
 		transition: all 0.3s ease;
 	}
 
@@ -413,7 +462,7 @@
 		margin-top: 2rem;
 		padding: 2rem;
 		background: var(--bg-secondary);
-		border-radius: 16px;
+		border-radius: 8px;
 		border: 1px solid var(--border-color);
 		box-shadow: var(--shadow);
 	}
@@ -423,29 +472,32 @@
 		justify-content: space-between;
 		align-items: center;
 		margin-bottom: 1.5rem;
+		border-bottom: 2px solid var(--border-color);
+		padding-bottom: 1rem;
 	}
 
 	.activities-list h3 {
 		font-size: 1.25rem;
 		margin: 0;
 		color: var(--text-primary);
-		font-weight: 600;
+		font-weight: 700;
+		font-family: "Playfair Display", "Nanum Myeongjo", serif;
 	}
 
 	.semester-select {
-		padding: 0.4rem 2rem 0.4rem 0.8rem;
-		border-radius: 6px;
+		padding: 0.5rem 2rem 0.5rem 1rem;
+		border-radius: 4px;
 		border: 1px solid var(--border-color);
 		font-size: 0.875rem;
-		background: var(--bg-secondary);
+		background: var(--bg-primary);
 		color: var(--text-primary);
 		cursor: pointer;
+		font-family: "Inter", "Noto Sans KR", sans-serif;
 	}
 
 	.table-container {
 		background: var(--bg-secondary);
-		border-radius: 12px;
-		box-shadow: var(--shadow);
+		border-radius: 4px;
 		overflow: hidden;
 		border: 1px solid var(--border-color);
 	}
@@ -457,18 +509,21 @@
 	}
 
 	th {
-		background: var(--btn-secondary);
-		padding: 0.75rem 1rem;
-		font-size: 0.875rem;
-		font-weight: 600;
+		background: var(--bg-primary);
+		padding: 1rem;
+		font-size: 0.8rem;
+		font-weight: 700;
 		color: var(--text-primary);
-		border-bottom: 1px solid var(--border-color);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		border-bottom: 2px solid var(--border-color);
 	}
 
 	td {
-		padding: 0.875rem 1rem;
+		padding: 1rem;
 		border-bottom: 1px solid var(--border-color);
 		color: var(--text-primary);
+		font-size: 0.95rem;
 	}
 
 	tr:last-child td {
@@ -479,17 +534,19 @@
 		white-space: nowrap;
 		color: var(--text-secondary);
 		font-size: 0.9rem;
+		font-family: var(--font-mono);
 	}
 
 	.activity-link {
-		color: inherit;
+		color: var(--text-primary);
 		text-decoration: none;
-		transition: color 0.2s;
+		border-bottom: 1px solid transparent;
+		transition: border-color 0.2s;
+		font-weight: 600;
 	}
 
 	.activity-link:hover {
-		color: #667eea;
-		text-decoration: underline;
+		border-bottom-color: var(--text-primary);
 	}
 
 	.tag {
@@ -500,16 +557,19 @@
 		border-radius: 4px;
 		font-size: 0.75rem;
 		white-space: nowrap;
+		font-weight: 600;
 	}
 
 	.badge {
 		display: inline-block;
-		padding: 0.2rem 0.75rem;
-		border-radius: 9999px;
-		font-size: 0.7rem;
-		font-weight: 600;
+		padding: 0.25rem 0.75rem;
+		border-radius: 4px;
+		font-size: 0.75rem;
+		font-weight: 700;
 		white-space: nowrap;
 		width: max-content;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
 	}
 
 	.badge.success {
@@ -522,7 +582,7 @@
 		color: var(--color-danger-text);
 	}
 
-	.loading, .error-banner, .empty-hint, .empty-state { text-align: center; padding: 2rem; color: var(--text-secondary); }
+	.loading, .error-banner, .empty-hint, .empty-state { text-align: center; padding: 2rem; color: var(--text-secondary); font-style: italic; }
 
 	/* Landing Hero */
     .landing-hero {
@@ -535,35 +595,38 @@
     }
 
     .landing-hero h1 {
-        font-size: 3.5rem;
-        margin-bottom: 0.5rem;
-        background: var(--brand-gradient);
-        background-clip: text;
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        color: var(--text-primary);
+        font-family: "Playfair Display", "Nanum Myeongjo", serif;
+        font-weight: 900;
+        background: none;
+        -webkit-text-fill-color: initial;
     }
 
     .landing-hero .subtitle {
-        font-size: 1.25rem;
+        font-size: 1.5rem;
         color: var(--text-secondary);
         margin-bottom: 3rem;
+        font-family: "Inter", "Noto Sans KR", sans-serif;
+        font-weight: 300;
     }
 
     .login-container {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 1rem;
+        gap: 1.5rem;
     }
 
     .google-login-btn {
         display: flex;
         align-items: center;
-        gap: 12px;
-        padding: 0.8rem 1.5rem;
+        gap: 1rem;
+        padding: 1rem 2rem;
         background: var(--bg-secondary);
         border: 1px solid var(--border-color);
-        border-radius: 12px;
+        border-radius: 4px;
         color: var(--text-primary);
         font-weight: 600;
         cursor: pointer;
@@ -573,10 +636,10 @@
 
     .google-login-btn:hover {
         background: var(--btn-secondary);
-        transform: translateY(-2px);
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
 
-    .login-hint { font-size: 0.85rem; color: var(--text-secondary); }
+    .login-hint { font-size: 0.9rem; color: var(--text-secondary); font-style: italic; }
     .btn-signup-large { background: var(--color-success-text); margin-bottom: 1rem; }
 </style>
