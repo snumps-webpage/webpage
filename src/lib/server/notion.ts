@@ -319,7 +319,7 @@ export async function getMemberById(memberId: string) {
 	};
 }
 
-export async function getAllMembers(skipCache = false) {
+export async function getAllMembers() {
 	return withCache('all_members', 60000, async () => {
 		const dbId = env.NOTION_DB_MEMBERS;
 		if (!dbId) throw new Error('NOTION_DB_MEMBERS missing');
@@ -338,7 +338,7 @@ export async function getAllMembers(skipCache = false) {
 	});
 }
 
-export async function getActivities(startDate: string, endDate: string, skipCache = false) {
+export async function getActivities(startDate: string, endDate: string) {
 	return withCache(`activities_${startDate}_${endDate}`, 300000, async () => {
 		const dbId = env.NOTION_DB_ACTIVITIES;
 		if (!dbId) throw new Error('NOTION_DB_ACTIVITIES missing');
