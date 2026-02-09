@@ -26,7 +26,7 @@
 		"typescript-eslint": "^8.54.0"
 	},
 	"dependencies": {
-		"@auth/core": "^0.34.3",
+		"@auth/core": "^0.41.1",
 		"@auth/sveltekit": "^1.11.1",
 		"@notionhq/client": "^5.9.0",
 		"@sveltejs/adapter-vercel": "^6.3.1",
