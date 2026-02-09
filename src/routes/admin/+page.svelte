@@ -673,40 +673,73 @@
     	    		                                            
     
     			
-    	    		                                            <div class="info">
+    	    		                                                                                        <div class="info">
     
     			
-    	    		                                                <p><strong>이메일:</strong> {app.email}</p>
+    	    		                                            
     
     			
-    	    		                                                <p><strong>전화번호:</strong> {app.phone}</p>
+    	    		                                                                                            <p><strong>신청일:</strong> {new Date(app.submittedAt).toLocaleDateString()}</p>
     
     			
-    	    		                                                <p><strong>신청일:</strong> {new Date(app.submittedAt).toLocaleDateString()}</p>
+    	    		                                            
     
     			
-    	    		                                            </div>
+    	    		                                                                                        </div>
     
     			
-    	    		
+    	    		                                            
     
     			
-    	    		                                            <details>
+    	    		                                            
     
     			
-    	    		                                                <summary>상세 정보 보기</summary>
+    	    		                                            
     
     			
-    	    		                                                <div class="details-content">
+    	    		                                                                                        <details>
     
     			
-    	    		                                                    <p><strong>배경지식:</strong><br>{app.background || '-'}</p>
+    	    		                                            
     
     			
-    	    		                                                </div>
+    	    		                                                                                            <summary>상세 정보 보기</summary>
     
     			
-    	    		                                            </details>
+    	    		                                            
+    
+    			
+    	    		                                                                                            <div class="details-content">
+    
+    			
+    	    		                                            
+    
+    			
+    	    		                                                                                                <p><strong>이메일:</strong> {app.email}</p>
+    
+    			
+    	    		                                            
+    
+    			
+    	    		                                                                                                <p><strong>전화번호:</strong> {app.phone}</p>
+    
+    			
+    	    		                                            
+    
+    			
+    	    		                                                                                                <p><strong>배경지식:</strong><br>{app.background || '-'}</p>
+    
+    			
+    	    		                                            
+    
+    			
+    	    		                                                                                            </div>
+    
+    			
+    	    		                                            
+    
+    			
+    	    		                                                                                        </details>
     
     			
     	    		

@@ -319,7 +319,7 @@ export async function getMemberById(memberId: string) {
 	};
 }
 
-export async function getAllMembers() {
+export async function getAllMembers(skipCache = false) {
 	return withCache('all_members', 60000, async () => {
 		const dbId = env.NOTION_DB_MEMBERS;
 		if (!dbId) throw new Error('NOTION_DB_MEMBERS missing');
@@ -335,10 +335,10 @@ export async function getAllMembers() {
 			department: getPropertyValue(page.properties[NOTION_PROPS.DEPT]),
 			joinDate: getPropertyValue(page.properties[NOTION_PROPS.JOIN_DATE])
 		}));
-	});
+	}, { skipCache });
 }
 
-export async function getActivities(startDate: string, endDate: string) {
+export async function getActivities(startDate: string, endDate: string, skipCache = false) {
 	return withCache(`activities_${startDate}_${endDate}`, 300000, async () => {
 		const dbId = env.NOTION_DB_ACTIVITIES;
 		if (!dbId) throw new Error('NOTION_DB_ACTIVITIES missing');
@@ -361,7 +361,7 @@ export async function getActivities(startDate: string, endDate: string) {
 			attendees: getPropertyValue(page.properties[NOTION_PROPS.ATTENDANCE]),
 			url: (page as any).public_url || page.url
 		}));
-	});
+	}, { skipCache });
 }
 
 export async function getAllActivities() {
@@ -383,7 +383,7 @@ export async function getAllActivities() {
 	});
 }
 
-export async function getUserActivities(memberId: string) {
+export async function getUserActivities(memberId: string, skipCache = false) {
 	return withCache(`user_activities_${memberId}`, 300000, async () => {
 		const dbId = env.NOTION_DB_ACTIVITIES;
 		if (!dbId) throw new Error('NOTION_DB_ACTIVITIES missing');
@@ -400,7 +400,7 @@ export async function getUserActivities(memberId: string) {
 			type: getPropertyValue(page.properties[NOTION_PROPS.ACTIVITY_TYPE]),
 			url: (page as any).public_url || page.url
 		}));
-	});
+	}, { skipCache });
 }
 
 export async function getUserSeminars(memberId: string) {
@@ -420,22 +420,24 @@ export async function getUserSeminars(memberId: string) {
 	}));
 }
 
-export async function getApplicationsFromNotion() {
-	const dbId = env.NOTION_DB_APPLICATIONS;
-	if (!dbId) return [];
+export async function getApplicationsFromNotion(skipCache = false) {
+	return withCache('all_applications', 60000, async () => {
+		const dbId = env.NOTION_DB_APPLICATIONS;
+		if (!dbId) return [];
 
-	const results = await notionQuery(dbId);
+		const results = await notionQuery(dbId);
 
-	return results.map(page => ({
-		id: page.id,
-		email: getPropertyValue(page.properties[NOTION_PROPS.EMAIL]),
-		name: getPropertyValue(page.properties[NOTION_PROPS.NAME]),
-		phone: getPropertyValue(page.properties[NOTION_PROPS.PHONE_APP]),
-		department: getPropertyValue(page.properties[NOTION_PROPS.DEPT]),
-		background: getPropertyValue(page.properties[NOTION_PROPS.BACKGROUND]),
-		accepted: getPropertyValue(page.properties[NOTION_PROPS.APP_ACCEPTED]),
-		submittedAt: (page as any).created_time
-	}));
+		return results.map(page => ({
+			id: page.id,
+			email: getPropertyValue(page.properties[NOTION_PROPS.EMAIL]),
+			name: getPropertyValue(page.properties[NOTION_PROPS.NAME]),
+			phone: getPropertyValue(page.properties[NOTION_PROPS.PHONE_APP]),
+			department: getPropertyValue(page.properties[NOTION_PROPS.DEPT]),
+			background: getPropertyValue(page.properties[NOTION_PROPS.BACKGROUND]),
+			accepted: getPropertyValue(page.properties[NOTION_PROPS.APP_ACCEPTED]),
+			submittedAt: (page as any).created_time
+		}));
+	}, { skipCache });
 }
 
 export async function markApplicationAsAccepted(id: string) {
@@ -481,22 +483,24 @@ export async function removeApplicationInNotion(id: string) {
 	await notionArchive(id);
 }
 
-export async function getSeminarRequestsFromNotion() {
-	const dbId = env.NOTION_DB_SEMINAR_REQUESTS;
-	if (!dbId) return [];
+export async function getSeminarRequestsFromNotion(skipCache = false) {
+	return withCache('all_seminar_requests', 60000, async () => {
+		const dbId = env.NOTION_DB_SEMINAR_REQUESTS;
+		if (!dbId) return [];
 
-	const results = await notionQuery(dbId);
+		const results = await notionQuery(dbId);
 
-	return results.map(page => ({
-		id: page.id,
-		title: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_TITLE]),
-		description: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_DESC]),
-		prerequisites: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_PREREQ]),
-		duration: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_DURATION]),
-		speakerIds: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_SPEAKERS]),
-		status: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_APPROVED]) ? 'approved' : 'pending',
-		submittedAt: (page as any).created_time
-	}));
+		return results.map(page => ({
+			id: page.id,
+			title: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_TITLE]),
+			description: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_DESC]),
+			prerequisites: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_PREREQ]),
+			duration: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_DURATION]),
+			speakerIds: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_SPEAKERS]),
+			status: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_APPROVED]) ? 'approved' : 'pending',
+			submittedAt: (page as any).created_time
+		}));
+	}, { skipCache });
 }
 
 export async function createSeminarRequestInNotion(data: {

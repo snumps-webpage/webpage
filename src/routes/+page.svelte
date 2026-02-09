@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
     import { signIn } from '@auth/sveltekit/client';
+    import { goto } from '$app/navigation';
 	import { getSemesterKeyFromDate } from '$lib/utils';
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import type { PageData } from './$types';
@@ -28,6 +29,20 @@
 
 	// Seminar Edit state
 	let editingSeminarId = $state<string | null>(null);
+
+    let isRefreshing = $state(false);
+
+    async function refreshDashboard() {
+        if (isRefreshing) return;
+        isRefreshing = true;
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.set('refresh', Date.now().toString());
+            await goto(url.toString(), { replaceState: true, invalidateAll: true });
+        } finally {
+            isRefreshing = false;
+        }
+    }
 </script>
 
 {#snippet collapsibleCard(title: string, bindValue: boolean, toggle: () => void, children: import('svelte').Snippet)}
@@ -54,6 +69,15 @@
         {#if isMember || isAdmin}
             <div class="dashboard-header">
                 <h1>SNUMPS 활동 현황</h1>
+                <button 
+                    class="refresh-dashboard-btn" 
+                    onclick={refreshDashboard} 
+                    disabled={isRefreshing}
+                    aria-label="Refresh Dashboard"
+                >
+                    <span class="refresh-icon" class:spinning={isRefreshing}>🔄</span>
+                    새로고침
+                </button>
             </div>
 
             {#await data.streamed.dashboard}
@@ -172,7 +196,7 @@
                             <div class="filters">
                                 <select bind:value={typeFilter} class="semester-select">
                                     <option value="all">전체 종류</option>
-                                    {#each Array.from(new Set(result.activities.map(a => a.type))) as type}
+                                    {#each Array.from(new Set(result.activities.map(a => a.type))) as type (type)}
                                         <option value={type}>{type}</option>
                                     {/each}
                                 </select>
@@ -269,7 +293,47 @@
 		margin-bottom: 2rem;
 		border-bottom: 2px solid var(--border-color);
 		padding-bottom: 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
 	}
+
+    .refresh-dashboard-btn {
+        background: transparent;
+        border: 1px solid var(--border-color);
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-family: "Inter", "Noto Sans KR", sans-serif;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+
+    .refresh-dashboard-btn:hover:not(:disabled) {
+        background: var(--btn-secondary);
+        color: var(--text-primary);
+        border-color: var(--text-primary);
+    }
+
+    .refresh-dashboard-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .refresh-icon.spinning {
+        animation: spin 1s linear infinite;
+        display: inline-block;
+    }
+
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
 
 	h1 { font-size: 2rem; color: var(--text-primary); margin: 0; letter-spacing: -0.02em; }
 	.welcome { color: var(--text-secondary); margin: 0; font-size: 1rem; font-family: "Inter", "Noto Sans KR", sans-serif; }

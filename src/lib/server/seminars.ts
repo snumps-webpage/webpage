@@ -6,9 +6,9 @@ import {
     removeSeminarRequestInNotion
 } from './notion';
 
-export async function getSeminarRequests(): Promise<SeminarRequest[]> {
+export async function getSeminarRequests(skipCache = false): Promise<SeminarRequest[]> {
     try {
-        const results = await getSeminarRequestsFromNotion();
+        const results = await getSeminarRequestsFromNotion(skipCache);
         return results as SeminarRequest[];
     } catch (e) {
         console.error('Failed to fetch seminar requests from Notion:', e);
