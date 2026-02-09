@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-02-09]
+
+### Added
+- **Caching Policy Documentation**: Created `docs/CACHE.md` with detailed TTL values and management strategy.
+- **Refresh Dashboard**: Added a manual refresh button on the user dashboard to bypass cache and fetch fresh data.
+- **Admin App Privacy**: Moved sensitive details (email, phone number) into a collapsible "View More" dropdown in the registration application view.
+
+### Changed
+- **Server Caching**: Extended `withCache` wrapper to `getApplications` and `getSeminarRequests` to improve admin dashboard performance.
+- **Project Maintenance**: Resolved several ESLint warnings regarding unused variables and missing Svelte loop keys.
+
 ## [2026-02-08]
 
 ### Added

@@ -19,9 +19,9 @@ export interface Application {
 	submittedAt: string;
 }
 
-export async function getApplications(): Promise<Application[]> {
+export async function getApplications(skipCache = false): Promise<Application[]> {
 	try {
-		return await getApplicationsFromNotion();
+		return await getApplicationsFromNotion(skipCache);
 	} catch (e) {
 		console.error('Failed to fetch applications from Notion:', e);
 		return [];

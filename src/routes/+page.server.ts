@@ -28,6 +28,7 @@ interface UserAttendedActivity {
 export const load: PageServerLoad = async (event) => {
 	const session = await event.locals.auth();
 	const semester = getSemesterInfo();
+    const skipCache = event.url.searchParams.has('refresh');
 
 	if (!session?.user?.email) {
 		return {
@@ -40,10 +41,10 @@ export const load: PageServerLoad = async (event) => {
 	}
 
 	try {
-		const member = await getMemberByEmail(session.user.email);
+		const member = await getMemberByEmail(session.user.email, skipCache);
         let userApplication = null;
         if (!member) {
-            const apps = await getApplications();
+            const apps = await getApplications(skipCache);
             userApplication = apps.find((a: Application) => a.email === session.user?.email);
         }
 		
@@ -60,9 +61,9 @@ export const load: PageServerLoad = async (event) => {
 					privateInfo,
 					approvedSeminars
 				] = await Promise.all([
-					getActivities(semester.startDate, semester.endDate),
-					getUserActivities(member.memberId),
-					getSeminarRequests(),
+					getActivities(semester.startDate, semester.endDate, skipCache),
+					getUserActivities(member.memberId, skipCache),
+					getSeminarRequests(skipCache),
 					getPrivateInfo(member.privateInfoId),
 					getUserSeminars(member.memberId)
 				]);
