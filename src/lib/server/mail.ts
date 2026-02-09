@@ -4,12 +4,19 @@
 import { env } from '$env/dynamic/private';
 import { CHATROOM_LINK, CHATROOM_PASSWORD } from '../constants';
 
+let cachedAccessToken: string | null = null;
+let tokenExpiry = 0;
+
 /**
  * Exchanges the ADMIN_REFRESH_TOKEN for a fresh Access Token.
- * This allows the server to send emails from the preset admin account 
- * without requiring the admin to be currently logged in.
+ * Uses in-memory caching to avoid redundant requests.
  */
 async function getAdminAccessToken(): Promise<string> {
+    const now = Date.now();
+    if (cachedAccessToken && tokenExpiry > now) {
+        return cachedAccessToken;
+    }
+
 	const refreshToken = env.ADMIN_REFRESH_TOKEN;
 	const clientId = env.GOOGLE_CLIENT_ID;
 	const clientSecret = env.GOOGLE_CLIENT_SECRET;
@@ -38,6 +45,10 @@ async function getAdminAccessToken(): Promise<string> {
 	}
 
 	const data = await response.json();
+    cachedAccessToken = data.access_token;
+    // Set expiry to 5 minutes less than actual expiry (usually 3600s) to be safe
+    tokenExpiry = now + (data.expires_in - 300) * 1000;
+    
 	return data.access_token;
 }
 

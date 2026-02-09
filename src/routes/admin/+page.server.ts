@@ -184,12 +184,13 @@ export const actions = {
             const memberLink = await getMemberByEmail(userEmail);
             if (!memberLink) return fail(404, { error: 'Member not found in database' });
 
-            // 3. Add to Notion
-            await addAttendeeToActivity(event.notionPageId, memberLink.memberId);
-            invalidateCache(`user_activities_${memberLink.memberId}`);
+            // 3. Parallelize independent Notion updates
+            await Promise.all([
+                addAttendeeToActivity(event.notionPageId, memberLink.memberId)
+                    .then(() => invalidateCache(`user_activities_${memberLink.memberId}`)),
+                updateAttendanceStatus(recordId, 'approved')
+            ]);
 
-            // 4. Update Status
-            await updateAttendanceStatus(recordId, 'approved');
             return { success: true };
         } catch (e) {
             console.error(e);
@@ -246,7 +247,7 @@ export const actions = {
         try {
             const now = new Date().toISOString();
 
-            // 1. Create Activity Page in Notion with speakers linked
+            // 1. Create Activity Page in Notion (Critical Dependency)
             const page = await createActivityPage({
                 title: seminar.title,
                 date: now,
@@ -254,28 +255,37 @@ export const actions = {
                 attendeeIds: seminar.speakerIds
             });
 
-            // 2. Create Event for Attendance Tracking
-            await createEvent({
-                title: seminar.title,
-                date: now,
-                type: 'Seminar',
-                notionPageId: page.id
-            });
+            // 2. Parallelize remaining independent tasks
+            const tasks: Promise<any>[] = [
+                createEvent({
+                    title: seminar.title,
+                    date: now,
+                    type: 'Seminar',
+                    notionPageId: page.id
+                }),
+                updateSeminarRequestStatus(id, 'approved')
+            ];
 
-            // 3. Update Request Status
-            await updateSeminarRequestStatus(id, 'approved');
-
-            // 4. Notify Speaker(s)
+            // 3. Notify Speaker(s)
             if (seminar.speakerIds.length > 0) {
-                const { getMemberById, getPrivateInfo } = await import('$lib/server/notion');
-                const member = await getMemberById(seminar.speakerIds[0]);
-                if (member?.privateInfoId) {
-                    const info = await getPrivateInfo(member.privateInfoId);
-                    if (info?.email) {
-                        await sendSeminarStatusNotification(info.email, member.name, seminar.title, 'approved');
+                tasks.push((async () => {
+                    try {
+                        const { getMemberById, getPrivateInfo } = await import('$lib/server/notion');
+                        const member = await getMemberById(seminar.speakerIds[0]);
+                        if (member?.privateInfoId) {
+                            const info = await getPrivateInfo(member.privateInfoId);
+                            if (info?.email) {
+                                await sendSeminarStatusNotification(info.email, member.name, seminar.title, 'approved');
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Failed to send seminar approval email:', e);
+                        // Don't fail the whole request just because email failed
                     }
-                }
+                })());
             }
+
+            await Promise.all(tasks);
 
             return { success: true };
         } catch (e) {

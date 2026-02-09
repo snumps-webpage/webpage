@@ -10,6 +10,26 @@ interface CacheEntry<T> {
 
 const cache = new Map<string, CacheEntry<unknown>>();
 
+// Maximum number of items to keep in cache to prevent OOM
+const MAX_CACHE_SIZE = 1000;
+
+function pruneCache() {
+    const now = Date.now();
+    for (const [key, entry] of cache.entries()) {
+        if (entry.expiry <= now) {
+            cache.delete(key);
+        }
+    }
+    
+    // Hard limit: if still too big after pruning, delete oldest (simple FIFO approximation)
+    if (cache.size > MAX_CACHE_SIZE) {
+        const keysToDelete = Array.from(cache.keys()).slice(0, cache.size - MAX_CACHE_SIZE);
+        for (const k of keysToDelete) {
+            cache.delete(k);
+        }
+    }
+}
+
 export async function withCache<T>(
     key: string, 
     ttlMs: number, 
@@ -24,7 +44,13 @@ export async function withCache<T>(
 	}
 
 	const data = await fetcher();
-	cache.set(key, {
+	
+    // Probabilistic pruning (5% chance) to avoid overhead on every write
+    if (Math.random() < 0.05) {
+        pruneCache();
+    }
+
+    cache.set(key, {
 		data,
 		expiry: now + ttlMs
 	});
