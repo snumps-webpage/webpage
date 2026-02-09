@@ -17,6 +17,7 @@
 
 	// Filtering state
 	let selectedSemester = $state('all');
+	let attendanceFilter = $state('all');
 	
 	$effect(() => {
 		if (data.currentSemesterKey) {
@@ -167,16 +168,26 @@
                     <section class="activities-list">
                         <div class="list-header">
                             <h3>활동 목록</h3>
-                            <select bind:value={selectedSemester} class="semester-select">
-                                <option value="all">전체 활동</option>
-                                {#each result.semesters as sem (sem)}
-                                    <option value={sem}>{sem}학기</option>
-                                {/each}
-                            </select>
+                            <div class="filters">
+                                <select bind:value={attendanceFilter} class="semester-select">
+                                    <option value="all">전체 상태</option>
+                                    <option value="attended">출석</option>
+                                    <option value="absent">결석</option>
+                                </select>
+                                <select bind:value={selectedSemester} class="semester-select">
+                                    <option value="all">전체 학기</option>
+                                    {#each result.semesters as sem (sem)}
+                                        <option value={sem}>{sem}학기</option>
+                                    {/each}
+                                </select>
+                            </div>
                         </div>
 
-                        {#if result.activities.filter((a) => selectedSemester === 'all' || getSemesterKeyFromDate(a.date) === selectedSemester).length === 0}
-                            <p class="empty-state">활동 내역이 없습니다.</p>
+                        {#if result.activities.filter((a) => 
+                            (selectedSemester === 'all' || getSemesterKeyFromDate(a.date) === selectedSemester) &&
+                            (attendanceFilter === 'all' || (attendanceFilter === 'attended' ? a.attended : !a.attended))
+                        ).length === 0}
+                            <p class="empty-state">조건에 맞는 활동 내역이 없습니다.</p>
                         {:else}
                             <div class="table-container">
                                 <table>
@@ -189,7 +200,10 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {#each result.activities.filter((a) => selectedSemester === 'all' || getSemesterKeyFromDate(a.date) === selectedSemester) as activity (activity.id)}
+                                        {#each result.activities.filter((a) => 
+                                            (selectedSemester === 'all' || getSemesterKeyFromDate(a.date) === selectedSemester) &&
+                                            (attendanceFilter === 'all' || (attendanceFilter === 'attended' ? a.attended : !a.attended))
+                                        ) as activity (activity.id)}
                                             <tr class={activity.attended ? 'attended' : 'absent'}>
                                                 <td class="date">{activity.date}</td>
                                                 <td class="name">
@@ -474,6 +488,11 @@
 		margin-bottom: 1.5rem;
 		border-bottom: 2px solid var(--border-color);
 		padding-bottom: 1rem;
+	}
+
+	.filters {
+		display: flex;
+		gap: 0.5rem;
 	}
 
 	.activities-list h3 {
