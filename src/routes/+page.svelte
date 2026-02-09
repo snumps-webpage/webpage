@@ -18,6 +18,7 @@
 	// Filtering state
 	let selectedSemester = $state('all');
 	let attendanceFilter = $state('all');
+	let typeFilter = $state('all');
 	
 	$effect(() => {
 		if (data.currentSemesterKey) {
@@ -169,6 +170,12 @@
                         <div class="list-header">
                             <h3>활동 목록</h3>
                             <div class="filters">
+                                <select bind:value={typeFilter} class="semester-select">
+                                    <option value="all">전체 종류</option>
+                                    {#each Array.from(new Set(result.activities.map(a => a.type))) as type}
+                                        <option value={type}>{type}</option>
+                                    {/each}
+                                </select>
                                 <select bind:value={attendanceFilter} class="semester-select">
                                     <option value="all">전체 상태</option>
                                     <option value="attended">출석</option>
@@ -185,7 +192,8 @@
 
                         {#if result.activities.filter((a) => 
                             (selectedSemester === 'all' || getSemesterKeyFromDate(a.date) === selectedSemester) &&
-                            (attendanceFilter === 'all' || (attendanceFilter === 'attended' ? a.attended : !a.attended))
+                            (attendanceFilter === 'all' || (attendanceFilter === 'attended' ? a.attended : !a.attended)) &&
+                            (typeFilter === 'all' || a.type === typeFilter)
                         ).length === 0}
                             <p class="empty-state">조건에 맞는 활동 내역이 없습니다.</p>
                         {:else}
@@ -202,7 +210,8 @@
                                     <tbody>
                                         {#each result.activities.filter((a) => 
                                             (selectedSemester === 'all' || getSemesterKeyFromDate(a.date) === selectedSemester) &&
-                                            (attendanceFilter === 'all' || (attendanceFilter === 'attended' ? a.attended : !a.attended))
+                                            (attendanceFilter === 'all' || (attendanceFilter === 'attended' ? a.attended : !a.attended)) &&
+                                            (typeFilter === 'all' || a.type === typeFilter)
                                         ) as activity (activity.id)}
                                             <tr class={activity.attended ? 'attended' : 'absent'}>
                                                 <td class="date">{activity.date}</td>
