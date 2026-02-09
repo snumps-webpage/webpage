@@ -256,7 +256,7 @@ export const actions = {
             });
 
             // 2. Parallelize remaining independent tasks
-            const tasks: Promise<any>[] = [
+            const tasks: Promise<unknown>[] = [
                 createEvent({
                     title: seminar.title,
                     date: now,
