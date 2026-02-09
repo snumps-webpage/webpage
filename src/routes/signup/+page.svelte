@@ -87,7 +87,7 @@
     .card {
         background: var(--bg-secondary);
         padding: 2.5rem;
-        border-radius: 16px;
+        border-radius: 8px; /* Sharper */
         box-shadow: var(--shadow);
         width: 100%;
         max-width: 500px;
@@ -100,9 +100,10 @@
         margin-bottom: 0.5rem;
         color: var(--text-primary);
         text-align: center;
+        font-family: "Playfair Display", "Nanum Myeongjo", serif;
     }
 
-	.desc { color: var(--text-secondary); margin-bottom: 2rem; font-size: 0.95rem; text-align: center; }
+	.desc { color: var(--text-secondary); margin-bottom: 2rem; font-size: 0.95rem; text-align: center; font-family: "Inter", "Noto Sans KR", sans-serif; }
 
     .form-group {
         margin-bottom: 1.5rem;
@@ -111,9 +112,11 @@
     .form-group label {
         display: block;
         margin-bottom: 0.5rem;
-        font-weight: 600;
+        font-weight: 700;
         color: var(--text-primary);
-        font-size: 0.9rem;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
     }
 
     .form-group label span.req {
@@ -124,17 +127,23 @@
         width: 100%;
         padding: 0.75rem;
         border: 1px solid var(--border-color);
-        border-radius: 8px;
+        border-radius: 4px;
         font-size: 1rem;
         background: var(--bg-primary);
         color: var(--text-primary);
         box-sizing: border-box;
+        font-family: "Inter", "Noto Sans KR", sans-serif;
+    }
+
+    .form-group input[id="email"], .form-group input[id="phone"] {
+        font-family: var(--font-mono);
+        font-size: 0.95rem;
     }
 
     .form-group input:focus, .form-group textarea:focus {
         outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        border-color: var(--text-primary);
+        box-shadow: 0 0 0 1px var(--text-primary);
     }
 
     .form-group .hint {
@@ -142,6 +151,7 @@
         color: var(--text-secondary);
         margin-top: 0.25rem;
         display: block;
+        font-style: italic;
     }
 
     .agreement {
@@ -154,10 +164,11 @@
         gap: 0.75rem;
         cursor: pointer;
         font-size: 0.95rem;
-        color: var(--text-secondary);
+        color: var(--text-primary);
         position: relative;
         padding-left: 35px;
         user-select: none;
+        font-family: "Inter", "Noto Sans KR", sans-serif;
     }
 
     .checkbox-container input {
@@ -174,18 +185,18 @@
         left: 0;
         height: 25px;
         width: 25px;
-        background-color: var(--btn-secondary);
+        background-color: var(--bg-primary);
         border: 1px solid var(--border-color);
-        border-radius: 6px;
+        border-radius: 4px;
     }
 
     .checkbox-container:hover input ~ .checkmark {
-        background-color: var(--border-color);
+        background-color: var(--btn-secondary);
     }
 
     .checkbox-container input:checked ~ .checkmark {
-        background-color: #667eea;
-        border-color: #667eea;
+        background-color: var(--text-primary);
+        border-color: var(--text-primary);
     }
 
     .checkmark:after {
@@ -203,7 +214,7 @@
         top: 5px;
         width: 5px;
         height: 10px;
-        border: solid white;
+        border: solid var(--bg-primary);
         border-width: 0 3px 3px 0;
         transform: rotate(45deg);
     }
@@ -211,14 +222,15 @@
     .btn-submit {
         width: 100%;
         padding: 1rem;
-        background: var(--brand-gradient);
-        color: white;
+        background: var(--text-primary);
+        color: var(--bg-primary);
         border: none;
-        border-radius: 8px;
+        border-radius: 4px;
         font-size: 1.1rem;
-        font-weight: 600;
+        font-weight: 700;
         cursor: pointer;
         transition: transform 0.1s, opacity 0.2s;
+        font-family: "Playfair Display", "Nanum Myeongjo", serif;
     }
 
     .btn-submit:active {
@@ -233,15 +245,16 @@
         background: var(--color-warning-bg);
         color: var(--color-warning-text);
         padding: 2rem;
-        border-radius: 12px;
+        border-radius: 8px;
         text-align: center;
+        border: 1px solid var(--border-color);
     }
 
     .status-box h2 {
         margin-top: 0;
         font-size: 1.25rem;
+        font-family: "Playfair Display", "Nanum Myeongjo", serif;
     }
-
 
     .btn-home {
         display: inline-block;
@@ -250,7 +263,7 @@
         background: var(--text-primary);
         color: var(--bg-primary);
         text-decoration: none;
-        border-radius: 8px;
+        border-radius: 4px;
         font-weight: 600;
     }
 
@@ -269,15 +282,16 @@
     }
 
     .success-box h2 {
-        color: #10b981;
+        color: var(--color-success-text);
         margin-bottom: 1rem;
+        font-family: "Playfair Display", "Nanum Myeongjo", serif;
     }
 
     .error {
         background: var(--color-danger-bg);
         color: var(--color-danger-text);
         padding: 0.75rem;
-        border-radius: 8px;
+        border-radius: 4px;
         margin-bottom: 1.5rem;
         font-size: 0.9rem;
         text-align: center;
