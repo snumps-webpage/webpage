@@ -8,10 +8,9 @@ A secure SvelteKit web application designed to automate membership management an
 - **[System Architecture](./docs/ARCHITECTURE.md)**: Detailed breakdown of the project structure and hybrid storage model.
 
 ## 🌟 Key Highlights
+- **Academic Aesthetic**: Custom "Prestigious Heritage" theme featuring professional bilingual typography (Playfair Display, Nanum Myeongjo) and data clarity with monospaced identifiers.
+- **High Performance**: Optimized backend actions using parallelized Notion requests and intelligent token caching, ensuring sub-second response times.
 - **Smart Integration**: Two-way sync with multiple Notion databases for members and activities.
-- **Security First**: Google OAuth strictly for SNU domains and obfuscated, time-sensitive attendance links.
-- **Modern UX**: Svelte 5 (Runes), Dark Mode support, and automatic semester-based filtering.
-- **Automation**: Instant email alerts for admins using the Google Gmail REST API.
 
 ## 🛠️ Tech Stack
 - **Frontend**: Svelte 5 (Runes) & SvelteKit.
