@@ -88,7 +88,31 @@
                 </div>
             {:then result}
                 {#if result && 'error' in result}
-                    <div class="error-banner">{result.error}</div>
+                    <div class="dashboard-grid">
+                        <section class="card stats-card error-state">
+                            <h2>연결 실패</h2>
+                            <div class="error-content">
+                                <span class="error-icon">⚠️</span>
+                                <p class="error-msg">{result.error}</p>
+                                <p class="retry-hint">서버와의 통신이 원활하지 않습니다.<br>잠시 후 우측 상단의 '새로고침' 버튼을 눌러주세요.</p>
+                            </div>
+                        </section>
+                        
+                        <!-- Empty slots for layout continuity -->
+                        <section class="card collapsed disabled">
+                            <div class="card-header-toggle">
+                                <h2>회원 정보 관리</h2>
+                                <span class="chevron">-</span>
+                            </div>
+                        </section>
+
+                        <section class="card collapsed disabled">
+                            <div class="card-header-toggle">
+                                <h2>세미나 관리</h2>
+                                <span class="chevron">-</span>
+                            </div>
+                        </section>
+                    </div>
                 {:else if result}
                     <div class="dashboard-grid">
                         
@@ -118,56 +142,56 @@
                             </form>
                         {/snippet}
 
-                        <!-- 2. Manage Seminar (Collapsible) -->
+						<!-- 2. Manage Seminar (Collapsible) -->
                         {@render collapsibleCard('세미나 관리', showSeminars, () => showSeminars = !showSeminars, seminarContent)}
                         {#snippet seminarContent()}
-                            <div class="seminar-section">
-                                {#if result.approvedSeminars.length === 0 && result.seminarRequests.length === 0}
-                                    <p class="empty-hint">참여 중인 세미나나 신청 내역이 없습니다.</p>
-                                {:else}
-                                    <div class="seminar-list">
-                                        {#each result.approvedSeminars as seminar (seminar.id)}
-                                            <div class="seminar-item approved">
-                                                <div class="seminar-info">
-                                                    <span class="sem-tag">기록됨</span>
-                                                    {#if editingSeminarId === seminar.id}
-                                                        <form method="POST" action="?/updateSeminar" use:enhance={() => {
-                                                            return ({ result }) => { if (result.type === 'success') editingSeminarId = null; };
-                                                        }} class="edit-form">
+						<div class="seminar-section">
+							{#if result.approvedSeminars.length === 0 && result.seminarRequests.length === 0}
+							<p class="empty-hint">참여 중인 세미나나 신청 내역이 없습니다.</p>
+							{:else}
+							<div class="seminar-list">
+								{#each result.approvedSeminars as seminar (seminar.id)}
+								<div class="seminar-item approved">
+									<div class="seminar-info">
+										<span class="sem-tag">기록됨</span>
+										{#if editingSeminarId === seminar.id}
+										<form method="POST" action="?/updateSeminar" use:enhance={() => {
+											return ({ result }) => { if (result.type === 'success') editingSeminarId = null; };
+										}} class="edit-form">
                                                             <input type="hidden" name="id" value={seminar.id} />
                                                             <input type="text" name="title" value={seminar.title} class="edit-input" />
                                                             <textarea name="remarks" class="edit-textarea">{seminar.remarks}</textarea>
                                                             <div class="edit-actions">
-                                                                <button type="button" class="btn-cancel" onclick={() => editingSeminarId = null}>취소</button>
+																<button type="button" class="btn-cancel" onclick={() => editingSeminarId = null}>취소</button>
                                                                 <button class="btn-confirm">저장</button>
                                                             </div>
                                                         </form>
-                                                    {:else}
+														{:else}
                                                         <div class="view-mode">
-                                                            <span class="sem-title">{seminar.title}</span>
+															<span class="sem-title">{seminar.title}</span>
                                                             <span class="sem-meta">{seminar.semester} | {seminar.remarks || '비고 없음'}</span>
                                                             <button class="btn-edit-inline" onclick={() => editingSeminarId = seminar.id}>수정</button>
                                                         </div>
-                                                    {/if}
-                                                </div>
-                                            </div>
-                                        {/each}
-                                        {#each result.seminarRequests as req (req.id)}
-                                            <div class="seminar-item request {req.status}">
-                                                <div class="seminar-info">
-                                                    <span class="sem-tag status">{req.status === 'approved' ? '승인됨' : req.status === 'rejected' ? '반려됨' : '승인 대기'}</span>
-                                                    <span class="sem-title">{req.title}</span>
-                                                    <span class="sem-meta">{new Date(req.submittedAt).toLocaleDateString()} 신청</span>
-                                                </div>
-                                            </div>
-                                        {/each}
-                                    </div>
-                                {/if}
-                                <a href="/seminar/apply" class="btn-apply">🗣️ 새 세미나 신청</a>
-                            </div>
-                        {/snippet}
-
-                        <!-- 3. Attendance Stats (Restored to non-collapsible) -->
+														{/if}
+													</div>
+												</div>
+												{/each}
+												{#each result.seminarRequests as req (req.id)}
+												<div class="seminar-item request {req.status}">
+													<div class="seminar-info">
+														<span class="sem-tag status">{req.status === 'approved' ? '승인됨' : req.status === 'rejected' ? '반려됨' : '승인 대기'}</span>
+														<span class="sem-title">{req.title}</span>
+														<span class="sem-meta">{new Date(req.submittedAt).toLocaleDateString()} 신청</span>
+													</div>
+												</div>
+												{/each}
+											</div>
+											{/if}
+											<a href="/seminar/apply" class="btn-apply">🗣️ 새 세미나 신청</a>
+										</div>
+										{/snippet}
+																				
+										<!-- 3. Attendance Stats (Restored to non-collapsible) -->
                         <section class="stats-card">
                             <h2>{data.semester} 출석 현황</h2>
                             <div class="stats-grid">
@@ -263,7 +287,7 @@
             {/await}
         {/if}
 	{:else}
-		<div class="landing-hero">
+		<div class="landing-hero no-sel">
 			<h1>서울대학교 수학문제연구회</h1>
 			<p class="subtitle">SNUMPS</p>
             <div class="login-container">
@@ -734,4 +758,30 @@
 
     .login-hint { font-size: 0.9rem; color: var(--text-secondary); font-style: italic; }
     .btn-signup-large { background: var(--color-success-text); margin-bottom: 1rem; }
+
+    /* Error State */
+    .error-state {
+        text-align: center;
+        border-color: var(--color-danger-text);
+        background: var(--bg-secondary);
+    }
+    
+    .error-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 1rem 0;
+    }
+
+    .error-icon { font-size: 2rem; }
+    .error-msg { color: var(--color-danger-text); font-weight: bold; margin: 0; font-family: "Inter", "Noto Sans KR", sans-serif; }
+    .retry-hint { color: var(--text-secondary); font-size: 0.9rem; margin: 0; line-height: 1.5; }
+
+    .card.disabled {
+        opacity: 0.6;
+        pointer-events: none;
+        background: var(--bg-secondary);
+        filter: grayscale(1);
+    }
 </style>

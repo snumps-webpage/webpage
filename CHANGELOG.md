@@ -5,8 +5,9 @@ All notable changes to this project will be documented in this file.
 ## [2026-02-09]
 
 ### Added
-- **Caching Policy Documentation**: Created `docs/CACHE.md` with detailed TTL values and management strategy.
-- **Refresh Dashboard**: Added a manual refresh button on the user dashboard to bypass cache and fetch fresh data.
+- **Global Utilities**: Implemented `.no-sel` global CSS class in `+layout.svelte` for reusable text-selection disabling.
+- **Resilient Dashboard**: Enhanced dashboard to handle Notion API failures gracefully by showing structured "Empty Slots" and informative retry messages instead of crashing.
+- **Dashboard Refresh**: Integrated a manual refresh button to bypass cache and force data synchronization.
 - **Admin App Privacy**: Moved sensitive details (email, phone number) into a collapsible "View More" dropdown in the registration application view.
 
 ### Changed

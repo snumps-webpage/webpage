@@ -166,6 +166,13 @@
 		letter-spacing: -0.02em;
 	}
 
+	:global(.no-sel) {
+		-webkit-user-select: none;
+		-moz-user-select: none;
+		-ms-user-select: none;
+		user-select: none;
+	}
+
 	.global-nav {
 		background: rgba(253, 251, 247, 0.9); /* Matches bg-primary with opacity */
 		backdrop-filter: blur(12px);
