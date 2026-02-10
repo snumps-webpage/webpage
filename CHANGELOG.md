@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-02-10]
+
+### Added
+
+- **"Math Journal" Aesthetic**: A deep UI overhaul moving beyond generic distribution to a distinctive academic look.
+  - **Typography**: Replaced generic fonts with `Crimson Pro` (Body), `Newsreader` (Headers), and `Gowun Batang` (Korean Serif) for an editorial, prestigious feel.
+  - **Atmospheric Background**: Implemented a layered radial gradient mimicking textured paper depth.
+  - **Staggered Animations**: Added orchestrated entrance animations (`slide-up-fade`) for dashboard cards and list items.
+  - **Technical Micro-interactions**: Minimal, monospaced pill buttons with sharp hover states for an "academic tool" feel.
+- **Deploy Script**: Added `npm run deploy:preview` for quick Vercel staging builds.
+
+### Changed
+
+- **Layout Integrity**: Restored structural CSS and navigation logic accidentally omitted during aesthetic updates.
+- **Navigation UX**: Reverted to pure CSS `:hover` based dropdowns for snappier interaction.
+- **Form Aesthetics**: Updated all input fields, buttons, and badges to match the Journal theme with refined borders and focus states.
+
 ## [2026-02-09]
 
 ### Added
