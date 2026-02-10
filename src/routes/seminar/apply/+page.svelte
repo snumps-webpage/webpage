@@ -78,7 +78,7 @@
 
             <div class="field">
                 <label for="prerequisites" class="no-sel">선수 지식</label>
-                <textarea id="prerequisites" name="prerequisites" rows="2" placeholder="세미나를 듣기 위해 필요한 배경 지식이 있다면 적어주세요."></textarea>
+                <textarea id="prerequisites" name="prerequisites" rows="2" style="min-height: 5.5rem" placeholder="세미나를 듣기 위해 필요한 배경 지식이 있다면 적어주세요."></textarea>
             </div>
 
             <div class="field">
