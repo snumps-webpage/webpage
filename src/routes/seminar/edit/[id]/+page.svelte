@@ -39,7 +39,7 @@
     
     {#if form?.success}
         <div class="success-message">
-            <h3>✅ 신청 정보가 수정되었습니다.</h3>
+            <h3>신청 정보가 수정되었습니다.</h3>
             <p>관리자 검토가 다시 진행됩니다.</p>
             <a href="/" class="btn home">홈으로 돌아가기</a>
         </div>
@@ -78,7 +78,7 @@
 
             <div class="field">
                 <label for="prerequisites" class="no-sel">선수 지식</label>
-                <textarea id="prerequisites" name="prerequisites" rows="2" placeholder="세미나를 듣기 위해 필요한 배경 지식이 있다면 적어주세요.">{data.request.prerequisites}</textarea>
+                <textarea id="prerequisites" name="prerequisites" rows="2" style="min-height: 5.5rem" placeholder="세미나를 듣기 위해 필요한 배경 지식이 있다면 적어주세요.">{data.request.prerequisites}</textarea>
             </div>
 
             <div class="field">
@@ -87,14 +87,14 @@
             </div>
 
             <div class="field">
-                <label for="attachment" class="no-sel">첨부 파일 (Link)</label>
+                <label for="attachment" class="no-sel">첨부 파일</label>
                 <input type="url" id="attachment" name="attachment" value={data.request.attachment || ''} placeholder="Google Drive, Dropbox 링크 등 (선택 사항)" />
                 <p class="hint no-sel">강의 자료나 계획서가 있다면 링크를 입력해주세요.</p>
             </div>
 
             <div class="field">
                 <div class="label-row">
-                    <span class="label-text no-sel">발표자 (Speaker)</span>
+                    <span class="label-text no-sel">발표자</span>
                     <button type="button" class="toggle-btn" onclick={() => showSearch = !showSearch}>
                         {showSearch ? '닫기' : '추가'}
                     </button>
