@@ -1,5 +1,6 @@
 <script lang="ts">
     import { enhance } from '$app/forms';
+    import { toasts } from '$lib/toasts';
 
     let { data } = $props();
     let processing = $state(false);
@@ -35,14 +36,14 @@
                     processing = false;
                     if (result.type === 'success') {
                         if (result.data?.error) {
-                            alert(result.data.message || '오류가 발생했습니다.');
+                            toasts.error((result.data.message as string) || '오류가 발생했습니다.');
                         } else {
                             success = true;
                         }
                     } else if (result.type === 'failure') {
-                        alert('처리 중 오류가 발생했습니다.');
+                        toasts.error('처리 중 오류가 발생했습니다.');
                     } else if (result.type === 'error') {
-                        alert('서버 오류가 발생했습니다.');
+                        toasts.error('서버 오류가 발생했습니다.');
                     }
                 };
             }}>
