@@ -6,7 +6,7 @@
 	<div class="card">
 		<h1>신청 정보 수정</h1>
 		
-        <p class="desc">
+        <p class="desc no-sel">
             제출하신 가입 신청 정보를 수정할 수 있습니다.<br>
             수정 후에도 기존 신청 시점의 타임스탬프는 유지됩니다.
         </p>
@@ -16,7 +16,7 @@
         {/if}
 
         {#if form?.success}
-            <div class="success-box">
+            <div class="success-box no-sel">
                 <h2>✅ 수정 완료</h2>
                 <p>신청 정보가 성공적으로 수정되었습니다.</p>
                 <a href="/" class="btn-home">메인으로 가기</a>
@@ -25,20 +25,22 @@
             <form method="POST">
                 <input type="hidden" name="id" value={data.application?.id} />
 
-                <div class="form-group">
+                <div class="form-group no-sel">
+                    <label for="name">이름</label>
+                    <input type="text" id="name" value={data.parsedInfo.name} disabled />
+                    <span class="hint">SNU 계정 기반</span>
+                </div>
+
+                <div class="form-group no-sel">
+                    <label for="department">학과</label>
+                    <input type="text" id="department" value={data.parsedInfo.department} disabled />
+                    <span class="hint">SNU 계정 기반</span>
+                </div>
+
+                <div class="form-group no-sel">
                     <label for="email">이메일</label>
                     <input type="text" id="email" value={data.user?.email} disabled />
-                    <span class="hint">로그인된 계정입니다.</span>
-                </div>
-
-                <div class="form-group">
-                    <label for="name">이름 <span class="req">*</span></label>
-                    <input type="text" id="name" name="name" value={data.application?.name || data.user?.name} required placeholder="홍길동" />
-                </div>
-
-                <div class="form-group">
-                    <label for="department">학과 <span class="req">*</span></label>
-                    <input type="text" id="department" name="department" value={data.application?.department || ''} required placeholder="수리과학부" />
+                    <span class="hint">로그인된 계정</span>
                 </div>
 
                 <div class="form-group">
@@ -130,6 +132,18 @@
         outline: none;
         border-color: var(--text-primary);
         box-shadow: 0 0 0 1px var(--text-primary);
+    }
+
+    .form-group input:disabled {
+        background: var(--btn-secondary);
+        color: var(--text-secondary);
+        cursor: not-allowed;
+        opacity: 0.7;
+        border-style: dashed;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
     }
 
     .form-group .hint {
