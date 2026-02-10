@@ -32,6 +32,18 @@
 
     let isRefreshing = $state(false);
 
+    // Optimized derived state for filtering activities
+    let filteredActivities = $derived(
+        data.streamed.dashboard.then(result => {
+            if (!result || 'error' in result) return [];
+            return result.activities.filter((a) => 
+                (selectedSemester === 'all' || getSemesterKeyFromDate(a.date) === selectedSemester) &&
+                (attendanceFilter === 'all' || (attendanceFilter === 'attended' ? a.attended : !a.attended)) &&
+                (typeFilter === 'all' || a.type === typeFilter)
+            );
+        })
+    );
+
     async function refreshDashboard() {
         if (isRefreshing) return;
         isRefreshing = true;
@@ -238,50 +250,44 @@
                             </div>
                         </div>
 
-                        {#if result.activities.filter((a) => 
-                            (selectedSemester === 'all' || getSemesterKeyFromDate(a.date) === selectedSemester) &&
-                            (attendanceFilter === 'all' || (attendanceFilter === 'attended' ? a.attended : !a.attended)) &&
-                            (typeFilter === 'all' || a.type === typeFilter)
-                        ).length === 0}
-                            <p class="empty-state">조건에 맞는 활동 내역이 없습니다.</p>
-                        {:else}
-                            <div class="table-container">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>날짜</th>
-                                            <th>활동명</th>
-                                            <th>종류</th>
-                                            <th>출석</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {#each result.activities.filter((a) => 
-                                            (selectedSemester === 'all' || getSemesterKeyFromDate(a.date) === selectedSemester) &&
-                                            (attendanceFilter === 'all' || (attendanceFilter === 'attended' ? a.attended : !a.attended)) &&
-                                            (typeFilter === 'all' || a.type === typeFilter)
-                                        ) as activity (activity.id)}
-                                            <tr class={activity.attended ? 'attended' : 'absent'}>
-                                                <td class="date">{activity.date}</td>
-                                                <td class="name">
-                                                    <a href={activity.url} target="_blank" rel="noopener noreferrer" class="activity-link">
-                                                        {activity.name}
-                                                    </a>
-                                                </td>
-                                                <td><span class="tag no-sel">{activity.type}</span></td>
-                                                <td class="status">
-                                                    {#if activity.attended}
-                                                        <span class="badge success no-sel">출석</span>
-                                                    {:else}
-                                                        <span class="badge fail no-sel">결석</span>
-                                                    {/if}
-                                                </td>
+                        {#await filteredActivities then activities}
+                            {#if activities.length === 0}
+                                <p class="empty-state">조건에 맞는 활동 내역이 없습니다.</p>
+                            {:else}
+                                <div class="table-container">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>날짜</th>
+                                                <th>활동명</th>
+                                                <th>종류</th>
+                                                <th>출석</th>
                                             </tr>
-                                        {/each}
-                                    </tbody>
-                                </table>
-                            </div>
-                        {/if}
+                                        </thead>
+                                        <tbody>
+                                            {#each activities as activity (activity.id)}
+                                                <tr class={activity.attended ? 'attended' : 'absent'}>
+                                                    <td class="date">{activity.date}</td>
+                                                    <td class="name">
+                                                        <a href={activity.url} target="_blank" rel="noopener noreferrer" class="activity-link">
+                                                            {activity.name}
+                                                        </a>
+                                                    </td>
+                                                    <td><span class="tag no-sel">{activity.type}</span></td>
+                                                    <td class="status">
+                                                        {#if activity.attended}
+                                                            <span class="badge success no-sel">출석</span>
+                                                        {:else}
+                                                            <span class="badge fail no-sel">결석</span>
+                                                        {/if}
+                                                    </td>
+                                                </tr>
+                                            {/each}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {/if}
+                        {/await}
                     </section>
                 {/if}
             {/await}
