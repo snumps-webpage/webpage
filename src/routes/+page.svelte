@@ -32,16 +32,27 @@
 
     let isRefreshing = $state(false);
 
-    // Optimized derived state for filtering activities
-    let filteredActivities = $derived(
+    // Optimized: Store resolved data in local state to prevent Promise recreation on every render
+    let dashboardData = $state<any>(null); // Type 'any' used temporarily to avoid deep type import issues, ideally strictly typed
+
+    // Resolve stream once
+    $effect(() => {
         data.streamed.dashboard.then(result => {
-            if (!result || 'error' in result) return [];
-            return result.activities.filter((a) => 
-                (selectedSemester === 'all' || getSemesterKeyFromDate(a.date) === selectedSemester) &&
+            if (result && !('error' in result)) {
+                dashboardData = result;
+            }
+        });
+    });
+
+    // Purely synchronous filtering - FAST
+    let filteredActivities = $derived(
+        dashboardData 
+            ? dashboardData.activities.filter((a: any) => 
+                (selectedSemester === 'all' || a.semester === selectedSemester) &&
                 (attendanceFilter === 'all' || (attendanceFilter === 'attended' ? a.attended : !a.attended)) &&
                 (typeFilter === 'all' || a.type === typeFilter)
-            );
-        })
+            )
+            : []
     );
 
     async function refreshDashboard() {
@@ -231,7 +242,7 @@
                             <div class="filters">
                                 <select bind:value={typeFilter} class="semester-select">
                                     <option value="all">전체 종류</option>
-                                    {#each Array.from(new Set(result.activities.map(a => a.type))) as type (type)}
+                                    {#each Array.from(new Set(result.activities.map((a: any) => a.type))) as type (type)}
                                         <option value={type}>{type}</option>
                                     {/each}
                                 </select>
@@ -249,44 +260,42 @@
                             </div>
                         </div>
 
-                        {#await filteredActivities then activities}
-                            {#if activities.length === 0}
-                                <p class="empty-state">조건에 맞는 활동 내역이 없습니다.</p>
-                            {:else}
-                                <div class="table-container">
-                                    <table>
-                                        <thead>
-                                            <tr>
-                                                <th>날짜</th>
-                                                <th>활동명</th>
-                                                <th>종류</th>
-                                                <th>출석</th>
+                        {#if filteredActivities.length === 0}
+                            <p class="empty-state">조건에 맞는 활동 내역이 없습니다.</p>
+                        {:else}
+                            <div class="table-container">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>날짜</th>
+                                            <th>활동명</th>
+                                            <th>종류</th>
+                                            <th>출석</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {#each filteredActivities as activity (activity.id)}
+                                            <tr class={activity.attended ? 'attended' : 'absent'}>
+                                                <td class="date">{activity.date}</td>
+                                                <td class="name">
+                                                    <a href={activity.url} target="_blank" rel="noopener noreferrer" class="activity-link">
+                                                        {activity.name}
+                                                    </a>
+                                                </td>
+                                                <td><span class="tag no-sel">{activity.type}</span></td>
+                                                <td class="status">
+                                                    {#if activity.attended}
+                                                        <span class="badge success no-sel">출석</span>
+                                                    {:else}
+                                                        <span class="badge fail no-sel">결석</span>
+                                                    {/if}
+                                                </td>
                                             </tr>
-                                        </thead>
-                                        <tbody>
-                                            {#each activities as activity (activity.id)}
-                                                <tr class={activity.attended ? 'attended' : 'absent'}>
-                                                    <td class="date">{activity.date}</td>
-                                                    <td class="name">
-                                                        <a href={activity.url} target="_blank" rel="noopener noreferrer" class="activity-link">
-                                                            {activity.name}
-                                                        </a>
-                                                    </td>
-                                                    <td><span class="tag no-sel">{activity.type}</span></td>
-                                                    <td class="status">
-                                                        {#if activity.attended}
-                                                            <span class="badge success no-sel">출석</span>
-                                                        {:else}
-                                                            <span class="badge fail no-sel">결석</span>
-                                                        {/if}
-                                                    </td>
-                                                </tr>
-                                            {/each}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            {/if}
-                        {/await}
+                                        {/each}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {/if}
                     </section>
                 {/if}
             {/await}
