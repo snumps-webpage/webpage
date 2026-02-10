@@ -4,7 +4,7 @@
 
 <div class="container">
 	<div class="card">
-		<h1>회원가입 신청</h1>
+		<h1 class="no-sel">회원가입 신청</h1>
 		
 		{#if data.pending}
 			<div class="status-box pending">
@@ -15,8 +15,7 @@
                 </div>
 			</div>
 		{:else}
-			<p class="desc">
-				SNUMPS 활동을 위해 추가 정보가 필요합니다.<br>
+			<p class="desc no-sel">
 				입력하신 정보는 동아리 운영 목적으로만 사용됩니다.
 			</p>
 
@@ -25,36 +24,46 @@
 			{/if}
 
 			{#if form?.success}
-				<div class="success-box">
+				<div class="success-box no-sel">
 					<h2>✅ 신청 완료</h2>
-					<p>가입 신청이 성공적으로 접수되었습니다. 관리자 승인 후 대시보드 이용이 가능합니다.</p>
+					<p>가입 신청이 성공적으로 접수되었습니다. 가입 승인 후 이용이 가능합니다.</p>
+					<p>가입 승인 여부는 메일로 안내되므로 확인 부탁드립니다.</p>
 					<a href="/" class="btn-home">메인으로 가기</a>
 				</div>
-			{:else}
-				<form method="POST">
+			            {:else}
+							<form method="POST">
+								<div class="form-group no-sel">
+									<label for="name">이름</label>
+									<input type="text" id="name" value={data.parsedInfo.name} disabled />
+									<span class="hint">SNU 계정 기반</span>
+								</div>
+			
+								<div class="form-group no-sel">
+									<label for="department">학과</label>
+									<input type="text" id="department" value={data.parsedInfo.department} disabled />
+									<span class="hint">SNU 계정 기반</span>
+								</div>
+			
+								<div class="form-group no-sel">
+									<label for="email">이메일</label>
+									<input type="text" id="email" value={data.user?.email} disabled />
+									<span class="hint">로그인된 계정</span>
+								</div>
+			
+								<div class="form-group">
+									<label for="phone">전화번호 <span class="req">*</span></label>
+									<input 
+			                            type="tel" 
+			                            id="phone" 
+			                            name="phone" 
+			                            required 
+			                            placeholder="010-0000-0000" 
+			                            pattern="010[- ]?\d&#123;3,4&#125;[- ]?\d&#123;4&#125;"
+			                            title="숫자만 입력하거나 하이픈(-) 또는 공백을 포함할 수 있습니다."
+			                        />
+								</div>
 					<div class="form-group">
-						<label for="email">이메일</label>
-						<input type="text" id="email" value={data.user?.email} disabled />
-						<span class="hint">로그인된 계정입니다.</span>
-					</div>
-
-					<div class="form-group">
-						<label for="name">이름 <span class="req">*</span></label>
-						<input type="text" id="name" name="name" value={data.user?.name} required placeholder="홍길동" />
-					</div>
-
-					<div class="form-group">
-						<label for="department">학과 <span class="req">*</span></label>
-						<input type="text" id="department" name="department" required placeholder="수리과학부" />
-					</div>
-
-					<div class="form-group">
-						<label for="phone">전화번호 <span class="req">*</span></label>
-						<input type="tel" id="phone" name="phone" required placeholder="010-0000-0000" />
-					</div>
-
-					<div class="form-group">
-						<label for="background">배경지식</label>
+						<label for="background" class="no-sel">배경지식</label>
 						<textarea id="background" name="background" rows="4" placeholder="관심 분야나 관련 경험을 적어주세요."></textarea>
 					</div>
 
@@ -64,6 +73,11 @@
 							<span class="checkmark"></span>
 							개인정보 수집 및 이용에 동의합니다. (필수)
 						</label>
+					</div>
+					<div class="desc no-sel">
+						<p>
+							가입 승인 관련 사항은 메일로 안내됩니다.
+						</p>
 					</div>
 
 					<button type="submit" class="btn-submit">가입 신청하기</button>
@@ -144,6 +158,18 @@
         outline: none;
         border-color: var(--text-primary);
         box-shadow: 0 0 0 1px var(--text-primary);
+    }
+
+    .form-group input:disabled {
+        background: var(--btn-secondary);
+        color: var(--text-secondary);
+        cursor: not-allowed;
+        opacity: 0.7;
+        border-style: dashed;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
     }
 
     .form-group .hint {
