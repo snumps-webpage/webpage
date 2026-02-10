@@ -23,6 +23,7 @@ export interface SeminarRequest {
   prerequisites: string;
   duration: string;
   speakerIds: string[];
+  attachment?: string;
   status: "pending" | "approved" | "rejected";
   submittedAt: string;
 }

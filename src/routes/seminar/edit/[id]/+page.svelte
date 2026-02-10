@@ -6,8 +6,8 @@
     let { data, form } = $props();
 
     let searchQuery = $state('');
-    let selectedSpeakers = $state<SeminarSpeaker[]>([]); 
-    let showSearch = $state(false); // Toggle for search UI
+    let selectedSpeakers = $state<SeminarSpeaker[]>(data.request.initialSpeakers || []); 
+    let showSearch = $state(false);
     let processing = $state(false);
 
     let selectedSpeakerIds = $derived(new Set(selectedSpeakers.map(s => s.id)));
@@ -35,12 +35,12 @@
 </script>
 
 <div class="container">
-    <h1 class="no-sel">세미나 개설 신청</h1>
+    <h1 class="no-sel">세미나 신청 정보 수정</h1>
     
     {#if form?.success}
         <div class="success-message">
-            <h3>신청이 완료되었습니다!</h3>
-            <p>관리자 검토 후 결과가 이메일로 전송됩니다.</p>
+            <h3>✅ 신청 정보가 수정되었습니다.</h3>
+            <p>관리자 검토가 다시 진행됩니다.</p>
             <a href="/" class="btn home">홈으로 돌아가기</a>
         </div>
     {:else if processing}
@@ -49,7 +49,7 @@
                 <Skeleton height="300px" borderRadius="8px" />
                 <div class="processing-overlay">
                     <div class="spinner"></div>
-                    <p>신청서를 처리 중입니다...</p>
+                    <p>수정 사항을 처리 중입니다...</p>
                     <span class="hint">잠시만 기다려주세요.</span>
                 </div>
             </div>
@@ -68,35 +68,35 @@
 
             <div class="field">
                 <label for="title" class="no-sel">세미나 주제 <span class="req">*</span></label>
-                <input type="text" id="title" name="title" required placeholder="예: 대수위상 세미나" />
+                <input type="text" id="title" name="title" required value={data.request.title} placeholder="예: 대수위상 세미나" />
             </div>
 
             <div class="field">
                 <label for="description" class="no-sel">세미나 설명 <span class="req">*</span></label>
-                <textarea id="description" name="description" rows="4" required placeholder="세미나의 목적과 내용을 간략히 적어주세요."></textarea>
+                <textarea id="description" name="description" rows="4" required placeholder="세미나의 목적과 내용을 간략히 적어주세요.">{data.request.description}</textarea>
             </div>
 
             <div class="field">
                 <label for="prerequisites" class="no-sel">선수 지식</label>
-                <textarea id="prerequisites" name="prerequisites" rows="2" placeholder="세미나를 듣기 위해 필요한 배경 지식이 있다면 적어주세요."></textarea>
+                <textarea id="prerequisites" name="prerequisites" rows="2" placeholder="세미나를 듣기 위해 필요한 배경 지식이 있다면 적어주세요.">{data.request.prerequisites}</textarea>
             </div>
 
             <div class="field">
                 <label for="duration" class="no-sel">예상 소요 시간 <span class="req">*</span></label>
-                <input type="text" id="duration" name="duration" required placeholder="예: 90분" />
+                <input type="text" id="duration" name="duration" required value={data.request.duration} placeholder="예: 90분" />
             </div>
 
             <div class="field">
-                <label for="attachment" class="no-sel">첨부 파일</label>
-                <input type="url" id="attachment" name="attachment" placeholder="Google Drive, Dropbox 링크 등 (선택 사항)" />
+                <label for="attachment" class="no-sel">첨부 파일 (Link)</label>
+                <input type="url" id="attachment" name="attachment" value={data.request.attachment || ''} placeholder="Google Drive, Dropbox 링크 등 (선택 사항)" />
                 <p class="hint no-sel">강의 자료나 계획서가 있다면 링크를 입력해주세요.</p>
             </div>
 
             <div class="field">
                 <div class="label-row">
-                    <span class="label-text no-sel">발표자</span>
+                    <span class="label-text no-sel">발표자 (Speaker)</span>
                     <button type="button" class="toggle-btn" onclick={() => showSearch = !showSearch}>
-                        {showSearch ? '닫기' : 'DB에서 검색/추가'}
+                        {showSearch ? '닫기' : '추가'}
                     </button>
                 </div>
                 
@@ -142,7 +142,8 @@
                 <input type="hidden" name="speakerIds" value={JSON.stringify(selectedSpeakers.map(s => s.id))} />
             </div>
 
-            <button class="btn submit">신청하기</button>
+            <button class="btn submit">수정 완료</button>
+            <a href="/" class="btn cancel">취소</a>
         </form>
     {/if}
 </div>
@@ -352,6 +353,9 @@
     .submit { background: var(--text-primary); color: var(--bg-primary); margin-top: 1.5rem; }
     .submit:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
     
+    .cancel { background: transparent; color: var(--text-primary); border: 1px solid var(--border-color); margin-top: 1rem; }
+    .cancel:hover { border-color: var(--text-primary); }
+
     .home { background: transparent; color: var(--text-primary); border: 1px solid var(--border-color); margin-top: 1rem; }
     .home:hover { border-color: var(--text-primary); }
 

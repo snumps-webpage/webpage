@@ -1,5 +1,5 @@
 import { fail, redirect } from "@sveltejs/kit";
-import { createSeminarRequest } from "$lib/server/seminars";
+import { getSeminarRequests, updateSeminarRequest } from "$lib/server/seminars";
 import {
   getAllMembers,
   getAllPrivateInfo,
@@ -7,17 +7,29 @@ import {
 } from "$lib/server/notion";
 import type { PageServerLoad, Actions } from "./$types";
 
-export const load: PageServerLoad = async ({ locals, url }) => {
+export const load: PageServerLoad = async ({ locals, params, url }) => {
   const session = await locals.auth();
   if (!session?.user)
     throw redirect(302, `/login?redirect=${encodeURIComponent(url.pathname)}`);
+
+  const requestId = params.id;
+  const requests = await getSeminarRequests();
+  const request = requests.find((r) => r.id === requestId);
+
+  if (!request) {
+    throw redirect(302, "/");
+  }
+
+  // Check if pending. Only pending requests should be editable.
+  if (request.status !== "pending") {
+    throw redirect(302, "/");
+  }
 
   const [members, privateInfos] = await Promise.all([
     getAllMembers(),
     getAllPrivateInfo(),
   ]);
 
-  // Create a map for quick lookup
   const memberMap = new Map(members.map((m) => [m.id, m]));
 
   const searchableMembers = privateInfos
@@ -25,27 +37,32 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     .map((p) => {
       const member = memberMap.get(p.memberId!)!;
       return {
-        id: member.id, // We use the Member Database ID for relations
+        id: member.id,
         name: member.name,
         department: member.department,
         email: p.email,
       };
     });
 
+  // Reconstruct the initial speakers list for the UI
+  const initialSpeakers = request.speakerIds
+    .map((id) => searchableMembers.find((m) => m.id === id))
+    .filter((m) => !!m);
+
   return {
     user: session.user,
     members: searchableMembers,
+    request: {
+      ...request,
+      initialSpeakers,
+    },
   };
 };
 
 export const actions: Actions = {
-  default: async ({ request, locals }) => {
+  default: async ({ request, locals, params }) => {
     const session = await locals.auth();
-    if (!session?.user?.email || !session.user.name) {
-      return fail(401, {
-        error: "Authentication required to apply for a seminar.",
-      });
-    }
+    if (!session?.user?.email) return fail(401, { error: "Login required" });
 
     const data = await request.formData();
     const title = data.get("title") as string;
@@ -55,54 +72,41 @@ export const actions: Actions = {
     const speakerIdsRaw = data.get("speakerIds") as string;
     const attachment = data.get("attachment") as string;
 
-    const member = await getMemberByEmail(session.user.email);
-    if (!member)
-      return fail(404, {
-        error:
-          "Member record not found. Please ensure you are a registered member.",
-      });
+    const requestId = params.id;
+
+    if (!title || !description) {
+      return fail(400, { error: "Missing required fields" });
+    }
 
     let speakerIds: string[] = [];
     if (speakerIdsRaw) {
       try {
         speakerIds = JSON.parse(speakerIdsRaw);
       } catch {
-        speakerIds = speakerIdsRaw.split(",").filter((id) => id.trim());
+        speakerIds = [];
       }
     }
 
-    // Default to the applicant themselves if no speakers are explicitly selected
+    // Fallback if empty
     if (speakerIds.length === 0) {
-      speakerIds = [member.memberId];
-    }
-
-    if (!title || !description) {
-      return fail(400, {
-        error: "Seminar title and description are required.",
-      });
+        const member = await getMemberByEmail(session.user.email);
+        if (member) speakerIds = [member.memberId];
     }
 
     try {
-      await createSeminarRequest({
+      await updateSeminarRequest(requestId, {
         title,
         description,
-        prerequisites: prerequisites || "",
+        prerequisites,
         duration,
         speakerIds,
         attachment,
       });
 
-      // Notify admins about the new seminar application
-      const { sendSeminarApplicationNotification } =
-        await import("$lib/server/mail");
-      await sendSeminarApplicationNotification(session.user.name, title);
-
       return { success: true };
     } catch (e) {
-      console.error("[Seminar Apply] Action Error:", e);
-      return fail(500, {
-        error: "Internal server error while processing seminar application.",
-      });
+      console.error("[Seminar Edit] Error:", e);
+      return fail(500, { error: "Failed to update seminar request" });
     }
   },
 };
