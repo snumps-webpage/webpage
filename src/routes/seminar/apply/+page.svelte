@@ -39,7 +39,7 @@
     
     {#if form?.success}
         <div class="success-message">
-            <h3>✅ 신청이 완료되었습니다!</h3>
+            <h3>신청이 완료되었습니다!</h3>
             <p>관리자 검토 후 결과가 이메일로 전송됩니다.</p>
             <a href="/" class="btn home">홈으로 돌아가기</a>
         </div>
@@ -87,8 +87,14 @@
             </div>
 
             <div class="field">
+                <label for="attachment" class="no-sel">첨부 파일</label>
+                <input type="url" id="attachment" name="attachment" placeholder="Google Drive, Dropbox 링크 등 (선택 사항)" />
+                <p class="hint no-sel">강의 자료나 계획서가 있다면 링크를 입력해주세요.</p>
+            </div>
+
+            <div class="field">
                 <div class="label-row">
-                    <span class="label-text no-sel">발표자 (Speaker)</span>
+                    <span class="label-text no-sel">발표자</span>
                     <button type="button" class="toggle-btn" onclick={() => showSearch = !showSearch}>
                         {showSearch ? '닫기' : 'DB에서 검색/추가'}
                     </button>
