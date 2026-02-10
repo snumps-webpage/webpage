@@ -66,16 +66,17 @@
         align-items: center;
         justify-content: center;
         background: var(--bg-primary);
-        padding: 1rem;
+        padding: 1.5rem;
+        animation: slide-up-fade 0.6s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .card {
         background: var(--bg-secondary);
-        padding: 3rem;
-        border-radius: 8px; /* Sharper */
+        padding: 3.5rem 2.5rem;
+        border-radius: 8px;
         box-shadow: var(--shadow);
         text-align: center;
-        max-width: 400px;
+        max-width: 450px;
         width: 100%;
         border: 1px solid var(--border-color);
     }
@@ -83,69 +84,81 @@
     h1 { 
         margin: 0 0 1rem; 
         color: var(--text-primary); 
-        font-family: "Playfair Display", "Nanum Myeongjo", serif;
-        font-weight: 700;
+        font-family: var(--font-display);
+        font-weight: 600;
+        font-style: italic;
+        font-size: 2rem;
     }
 
     .meta {
-        margin-bottom: 2rem;
+        margin-bottom: 2.5rem;
         color: var(--text-secondary);
         font-size: 0.9rem;
-        font-family: "Inter", "Noto Sans KR", sans-serif;
+        font-family: var(--font-body);
+        font-style: italic;
     }
 
     .type {
-        background: var(--btn-secondary);
-        padding: 0.2rem 0.5rem;
-        border-radius: 4px;
+        background: var(--bg-primary);
+        color: var(--text-secondary);
+        padding: 0.25rem 0.6rem;
+        border-radius: 3px;
         margin-right: 0.5rem;
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
-        font-size: 0.75rem;
+        letter-spacing: 0.1em;
+        font-size: 0.7rem;
+        font-family: var(--font-mono);
+        border: 1px solid var(--border-color);
     }
 
     .user-info {
-        margin-bottom: 2rem;
-        padding: 1rem;
+        margin-bottom: 2.5rem;
+        padding: 1.25rem;
         background: var(--bg-primary);
         border-radius: 4px;
-        font-size: 0.85rem;
+        font-size: 0.9rem;
         color: var(--text-primary);
         border: 1px solid var(--border-color);
-        font-family: var(--font-mono);
+        font-family: var(--font-body);
     }
+    
+    .user-info strong { font-family: var(--font-display); font-style: italic; font-size: 1.1rem; }
 
     .btn {
         width: 100%;
-        padding: 1rem;
+        padding: 1.25rem;
         border: none;
         border-radius: 4px;
-        font-size: 1.1rem;
-        font-weight: 700;
+        font-size: 1rem;
+        font-weight: 600;
         cursor: pointer;
-        transition: transform 0.1s, opacity 0.2s;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
         user-select: none;
-        font-family: "Playfair Display", "Nanum Myeongjo", serif;
+        font-family: var(--font-mono);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 0.5rem;
+        gap: 0.75rem;
     }
 
     .btn:active:not(:disabled) { transform: scale(0.98); }
     .btn:disabled { opacity: 0.7; cursor: not-allowed; }
 
     .attend {
-        background: var(--brand-gradient);
-        color: white;
+        background: var(--text-primary);
+        color: var(--bg-primary);
+        box-shadow: var(--shadow);
     }
+    .attend:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 20px -6px rgba(0,0,0,0.2); }
 
     .spinner {
         width: 1rem;
         height: 1rem;
-        border: 2px solid rgba(255,255,255,0.3);
-        border-top-color: white;
+        border: 2px solid rgba(var(--bg-primary), 0.3);
+        border-top-color: currentColor;
         border-radius: 50%;
         animation: spin 1s linear infinite;
         display: inline-block;
@@ -157,13 +170,19 @@
 
     .success-message h1 {
         color: var(--color-success-text);
-        margin-bottom: 1rem;
+        margin-bottom: 1.5rem;
     }
 
     .success-message .hint {
         color: var(--text-secondary);
-        font-size: 0.9rem;
+        font-size: 0.85rem;
         font-style: italic;
-        margin-top: 2rem;
+        margin-top: 2.5rem;
+        font-family: var(--font-body);
+    }
+
+    @keyframes slide-up-fade {
+        from { opacity: 0; transform: translateY(12px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 </style>

@@ -10,7 +10,7 @@ A secure SvelteKit web application designed to automate membership management an
 
 ## 🌟 Key Highlights
 
-- **Academic Aesthetic**: Custom "Prestigious Heritage" theme featuring professional bilingual typography (Playfair Display, Nanum Myeongjo) and data clarity with monospaced identifiers.
+- **Math Journal Aesthetic**: A distinctive editorial UI overhaul using `Crimson Pro`, `Newsreader`, and `Gowun Batang` typography. Features atmospheric paper-like backgrounds and staggered entrance animations for a refined academic experience.
 - **High Performance**: Optimized backend actions using parallelized Notion requests and intelligent token caching, ensuring sub-second response times.
 - **Smart Integration**: Two-way sync with multiple Notion databases for members and activities.
 
