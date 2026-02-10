@@ -5,6 +5,7 @@
 	import { onNavigate } from '$app/navigation';
 	import { signOut } from '@auth/sveltekit/client';
 	import { getInitialTheme, applyTheme, type Theme } from '$lib/theme';
+    import Toasts from '$lib/components/Toasts.svelte';
 
 	let { children } = $props();
 	const session = $derived(page.data.session);
@@ -57,12 +58,12 @@
 			</a>
 			{#if session?.user}
 				<div class="nav-menus">
-					<div class="dropdown">
-						<button class="nav-link">Seminar</button>
+					<details class="dropdown">
+						<summary class="nav-link">Seminar</summary>
 						<div class="dropdown-content">
 							<a href="/seminar/apply">세미나 개설</a>
 						</div>
-					</div>
+					</details>
 				</div>
 			{/if}
 		</div>
@@ -82,11 +83,13 @@
 	{@render children()}
 </main>
 
+<Toasts />
+
 <footer>
 	<div class="footer-content">
 		<div class="footer-info">
 			<p>
-				회장: {page.data.presidentName} | 
+				<span class="no-sel">회장:</span> {page.data.presidentName} | 
 				<a href="mailto:snumps0@gmail.com">snumps0@gmail.com</a> |
 				<a href="https://instagram.com/snu_mps" target="_blank" rel="noopener noreferrer" class="social-link" aria-label="Instagram">
 					<img src={instagram} alt="Instagram" class="social-icon" />
@@ -237,6 +240,14 @@
 		display: inline-block;
 	}
 
+    .dropdown summary {
+        list-style: none;
+    }
+
+    .dropdown summary::-webkit-details-marker {
+        display: none;
+    }
+
 	.nav-link {
 		background: none;
 		border: none;
@@ -249,6 +260,7 @@
 		border-radius: 4px; /* Sharper corners */
 		transition: color 0.2s, background-color 0.2s;
 		user-select: none;
+        display: block;
 	}
 
 	.nav-link:hover {
@@ -268,23 +280,18 @@
 		overflow: hidden;
 		user-select: none;
 		
-		max-height: 0;
-		opacity: 0;
-		visibility: hidden;
-		transform: translateX(-50%) scaleY(0.95);
-		transform-origin: top;
+		max-height: 300px;
+		opacity: 1;
+		visibility: visible;
+		transform: translateX(-50%);
 		transition: 
-			max-height 0.3s ease,
 			transform 0.3s ease,
 			opacity 0.2s ease;
 	}
 
-	.dropdown:hover .dropdown-content {
-		max-height: 300px;
-		opacity: 1;
-		visibility: visible;
-		transform: translateX(-50%) scaleY(1);
-	}
+    .dropdown:not([open]) .dropdown-content {
+        display: none;
+    }
 
 	.dropdown-content a {
 		color: var(--text-primary);
