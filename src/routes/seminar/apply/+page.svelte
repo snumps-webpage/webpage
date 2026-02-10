@@ -1,5 +1,6 @@
 <script lang="ts">
     import { enhance } from '$app/forms';
+    import Skeleton from '$lib/components/Skeleton.svelte';
     import type { SeminarSpeaker } from '$lib/types';
 
     let { data, form } = $props();
@@ -7,6 +8,7 @@
     let searchQuery = $state('');
     let selectedSpeakers = $state<SeminarSpeaker[]>([]); 
     let showSearch = $state(false); // Toggle for search UI
+    let processing = $state(false);
 
     let searchResults = $derived(
         searchQuery.trim() === '' 
@@ -31,43 +33,60 @@
 </script>
 
 <div class="container">
-    <h1>세미나 개설 신청</h1>
+    <h1 class="no-sel">세미나 개설 신청</h1>
     
     {#if form?.success}
         <div class="success-message">
             <h3>✅ 신청이 완료되었습니다!</h3>
             <p>관리자 검토 후 결과가 이메일로 전송됩니다.</p>
-            <a href="/" class="btn home">홈으로 돌아가기</a>
+            <a href="/" class="btn home" style="margin-left: 5vw; margin-right: 5vw">홈으로 돌아가기</a>
+        </div>
+    {:else if processing}
+        <div class="processing-container">
+            <div class="processing-card">
+                <Skeleton height="300px" borderRadius="8px" />
+                <div class="processing-overlay">
+                    <div class="spinner"></div>
+                    <p>신청서를 처리 중입니다...</p>
+                    <span class="hint">잠시만 기다려주세요.</span>
+                </div>
+            </div>
         </div>
     {:else}
-        <form method="POST" use:enhance>
+        <form method="POST" use:enhance={() => {
+            processing = true;
+            return async ({ update }) => {
+                await update();
+                processing = false;
+            };
+        }}>
             {#if form?.error}
                 <div class="error-banner">{form.error}</div>
             {/if}
 
             <div class="field">
-                <label for="title">세미나 주제 <span class="req">*</span></label>
+                <label for="title" class="no-sel">세미나 주제 <span class="req">*</span></label>
                 <input type="text" id="title" name="title" required placeholder="예: 대수위상 세미나" />
             </div>
 
             <div class="field">
-                <label for="description">세미나 설명 <span class="req">*</span></label>
+                <label for="description" class="no-sel">세미나 설명 <span class="req">*</span></label>
                 <textarea id="description" name="description" rows="4" required placeholder="세미나의 목적과 내용을 간략히 적어주세요."></textarea>
             </div>
 
             <div class="field">
-                <label for="prerequisites">선수 지식</label>
+                <label for="prerequisites" class="no-sel">선수 지식</label>
                 <textarea id="prerequisites" name="prerequisites" rows="2" placeholder="세미나를 듣기 위해 필요한 배경 지식이 있다면 적어주세요."></textarea>
             </div>
 
             <div class="field">
-                <label for="duration">예상 소요 시간 <span class="req">*</span></label>
+                <label for="duration" class="no-sel">예상 소요 시간 <span class="req">*</span></label>
                 <input type="text" id="duration" name="duration" required placeholder="예: 90분" />
             </div>
 
             <div class="field">
                 <div class="label-row">
-                    <span class="label-text">발표자 (Speaker)</span>
+                    <span class="label-text no-sel">발표자 (Speaker)</span>
                     <button type="button" class="toggle-btn" onclick={() => showSearch = !showSearch}>
                         {showSearch ? '닫기' : 'DB에서 검색/추가'}
                     </button>
@@ -85,7 +104,7 @@
                             {/each}
                         </div>
                     {:else if !showSearch}
-                        <p class="hint">지정하지 않을 경우 신청자 본인이 발표자가 됩니다.</p>
+                        <p class="hint no-sel">지정하지 않을 경우 신청자 본인이 발표자가 됩니다.</p>
                     {/if}
 
                     {#if showSearch}
@@ -330,5 +349,57 @@
     .success-message h3 {
         font-family: "Playfair Display", "Nanum Myeongjo", serif;
         color: var(--color-success-text);
+    }
+
+    /* Processing State */
+    .processing-container {
+        padding: 1rem 0;
+    }
+
+    .processing-card {
+        position: relative;
+        overflow: hidden;
+        border-radius: 8px;
+    }
+
+    .processing-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: rgba(var(--bg-secondary), 0.5);
+        gap: 1rem;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid var(--border-color);
+        border-top-color: var(--text-primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .processing-overlay p {
+        margin: 0;
+        font-weight: 700;
+        color: var(--text-primary);
+        font-family: "Playfair Display", "Nanum Myeongjo", serif;
+        font-size: 1.2rem;
+    }
+
+    .processing-overlay .hint {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        font-style: italic;
     }
 </style>
