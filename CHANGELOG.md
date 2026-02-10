@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - **Resilient Dashboard**: Enhanced dashboard to handle Notion API failures gracefully by showing structured "Empty Slots" and informative retry messages instead of crashing.
 - **Dashboard Refresh**: Integrated a manual refresh button to bypass cache and force data synchronization.
 - **Admin App Privacy**: Moved sensitive details (email, phone number) into a collapsible "View More" dropdown in the registration application view.
+- **UI Refinement**: Moved "New Seminar Application" button to the top of the seminar management card for better accessibility.
 
 ### Changed
 - **Server Caching**: Extended `withCache` wrapper to `getApplications` and `getSeminarRequests` to improve admin dashboard performance.

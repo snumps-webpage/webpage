@@ -68,14 +68,14 @@
 	{#if session?.user}
         {#if isMember || isAdmin}
             <div class="dashboard-header">
-                <h1>SNUMPS 활동 현황</h1>
+                <h1 class="no-sel">활동 현황</h1>
                 <button 
                     class="refresh-dashboard-btn" 
                     onclick={refreshDashboard} 
                     disabled={isRefreshing}
                     aria-label="Refresh Dashboard"
                 >
-                    <span class="refresh-icon" class:spinning={isRefreshing}>🔄</span>
+                    <!-- <span class="refresh-icon" class:spinning={isRefreshing}>🔄</span> -->
                     새로고침
                 </button>
             </div>
@@ -115,39 +115,14 @@
                     </div>
                 {:else if result}
                     <div class="dashboard-grid">
-                        
-                        <!-- 1. Member Info (Collapsible) -->
-                        {@render collapsibleCard('회원 정보 관리', showProfile, () => showProfile = !showProfile, profileContent)}
-                        {#snippet profileContent()}
-                            <form method="POST" action="?/updateProfile" use:enhance>
-                                <div class="profile-summary">
-                                    <div class="form-group">
-                                        <label for="phone">전화번호</label>
-                                        <input 
-                                            type="tel" 
-                                            id="phone" 
-                                            name="phone" 
-                                            value={result.profile.phone} 
-                                            placeholder="010-1234-5678" 
-                                            pattern="010[- ]?\d&#123;3,4&#125;[- ]?\d&#123;4&#125;"
-                                            title="숫자만 입력하거나 하이픈(-) 또는 공백을 포함할 수 있습니다."
-                                        />
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="background">배경지식</label>
-                                        <textarea id="background" name="background" rows="2" placeholder="관심 분야 등">{result.profile.background}</textarea>
-                                    </div>
-                                    <button class="btn-save">저장</button>
-                                </div>
-                            </form>
-                        {/snippet}
-
-						<!-- 2. Manage Seminar (Collapsible) -->
+						
+						<!-- 1. Manage Seminar (Collapsible) -->
                         {@render collapsibleCard('세미나 관리', showSeminars, () => showSeminars = !showSeminars, seminarContent)}
                         {#snippet seminarContent()}
 						<div class="seminar-section">
+							<a href="/seminar/apply" class="btn-apply">새 세미나 신청</a>
 							{#if result.approvedSeminars.length === 0 && result.seminarRequests.length === 0}
-							<p class="empty-hint">참여 중인 세미나나 신청 내역이 없습니다.</p>
+							<p class="empty-hint no-sel">참여 중인 세미나나 신청 내역이 없습니다.</p>
 							{:else}
 							<div class="seminar-list">
 								{#each result.approvedSeminars as seminar (seminar.id)}
@@ -187,12 +162,37 @@
 												{/each}
 											</div>
 											{/if}
-											<a href="/seminar/apply" class="btn-apply">🗣️ 새 세미나 신청</a>
 										</div>
 										{/snippet}
+										
+						<!-- 2. Member Info (Collapsible) -->
+						{@render collapsibleCard('회원 정보 관리', showProfile, () => showProfile = !showProfile, profileContent)}
+						{#snippet profileContent()}
+							<form method="POST" action="?/updateProfile" use:enhance>
+								<div class="profile-summary">
+									<div class="form-group">
+										<label for="phone" class="no-sel">전화번호</label>
+										<input 
+											type="tel" 
+											id="phone" 
+											name="phone" 
+											value={result.profile.phone} 
+											placeholder="010-1234-5678" 
+											pattern="010[- ]?\d&#123;3,4&#125;[- ]?\d&#123;4&#125;"
+											title="숫자만 입력하거나 하이픈(-) 또는 공백을 포함할 수 있습니다."
+										/>
+									</div>
+									<div class="form-group">
+										<label for="background" class="no-sel">배경지식</label>
+										<textarea id="background" name="background" rows="2" placeholder="관심 분야 등" style="min-height: 20vh">{result.profile.background}</textarea>
+									</div>
+									<button class="btn-save">저장</button>
+								</div>
+							</form>
+						{/snippet}
 																				
 										<!-- 3. Attendance Stats (Restored to non-collapsible) -->
-                        <section class="stats-card">
+                        <section class="stats-card no-sel">
                             <h2>{data.semester} 출석 현황</h2>
                             <div class="stats-grid">
                                 <div class="stat-item">
@@ -216,7 +216,7 @@
                     <!-- 4. Activities List (Restored Table View) -->
                     <section class="activities-list">
                         <div class="list-header">
-                            <h3>활동 목록</h3>
+                            <h3 class="no-sel">활동 목록</h3>
                             <div class="filters">
                                 <select bind:value={typeFilter} class="semester-select">
                                     <option value="all">전체 종류</option>
@@ -268,12 +268,12 @@
                                                         {activity.name}
                                                     </a>
                                                 </td>
-                                                <td><span class="tag">{activity.type}</span></td>
+                                                <td><span class="tag no-sel">{activity.type}</span></td>
                                                 <td class="status">
                                                     {#if activity.attended}
-                                                        <span class="badge success">출석</span>
+                                                        <span class="badge success no-sel">출석</span>
                                                     {:else}
-                                                        <span class="badge fail">결석</span>
+                                                        <span class="badge fail no-sel">결석</span>
                                                     {/if}
                                                 </td>
                                             </tr>
