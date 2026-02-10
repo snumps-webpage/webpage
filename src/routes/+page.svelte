@@ -174,16 +174,18 @@
 													</div>
 												</div>
 												{/each}
-												{#each result.seminarRequests as req (req.id)}
-												<div class="seminar-item request {req.status}">
-													<div class="seminar-info">
-														<span class="sem-tag status">{req.status === 'approved' ? '승인됨' : req.status === 'rejected' ? '반려됨' : '승인 대기'}</span>
-														<span class="sem-title">{req.title}</span>
-														<span class="sem-meta">{new Date(req.submittedAt).toLocaleDateString()} 신청</span>
-													</div>
-												</div>
-												{/each}
-											</div>
+												                                                {#each result.seminarRequests as req (req.id)}
+												                                                <div class="seminar-item request {req.status}">
+												                                                    <div class="seminar-info">
+												                                                        <span class="sem-tag status">{req.status === 'approved' ? '승인됨' : req.status === 'rejected' ? '반려됨' : '승인 대기'}</span>
+												                                                        <span class="sem-title">{req.title}</span>
+												                                                        <span class="sem-meta">{new Date(req.submittedAt).toLocaleDateString()} 신청</span>
+												                                                        {#if req.status === 'pending'}
+												                                                            <a href="/seminar/edit/{req.id}" class="btn-edit-inline">신청 정보 수정</a>
+												                                                        {/if}
+												                                                    </div>
+												                                                </div>
+												                                                {/each}											</div>
 											{/if}
 										</div>
 										{/snippet}
@@ -490,19 +492,45 @@
 	.sem-meta { font-size: 0.9rem; color: var(--text-secondary); font-family: var(--font-body); font-style: italic; }
 	
 	.btn-edit-inline {
-		margin-top: 1rem;
-		font-size: 0.75rem;
-		background: transparent;
+		margin-top: 0.75rem;
+		font-size: 0.65rem;
+		background: var(--bg-primary);
 		border: 1px solid var(--border-color);
-		padding: 0.4rem 0.8rem;
-		border-radius: 4px;
-		color: var(--text-primary);
+		padding: 0.4rem 1rem;
+		border-radius: 99px;
+		color: var(--text-secondary);
 		cursor: pointer;
-		font-weight: 600;
+		font-weight: 700;
         font-family: var(--font-mono);
         text-transform: uppercase;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        letter-spacing: 0.08em;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 	}
-	.btn-edit-inline:hover { background: var(--text-primary); color: var(--bg-primary); }
+
+	.btn-edit-inline:hover { 
+        background: var(--text-primary); 
+        color: var(--bg-primary); 
+        border-color: var(--text-primary);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    .btn-edit-inline::before {
+        content: '✎';
+        font-size: 0.8rem;
+        margin-top: -1px;
+    }
+
+    .seminar-info {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+    }
 
 	.edit-form { display: grid; gap: 0.75rem; margin-top: 0.75rem; }
 	.edit-input, .edit-textarea {
