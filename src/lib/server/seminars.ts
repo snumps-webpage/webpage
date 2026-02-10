@@ -2,6 +2,7 @@ import type { SeminarRequest } from "$lib/types";
 import {
   getSeminarRequestsFromNotion,
   createSeminarRequestInNotion,
+  updateSeminarRequestInNotion,
   updateSeminarRequestStatusInNotion,
   removeSeminarRequestInNotion,
 } from "./notion";
@@ -33,6 +34,7 @@ export async function createSeminarRequest(data: {
   prerequisites: string;
   duration: string;
   speakerIds: string[];
+  attachment?: string;
 }) {
   try {
     const id = await createSeminarRequestInNotion({
@@ -48,6 +50,26 @@ export async function createSeminarRequest(data: {
     };
   } catch (e) {
     console.error("Notion seminar request write failed:", e);
+    throw e;
+  }
+}
+
+export async function updateSeminarRequest(
+  id: string,
+  data: {
+    title?: string;
+    description?: string;
+    prerequisites?: string;
+    duration?: string;
+    speakerIds?: string[];
+    attachment?: string;
+  },
+) {
+  try {
+    await updateSeminarRequestInNotion(id, data);
+    return { id, ...data };
+  } catch (e) {
+    console.error("Failed to update seminar request in Notion:", e);
     throw e;
   }
 }

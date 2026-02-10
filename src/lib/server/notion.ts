@@ -611,6 +611,9 @@ export async function getSeminarRequestsFromNotion(skipCache = false) {
         speakerIds: getPropertyValue(
           page.properties[NOTION_PROPS.SEMINAR_REQ_SPEAKERS],
         ),
+        attachment: getPropertyValue(
+          page.properties[NOTION_PROPS.SEMINAR_FILES],
+        ),
         status: getPropertyValue(
           page.properties[NOTION_PROPS.SEMINAR_REQ_APPROVED],
         )
@@ -629,11 +632,12 @@ export async function createSeminarRequestInNotion(data: {
   prerequisites: string;
   duration: string;
   speakerIds: string[];
+  attachment?: string;
 }) {
   const dbId = env.NOTION_DB_SEMINAR_REQUESTS;
   if (!dbId) return null;
 
-  const page = await notionCreate(dbId, {
+  const properties: any = {
     [NOTION_PROPS.SEMINAR_REQ_TITLE]: {
       title: [{ text: { content: data.title } }],
     },
@@ -649,8 +653,57 @@ export async function createSeminarRequestInNotion(data: {
     [NOTION_PROPS.SEMINAR_REQ_SPEAKERS]: {
       relation: (data.speakerIds || []).map((id) => ({ id })),
     },
-  });
+  };
+
+  if (data.attachment) {
+    properties[NOTION_PROPS.SEMINAR_FILES] = { url: data.attachment };
+  }
+
+  const page = await notionCreate(dbId, properties);
   return page.id;
+}
+
+export async function updateSeminarRequestInNotion(
+  id: string,
+  data: {
+    title?: string;
+    description?: string;
+    prerequisites?: string;
+    duration?: string;
+    speakerIds?: string[];
+    attachment?: string;
+  },
+) {
+  const properties: any = {};
+  if (data.title !== undefined)
+    properties[NOTION_PROPS.SEMINAR_REQ_TITLE] = {
+      title: [{ text: { content: data.title } }],
+    };
+  if (data.description !== undefined)
+    properties[NOTION_PROPS.SEMINAR_REQ_DESC] = {
+      rich_text: [{ text: { content: data.description } }],
+    };
+  if (data.prerequisites !== undefined)
+    properties[NOTION_PROPS.SEMINAR_REQ_PREREQ] = {
+      rich_text: [{ text: { content: data.prerequisites } }],
+    };
+  if (data.duration !== undefined)
+    properties[NOTION_PROPS.SEMINAR_REQ_DURATION] = {
+      rich_text: [{ text: { content: data.duration } }],
+    };
+  if (data.speakerIds !== undefined)
+    properties[NOTION_PROPS.SEMINAR_REQ_SPEAKERS] = {
+      relation: data.speakerIds.map((sid) => ({ id: sid })),
+    };
+  if (data.attachment !== undefined) {
+    // If empty string, we might want to clear it? url property requires valid url or null?
+    // Notion API: url property can be null or string.
+    properties[NOTION_PROPS.SEMINAR_FILES] = data.attachment
+      ? { url: data.attachment }
+      : { url: null };
+  }
+
+  await notionUpdate(id, properties);
 }
 
 export async function updateSeminarRequestStatusInNotion(
