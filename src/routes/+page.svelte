@@ -177,14 +177,13 @@
 										</div>
 										{/snippet}
 										
-						<!-- 2. Member Info (Collapsible) -->
-						{@render collapsibleCard('회원 정보 관리', showProfile, () => showProfile = !showProfile, profileContent)}
-						{#snippet profileContent()}
-							<form method="POST" action="?/updateProfile" use:enhance>
-								<div class="profile-summary">
-									<div class="form-group">
-										<label for="phone" class="no-sel">전화번호</label>
-										<input 
+						                        <!-- 2. Member Info (Collapsible) -->
+												{@render collapsibleCard('회원 정보 관리', showProfile, () => showProfile = !showProfile, profileContent)}
+												{#snippet profileContent()}						
+													<form method="POST" action="?/updateProfile" use:enhance>
+														<div class="profile-summary">
+															<div class="form-group">
+																<label for="phone" class="no-sel">전화번호</label>										<input 
 											type="tel" 
 											id="phone" 
 											name="phone" 
@@ -203,7 +202,7 @@
 							</form>
 						{/snippet}
 																				
-										<!-- 3. Attendance Stats (Restored to non-collapsible) -->
+										<!-- 3. Attendance Stats -->
                         <section class="stats-card no-sel">
                             <h2>{data.semester} 출석 현황</h2>
                             <div class="stats-grid">
@@ -789,5 +788,24 @@
         pointer-events: none;
         background: var(--bg-secondary);
         filter: grayscale(1);
+    }
+
+    .form-group input:disabled {
+        background: var(--btn-secondary);
+        color: var(--text-secondary);
+        cursor: not-allowed;
+        opacity: 0.7;
+        border-style: dashed;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+    }
+
+    .hint {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        font-style: italic;
+        margin-top: 0.25rem;
     }
 </style>
