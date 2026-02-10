@@ -32,7 +32,8 @@ src/
 ```
 
 ## 💾 Hybrid Storage & Scalability
-- **Notion Primary (Source of Truth)**: 
+
+- **Notion Primary (Source of Truth)**:
   - **Members & Private Info**: Centralized club registry.
   - **Applications (Signups)**: Membership requests are stored directly in Notion for administrative processing.
   - **Seminar Requests**: Member-led proposals are persisted in Notion until approval.
@@ -40,6 +41,7 @@ src/
 - **Sustainability**: All Notion interactions use centralized generic helpers (`notionQuery`, `notionCreate`, `notionUpdate`) with explicit headers and official SDK support for maximum reliability.
 
 ## 🛡️ Operations & Error Handling
+
 - **Membership Enforcement**: `+layout.server.ts` verifies membership status globally.
 - **Standardized Status Codes**: Actions return detailed HTTP status codes (400, 401, 403, 404, 409, 500) for precise error reporting.
 - **NFC Normalization**: Korean property names are normalized to NFC standard to ensure reliable API matching across different operating systems.
