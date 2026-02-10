@@ -39,7 +39,7 @@
         <div class="success-message">
             <h3>✅ 신청이 완료되었습니다!</h3>
             <p>관리자 검토 후 결과가 이메일로 전송됩니다.</p>
-            <a href="/" class="btn home" style="margin-left: 5vw; margin-right: 5vw">홈으로 돌아가기</a>
+            <a href="/" class="btn home">홈으로 돌아가기</a>
         </div>
     {:else if processing}
         <div class="processing-container">
@@ -324,6 +324,7 @@
         display: inline-block;
         user-select: none;
         font-family: "Playfair Display", "Nanum Myeongjo", serif;
+        box-sizing: border-box;
     }
 
     .submit { background: var(--text-primary); color: var(--bg-primary); margin-top: 1.5rem; }

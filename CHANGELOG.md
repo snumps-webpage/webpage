@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - **Admin App Privacy**: Moved sensitive details (email, phone number) into a collapsible "View More" dropdown in the registration application view.
 - **UI Refinement**: Moved "New Seminar Application" button to the top of the seminar management card for better accessibility.
 - **Submission Feedback**: Added a skeleton-based loading state to the seminar application form to provide visual feedback during submission.
+- **Layout Fix**: Resolved button alignment issues in the seminar application success message by correcting box-model calculations.
 
 ### Changed
 - **Server Caching**: Extended `withCache` wrapper to `getApplications` and `getSeminarRequests` to improve admin dashboard performance.
