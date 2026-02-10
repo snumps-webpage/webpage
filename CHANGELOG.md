@@ -12,8 +12,6 @@ All notable changes to this project will be documented in this file.
 
 - **Dashboard Refresh**: Integrated a manual refresh button to bypass cache.
 
-- **Accessible Navigation**: Replaced hover-based dropdowns with accessible `<details>/<summary>` components.
-
 
 
 ### Changed

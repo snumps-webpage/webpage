@@ -58,12 +58,12 @@
 			</a>
 			{#if session?.user}
 				<div class="nav-menus">
-					<details class="dropdown">
-						<summary class="nav-link">Seminar</summary>
+					<div class="dropdown">
+						<button class="nav-link">Seminar</button>
 						<div class="dropdown-content">
 							<a href="/seminar/apply">세미나 개설</a>
 						</div>
-					</details>
+					</div>
 				</div>
 			{/if}
 		</div>
@@ -240,14 +240,6 @@
 		display: inline-block;
 	}
 
-    .dropdown summary {
-        list-style: none;
-    }
-
-    .dropdown summary::-webkit-details-marker {
-        display: none;
-    }
-
 	.nav-link {
 		background: none;
 		border: none;
@@ -280,18 +272,23 @@
 		overflow: hidden;
 		user-select: none;
 		
-		max-height: 300px;
-		opacity: 1;
-		visibility: visible;
-		transform: translateX(-50%);
+		max-height: 0;
+		opacity: 0;
+		visibility: hidden;
+		transform: translateX(-50%) scaleY(0.95);
+		transform-origin: top;
 		transition: 
+			max-height 0.3s ease,
 			transform 0.3s ease,
 			opacity 0.2s ease;
 	}
 
-    .dropdown:not([open]) .dropdown-content {
-        display: none;
-    }
+	.dropdown:hover .dropdown-content {
+		max-height: 300px;
+		opacity: 1;
+		visibility: visible;
+		transform: translateX(-50%) scaleY(1);
+	}
 
 	.dropdown-content a {
 		color: var(--text-primary);
