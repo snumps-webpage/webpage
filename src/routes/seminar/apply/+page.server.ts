@@ -53,6 +53,7 @@ export const actions: Actions = {
     const prerequisites = data.get("prerequisites") as string;
     const duration = data.get("duration") as string;
     const speakerIdsRaw = data.get("speakerIds") as string;
+    const attachment = data.get("attachment") as string;
 
     const member = await getMemberByEmail(session.user.email);
     if (!member)
@@ -88,6 +89,7 @@ export const actions: Actions = {
         prerequisites: prerequisites || "",
         duration,
         speakerIds,
+        attachment,
       });
 
       // Notify admins about the new seminar application
