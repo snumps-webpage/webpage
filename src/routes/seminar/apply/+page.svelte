@@ -10,11 +10,13 @@
     let showSearch = $state(false); // Toggle for search UI
     let processing = $state(false);
 
+    let selectedSpeakerIds = $derived(new Set(selectedSpeakers.map(s => s.id)));
+
     let searchResults = $derived(
         searchQuery.trim() === '' 
             ? [] 
             : data.members.filter((m: SeminarSpeaker) => 
-                !selectedSpeakers.find(s => s.id === m.id) &&
+                !selectedSpeakerIds.has(m.id) &&
                 (m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                  m.department.toLowerCase().includes(searchQuery.toLowerCase()) ||
                  m.email.toLowerCase().includes(searchQuery.toLowerCase()))
