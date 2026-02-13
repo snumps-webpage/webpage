@@ -40,15 +40,13 @@ export async function getEventByPathId(
 
 export async function createEvent(data: {
   title: string;
-  date: string;
+  date?: string;
   type: string;
   notionPageId?: string;
-  timeZone?: string;
 }) {
   const newEventData = {
     title: data.title,
-    date: data.date,
-    timeZone: data.timeZone,
+    date: data.date || "",
     type: data.type,
     status: "draft",
     pathId: crypto.randomUUID().slice(0, 8),
@@ -173,9 +171,6 @@ export async function syncEventStatuses() {
         console.warn(
           `Event '${event.title}' (ID: ${event.id}) removed because Notion page ${event.notionPageId} is missing or archived.`,
         );
-        // Effectively "deleted" from our valid list, but technically still in Notion DB unless we delete it there too.
-        // For now, let's mark it as expired or just log it.
-        // To keep it clean, we might want to update status to 'expired' in Notion.
         if (event.status !== "expired") {
           await updateEventStatusInNotion(event.id, "expired");
         }
@@ -184,25 +179,20 @@ export async function syncEventStatuses() {
     }
 
     const eventDate = new Date(event.date);
-    const tz = event.timeZone || "Asia/Seoul";
 
-    // Get YYYY-MM-DD of 'now' and 'event' in the target timezone
-    const nowInTz = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(
-      now,
-    );
-    const eventDayInTz = new Intl.DateTimeFormat("en-CA", {
-      timeZone: tz,
-    }).format(eventDate);
+    // Get YYYY-MM-DD of 'now' and 'event'
+    const nowDay = now.toISOString().split("T")[0];
+    const eventDay = eventDate.toISOString().split("T")[0];
 
     // Status Logic
     // Activate draft events on their scheduled day
-    if (event.status === "draft" && nowInTz >= eventDayInTz) {
+    if (event.status === "draft" && nowDay >= eventDay) {
       await updateEventStatusInNotion(event.id, "active");
       console.log(`Event '${event.title}' activated.`);
     }
 
     // Expire active events after their day is over
-    if (event.status === "active" && nowInTz > eventDayInTz) {
+    if (event.status === "active" && nowDay > eventDay) {
       await updateEventStatusInNotion(event.id, "expired");
       console.log(`Event '${event.title}' expired.`);
     }

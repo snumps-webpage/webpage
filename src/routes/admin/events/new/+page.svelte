@@ -1,6 +1,5 @@
 <script lang="ts">
     import { enhance } from '$app/forms';
-    import { TIMEZONES, DEFAULT_TIMEZONE } from '$lib/constants';
     let { data } = $props();
 </script>
 
@@ -13,19 +12,9 @@
             <input type="text" id="title" name="title" required placeholder="예: 2025-1 개강총회" />
         </div>
 
-        <div class="field-row">
-            <div class="field">
-                <label for="date">일시</label>
-                <input type="datetime-local" id="date" name="date" required />
-            </div>
-            <div class="field">
-                <label for="timezone">타임존</label>
-                <select id="timezone" name="timezone" required>
-                    {#each TIMEZONES as tz (tz.value)}
-                        <option value={tz.value} selected={tz.value === DEFAULT_TIMEZONE}>{tz.label}</option>
-                    {/each}
-                </select>
-            </div>
+        <div class="field">
+            <label for="date">일시</label>
+            <input type="datetime-local" id="date" name="date" required />
         </div>
 
         <div class="field">
