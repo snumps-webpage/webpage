@@ -719,24 +719,23 @@ export const removeSeminarRequestInNotion = notionArchive;
 
 export async function createActivityPage(data: {
   title: string;
-  date: string;
+  date?: string;
   type: string;
   attendeeIds?: string[];
-  timeZone?: string;
 }) {
   const dbId = env.NOTION_DB_ACTIVITIES;
   if (!dbId) throw new Error("NOTION_DB_ACTIVITIES missing");
-
-  const dateObj: any = { start: data.date };
-  if (data.timeZone) dateObj.time_zone = data.timeZone;
 
   const properties: any = {
     [NOTION_PROPS.ACTIVITY_NAME]: {
       title: [{ text: { content: data.title } }],
     },
-    [NOTION_PROPS.ACTIVITY_DATE]: { date: dateObj },
     [NOTION_PROPS.ACTIVITY_TYPE]: { select: { name: data.type } },
   };
+
+  if (data.date) {
+    properties[NOTION_PROPS.ACTIVITY_DATE] = { date: { start: data.date } };
+  }
 
   if (data.attendeeIds && data.attendeeIds.length > 0) {
     properties[NOTION_PROPS.ATTENDANCE] = {
@@ -932,7 +931,6 @@ export async function getEventsFromNotion() {
     notionPageId: getPropertyValue(
       page.properties[NOTION_PROPS.EVENT_NOTION_PAGE_ID],
     ),
-    timeZone: getPropertyValue(page.properties[NOTION_PROPS.EVENT_TIME_ZONE]),
   }));
 }
 
@@ -942,7 +940,6 @@ export async function createEventInNotion(data: any) {
 
   const props: any = {
     [NOTION_PROPS.EVENT_TITLE]: { title: [{ text: { content: data.title } }] },
-    [NOTION_PROPS.EVENT_DATE]: { date: { start: data.date } },
     [NOTION_PROPS.EVENT_TYPE]: { select: { name: data.type } },
     [NOTION_PROPS.EVENT_STATUS]: { select: { name: data.status } },
     [NOTION_PROPS.EVENT_PATH_ID]: {
@@ -953,14 +950,13 @@ export async function createEventInNotion(data: any) {
     },
   };
 
+  if (data.date) {
+    props[NOTION_PROPS.EVENT_DATE] = { date: { start: data.date } };
+  }
+
   if (data.notionPageId) {
     props[NOTION_PROPS.EVENT_NOTION_PAGE_ID] = {
       rich_text: [{ text: { content: data.notionPageId } }],
-    };
-  }
-  if (data.timeZone) {
-    props[NOTION_PROPS.EVENT_TIME_ZONE] = {
-      rich_text: [{ text: { content: data.timeZone } }],
     };
   }
 
