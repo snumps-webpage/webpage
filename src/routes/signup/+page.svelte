@@ -24,13 +24,15 @@
 			{/if}
 
 			{#if form?.success}
-				<div class="success-box no-sel">
-					<h2>✅ 신청 완료</h2>
-					<p>가입 신청이 성공적으로 접수되었습니다. 가입 승인 후 이용이 가능합니다.</p>
+				<div class="success-message">
+					<h3>신청이 완료되었습니다!</h3>
+					<p>가입 신청이 성공적으로 접수되었습니다. 관리자 승인 후 이용이 가능합니다.</p>
 					<p>가입 승인 여부는 메일로 안내되므로 확인 부탁드립니다.</p>
-					<a href="/" class="btn-home">메인으로 가기</a>
+                    <div class="alert-actions mt-4">
+					    <a href="/" class="btn home">메인으로 가기</a>
+                    </div>
 				</div>
-			            {:else}
+			{:else}
 							<form method="POST">
 								<div class="form-group no-sel">
 									<label for="name">이름</label>
@@ -58,8 +60,8 @@
 			                            name="phone" 
 			                            required 
 			                            placeholder="010-0000-0000" 
-			                            pattern="010[- ]?\d&#123;3,4&#125;[- ]?\d&#123;4&#125;"
-			                            title="숫자만 입력하거나 하이픈(-) 또는 공백을 포함할 수 있습니다."
+			                            pattern="(\d&#123;11&#125;)|(\d&#123;3&#125;-\d&#123;4&#125;-\d&#123;4&#125;)"
+			                            title="11자리 숫자 또는 XXX-XXXX-XXXX 형식으로 입력해주세요."
 			                        />
 								</div>
 					<div class="form-group">
@@ -313,6 +315,52 @@
         text-align: center;
         font-family: var(--font-body);
         font-weight: 600;
+    }
+
+    .success-message {
+        text-align: center;
+        padding: 2rem 0;
+        color: var(--text-primary);
+    }
+    
+    .success-message h3 {
+        font-family: var(--font-display);
+        color: var(--color-success-text);
+        font-style: italic;
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .btn {
+        width: 100%;
+        padding: 1rem;
+        border-radius: 4px;
+        font-weight: 600;
+        font-size: 1rem;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        user-select: none;
+        font-family: var(--font-mono);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        box-sizing: border-box;
+    }
+
+    .home { background: transparent; color: var(--text-primary); border: 1px solid var(--border-color); margin-top: 1rem; }
+    .home:hover { border-color: var(--text-primary); }
+
+    .mt-4 { margin-top: 1.5rem; }
+
+    .alert-actions { 
+        display: flex; 
+        flex-direction: column; 
+        gap: 1rem; 
+        max-width: 300px;
+        margin: 0 auto;
     }
 
     @keyframes slide-up-fade {
