@@ -8,7 +8,6 @@ import {
 } from "$lib/server/notion";
 import { isAdmin } from "$lib/server/admin";
 import { ACTIVITY_TYPES } from "$lib/constants";
-import { getIsoStringWithOffset } from "$lib/utils";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -44,31 +43,25 @@ export const actions = {
     const data = await request.formData();
     const title = data.get("title") as string;
     const dateRaw = data.get("date") as string; // YYYY-MM-DDTHH:mm
-    const timezone = data.get("timezone") as string; // IANA e.g. 'Asia/Seoul'
     const type = data.get("type") as string;
 
     if (!title || !dateRaw || !type) {
       return fail(400, { error: "Missing required fields" });
     }
 
-    // Calculate offset for the specific date and timezone
     try {
-      const date = getIsoStringWithOffset(dateRaw, timezone);
-
       // 1. Create Notion Page
       const page = await createActivityPage({
         title,
-        date,
+        date: dateRaw,
         type,
-        timeZone: timezone,
       });
 
       // 2. Create Local Event
       await createEvent({
         title,
-        date,
+        date: dateRaw,
         type,
-        timeZone: timezone,
         notionPageId: page.id,
       });
 

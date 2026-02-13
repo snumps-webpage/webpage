@@ -156,7 +156,6 @@ export const actions = {
         const page = await createActivityPage({
           title: event.title,
           date: event.date,
-          timeZone: event.timeZone,
           type: event.type,
         });
         await updateEventStatus(id, "active", page.id);
@@ -277,12 +276,9 @@ export const actions = {
     if (!seminar) return fail(404, { error: "Seminar request not found" });
 
     try {
-      const now = new Date().toISOString();
-
-      // 1. Create Activity Page in Notion (Critical Dependency)
+      // 1. Create Activity Page in Notion (Critical Dependency) - Date left empty
       const page = await createActivityPage({
         title: seminar.title,
-        date: now,
         type: "Seminar",
         attendeeIds: seminar.speakerIds,
       });
@@ -291,7 +287,6 @@ export const actions = {
       const tasks: Promise<unknown>[] = [
         createEvent({
           title: seminar.title,
-          date: now,
           type: "Seminar",
           notionPageId: page.id,
         }),
