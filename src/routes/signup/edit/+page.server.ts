@@ -88,8 +88,13 @@ export const actions = {
         background,
       });
       return { success: true };
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error("[Application Edit] Error:", e);
+      if (e.message?.includes("Could not find page") || e.status === 404) {
+        return fail(404, {
+          error: "신청 내역을 찾을 수 없습니다. 이미 처리되었거나 삭제되었을 수 있습니다.",
+        });
+      }
       return fail(500, {
         error: "정보 수정에 실패했습니다. 잠시 후 다시 시도해주세요.",
       });
