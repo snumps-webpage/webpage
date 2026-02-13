@@ -3,6 +3,7 @@
     import { toasts } from '$lib/toasts';
 	import type { AttendanceRecord } from '$lib/types';
     import Skeleton from '$lib/components/Skeleton.svelte';
+    import CopyButton from '$lib/components/CopyButton.svelte';
 
 	let { data } = $props();
     
@@ -147,8 +148,7 @@
          */
         function toDateTimeLocal(iso?: string) {
             if (!iso) return '';
-            const d = new Date(iso);
-            return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+            return iso.slice(0, 16);
         }
     </script>
     
@@ -195,7 +195,8 @@
     									<td>
     										{#if event.status !== 'draft'}
     											<div class="links">
-    												<button class="copy-btn" onclick={() => navigator.clipboard.writeText(`${window.location.origin}/events/${event.pathId}/${event.attendCode}`)}>Copy Link 📋</button>
+                                                    <span class="hint">Attendance Link</span>
+                                                    <CopyButton text={`${window.location.origin}/events/${event.pathId}/${event.attendCode}`} title="출석 링크 복사" />
     											</div>
     										{:else}
     											<span class="hint">Not Published</span>
@@ -608,8 +609,14 @@
                                                                 <details>
                                                                     <summary>보기</summary>
                                                                     <div class="details-content">
-                                                                        <p><strong>이메일:</strong> {app.email}</p>
-                                                                        <p><strong>전화번호:</strong> {app.phone}</p>
+                                                                        <p class="email-row">
+                                                                            <strong>이메일:</strong> {app.email}
+                                                                            <CopyButton text={app.email} title="이메일 복사" />
+                                                                        </p>
+                                                                        <p class="phone-row">
+                                                                            <strong>전화번호:</strong> {app.phone}
+                                                                            <CopyButton text={app.phone} title="전화번호 복사" />
+                                                                        </p>
                                                                         <p><strong>배경지식:</strong><br>{app.background || '-'}</p>
                                                                     </div>
                                                                 </details>
@@ -752,19 +759,6 @@
 	.status-badge.active { background: var(--color-success-bg); color: var(--color-success-text); }
 	.status-badge.expired { background: var(--color-danger-bg); color: var(--color-danger-text); }
 
-	.copy-btn {
-		background: var(--bg-primary);
-		border: 1px solid var(--border-color);
-		padding: 0.3rem 0.6rem;
-		border-radius: 4px;
-		font-size: 0.7rem;
-		cursor: pointer;
-		user-select: none;
-		color: var(--text-primary);
-        font-family: var(--font-mono);
-        text-transform: uppercase;
-	}
-	.copy-btn:hover { background: var(--text-primary); color: var(--bg-primary); }
 	.hint { color: var(--text-secondary); font-size: 0.85rem; font-style: italic; font-family: var(--font-body); }
 
 	.btn {
@@ -959,6 +953,12 @@
         border: 1px solid var(--border-color);
         margin-top: 0.5rem;
         font-family: var(--font-body);
+    }
+
+    .phone-row, .email-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
     }
 
     .tag {
