@@ -34,7 +34,7 @@ This document outlines the expected property structure for the Notion databases 
 | Property Name | Type     | Description                                          |
 | :------------ | :------- | :--------------------------------------------------- |
 | **활동명**    | Title    | Name of the event.                                   |
-| **일정**      | Date     | Date and time of the event (with Timezone).          |
+| **일정**      | Date     | Date and time of the event.                          |
 | **활동 종류** | Select   | Category (e.g., "세미나", "스터디", "회의", "회식"). |
 | **출석**      | Relation | Link to _Members_ database (Attendees).              |
 

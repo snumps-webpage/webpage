@@ -19,8 +19,7 @@
 - **Event Lifecycle**: Admins can Create (Draft), Activate (Publish), Expire, and Delete events. Expired events can be reactivated.
 - **Existing Event Connection**: Ability to link new attendance sessions to already existing Notion activity records.
 - **Seminar Approval**: Admins review member-submitted seminar proposals. Approved seminars are automatically converted into official Activities in Notion.
-- **Global Timezone Support**: Full IANA timezone database integration (e.g., `Asia/Seoul`, `America/New_York`) for accurate global scheduling.
-- **Attendance Tracking**: Users check in via time-sensitive, obfuscated links. One-click completion records both start and end times for admin review.
+- **Attendance Tracking**: Users check in via obfuscated links. One-click completion records both start and end times for admin review.
 
 ## 🎨 UI & UX
 

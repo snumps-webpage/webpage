@@ -7,7 +7,7 @@
 ### Key Features
 
 - **Membership System:** Google OAuth login (restricted to `@snu.ac.kr`), automated signup flow, and profile management.
-- **Event & Attendance:** Admin-managed events with automated activation/expiration based on IANA timezones. One-click attendance tracking for members.
+- **Event & Attendance:** Admin-managed events with automated activation/expiration. One-click attendance tracking for members.
 - **Seminar System:** Member-led seminar proposals with a full approval workflow, including automated Notion page creation and email notifications.
 - **Performance Caching:** In-memory caching layer reduces Notion API load and improves dashboard responsiveness.
 

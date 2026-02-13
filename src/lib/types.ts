@@ -44,7 +44,6 @@ export interface Event {
   notionPageId?: string;
   title: string;
   date: string;
-  timeZone?: string;
   type: string;
   status: "draft" | "active" | "expired";
   pathId: string;
