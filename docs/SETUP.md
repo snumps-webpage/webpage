@@ -31,7 +31,7 @@ To enable the system to send automated alerts from a preset Gmail account:
 
 ## ⚙️ Environment Configuration
 
-Rename `.env.example` to `.env.safe` or `.env` and configure the following variables:
+Rename `.env.example` to `.env.safe` or `.env` and configure the following variables. See [**Authentication Variables**](AUTH_VARS.md) for detailed information on how `ADMINS_EMAILS` and `AUTHORIZED_USERS` are used.
 
 ```env
 # Notion
