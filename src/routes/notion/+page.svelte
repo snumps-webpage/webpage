@@ -5,16 +5,67 @@
 	let { data }: { data: PageData } = $props();
 	
 	let searchQuery = $state('');
-	let searchType = $state(data.columns[0]?.name || ''); // Default to first column
+	let searchType = $state(''); 
+	
+	// Initialize searchType on mount
+	$effect(() => {
+		if (!searchType && data.columns.length > 0) {
+			searchType = data.columns[0].name;
+		}
+	});
 
-	let filteredRows = $derived(
-		searchQuery.trim() === '' 
-			? data.rows as NotionRow[]
+	// Sorting state
+	let sortColumn = $state<string | null>(null);
+	let sortDirection = $state<'asc' | 'desc' | null>(null); // null is neutral
+
+	let filteredRows = $derived.by(() => {
+		let rows = searchQuery.trim() === '' 
+			? [...(data.rows as NotionRow[])]
 			: (data.rows as NotionRow[]).filter((row) => {
 				const value = String(row[searchType] || '');
 				return value.toLowerCase().includes(searchQuery.toLowerCase());
-			})
-	);
+			});
+
+		const currentSortCol = sortColumn;
+		const currentSortDir = sortDirection;
+
+		if (currentSortCol && currentSortDir) {
+			rows.sort((a, b) => {
+				const valA = String(a[currentSortCol] || '');
+				const valB = String(b[currentSortCol] || '');
+				
+				// Standard localeCompare or simple comparison
+				// Ascending: a < b -> -1
+				const cmp = valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' });
+				return currentSortDir === 'asc' ? cmp : -cmp;
+			});
+		}
+		
+		return rows;
+	});
+
+	function toggleSort(columnName: string) {
+		if (sortColumn !== columnName) {
+			sortColumn = columnName;
+			sortDirection = 'asc';
+		} else {
+			if (sortDirection === 'asc') {
+				sortDirection = 'desc';
+			} else if (sortDirection === 'desc') {
+				sortDirection = null;
+				sortColumn = null;
+			} else {
+				sortDirection = 'asc';
+			}
+		}
+	}
+
+	function getSortIcon(columnName: string) {
+		if (sortColumn !== columnName) return '↕';
+		if (sortDirection === 'desc') return '↑';
+		if (sortDirection === 'asc') return '↓';
+		return '↕';
+	}
 </script>
 
 <div class="container">
@@ -51,7 +102,14 @@
 					<thead>
 						<tr>
 							{#each data.columns as column (column.name)}
-								<th>{column.label}</th>
+								<th>
+									<button class="sort-header-btn" onclick={() => toggleSort(column.name)}>
+										{column.label}
+										<span class="sort-icon" class:active={sortColumn === column.name}>
+											{getSortIcon(column.name)}
+										</span>
+									</button>
+								</th>
 							{/each}
 						</tr>
 					</thead>
@@ -86,13 +144,13 @@
 	}
 
 	.notion-link {
-		color: var(--text-accent);
-		text-decoration: none;
+		color: var(--text-primary);
+		text-decoration: underline;
 		font-weight: 500;
 	}
 
 	.notion-link:hover {
-		text-decoration: underline;
+		opacity: 0.7;
 	}
 
 	h1 {
@@ -187,6 +245,43 @@
 		font-weight: 600;
 		color: var(--text-primary);
 		white-space: nowrap;
+		padding: 0;
+	}
+
+	.sort-header-btn {
+		width: 100%;
+		height: 100%;
+		padding: 0.75rem 1rem;
+		border: none;
+		background: transparent;
+		text-align: left;
+		font: inherit;
+		color: inherit;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+		transition: background 0.2s;
+	}
+
+	.sort-header-btn:hover {
+		background: rgba(0, 0, 0, 0.05);
+	}
+
+	:global(.dark) .sort-header-btn:hover {
+		background: rgba(255, 255, 255, 0.05);
+	}
+
+	.sort-icon {
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+		opacity: 0.3;
+	}
+
+	.sort-icon.active {
+		opacity: 1;
+		color: var(--text-primary);
 	}
 
 	tr:hover td {
