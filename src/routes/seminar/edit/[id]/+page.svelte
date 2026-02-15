@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { untrack } from 'svelte';
     import { enhance } from '$app/forms';
     import Skeleton from '$lib/components/Skeleton.svelte';
     import type { SeminarSpeaker } from '$lib/types';
@@ -6,7 +7,7 @@
     let { data, form } = $props();
 
     let searchQuery = $state('');
-    let selectedSpeakers = $state<SeminarSpeaker[]>(data.request.initialSpeakers || []); 
+    let selectedSpeakers = $state<SeminarSpeaker[]>(untrack(() => data.request.initialSpeakers || [])); 
     let showSearch = $state(false);
     let processing = $state(false);
 

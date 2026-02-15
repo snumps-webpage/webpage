@@ -88,11 +88,17 @@ export const actions = {
         background,
       });
       return { success: true };
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[Application Edit] Error:", e);
-      if (e.message?.includes("Could not find page") || e.status === 404) {
+      const isNotFound =
+        e instanceof Error &&
+        (e.message?.includes("Could not find page") ||
+          (e as { status?: number }).status === 404);
+
+      if (isNotFound) {
         return fail(404, {
-          error: "신청 내역을 찾을 수 없습니다. 이미 처리되었거나 삭제되었을 수 있습니다.",
+          error:
+            "신청 내역을 찾을 수 없습니다. 이미 처리되었거나 삭제되었을 수 있습니다.",
         });
       }
       return fail(500, {
