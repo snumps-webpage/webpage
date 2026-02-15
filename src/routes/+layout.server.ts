@@ -12,7 +12,7 @@ export const load: LayoutServerLoad = async (event) => {
   // Parallelize session and global context fetching
   const [session, presidentName] = await Promise.all([
     event.locals.auth(),
-    getPresidentName(semester.key).catch((e) => {
+    getPresidentName().catch((e) => {
       console.error("Failed to fetch president name:", e);
       return "공석";
     }),
