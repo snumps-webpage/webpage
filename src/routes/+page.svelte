@@ -1,60 +1,59 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
-    import { signIn } from '@auth/sveltekit/client';
-    import { goto } from '$app/navigation';
-	import { getSemesterKeyFromDate } from '$lib/utils';
-	import Skeleton from '$lib/components/Skeleton.svelte';
-	import type { PageData } from './$types';
-
-	let { data }: { data: PageData } = $props();
-	const session = $derived(page.data.session);
-    const isAdmin = $derived(page.data.isAdmin);
-    const isMember = $derived(data.isMember);
-
-	// Visibility states
-	let showProfile = $state(false); // Default to false to keep view clean
-	let showSeminars = $state(false);
-
-	// Filtering state
-	let selectedSemester = $state('all');
-	let attendanceFilter = $state('all');
-	let typeFilter = $state('all');
-	
-	$effect(() => {
-		if (data.currentSemesterKey) {
-			selectedSemester = data.currentSemesterKey;
-		}
-	});
-
-	// Seminar Edit state
-	let editingSeminarId = $state<string | null>(null);
-
-    let isRefreshing = $state(false);
-
-    // Optimized: Store resolved data in local state to prevent Promise recreation on every render
-    let dashboardData = $state<any>(null); // Type 'any' used temporarily to avoid deep type import issues, ideally strictly typed
-
-    // Resolve stream once
-    $effect(() => {
-        data.streamed.dashboard.then(result => {
-            if (result && !('error' in result)) {
-                dashboardData = result;
-            }
+    	import { signIn } from '@auth/sveltekit/client';
+        import { goto } from '$app/navigation';
+    	import Skeleton from '$lib/components/Skeleton.svelte';
+        import type { DashboardData, Activity } from '$lib/types';
+    	import type { PageData } from './$types';
+    
+    	let { data }: { data: PageData } = $props();
+    	const session = $derived(page.data.session);
+        const isAdmin = $derived(page.data.isAdmin);
+        const isMember = $derived(data.isMember);
+    
+    	// Visibility states
+    	let showProfile = $state(false); // Default to false to keep view clean
+    	let showSeminars = $state(false);
+    
+    	// Filtering state
+    	let selectedSemester = $state('all');
+    	let attendanceFilter = $state('all');
+    	let typeFilter = $state('all');
+    	
+    	$effect(() => {
+    		if (data.currentSemesterKey) {
+    			selectedSemester = data.currentSemesterKey;
+    		}
+    	});
+    
+    	// Seminar Edit state
+    	let editingSeminarId = $state<string | null>(null);
+    
+        let isRefreshing = $state(false);
+    
+        // Optimized: Store resolved data in local state to prevent Promise recreation on every render
+        let dashboardData = $state<DashboardData | null>(null);
+    
+        // Resolve stream once
+        $effect(() => {
+            data.streamed.dashboard.then(result => {
+                if (result && !('error' in result)) {
+                    dashboardData = result as DashboardData;
+                }
+            });
         });
-    });
-
-    // Purely synchronous filtering - FAST
-    let filteredActivities = $derived(
-        dashboardData 
-            ? dashboardData.activities.filter((a: any) => 
-                (selectedSemester === 'all' || a.semester === selectedSemester) &&
-                (attendanceFilter === 'all' || (attendanceFilter === 'attended' ? a.attended : !a.attended)) &&
-                (typeFilter === 'all' || a.type === typeFilter)
-            )
-            : []
-    );
-
+    
+        // Purely synchronous filtering - FAST
+        let filteredActivities = $derived(
+            dashboardData 
+                ? dashboardData.activities.filter((a: Activity) => 
+                    (selectedSemester === 'all' || a.semester === selectedSemester) &&
+                    (attendanceFilter === 'all' || (attendanceFilter === 'attended' ? a.attended : !a.attended)) &&
+                    (typeFilter === 'all' || a.type === typeFilter)
+                )
+                : []
+        );
     async function refreshDashboard() {
         if (isRefreshing) return;
         isRefreshing = true;
@@ -244,7 +243,7 @@
                             <div class="filters">
                                 <select bind:value={typeFilter} class="semester-select">
                                     <option value="all">전체 종류</option>
-                                    {#each Array.from(new Set(result.activities.map((a: any) => a.type))) as type (type)}
+                                    {#each Array.from(new Set(result.activities.map((a: Activity) => a.type))) as type (type)}
                                         <option value={type}>{type}</option>
                                     {/each}
                                 </select>
