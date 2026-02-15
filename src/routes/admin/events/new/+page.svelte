@@ -47,11 +47,6 @@
     h1 { margin-top: 0; color: var(--text-primary); }
 
     .field { margin-bottom: 1.5rem; flex: 1; }
-
-    .field-row {
-        display: flex;
-        gap: 1rem;
-    }
     
     label { 
         display: block; 
