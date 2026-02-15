@@ -5,13 +5,13 @@
 	let { data }: { data: PageData } = $props();
 	
 	let searchQuery = $state('');
-	let searchType = $state('이름'); // Default search column
+	let searchType = $state(data.columns[0]?.name || ''); // Default to first column
 
 	let filteredRows = $derived(
 		searchQuery.trim() === '' 
 			? data.rows as NotionRow[]
 			: (data.rows as NotionRow[]).filter((row) => {
-				const value = row[searchType] || '';
+				const value = String(row[searchType] || '');
 				return value.toLowerCase().includes(searchQuery.toLowerCase());
 			})
 	);
@@ -28,21 +28,18 @@
 				<input 
 					type="text" 
 					bind:value={searchQuery} 
-					placeholder={`${searchType}으로 검색...`} 
+					placeholder={`${data.columns.find(c => c.name === searchType)?.label || '검색'}으로 검색...`} 
 					class="search-input"
 				/>
 			</div>
 			<div class="toggle-group">
-				<button 
-					class="toggle-btn" 
-					class:active={searchType === '이름'} 
-					onclick={() => searchType = '이름'}
-				>이름</button>
-				<button 
-					class="toggle-btn" 
-					class:active={searchType === '학과'} 
-					onclick={() => searchType = '학과'}
-				>학과</button>
+				{#each data.columns.slice(0, 2) as column}
+					<button 
+						class="toggle-btn" 
+						class:active={searchType === column.name} 
+						onclick={() => searchType = column.name}
+					>{column.label}</button>
+				{/each}
 			</div>
 		</div>
 
@@ -54,7 +51,7 @@
 					<thead>
 						<tr>
 							{#each data.columns as column (column.name)}
-								<th>{column.name}</th>
+								<th>{column.label}</th>
 							{/each}
 						</tr>
 					</thead>
@@ -62,7 +59,15 @@
 						{#each filteredRows as row (row.id)}
 							<tr>
 								{#each data.columns as column (column.name)}
-									<td>{row[column.name]}</td>
+									<td>
+										{#if column.name === 'link'}
+											<a href={row[column.name]} target="_blank" rel="noopener noreferrer" class="notion-link">
+												보기
+											</a>
+										{:else}
+											{row[column.name]}
+										{/if}
+									</td>
 								{/each}
 							</tr>
 						{/each}
@@ -78,6 +83,16 @@
 		max-width: 1200px;
 		margin: 0 auto;
 		padding: 2rem;
+	}
+
+	.notion-link {
+		color: var(--text-accent);
+		text-decoration: none;
+		font-weight: 500;
+	}
+
+	.notion-link:hover {
+		text-decoration: underline;
 	}
 
 	h1 {
