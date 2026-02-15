@@ -2,11 +2,10 @@ import { error } from "@sveltejs/kit";
 import { env } from "$env/dynamic/private";
 import {
   queryDatabase,
-  getDatabaseSchema,
   getPropertyValue,
   type NotionProperty,
-  type DatabasePropertySchema,
 } from "$lib/server/notion";
+import { NOTION_PROPS } from "$lib/constants";
 import { isAdmin } from "$lib/server/admin";
 import type { PageServerLoad } from "./$types";
 
@@ -28,29 +27,25 @@ export const load: PageServerLoad = async (event) => {
   }
 
   try {
-    const [schema, pages] = await Promise.all([
-      getDatabaseSchema(databaseId),
-      queryDatabase(databaseId),
-    ]);
+    const pages = await queryDatabase(databaseId);
 
-    const columns = Object.entries(schema).map(([name, prop]) => ({
-      name,
-      type: (prop as DatabasePropertySchema).type,
-    }));
+    const columns = [
+      { name: NOTION_PROPS.NAME, label: "이름" },
+      { name: NOTION_PROPS.DEPT, label: "학과" },
+      { name: NOTION_PROPS.JOIN_DATE, label: "가입일" },
+      { name: "link", label: "개인 정보 링크" },
+    ];
 
     const rows = pages.map((page) => {
-      const row: Record<string, string> = {};
-      for (const [name, prop] of Object.entries(
-        (page as { properties: Record<string, NotionProperty> }).properties,
-      )) {
-        const val = getPropertyValue(prop as NotionProperty);
-        if (Array.isArray(val)) {
-          row[name] = val.join(", ");
-        } else {
-          row[name] = String(val);
-        }
-      }
-      return { id: (page as { id: string }).id, ...row };
+      const p = page as { id: string; properties: Record<string, NotionProperty> };
+      const row: Record<string, string> = {
+        id: p.id,
+        [NOTION_PROPS.NAME]: String(getPropertyValue(p.properties[NOTION_PROPS.NAME])),
+        [NOTION_PROPS.DEPT]: String(getPropertyValue(p.properties[NOTION_PROPS.DEPT])),
+        [NOTION_PROPS.JOIN_DATE]: String(getPropertyValue(p.properties[NOTION_PROPS.JOIN_DATE])),
+        link: `https://www.notion.so/${p.id.replace(/-/g, "")}`,
+      };
+      return row;
     });
 
     return {
