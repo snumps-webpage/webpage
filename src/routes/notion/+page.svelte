@@ -84,7 +84,7 @@
 				/>
 			</div>
 			<div class="toggle-group">
-				{#each data.columns.slice(0, 2) as column}
+				{#each data.columns.slice(0, 2) as column (column.name)}
 					<button 
 						class="toggle-btn" 
 						class:active={searchType === column.name} 

@@ -59,4 +59,3 @@ export const ACTIVITY_TYPES = [
 // Chatroom configuration for welcome emails
 export const CHATROOM_NOTICE_LINK = "https://invite.kakao.com/tc/0PrN2Zk2VZ";
 export const CHATROOM_CHAT_LINK = "https://invite.kakao.com/tc/tGxjs2oKOV";
-
