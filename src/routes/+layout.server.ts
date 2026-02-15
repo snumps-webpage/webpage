@@ -1,13 +1,10 @@
 import { redirect } from "@sveltejs/kit";
 import { getMemberByEmail, getPresidentName } from "$lib/server/notion";
 import { isAdmin, getApplications, type Application } from "$lib/server/admin";
-import { getSemesterInfo } from "$lib/utils";
 import type { LayoutServerLoad } from "./$types";
 
 export const load: LayoutServerLoad = async (event) => {
   console.log(`>>> [Layout Load] Starting for path: ${event.url.pathname}`);
-  const today = new Date();
-  const semester = getSemesterInfo(today);
 
   // Parallelize session and global context fetching
   const [session, presidentName] = await Promise.all([
