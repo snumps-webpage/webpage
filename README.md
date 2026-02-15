@@ -25,6 +25,7 @@ A secure SvelteKit web application designed to automate membership management an
 ---
 
 - [**Setup Guide**](docs/SETUP.md) - Environment variables and initial configuration.
+- [**Auth Variables**](docs/AUTH_VARS.md) - Usage of Admin and Authorized user lists.
 - [**Architecture**](docs/ARCHITECTURE.md) - System design and operational protocols.
 - [**Features**](docs/FEATURES.md) - Detailed breakdown of application capabilities.
 - [**Caching Policy**](docs/CACHE.md) - Cache durations and management strategy.
