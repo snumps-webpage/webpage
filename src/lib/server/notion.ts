@@ -801,30 +801,48 @@ export async function getAllPrivateInfo() {
   }));
 }
 
-export async function getPresidentName(
-  semesterPrefix: string,
-): Promise<string> {
-  return withCache(`president_${semesterPrefix}`, 3600000, async () => {
+export async function getPresidentName(): Promise<string> {
+  return withCache("latest_president", 3600000, async () => {
     const dbId = env.NOTION_DB_MEMBERS;
     if (!dbId) return "";
 
+    // Query for all members who have any value in the Executives property
     const results = await notionQuery(dbId, {
       filter: {
-        or: [
-          {
-            property: NOTION_PROPS.EXECUTIVES,
-            multi_select: { contains: `${semesterPrefix} 회장` },
-          },
-          {
-            property: NOTION_PROPS.EXECUTIVES,
-            multi_select: { contains: `${semesterPrefix} 회 장` },
-          },
-        ],
+        property: NOTION_PROPS.EXECUTIVES,
+        multi_select: { is_not_empty: true },
       },
     });
 
     if (results.length === 0) return "";
-    return getPropertyValue(results[0].properties[NOTION_PROPS.NAME]);
+
+    let latestSemesterValue = -1;
+    let currentPresident = "";
+
+    for (const page of results) {
+      const executives = page.properties[NOTION_PROPS.EXECUTIVES]?.multi_select || [];
+      const name = getPropertyValue(page.properties[NOTION_PROPS.NAME]);
+
+      for (const tag of executives) {
+        const tagName = tag.name as string;
+        // Match patterns like "25-1 회장", "25-2 회 장", etc.
+        const match = tagName.match(/(\d{2})-(\d)\s*회\s*장/);
+        
+        if (match) {
+          const year = parseInt(match[1]);
+          const sem = parseInt(match[2]);
+          // Calculate a sortable value (e.g., 25.2 for 25-2)
+          const score = year + (sem / 10);
+          
+          if (score > latestSemesterValue) {
+            latestSemesterValue = score;
+            currentPresident = name;
+          }
+        }
+      }
+    }
+
+    return currentPresident || "공석";
   });
 }
 
