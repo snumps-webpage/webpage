@@ -85,4 +85,3 @@ export function normalizePhoneNumber(phone: string): string {
 
   return phone; // Return as-is if it doesn't match expected length
 }
-

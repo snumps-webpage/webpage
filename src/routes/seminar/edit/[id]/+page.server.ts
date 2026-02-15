@@ -89,8 +89,8 @@ export const actions: Actions = {
 
     // Fallback if empty
     if (speakerIds.length === 0) {
-        const member = await getMemberByEmail(session.user.email);
-        if (member) speakerIds = [member.memberId];
+      const member = await getMemberByEmail(session.user.email);
+      if (member) speakerIds = [member.memberId];
     }
 
     try {

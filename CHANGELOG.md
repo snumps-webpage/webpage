@@ -29,8 +29,6 @@ All notable changes to this project will be documented in this file.
 
 - **Dashboard Refresh**: Integrated a manual refresh button to bypass cache.
 
-
-
 ### Changed
 
 - **Admin UX**: Replaced the recruitment application carousel with a structured, paginated table for better efficiency.
