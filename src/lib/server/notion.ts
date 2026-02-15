@@ -820,20 +820,21 @@ export async function getPresidentName(): Promise<string> {
     let currentPresident = "";
 
     for (const page of results) {
-      const executives = page.properties[NOTION_PROPS.EXECUTIVES]?.multi_select || [];
+      const executives =
+        page.properties[NOTION_PROPS.EXECUTIVES]?.multi_select || [];
       const name = getPropertyValue(page.properties[NOTION_PROPS.NAME]);
 
       for (const tag of executives) {
         const tagName = tag.name as string;
         // Match patterns like "25-1 회장", "25-2 회 장", etc.
         const match = tagName.match(/(\d{2})-(\d)\s*회\s*장/);
-        
+
         if (match) {
           const year = parseInt(match[1]);
           const sem = parseInt(match[2]);
           // Calculate a sortable value (e.g., 25.2 for 25-2)
-          const score = year + (sem / 10);
-          
+          const score = year + sem / 10;
+
           if (score > latestSemesterValue) {
             latestSemesterValue = score;
             currentPresident = name;

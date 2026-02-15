@@ -37,12 +37,21 @@ export const load: PageServerLoad = async (event) => {
     ];
 
     const rows = pages.map((page) => {
-      const p = page as { id: string; properties: Record<string, NotionProperty> };
+      const p = page as {
+        id: string;
+        properties: Record<string, NotionProperty>;
+      };
       const row: Record<string, string> = {
         id: p.id,
-        [NOTION_PROPS.NAME]: String(getPropertyValue(p.properties[NOTION_PROPS.NAME])),
-        [NOTION_PROPS.DEPT]: String(getPropertyValue(p.properties[NOTION_PROPS.DEPT])),
-        [NOTION_PROPS.JOIN_DATE]: String(getPropertyValue(p.properties[NOTION_PROPS.JOIN_DATE])),
+        [NOTION_PROPS.NAME]: String(
+          getPropertyValue(p.properties[NOTION_PROPS.NAME]),
+        ),
+        [NOTION_PROPS.DEPT]: String(
+          getPropertyValue(p.properties[NOTION_PROPS.DEPT]),
+        ),
+        [NOTION_PROPS.JOIN_DATE]: String(
+          getPropertyValue(p.properties[NOTION_PROPS.JOIN_DATE]),
+        ),
         link: `https://www.notion.so/${p.id.replace(/-/g, "")}`,
       };
       return row;
