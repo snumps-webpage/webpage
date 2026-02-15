@@ -77,6 +77,7 @@ export const actions = {
     }
 
     const { addApplication } = await import("$lib/server/admin");
+    const { sendSignupNotification } = await import("$lib/server/mail");
 
     try {
       await addApplication({
@@ -86,6 +87,10 @@ export const actions = {
         phone,
         background,
       });
+
+      // Notify admins about the new registration application
+      await sendSignupNotification(immutableName);
+
       return { success: true };
     } catch (e) {
       console.error(e);
