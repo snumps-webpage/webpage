@@ -2,7 +2,7 @@
  * Service for sending automated alerts from the Admin account via Google's Gmail API.
  */
 import { env } from "$env/dynamic/private";
-import { CHATROOM_LINK, CHATROOM_PASSWORD } from "../constants";
+import { CHATROOM_NOTICE_LINK, CHATROOM_CHAT_LINK } from "../constants";
 
 let cachedAccessToken: string | null = null;
 let tokenExpiry = 0;
@@ -156,7 +156,7 @@ export async function sendWelcomeEmail(
     );
     const accessToken = await getAdminAccessToken();
     const subject = `[SNUMPS] 가입이 승인되었습니다!`;
-    const body = `안녕하세요, ${recipientName}님!\n\nSNUMPS 가입 신청이 성공적으로 승인되었습니다. 동아리의 일원이 되신 것을 진심으로 환영합니다.\n\n앞으로의 활동을 위해 아래의 단톡방에 입장해 주세요:\n동아리 단톡방 링크: ${CHATROOM_LINK} (비밀번호: ${CHATROOM_PASSWORD})\n\n감사합니다.`;
+    const body = `안녕하세요, ${recipientName}님!\n\n수학문제연구회 가입을 축하드립니다!\n\n동아리 카카오톡 채팅방은 다음과 같습니다.\n- 공지방 : ${CHATROOM_NOTICE_LINK}\n- 잡담방 : ${CHATROOM_CHAT_LINK}\n\n공지방에서는 채팅을 자제하시고, 문의 사항은 잡담방이나 회장을 통해 알려주세요. 동아리의 모든 자료와 가이드라인은 공식 노션(https://snumps.notion.site)에서 확인할 수 있습니다. 수학문제연구회에 오신 것을 환영합니다.`;
 
     await dispatchEmail(accessToken, [recipientEmail], subject, body);
     console.log(`[Mail] Welcome email sent to ${recipientEmail}`);

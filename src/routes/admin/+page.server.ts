@@ -24,7 +24,10 @@ import {
   deleteSeminarRequest,
   updateSeminarRequestStatus,
 } from "$lib/server/seminars";
-import { sendSeminarStatusNotification } from "$lib/server/mail";
+import {
+  sendSeminarStatusNotification,
+  sendWelcomeEmail,
+} from "$lib/server/mail";
 import { invalidateCache } from "$lib/server/cache";
 import { normalizePhoneNumber } from "$lib/utils";
 import type { PageServerLoad } from "./$types";
@@ -109,6 +112,9 @@ export const actions = {
 
       // 2. Mark as accepted in Notion (Critical)
       await markApplicationAsAccepted(id);
+
+      // 3. Send welcome email with chat link
+      await sendWelcomeEmail(app.email, app.name);
 
       console.log(`[Admin] Approval flow completed for ${app.name}`);
       return { success: true };
