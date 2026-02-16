@@ -1,8 +1,9 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.svg';
 	import instagram from '$lib/assets/instagram.svg';
+	import menuIcon from '$lib/assets/menu.svg';
 	import { page, navigating } from '$app/state';
-	import { onNavigate } from '$app/navigation';
+	import { onNavigate, afterNavigate } from '$app/navigation';
 	import { signOut } from '@auth/sveltekit/client';
 	import { getInitialTheme, applyTheme, type Theme } from '$lib/theme';
     import Toasts from '$lib/components/Toasts.svelte';
@@ -12,6 +13,7 @@
 
 	// Theme state
 	let currentTheme = $state<Theme>(getInitialTheme());
+	let isMobileMenuOpen = $state(false);
 
 	$effect(() => {
 		applyTheme(currentTheme);
@@ -26,6 +28,10 @@
 				await navigation.complete;
 			});
 		});
+	});
+
+	afterNavigate(() => {
+		isMobileMenuOpen = false;
 	});
 </script>
 
@@ -57,7 +63,7 @@
 				<img src={favicon} alt="SNUMPS" />
 			</a>
 			{#if session?.user}
-				<div class="nav-menus">
+				<div class="nav-menus desktop-only">
 					<div class="dropdown">
 						<button class="nav-link">Seminar</button>
 						<div class="dropdown-content">
@@ -69,14 +75,41 @@
 		</div>
 		<div class="nav-right">
 			{#if session?.user}
-				{#if page.data.isAdmin}
-					<a href="/admin" class="circle-btn">Admin</a>
-					<a href="/notion" class="circle-btn">DB</a>
-				{/if}
+				<div class="desktop-only nav-actions">
+					{#if page.data.isAdmin}
+						<a href="/admin" class="circle-btn">Admin</a>
+						<a href="/notion" class="circle-btn">DB</a>
+					{/if}
+				</div>
 				<button class="logout-btn" onclick={() => signOut()}>로그아웃</button>
+				<button 
+					class="mobile-menu-toggle mobile-only" 
+					onclick={() => isMobileMenuOpen = !isMobileMenuOpen}
+					aria-label="Toggle menu"
+				>
+					<img src={menuIcon} alt="" />
+				</button>
 			{/if}
 		</div>
 	</div>
+
+	{#if isMobileMenuOpen}
+		<div class="mobile-dropdown mobile-only stagger-1">
+			<div class="mobile-dropdown-content">
+				<div class="mobile-group">
+					<span class="group-label">Seminar</span>
+					<a href="/seminar/apply" class="mobile-link">세미나 개설</a>
+				</div>
+				{#if page.data.isAdmin}
+					<div class="mobile-group">
+						<span class="group-label">Admin</span>
+						<a href="/admin" class="mobile-link">관리자 대시보드</a>
+						<a href="/notion" class="mobile-link">Notion 데이터베이스</a>
+					</div>
+				{/if}
+			</div>
+		</div>
+	{/if}
 </nav>
 
 <main>
@@ -337,6 +370,12 @@
         margin-left: 1rem;
     }
 
+    .nav-actions {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+    }
+
     /* Dropdown Logic */
     .dropdown {
         position: relative;
@@ -388,6 +427,87 @@
         padding: 0.5rem;
     }
     .logout-btn:hover { color: var(--color-danger-text); }
+
+    /* Mobile Menu Toggle */
+    .mobile-menu-toggle {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-primary);
+    }
+
+    .mobile-menu-toggle img {
+        height: 1.25rem;
+        width: 1.25rem;
+    }
+
+    :global(.dark) .mobile-menu-toggle img {
+        filter: invert(1);
+    }
+
+    /* Mobile Dropdown */
+    .mobile-dropdown {
+        position: absolute;
+        top: var(--nav-height);
+        left: 0;
+        right: 0;
+        background: var(--bg-secondary);
+        border-bottom: 1px solid var(--border-color);
+        box-shadow: var(--shadow);
+        z-index: 40;
+        padding: 1.5rem;
+    }
+
+    .mobile-dropdown-content {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .mobile-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .group-label {
+        font-family: var(--font-display);
+        font-style: italic;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0.25rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .mobile-link {
+        color: var(--text-primary);
+        text-decoration: none;
+        font-family: var(--font-body);
+        font-size: 1.1rem;
+        padding: 0.5rem 0;
+    }
+
+    /* Utilities */
+    .desktop-only { display: flex; }
+    .mobile-only { display: none; }
+
+    @media (max-width: 768px) {
+        .desktop-only { display: none !important; }
+        .mobile-only { display: flex !important; }
+        
+        .nav-right {
+            gap: 0.5rem;
+        }
+    }
 
     /* Footer */
     footer {
