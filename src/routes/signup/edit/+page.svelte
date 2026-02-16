@@ -1,5 +1,7 @@
 <script lang="ts">
+    import { enhance } from '$app/forms';
 	let { data, form } = $props();
+    let submitting = $state(false);
 </script>
 
 <div class="container">
@@ -24,7 +26,13 @@
                 </div>
             </div>
         {:else}
-            <form method="POST">
+            <form method="POST" use:enhance={() => {
+                submitting = true;
+                return async ({ update }) => {
+                    await update();
+                    submitting = false;
+                };
+            }}>
                 <input type="hidden" name="id" value={data.application?.id} />
 
                 <div class="form-group no-sel">
@@ -64,8 +72,8 @@
                     <textarea id="background" name="background" rows="4" placeholder="관심 분야나 관련 경험을 적어주세요.">{data.application?.background || ''}</textarea>
                 </div>
 
-                <button type="submit" class="btn-submit">
-                    수정하기
+                <button type="submit" class="btn-submit" disabled={submitting}>
+                    {submitting ? '처리 중...' : '수정하기'}
                 </button>
                 <a href="/" class="btn-cancel-link">취소</a>
             </form>

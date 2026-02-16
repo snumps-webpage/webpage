@@ -1,5 +1,7 @@
 <script lang="ts">
+    import { enhance } from '$app/forms';
 	let { data, form } = $props();
+    let submitting = $state(false);
 </script>
 
 <div class="container">
@@ -33,7 +35,13 @@
                     </div>
 				</div>
 			{:else}
-							<form method="POST">
+							<form method="POST" use:enhance={() => {
+                                submitting = true;
+                                return async ({ update }) => {
+                                    await update();
+                                    submitting = false;
+                                };
+                            }}>
 								<div class="form-group no-sel">
 									<label for="name">이름</label>
 									<input type="text" id="name" value={data.parsedInfo.name} disabled />
@@ -82,7 +90,9 @@
 						</p>
 					</div>
 
-					<button type="submit" class="btn-submit">가입 신청하기</button>
+					<button type="submit" class="btn-submit" disabled={submitting}>
+                        {submitting ? '처리 중...' : '가입 신청하기'}
+                    </button>
                     <a href="/" class="btn-cancel-link">취소</a>
 				</form>
 			{/if}
