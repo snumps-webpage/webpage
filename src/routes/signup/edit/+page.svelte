@@ -9,8 +9,8 @@
 		<h1>신청 정보 수정</h1>
 		
         <p class="desc no-sel">
-            제출하신 가입 신청 정보를 수정할 수 있습니다.<br>
-            수정 후에도 기존 신청 시점의 타임스탬프는 유지됩니다.
+            <span class="text-break">제출하신 가입 신청 정보를</span> <span class="text-break">수정할 수 있습니다.</span><br>
+            <span class="text-break">수정 후에도 기존 신청 시점의</span> <span class="text-break">타임스탬프는 유지됩니다.</span>
         </p>
 
         {#if form?.error}
@@ -19,7 +19,7 @@
 
         {#if form?.success}
             <div class="success-message">
-                <h3>수정이 완료되었습니다!</h3>
+                <h3><span class="text-break">수정이</span> <span class="text-break">완료되었습니다!</span></h3>
                 <p>신청 정보가 성공적으로 반영되었습니다.</p>
                 <div class="alert-actions mt-4">
                     <a href="/" class="btn home">홈으로 돌아가기</a>
@@ -126,7 +126,17 @@
         font-style: italic;
     }
 
-	.desc { color: var(--text-secondary); margin-bottom: 2.5rem; font-size: 1rem; text-align: center; font-family: var(--font-body); font-style: italic; }
+	.desc { 
+        color: var(--text-secondary); 
+        margin-bottom: 2.5rem; 
+        font-size: 1rem; 
+        text-align: center; 
+        font-family: var(--font-body); 
+        font-style: italic; 
+        word-break: keep-all;
+        overflow-wrap: break-word;
+        line-height: 1.5;
+    }
 
     .form-group {
         margin-bottom: 1.75rem;
@@ -263,8 +273,22 @@
         font-family: var(--font-display);
         color: var(--color-success-text);
         font-style: italic;
-        font-size: 1.5rem;
+        font-size: clamp(1.25rem, 5vw, 1.75rem);
         margin-bottom: 1rem;
+        word-break: keep-all;
+        overflow-wrap: break-word;
+        line-height: 1.3;
+    }
+
+    .success-message p {
+        word-break: keep-all;
+        overflow-wrap: break-word;
+        line-height: 1.5;
+        margin-bottom: 0.5rem;
+    }
+
+    .text-break {
+        display: inline-block;
     }
 
     .error {

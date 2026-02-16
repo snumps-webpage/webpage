@@ -40,7 +40,7 @@
     
     {#if form?.success}
         <div class="success-message">
-            <h3>신청 정보가 수정되었습니다.</h3>
+            <h3><span class="text-break">신청 정보가</span> <span class="text-break">수정되었습니다.</span></h3>
             <p>관리자 검토가 다시 진행됩니다.</p>
             <a href="/" class="btn home">홈으로 돌아가기</a>
         </div>
@@ -397,8 +397,22 @@
         font-family: var(--font-display);
         color: var(--color-success-text);
         font-style: italic;
-        font-size: 1.5rem;
+        font-size: clamp(1.25rem, 5vw, 1.75rem);
         margin-bottom: 1rem;
+        word-break: keep-all;
+        overflow-wrap: break-word;
+        line-height: 1.3;
+    }
+
+    .success-message p {
+        word-break: keep-all;
+        overflow-wrap: break-word;
+        line-height: 1.5;
+        margin-bottom: 0.5rem;
+    }
+
+    .text-break {
+        display: inline-block;
     }
 
     .processing-overlay p {
