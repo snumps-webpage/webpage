@@ -2,25 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2026-02-15]
+## [2026-02-16]
 
 ### Added
 
-- **Mobile UI Optimization**: Implemented a responsive card-based layout for the Notion DB page and a sticky hamburger menu for the global header to improve the mobile experience.
+- **Double-Click Prevention**: Implemented state-based submission tracking (`submitting`/`processing`) for all registration and seminar application forms to prevent duplicate database entries.
+- **Responsive Card Views**: Fully refactored the Notion DB and Admin dashboards to automatically switch from dense tables to touch-friendly, card-based layouts on mobile devices.
 - **DB Page Enhancements**: Added multi-column sorting (Ascending/Descending/Neutral) with arrow indicators and streamlined the displayed information to name, department, registration date, and direct Notion links.
-- **Admin Notifications**: Automated email notifications to admins when new membership applications are submitted.
+- **Admin Notifications**: Automated email notifications to admins when new membership applications are submitted and integrated automated welcome emails for approved members.
+- **Mobile Menu Compliance**: Implemented a sticky hamburger menu for the global header with full dark-mode support for the menu icon.
 
 ### Changed
 
+- **Semantic Line Breaking**: Global implementation of `word-break: keep-all` and phrase-wrapping spans across landing, dashboard, and application pages to prevent awkward mid-word breaks and improve readability.
+- **Responsive Scaling**: Integrated `clamp()` and `box-sizing: border-box` across all main containers and components to eliminate horizontal overflow and blank space on varying screen sizes.
 - **President Retrieval**: Refactored the footer logic to automatically detect the latest president based on semester tags (e.g., "25-2") instead of relying on the current date.
-- **Landing Page UX**: Improved text breaking and responsive font sizing on the landing page to prevent awkward word splitting on mobile devices.
-- **Global Layout**: Standardized header heights using CSS variables and implemented `100dvh` to eliminate gaps at the bottom of the viewport on mobile browsers.
-- **Admin Approval Flow**: Integrated automated welcome emails with KakaoTalk chatroom links upon member approval.
+- **URL Cleanup**: Automated the removal of the `?refresh=` cache-busting timestamp from the browser's address bar after a manual dashboard refresh.
+- **Global Layout**: Standardized header heights using shared CSS variables and implemented `min-height: 100dvh` to ensure full viewport coverage.
 
 ### Fixed
 
-- **Sticky Header Spacing**: Resolved issues where sticky search bars were obscured by the navigation header or flickered during scroll.
-- **Type Safety**: Improved TypeScript definitions for dashboard data and resolved various linting warnings across the codebase.
+- **Sticky Header Occlusion**: Resolved layout bugs where sticky search bars and controls were hidden behind the global navigation header.
+- **Viewport Background Gap**: Fixed a persistent gap issue at the bottom of mobile browsers by stabilizing the background gradient on the `html` element.
+- **Type Safety**: Improved TypeScript definitions for dashboard data and resolved various linting warnings regarding unique keys and reactive state.
 
 ## [2026-02-10]
 
