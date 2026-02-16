@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-02-15]
+
+### Added
+
+- **Mobile UI Optimization**: Implemented a responsive card-based layout for the Notion DB page and a sticky hamburger menu for the global header to improve the mobile experience.
+- **DB Page Enhancements**: Added multi-column sorting (Ascending/Descending/Neutral) with arrow indicators and streamlined the displayed information to name, department, registration date, and direct Notion links.
+- **Admin Notifications**: Automated email notifications to admins when new membership applications are submitted.
+
+### Changed
+
+- **President Retrieval**: Refactored the footer logic to automatically detect the latest president based on semester tags (e.g., "25-2") instead of relying on the current date.
+- **Landing Page UX**: Improved text breaking and responsive font sizing on the landing page to prevent awkward word splitting on mobile devices.
+- **Global Layout**: Standardized header heights using CSS variables and implemented `100dvh` to eliminate gaps at the bottom of the viewport on mobile browsers.
+- **Admin Approval Flow**: Integrated automated welcome emails with KakaoTalk chatroom links upon member approval.
+
+### Fixed
+
+- **Sticky Header Spacing**: Resolved issues where sticky search bars were obscured by the navigation header or flickered during scroll.
+- **Type Safety**: Improved TypeScript definitions for dashboard data and resolved various linting warnings across the codebase.
+
 ## [2026-02-10]
 
 ### Added
