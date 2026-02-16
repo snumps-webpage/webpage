@@ -303,7 +303,7 @@
         {/if}
 	{:else}
 		<div class="landing-hero no-sel">
-			<h1>서울대학교 수학문제연구회</h1>
+			<h1>서울대학교 <span class="title-break">수학문제연구회</span></h1>
 			<p class="subtitle">SNUMPS</p>
             <div class="login-container">
                 <button class="google-login-btn" onclick={() => signIn('google')}>
@@ -744,16 +744,23 @@
     }
 
     .landing-hero h1 {
-        font-size: clamp(2.5rem, 8vw, 4.5rem);
+        font-size: clamp(2.5rem, 10vw, 4.5rem);
         margin-bottom: 0.5rem;
         color: var(--text-primary);
         font-family: var(--font-display);
         font-weight: 600;
         letter-spacing: -0.03em;
+        word-break: keep-all;
+        overflow-wrap: break-word;
+        line-height: 1.1;
+    }
+
+    .title-break {
+        display: inline;
     }
 
     .landing-hero .subtitle {
-        font-size: 1.25rem;
+        font-size: clamp(1rem, 4vw, 1.25rem);
         color: var(--text-secondary);
         margin-bottom: 4rem;
         font-family: var(--font-mono);
@@ -776,8 +783,30 @@
         transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         box-shadow: var(--shadow);
         font-family: var(--font-display);
-        font-size: 1.1rem;
+        font-size: clamp(0.9rem, 3vw, 1.1rem);
         font-style: italic;
+        width: 100%;
+        max-width: 400px;
+        justify-content: center;
+    }
+
+    .google-login-btn span {
+        white-space: nowrap;
+    }
+
+    @media (max-width: 600px) {
+        .title-break {
+            display: block;
+            margin-top: 0.25rem;
+        }
+
+        .landing-hero .subtitle {
+            margin-bottom: 2.5rem;
+        }
+
+        .google-login-btn {
+            padding: 1rem 1.5rem;
+        }
     }
 
     .google-login-btn:hover {
