@@ -181,6 +181,8 @@
 		max-width: 1200px;
 		margin: 0 auto;
 		padding: 2rem;
+		width: 100%;
+		box-sizing: border-box;
 	}
 
 	h1 {

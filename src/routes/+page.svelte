@@ -61,6 +61,13 @@
             const url = new URL(window.location.href);
             url.searchParams.set('refresh', Date.now().toString());
             await goto(url.toString(), { replaceState: true, invalidateAll: true });
+            
+            // Silently remove the refresh parameter from the URL bar
+            const cleanUrl = new URL(window.location.href);
+            if (cleanUrl.searchParams.has('refresh')) {
+                cleanUrl.searchParams.delete('refresh');
+                window.history.replaceState(window.history.state, '', cleanUrl.toString());
+            }
         } finally {
             isRefreshing = false;
         }
@@ -203,8 +210,8 @@
                                                                     name="phone" 
                                                                     value={result.profile.phone} 
                                                                     placeholder="010-1234-5678" 
-                                                                    pattern="010[- ]?\d{3,4}[- ]?\d{4}"
-                                                                    title="숫자만 입력하거나 하이픈(-) 또는 공백을 포함할 수 있습니다."
+                                                                    pattern="[0-9]{3}-[0-9]{4}-[0-9]{4}"
+                                                                    title="XXX-XXXX-XXXX 형식으로 입력해주세요."
                                                                 />
                                                             </div>
                                                             <div class="form-group">

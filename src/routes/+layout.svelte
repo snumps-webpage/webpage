@@ -140,74 +140,89 @@
 </footer>
 
 <style>
-	:root {
-		/* Header Height for sticky elements */
-		--nav-height: 4rem;
-
-		/* "Math Journal" Aesthetic */
-		--bg-paper: #fdfbf7;
-		--bg-primary: var(--bg-paper); 
-		--bg-secondary: #f4f1ea; 
-		
-		/* Deep, Rich Ink Colors */
-		--text-primary: #2a2f35; /* Soft Charcoal */
-		--text-secondary: #5f666d; /* Graphite */
-		--border-color: #d8d4cd; /* Aged paper edge */
-		--btn-secondary: #ebe7e0;
-		
-		/* Atmospheric Gradients */
-		--bg-gradient: radial-gradient(circle at 50% 0%, #fffefc 0%, #fdfbf7 60%, #f4f1ea 100%);
-		
-		/* Refined Shadows - Soft, diffused ambient light */
-		--shadow: 
-			0 1px 2px -1px rgba(0, 0, 0, 0.08),
-			0 4px 12px -2px rgba(42, 47, 53, 0.06); 
-		
-		/* Status Colors - Muted Ink Tones */
-		--color-success-bg: #e8f5e9;
-		--color-success-text: #1b5e20;
-		--color-danger-bg: #ffebee;
-		--color-danger-text: #b71c1c;
-		--color-warning-bg: #fffde7;
-		--color-warning-text: #f57f17;
-		
-		/* Brand - "Academic Crimson" & "Oxford Blue" */
-		--brand-gradient: linear-gradient(135deg, #1a365d 0%, #3e2723 100%);
-		
-		/* Typography - Distinctive & Editorial */
-		--font-body: "Crimson Pro", "Gowun Batang", serif;
-		--font-display: "Newsreader", "Gowun Batang", serif;
-		--font-mono: "JetBrains Mono", monospace;
-	}
-
-	:global(.dark) {
-		--bg-paper: #1c1c1e;
-		--bg-primary: #1c1c1e;
-		--bg-secondary: #252528;
-		
-		--text-primary: #e6e6e6;
-		--text-secondary: #a1a1aa;
-		--border-color: #3f3f42;
-		--btn-secondary: #2c2c2e;
-		
-		--bg-gradient: radial-gradient(circle at 50% 0%, #2c2c2e 0%, #1c1c1e 70%, #151516 100%);
-		
-		--shadow: 
-			0 4px 20px -2px rgba(0, 0, 0, 0.6),
-			0 2px 8px -2px rgba(0, 0, 0, 0.4);
-
-		/* Dark Mode Ink Tones */
-		--color-success-bg: #052e16;
-		--color-success-text: #86efac;
-		--color-danger-bg: #450a0a;
-		--color-danger-text: #fca5a5;
-		--color-warning-bg: #422006;
-		--color-warning-text: #fcd34d;
-		
-		--brand-gradient: linear-gradient(135deg, #a5b4fc 0%, #fca5a5 100%);
-	}
-
-	:global(*) {
+		:root {
+			/* Header Height for sticky elements */
+			--nav-height: 4rem;
+	
+			/* Centralized Color Tokens — Academic Legacy (Default) */
+			--color-bg: #fdfbf7;
+			--color-surface: #f4f1ea;
+			--color-primary: #1a365d;
+			--color-secondary: #3e2723;
+			--color-accent: #9b2c2c;
+			
+			--color-text-primary: #2a2f35;
+			--color-text-secondary: #5f666d;
+			--color-text-muted: #718096;
+			
+			--color-border: #d8d4cd;
+			--color-btn-secondary: #ebe7e0;
+	
+			--color-success: #1b5e20;
+			--color-success-bg: #e8f5e9;
+			--color-error: #b71c1c;
+			--color-error-bg: #ffebee;
+			--color-warning: #f57f17;
+			--color-warning-bg: #fffde7;
+	
+			--color-brand-gradient: linear-gradient(135deg, #1a365d 0%, #3e2723 100%);
+			--color-bg-gradient: radial-gradient(circle at 50% 0%, #fffefc 0%, #fdfbf7 60%, #f4f1ea 100%);
+	
+			/* Legacy support/internal aliases */
+			--bg-paper: var(--color-bg);
+			--bg-primary: var(--color-bg); 
+			--bg-secondary: var(--color-surface); 
+			--text-primary: var(--color-text-primary);
+			--text-secondary: var(--color-text-secondary);
+			--border-color: var(--color-border);
+			--btn-secondary: var(--color-btn-secondary);
+			--bg-gradient: var(--color-bg-gradient);
+			--brand-gradient: var(--color-brand-gradient);
+			--color-success-text: var(--color-success);
+			--color-danger-bg: var(--color-error-bg);
+			--color-danger-text: var(--color-error);
+			--color-warning-text: var(--color-warning);
+	
+			/* Refined Shadows */
+			--shadow: 
+				0 1px 2px -1px rgba(0, 0, 0, 0.08),
+				0 4px 12px -2px rgba(42, 47, 53, 0.06); 
+	
+			/* Typography */
+			--font-body: "Crimson Pro", "Gowun Batang", serif;
+			--font-display: "Newsreader", "Gowun Batang", serif;
+			--font-mono: "JetBrains Mono", monospace;
+		}
+	
+		:global(.dark) {
+			--color-bg: #1c1c1e;
+			--color-surface: #252528;
+			--color-primary: #a5b4fc;
+			--color-secondary: #fca5a5;
+			--color-accent: #fca5a5;
+	
+			--color-text-primary: #e6e6e6;
+			--color-text-secondary: #a1a1aa;
+			--color-text-muted: #71717a;
+	
+			--color-border: #3f3f42;
+			--color-btn-secondary: #2c2c2e;
+	
+			--color-success: #86efac;
+			--color-success-bg: #052e16;
+			--color-error: #fca5a5;
+			--color-error-bg: #450a0a;
+			--color-warning: #fcd34d;
+			--color-warning-bg: #422006;
+	
+			--color-brand-gradient: linear-gradient(135deg, #a5b4fc 0%, #fca5a5 100%);
+			--color-bg-gradient: radial-gradient(circle at 50% 0%, #2c2c2e 0%, #1c1c1e 70%, #151516 100%);
+	
+			--shadow: 
+				0 4px 20px -2px rgba(0, 0, 0, 0.6),
+				0 2px 8px -2px rgba(0, 0, 0, 0.4);
+		}
+		:global(*) {
 		box-sizing: border-box;
 	}
 
