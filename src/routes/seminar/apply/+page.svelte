@@ -142,7 +142,9 @@
                 <input type="hidden" name="speakerIds" value={JSON.stringify(selectedSpeakers.map(s => s.id))} />
             </div>
 
-            <button class="btn submit">신청하기</button>
+            <button class="btn submit" disabled={processing}>
+                {processing ? '처리 중...' : '신청하기'}
+            </button>
         </form>
     {/if}
 </div>
