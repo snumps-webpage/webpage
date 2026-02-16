@@ -173,7 +173,8 @@
     	        {:else if events.length === 0}
     				<p class="empty">생성된 이벤트가 없습니다.</p>
     			{:else}
-    				<div class="table-container">
+                    <!-- Desktop Table -->
+    				<div class="table-container desktop-only">
     					<table>
     						<thead>
     							<tr>
@@ -224,8 +225,48 @@
     						</tbody>
     					</table>
     				</div>
+
+                    <!-- Mobile Cards -->
+                    <div class="mobile-card-list mobile-only">
+                        {#each events as event (event.id)}
+                            <div class="admin-card {event.status}">
+                                <div class="card-header">
+                                    <span class="title">{event.title}</span>
+                                    <span class="status-badge {event.status}">{event.status}</span>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>일시:</strong> {event.date}</p>
+                                    <p><strong>종류:</strong> <span class="tag">{event.type}</span></p>
+                                    {#if event.status !== 'draft'}
+                                        <div class="links mt-2">
+                                            <span class="hint">출석 링크:</span>
+                                            <CopyButton text={`${window.location.origin}/events/${event.pathId}/${event.attendCode}`} title="출석 링크 복사" />
+                                        </div>
+                                    {/if}
+                                </div>
+                                <div class="card-actions">
+                                    {#if event.status === 'draft' || event.status === 'expired'}
+                                        <form method="POST" action="?/activateEvent" use:enhance>
+                                            <input type="hidden" name="id" value={event.id} />
+                                            <button class="btn activate small">Activate</button>
+                                        </form>
+                                    {:else if event.status === 'active'}
+                                        <form method="POST" action="?/expireEvent" use:enhance>
+                                            <input type="hidden" name="id" value={event.id} />
+                                            <button class="btn expire small">Expire</button>
+                                        </form>
+                                    {/if}
+                                    <form method="POST" action="?/deleteEvent" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까?')}>
+                                        <input type="hidden" name="id" value={event.id} />
+                                        <button class="btn delete small">Delete</button>
+                                    </form>
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
     			{/if}
     		</section>
+
     	    		<section class="mt-4">
     	    			<h2 class="no-sel">출석 승인 대기 ({attendanceQueue.length})</h2>
     	    			{#if loadingQueue}
@@ -236,7 +277,8 @@
     	    	        {:else if attendanceQueue.length === 0}
     	    				<p class="empty">대기 중인 출석 요청이 없습니다.</p>
     	    			{:else}
-    	    				<div class="table-container">
+                            <!-- Desktop Table -->
+    	    				<div class="table-container desktop-only">
     	    					<table>
     	    						<thead>
     	    							<tr>
@@ -279,8 +321,43 @@
     	    						</tbody>
     	    					</table>
     	    				</div>
+
+                            <!-- Mobile Cards -->
+                            <div class="mobile-card-list mobile-only">
+                                {#each attendanceQueue as record (record.id)}
+                                    {@const event = events.find(e => e.id === record.eventId)}
+                                    <div class="admin-card">
+                                        <div class="card-header">
+                                            <span class="title">{record.userName}</span>
+                                            <span class="tag">{record.userDept}</span>
+                                        </div>
+                                        <div class="card-body">
+                                            <p><strong>이벤트:</strong> {event?.title ?? 'Unknown'}</p>
+                                            <p><strong>시간:</strong> {new Date(record.startTime).toLocaleTimeString()} ~ {record.endTime ? new Date(record.endTime).toLocaleTimeString() : '-'}</p>
+                                        </div>
+                                        <div class="card-actions wrap">
+                                            <form method="POST" action="?/approveAttendance" use:enhance>
+                                                <input type="hidden" name="id" value={record.id} />
+                                                <input type="hidden" name="eventId" value={record.eventId} />
+                                                <input type="hidden" name="userEmail" value={record.userEmail} />
+                                                <button class="btn approve small">승인</button>
+                                            </form>
+                                            <form method="POST" action="?/rejectAttendance" use:enhance>
+                                                <input type="hidden" name="id" value={record.id} />
+                                                <button class="btn reject small">거절</button>
+                                            </form>
+                                            <button class="btn edit small" onclick={() => openEdit(record)}>수정</button>
+                                            <form method="POST" action="?/deleteAttendanceRecord" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까?')}>
+                                                <input type="hidden" name="id" value={record.id} />
+                                                <button class="btn delete small">삭제</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                {/each}
+                            </div>
     	    			{/if}
     	    		</section>
+
     	    	        <!-- Edit Dialog -->
         <dialog bind:this={editDialog} class="edit-dialog">
             {#if editingRecord}
@@ -315,388 +392,277 @@
     				<section class="mt-4">
     
     					<div class="section-header">
-    
     			            <h2 class="no-sel">세미나 개설 신청 ({seminarRequests.length})</h2>
-    
     			            <button 
-    
     			                class="refresh-btn" 
-    
     			                onclick={refreshSeminars} 
-    
     			                disabled={refreshingSeminars || loadingSeminars}
-    
     			                aria-label="Refresh seminars"
-    
     			            >
-    
     			                <span class="refresh-icon" class:spinning={refreshingSeminars}>🔄</span>
-    
     			            </button>
-    
     			        </div>
     
-    					
-    
     					{#if loadingSeminars}
-    
     			            <div class="skeleton-list">
-    
     			                <Skeleton height="3rem" className="mb-2" />
-    
     			                <Skeleton height="3rem" className="mb-2" />
-    
     			                <Skeleton height="3rem" />
-    
     			            </div>
-    
     			        {:else if seminarRequests.length === 0}
-    
     						<p class="empty">대기 중인 세미나 신청이 없습니다.</p>
-    
     					{:else}
-    
-    						<div class="table-container">
-    
+                            <!-- Desktop Table -->
+    						<div class="table-container desktop-only">
     							<table>
-    
     								<thead>
-    
     									<tr>
-    
     										<th>주제</th>
-    
     										<th>발표자</th>
-    
     										<th>신청일</th>
-    
     										<th>관리</th>
-    
     									</tr>
-    
     								</thead>
-    
     								<tbody>
-    
     									{#each paginatedSeminars as req (req.id)}
-    
     										<tr>
-    
     											<td>{req.title}</td>
-    
     											<td>
-    
     												{#if req.speakerNames && req.speakerNames.length > 0}
-    
     													{req.speakerNames.join(', ')}
-    
     												{:else}
-    
     													<span class="hint">미지정</span>
-    
     												{/if}
-    
     											</td>
-    
     											<td>{new Date(req.submittedAt).toLocaleDateString()}</td>
-    
     											<td class="actions-cell">
-    
     												<form method="POST" action="?/approveSeminar" use:enhance={() => {
-    
     													return ({ result, update }) => {
-    
     														if (result.type === 'success') toasts.success('세미나가 승인되었습니다.');
-    
     														update();
-    
     													};
-    
     												}} onsubmit={() => confirm(`'${req.title}' 세미나 개설을 승인하시겠습니까?`)}>
-    
     													<input type="hidden" name="id" value={req.id} />
-    
     													<button class="btn approve small">승인</button>
-    
     												</form>
-    
     												<form method="POST" action="?/rejectSeminar" use:enhance={() => {
-    
     													return ({ result, update }) => {
-    
     														if (result.type === 'success') toasts.info('신청이 반려/삭제되었습니다.');
-    
     														update();
-    
     													};
-    
     												}} onsubmit={() => confirm('반려하시겠습니까?')}>
-    
     													<input type="hidden" name="id" value={req.id} />
-    
     													<button class="btn reject small">반려</button>
-    
     												</form>
-    
     											</td>
-    
     										</tr>
-    
     									{/each}
-    
     								</tbody>
-    
     							</table>
-    
     						</div>
-    
+
+                            <!-- Mobile Cards -->
+                            <div class="mobile-card-list mobile-only">
+                                {#each paginatedSeminars as req (req.id)}
+                                    <div class="admin-card">
+                                        <div class="card-header">
+                                            <span class="title">{req.title}</span>
+                                            <span class="tag status {req.status}">{req.status}</span>
+                                        </div>
+                                        <div class="card-body">
+                                            <p><strong>발표자:</strong> {req.speakerNames?.join(', ') || '미지정'}</p>
+                                            <p><strong>신청일:</strong> {new Date(req.submittedAt).toLocaleDateString()}</p>
+                                        </div>
+                                        <div class="card-actions">
+                                            <form method="POST" action="?/approveSeminar" use:enhance>
+                                                <input type="hidden" name="id" value={req.id} />
+                                                <button class="btn approve small">승인</button>
+                                            </form>
+                                            <form method="POST" action="?/rejectSeminar" use:enhance>
+                                                <input type="hidden" name="id" value={req.id} />
+                                                <button class="btn reject small">반려</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                {/each}
+                            </div>
     			
-    
     			            {#if totalSeminarPages > 1}
-    
     			                <div class="pagination">
-    
-    			                    <button 
-    
-    			                        class="page-btn" 
-    
-    			                        disabled={seminarPage === 1} 
-    
-    			                        onclick={() => seminarPage--}
-    
-    			                    >
-    
-    			                        이전
-    
-    			                    </button>
-    
-    			                    
-    
+    			                    <button class="page-btn" disabled={seminarPage === 1} onclick={() => seminarPage--}>이전</button>
     			                    {#each Array.from({ length: totalSeminarPages }).map((_, i) => i) as i (i)}
-    
-    			                        <button 
-    
-    			                            class:active={seminarPage === i + 1} 
-    
-    			                            onclick={() => seminarPage = i + 1}
-    
-    			                            class="page-btn"
-    
-    			                        >
-    
-    			                            {i + 1}
-    
-    			                        </button>
-    
+    			                        <button class:active={seminarPage === i + 1} onclick={() => seminarPage = i + 1} class="page-btn">{i + 1}</button>
     			                    {/each}
-    
-    			
-    
-    			                    <button 
-    
-    			                        class="page-btn" 
-    
-    			                        disabled={seminarPage === totalSeminarPages} 
-    
-    			                        onclick={() => seminarPage++}
-    
-    			                    >
-    
-    			                        다음
-    
-    			                    </button>
-    
+    			                    <button class="page-btn" disabled={seminarPage === totalSeminarPages} onclick={() => seminarPage++}>다음</button>
     			                </div>
-    
     			            {/if}
-    
     					{/if}
-    
     				</section>
-    
     			
-    	    		    		<section class="mt-4">
-    
+    	    		<section class="mt-4">
     			
-    	    		    
+    	    		    <div class="section-header">
+    	    		        <h2 class="no-sel">가입 승인 대기 ({applications.length})</h2>
+    	    		        <button class="refresh-btn" onclick={refreshApplications} disabled={refreshingApps || loadingApps} aria-label="Refresh applications">
+    	    		            <span class="refresh-icon" class:spinning={refreshingApps}>🔄</span>
+    	    		        </button>
+    	    		    </div>
     
-    			
-    	    		    			<div class="section-header">
-    
-    			
-    	    		                    <h2 class="no-sel">가입 승인 대기 ({applications.length})</h2>
-    
-    			
-    	    		                    <button 
-    
-    			
-    	    		                        class="refresh-btn" 
-    
-    			
-    	    		                        onclick={refreshApplications} 
-    
-    			
-    	    		                        disabled={refreshingApps || loadingApps}
-    
-    			
-    	    		                        aria-label="Refresh applications"
-    
-    			
-    	    		                    >
-    
-    			
-    	    		                        <span class="refresh-icon" class:spinning={refreshingApps}>🔄</span>
-    
-    			
-    	    		                    </button>
-    
-    			
-    	    		                </div>
-    
-    			
-    	    		    
-    
-    			
-    	    		    			
-    
-    			
-    	    		    
-    
-    			
-    	    		    			{#if loadingApps}
-    
-    			
-    	    		                    <div class="skeleton-list">
-                                            <Skeleton height="3rem" className="mb-2" />
-                                            <Skeleton height="3rem" className="mb-2" />
-                                            <Skeleton height="3rem" />
-                                        </div>
-    
-    			
-    	    		                {:else if applications.length === 0}
-    
-    			
-    	    		    
-    
-    			
-    	    		    				<p class="empty">대기 중인 가입 신청이 없습니다.</p>
-    
-    			
-    	    		    
-    
-    			
-    	    		    			{:else}
-    
-    			
-    	    		                    <div class="table-container">
-                                            <table>
-                                                <thead>
-                                                    <tr>
-                                                        <th>이름</th>
-                                                        <th>학과</th>
-                                                        <th>신청일</th>
-                                                        <th>상세 정보</th>
-                                                        <th>관리</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {#each paginatedApps as app (app.id)}
-                                                        <tr class:accepted={app.accepted}>
-                                                            <td>{app.name}</td>
-                                                            <td><span class="tag">{app.department}</span></td>
-                                                            <td>{new Date(app.submittedAt).toLocaleDateString()}</td>
-                                                            <td>
-                                                                <details>
-                                                                    <summary>보기</summary>
-                                                                    <div class="details-content">
-                                                                        <p class="email-row">
-                                                                            <strong>이메일:</strong> {app.email}
-                                                                            <CopyButton text={app.email} title="이메일 복사" />
-                                                                        </p>
-                                                                        <p class="phone-row">
-                                                                            <strong>전화번호:</strong> {app.phone}
-                                                                            <CopyButton text={app.phone} title="전화번호 복사" />
-                                                                        </p>
-                                                                        <p><strong>배경지식:</strong><br>{app.background || '-'}</p>
-                                                                    </div>
-                                                                </details>
-                                                            </td>
-                                                            <td class="actions-cell">
-                                                                {#if app.accepted}
-                                                                    <span class="status-badge active">승인됨</span>
-                                                                {:else}
-                                                                    <form method="POST" action="?/approve" use:enhance={({ formData }) => {
-                                                                        const id = formData.get('id');
-                                                                        const idx = applications.findIndex(a => a.id === id);
-                                                                        if (idx !== -1) applications[idx].processing = true;
-                                                                        return async ({ result }) => {
-                                                                            if (result.type === 'success') {
-                                                                                toasts.success('회원 가입이 승인되었습니다.');
-                                                                                if (idx !== -1) {
-                                                                                    applications[idx].accepted = true;
-                                                                                    applications[idx].processing = false;
-                                                                                }
-                                                                            } else {
-                                                                                if (idx !== -1) applications[idx].processing = false;
-                                                                            }
-                                                                        };
-                                                                    }}>
-                                                                        <input type="hidden" name="id" value={app.id} />
-                                                                        <button class="btn approve small" disabled={app.processing}>승인</button>
-                                                                    </form>
-                                                                {/if}
+    			{#if loadingApps}
+    	    		<div class="skeleton-list">
+                        <Skeleton height="3rem" className="mb-2" />
+                        <Skeleton height="3rem" className="mb-2" />
+                        <Skeleton height="3rem" />
+                    </div>
+    	    	{:else if applications.length === 0}
+    	    		<p class="empty">대기 중인 가입 신청이 없습니다.</p>
+    	    	{:else}
+                    <!-- Desktop Table -->
+    	    		<div class="table-container desktop-only">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>이름</th>
+                                    <th>학과</th>
+                                    <th>신청일</th>
+                                    <th>상세 정보</th>
+                                    <th>관리</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {#each paginatedApps as app (app.id)}
+                                    <tr class:accepted={app.accepted}>
+                                        <td>{app.name}</td>
+                                        <td><span class="tag">{app.department}</span></td>
+                                        <td>{new Date(app.submittedAt).toLocaleDateString()}</td>
+                                        <td>
+                                            <details>
+                                                <summary>보기</summary>
+                                                <div class="details-content">
+                                                    <p class="email-row">
+                                                        <strong>이메일:</strong> {app.email}
+                                                        <CopyButton text={app.email} title="이메일 복사" />
+                                                    </p>
+                                                    <p class="phone-row">
+                                                        <strong>전화번호:</strong> {app.phone}
+                                                        <CopyButton text={app.phone} title="전화번호 복사" />
+                                                    </p>
+                                                    <p><strong>배경지식:</strong><br>{app.background || '-'}</p>
+                                                </div>
+                                            </details>
+                                        </td>
+                                        <td class="actions-cell">
+                                            {#if app.accepted}
+                                                <span class="status-badge active">승인됨</span>
+                                            {:else}
+                                                <form method="POST" action="?/approve" use:enhance={({ formData }) => {
+                                                    const id = formData.get('id');
+                                                    const idx = applications.findIndex(a => a.id === id);
+                                                    if (idx !== -1) applications[idx].processing = true;
+                                                    return async ({ result }) => {
+                                                        if (result.type === 'success') {
+                                                            toasts.success('회원 가입이 승인되었습니다.');
+                                                            if (idx !== -1) {
+                                                                applications[idx].accepted = true;
+                                                                applications[idx].processing = false;
+                                                            }
+                                                        } else {
+                                                            if (idx !== -1) applications[idx].processing = false;
+                                                        }
+                                                    };
+                                                }}>
+                                                    <input type="hidden" name="id" value={app.id} />
+                                                    <button class="btn approve small" disabled={app.processing}>승인</button>
+                                                </form>
+                                            {/if}
 
-                                                                <form method="POST" action="?/reject" use:enhance={({ formData }) => {
-                                                                    const id = formData.get('id');
-                                                                    const idx = applications.findIndex(a => a.id === id);
-                                                                    if (idx !== -1) applications[idx].processing = true;
-                                                                    return async ({ result, update }) => {
-                                                                        if (result.type === 'failure' || result.type === 'error') {
-                                                                            if (idx !== -1) applications[idx].processing = false;
-                                                                        }
-                                                                        update();
-                                                                    };
-                                                                }} onsubmit={() => confirm(app.accepted ? '신청 내역을 삭제하시겠습니까?' : '정말 거절하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.')}>
-                                                                    <input type="hidden" name="id" value={app.id} />
-                                                                    <button class="btn reject small" disabled={app.processing}>{app.accepted ? '삭제' : '거절'}</button>
-                                                                </form>
-                                                            </td>
-                                                        </tr>
-                                                    {/each}
-                                                </tbody>
-                                            </table>
-                                        </div>
+                                            <form method="POST" action="?/reject" use:enhance={({ formData }) => {
+                                                const id = formData.get('id');
+                                                const idx = applications.findIndex(a => a.id === id);
+                                                if (idx !== -1) applications[idx].processing = true;
+                                                return async ({ result, update }) => {
+                                                    if (result.type === 'failure' || result.type === 'error') {
+                                                        if (idx !== -1) applications[idx].processing = false;
+                                                    }
+                                                    update();
+                                                };
+                                            }} onsubmit={() => confirm(app.accepted ? '신청 내역을 삭제하시겠습니까?' : '정말 거절하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.')}>
+                                                <input type="hidden" name="id" value={app.id} />
+                                                <button class="btn reject small" disabled={app.processing}>{app.accepted ? '삭제' : '거절'}</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                {/each}
+                            </tbody>
+                        </table>
+                    </div>
 
-                                        {#if totalAppPages > 1}
-                                            <div class="pagination">
-                                                <button class="page-btn" disabled={appPage === 1} onclick={() => appPage--}>이전</button>
-                                                {#each Array.from({ length: totalAppPages }).map((_, i) => i) as i (i)}
-                                                    <button class:active={appPage === i + 1} onclick={() => appPage = i + 1} class="page-btn">{i + 1}</button>
-                                                {/each}
-                                                <button class="page-btn" disabled={appPage === totalAppPages} onclick={() => appPage++}>다음</button>
-                                            </div>
-                                        {/if}
-    
-    			
-    	    		    			{/if}
-    
-    			
-    	    		
-    
+                    <!-- Mobile Cards -->
+                    <div class="mobile-card-list mobile-only">
+                        {#each paginatedApps as app (app.id)}
+                            <div class="admin-card {app.accepted ? 'accepted' : ''}">
+                                <div class="card-header">
+                                    <span class="title">{app.name}</span>
+                                    <span class="tag">{app.department}</span>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>신청일:</strong> {new Date(app.submittedAt).toLocaleDateString()}</p>
+                                    <details>
+                                        <summary>상세 정보 보기</summary>
+                                        <div class="details-content mt-2">
+                                            <p class="email-row"><strong>이메일:</strong> {app.email} <CopyButton text={app.email} /></p>
+                                            <p class="phone-row"><strong>전화번호:</strong> {app.phone} <CopyButton text={app.phone} /></p>
+                                            <p><strong>배경지식:</strong><br>{app.background || '-'}</p>
+                                        </div>
+                                    </details>
+                                </div>
+                                <div class="card-actions">
+                                    {#if app.accepted}
+                                        <span class="status-badge active">승인됨</span>
+                                    {:else}
+                                        <form method="POST" action="?/approve" use:enhance>
+                                            <input type="hidden" name="id" value={app.id} />
+                                            <button class="btn approve small">승인</button>
+                                        </form>
+                                    {/if}
+                                    <form method="POST" action="?/reject" use:enhance>
+                                        <input type="hidden" name="id" value={app.id} />
+                                        <button class="btn reject small">{app.accepted ? '삭제' : '거절'}</button>
+                                    </form>
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+
+                    {#if totalAppPages > 1}
+                        <div class="pagination">
+                            <button class="page-btn" disabled={appPage === 1} onclick={() => appPage--}>이전</button>
+                            {#each Array.from({ length: totalAppPages }).map((_, i) => i) as i (i)}
+                                <button class:active={appPage === i + 1} onclick={() => appPage = i + 1} class="page-btn">{i + 1}</button>
+                            {/each}
+                            <button class="page-btn" disabled={appPage === totalAppPages} onclick={() => appPage++}>다음</button>
+                        </div>
+                    {/if}
+    			{/if}
     				</section>
-    
     			</div>
 
 <style>
 	.mt-4 {
 		margin-top: 4rem;
 	}
+
+    .mt-2 {
+        margin-top: 0.5rem;
+    }
 	
 	.admin-container {
 		max-width: 1200px;
 		margin: 0 auto;
 		padding: 2rem;
         animation: slide-up-fade 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        width: 100%;
+        box-sizing: border-box;
 	}
 
 	header {
@@ -706,6 +672,8 @@
 		margin-bottom: 3rem;
 		border-bottom: 2px solid var(--border-color);
 		padding-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1.5rem;
 	}
 
 	h1 { 
@@ -720,6 +688,7 @@
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
+        flex-wrap: wrap;
 	}
 
 	.admin-action-btn {
@@ -802,6 +771,7 @@
         border: 1px solid var(--border-color);
         box-shadow: var(--shadow);
         min-width: 400px;
+        max-width: 95vw;
         background: var(--bg-secondary);
         color: var(--text-primary);
     }
@@ -874,6 +844,7 @@
 		display: flex;
 		gap: 0.5rem;
 		align-items: center;
+        flex-wrap: wrap;
 	}
 
     .section-header {
@@ -959,6 +930,7 @@
         display: flex;
         align-items: center;
         gap: 0.5rem;
+        flex-wrap: wrap;
     }
 
     .tag {
@@ -970,6 +942,88 @@
         font-size: 0.7rem;
         font-weight: 700;
         text-transform: uppercase;
+    }
+
+    /* Mobile Cards */
+    .mobile-card-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .admin-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 1.25rem;
+        box-shadow: var(--shadow);
+        animation: slide-up-fade 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .admin-card .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .admin-card .title {
+        font-family: var(--font-display);
+        font-weight: 600;
+        font-style: italic;
+        font-size: 1.2rem;
+        color: var(--text-primary);
+    }
+
+    .admin-card .card-body p {
+        margin: 0.25rem 0;
+        font-size: 0.95rem;
+    }
+
+    .admin-card .card-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .desktop-only { display: block; }
+    .mobile-only { display: none; }
+
+    @media (max-width: 768px) {
+        .admin-container {
+            padding: 1rem;
+        }
+
+        .desktop-only { display: none; }
+        .mobile-only { display: block; }
+
+        header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        h1 {
+            font-size: 1.75rem;
+        }
+
+        .header-actions {
+            width: 100%;
+        }
+
+        .admin-action-btn {
+            flex: 1;
+            text-align: center;
+            padding: 0.5rem 1rem;
+            font-size: 0.7rem;
+        }
+
+        .mt-4 {
+            margin-top: 2rem;
+        }
     }
 
     @keyframes slide-up-fade {
