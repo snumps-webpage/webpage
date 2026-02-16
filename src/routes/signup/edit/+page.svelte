@@ -81,6 +81,8 @@
         justify-content: center;
         background: var(--bg-primary);
         padding: 2rem 1rem;
+        width: 100%;
+        box-sizing: border-box;
     }
 
     .card {
@@ -91,6 +93,19 @@
         width: 100%;
         max-width: 500px;
         border: 1px solid var(--border-color);
+        box-sizing: border-box;
+    }
+
+    @media (max-width: 600px) {
+        .container {
+            padding: 1rem;
+        }
+        .card {
+            padding: 1.5rem;
+        }
+        .alert-actions {
+            max-width: 100%;
+        }
     }
 
     h1 {
