@@ -18,7 +18,7 @@
 			</div>
 		{:else}
 			<p class="desc no-sel">
-				입력하신 정보는 동아리 운영 목적으로만 사용됩니다.
+				<span class="text-break">입력하신 정보는</span> <span class="text-break">동아리 운영 목적으로만</span> <span class="text-break">사용됩니다.</span>
 			</p>
 
 			{#if form?.error}
@@ -27,7 +27,7 @@
 
 			{#if form?.success}
 				<div class="success-message">
-					<h3>신청이 완료되었습니다!</h3>
+					<h3><span class="text-break">신청이</span> <span class="text-break">완료되었습니다!</span></h3>
 					<p>가입 신청이 성공적으로 접수되었습니다. 관리자 승인 후 이용이 가능합니다.</p>
 					<p>가입 승인 여부는 메일로 안내되므로 확인 부탁드립니다.</p>
                     <div class="alert-actions mt-4">
@@ -146,7 +146,17 @@
         font-style: italic;
     }
 
-	.desc { color: var(--text-secondary); margin-bottom: 2.5rem; font-size: 1rem; text-align: center; font-family: var(--font-body); font-style: italic; }
+	.desc { 
+        color: var(--text-secondary); 
+        margin-bottom: 2.5rem; 
+        font-size: 1rem; 
+        text-align: center; 
+        font-family: var(--font-body); 
+        font-style: italic; 
+        word-break: keep-all;
+        overflow-wrap: break-word;
+        line-height: 1.5;
+    }
 
     .form-group {
         margin-bottom: 1.75rem;
@@ -352,8 +362,22 @@
         font-family: var(--font-display);
         color: var(--color-success-text);
         font-style: italic;
-        font-size: 1.5rem;
+        font-size: clamp(1.25rem, 5vw, 1.75rem);
         margin-bottom: 1rem;
+        word-break: keep-all;
+        overflow-wrap: break-word;
+        line-height: 1.3;
+    }
+
+    .success-message p {
+        word-break: keep-all;
+        overflow-wrap: break-word;
+        line-height: 1.5;
+        margin-bottom: 0.5rem;
+    }
+
+    .text-break {
+        display: inline-block;
     }
 
     .btn {
