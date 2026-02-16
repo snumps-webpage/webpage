@@ -173,18 +173,19 @@
 													</div>
 												</div>
 												{/each}
-												                                                {#each result.seminarRequests as req (req.id)}
-												                                                <div class="seminar-item request {req.status}">
-												                                                    <div class="seminar-info">
-												                                                        <span class="sem-tag status">{req.status === 'approved' ? '승인됨' : req.status === 'rejected' ? '반려됨' : '승인 대기'}</span>
-												                                                        <span class="sem-title">{req.title}</span>
-												                                                        <span class="sem-meta">{new Date(req.submittedAt).toLocaleDateString()} 신청</span>
-												                                                        {#if req.status === 'pending'}
-												                                                            <a href="/seminar/edit/{req.id}" class="btn-edit-inline">신청 정보 수정</a>
-												                                                        {/if}
-												                                                    </div>
-												                                                </div>
-												                                                {/each}											</div>
+												{#each result.seminarRequests as req (req.id)}
+                                                <div class="seminar-item request {req.status}">
+                                                    <div class="seminar-info">
+                                                        <span class="sem-tag status">{req.status === 'approved' ? '승인됨' : req.status === 'rejected' ? '반려됨' : '승인 대기'}</span>
+                                                        <span class="sem-title">{req.title}</span>
+                                                        <span class="sem-meta">{new Date(req.submittedAt).toLocaleDateString()} 신청</span>
+                                                        {#if req.status === 'pending'}
+                                                            <a href="/seminar/edit/{req.id}" class="btn-edit-inline">신청 정보 수정</a>
+                                                        {/if}
+                                                    </div>
+                                                </div>
+                                                {/each}
+                                            </div>
 											{/if}
 										</div>
 										{/snippet}
@@ -195,37 +196,40 @@
 													<form method="POST" action="?/updateProfile" use:enhance>
 														<div class="profile-summary">
 															<div class="form-group">
-																<label for="phone" class="no-sel">전화번호</label>										<input 
-											type="tel" 
-											id="phone" 
-											name="phone" 
-											value={result.profile.phone} 
-											placeholder="010-1234-5678" 
-											pattern="010[- ]?\d&#123;3,4&#125;[- ]?\d&#123;4&#125;"
-											title="숫자만 입력하거나 하이픈(-) 또는 공백을 포함할 수 있습니다."
-										/>
-									</div>
-									<div class="form-group">
-										<label for="background" class="no-sel">배경지식</label>
-										<textarea id="background" name="background" rows="2" placeholder="관심 분야 등" style="min-height: 20vh">{result.profile.background}</textarea>
-									</div>
-									<button class="btn-save">저장</button>
-								</div>
-							</form>
-						{/snippet}
+																<label for="phone" class="no-sel">전화번호</label>
+                                                                <input 
+                                                                    type="tel" 
+                                                                    id="phone" 
+                                                                    name="phone" 
+                                                                    value={result.profile.phone} 
+                                                                    placeholder="010-1234-5678" 
+                                                                    pattern="010[- ]?\d{3,4}[- ]?\d{4}"
+                                                                    title="숫자만 입력하거나 하이픈(-) 또는 공백을 포함할 수 있습니다."
+                                                                />
+                                                            </div>
+                                                            <div class="form-group">
+                                                                <label for="background" class="no-sel">배경지식</label>
+                                                                <textarea id="background" name="background" rows="2" placeholder="관심 분야 등" style="min-height: 20vh">{result.profile.background}</textarea>
+                                                            </div>
+                                                            <button class="btn-save">저장</button>
+                                                        </div>
+                                                    </form>
+                                                {/snippet}
 																				
 										<!-- 3. Attendance Stats -->
                         <section class="stats-card no-sel">
                             <h2>{data.semester} 출석 현황</h2>
                             <div class="stats-grid">
-                                <div class="stat-item">
-                                    <span class="stat-value">{result.myAttendanceStats.attended}</span>
-                                    <span class="stat-label">출석</span>
-                                </div>
-                                <div class="stat-divider">/</div>
-                                <div class="stat-item">
-                                    <span class="stat-value total">{result.myAttendanceStats.total}</span>
-                                    <span class="stat-label">전체 활동</span>
+                                <div class="stats-text">
+                                    <div class="stat-item">
+                                        <span class="stat-value">{result.myAttendanceStats.attended}</span>
+                                        <span class="stat-label">출석</span>
+                                    </div>
+                                    <div class="stat-divider">/</div>
+                                    <div class="stat-item">
+                                        <span class="stat-value total">{result.myAttendanceStats.total}</span>
+                                        <span class="stat-label">전체 활동</span>
+                                    </div>
                                 </div>
                                 <div class="stat-chart">
                                     {#if result.myAttendanceStats.total > 0}
@@ -236,7 +240,7 @@
                         </section>
                     </div>
 
-                    <!-- 4. Activities List (Restored Table View) -->
+                    <!-- 4. Activities List (Responsive View) -->
                     <section class="activities-list">
                         <div class="list-header">
                             <h3 class="no-sel">활동 목록</h3>
@@ -264,7 +268,8 @@
                         {#if filteredActivities.length === 0}
                             <p class="empty-state">조건에 맞는 활동 내역이 없습니다.</p>
                         {:else}
-                            <div class="table-container">
+                            <!-- Desktop View -->
+                            <div class="table-container desktop-only">
                                 <table>
                                     <thead>
                                         <tr>
@@ -296,6 +301,28 @@
                                     </tbody>
                                 </table>
                             </div>
+
+                            <!-- Mobile View: Activity Cards -->
+                            <div class="mobile-activity-list mobile-only">
+                                {#each filteredActivities as activity (activity.id)}
+                                    <div class="activity-card {activity.attended ? 'attended' : 'absent'}">
+                                        <div class="card-header">
+                                            <span class="date">{activity.date}</span>
+                                            {#if activity.attended}
+                                                <span class="badge success">출석</span>
+                                            {:else}
+                                                <span class="badge fail">결석</span>
+                                            {/if}
+                                        </div>
+                                        <div class="card-content">
+                                            <a href={activity.url} target="_blank" rel="noopener noreferrer" class="name">
+                                                {activity.name}
+                                            </a>
+                                            <span class="tag">{activity.type}</span>
+                                        </div>
+                                    </div>
+                                {/each}
+                            </div>
                         {/if}
                     </section>
                 {/if}
@@ -326,6 +353,8 @@
 		max-width: 900px;
 		margin: 0 auto;
 		padding: 2rem;
+		width: 100%;
+		box-sizing: border-box;
 	}
 
 	.dashboard-header {
@@ -598,7 +627,19 @@
         font-style: italic;
 	}
 
-	.stats-grid { display: flex; align-items: center; gap: 2rem; }
+	.stats-grid { 
+        display: flex; 
+        align-items: center; 
+        justify-content: space-between;
+        gap: 2rem; 
+    }
+    
+    .stats-text {
+        display: flex;
+        align-items: center;
+        gap: 2rem;
+    }
+
 	.stat-item { display: flex; flex-direction: column; align-items: center; }
 	.stat-value { font-size: 3rem; font-weight: 500; color: var(--text-primary); font-family: var(--font-display); line-height: 1; }
 	.stat-value.total { color: var(--text-secondary); opacity: 0.4; }
@@ -635,7 +676,12 @@
 		padding-bottom: 1.25rem;
 	}
 
-	.filters { display: flex; gap: 0.75rem; }
+	.filters { 
+        display: flex; 
+        gap: 0.75rem; 
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
 
 	.activities-list h3 {
 		font-size: 1.5rem;
@@ -731,6 +777,110 @@
 	.badge.fail { background: var(--color-danger-bg); color: var(--color-danger-text); }
 
 	.empty-state { text-align: center; padding: 4rem; color: var(--text-secondary); font-style: italic; font-family: var(--font-body); }
+
+    /* Mobile View Elements */
+    .mobile-activity-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .activity-card {
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .activity-card .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0.5rem;
+    }
+
+    .activity-card .card-content {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0;
+        background: transparent;
+    }
+
+    .activity-card .name {
+        font-family: var(--font-display);
+        font-style: italic;
+        color: var(--text-primary);
+        text-decoration: none;
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+
+    .desktop-only { display: block; }
+    .mobile-only { display: none; }
+
+    @media (max-width: 768px) {
+        .container {
+            padding: 1rem;
+        }
+
+        .desktop-only { display: none; }
+        .mobile-only { display: block; }
+
+        .dashboard-header {
+            flex-direction: column;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+
+        .stats-grid {
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 1.5rem;
+        }
+
+        .stats-text {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .stat-chart {
+            margin: 0;
+        }
+
+        .list-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .filters {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .semester-select {
+            flex: 1;
+            min-width: 120px;
+        }
+
+        .activities-list {
+            padding: 1.5rem;
+        }
+
+        .seminar-item {
+            padding: 1rem;
+        }
+
+        .sem-title {
+            font-size: 1.1rem;
+        }
+    }
 
 	/* Landing Hero */
     .landing-hero {
