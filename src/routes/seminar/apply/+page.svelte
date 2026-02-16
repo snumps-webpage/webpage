@@ -150,13 +150,27 @@
 <style>
     .container {
         max-width: 600px;
-        margin: 4rem auto;
+        margin: 2rem auto;
         padding: 3rem;
         background: var(--bg-secondary);
         border-radius: 8px;
         box-shadow: var(--shadow);
         border: 1px solid var(--border-color);
         animation: slide-up-fade 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    @media (max-width: 600px) {
+        .container {
+            margin: 1rem auto;
+            padding: 1.5rem;
+        }
+        
+        .results-dropdown {
+            left: 0;
+            width: 100%;
+        }
     }
 
     h1 { 
