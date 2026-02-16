@@ -108,6 +108,9 @@
 
 <style>
 	:root {
+		/* Header Height for sticky elements */
+		--nav-height: 4rem;
+
 		/* "Math Journal" Aesthetic */
 		--bg-paper: #fdfbf7;
 		--bg-primary: var(--bg-paper); 
@@ -171,19 +174,31 @@
 		--brand-gradient: linear-gradient(135deg, #a5b4fc 0%, #fca5a5 100%);
 	}
 
-	:global(body) {
-		margin: 0;
-		font-family: var(--font-body);
+	:global(*) {
+		box-sizing: border-box;
+	}
+
+	:global(html) {
 		background: var(--bg-primary);
 		background-image: var(--bg-gradient);
-		background-attachment: fixed; /* Parallax-like feel */
+		background-attachment: fixed;
+		background-size: cover;
+		height: 100%;
+		margin: 0;
+		padding: 0;
+	}
+
+	:global(body) {
+		margin: 0;
+		padding: 0;
+		font-family: var(--font-body);
 		color: var(--text-primary);
 		display: flex;
 		flex-direction: column;
-		min-height: 100vh;
+		min-height: 100%;
 		transition: color 0.2s;
 		-webkit-font-smoothing: antialiased;
-		line-height: 1.6; /* Increased for readability */
+		line-height: 1.6;
 	}
 
 	:global(h1), :global(h2), :global(h3), :global(h4), :global(h5), :global(h6) {
@@ -215,7 +230,10 @@
 		backdrop-filter: blur(16px);
 		-webkit-backdrop-filter: blur(16px);
 		border-bottom: 1px solid var(--border-color); /* Thinner, refined border */
-		padding: 0.75rem 1.5rem;
+		padding: 0 1.5rem;
+		height: var(--nav-height);
+		display: flex;
+		align-items: center;
 		position: sticky;
 		top: 0;
 		z-index: 50;
@@ -247,7 +265,7 @@
 		align-items: center;
 		justify-content: center;
 		padding: 0 1.2rem;
-		height: 36px;
+		height: 2.25rem;
 		border-radius: 9999px; /* Full pill */
 		background: transparent;
 		color: var(--text-primary);
@@ -284,12 +302,12 @@
     main {
         flex: 1;
         width: 100%;
-        box-sizing: border-box;
     }
 
     .nav-content {
         max-width: 1200px;
         margin: 0 auto;
+        width: 100%;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -309,7 +327,7 @@
     }
     
     .logo-btn img {
-        height: 24px;
+        height: 1.5rem;
         width: auto;
     }
 
