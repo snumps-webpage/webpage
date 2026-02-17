@@ -29,24 +29,28 @@
 	$effect(() => {
 		if (!browser) return;
 		const root = document.documentElement;
+		const body = document.body;
 		const syncScrollbarComp = () => {
-			const scrollbarComp = Math.max(0, window.innerWidth - root.clientWidth);
-			root.style.setProperty('--mobile-menu-scrollbar-comp', `${scrollbarComp}px`);
+			const scrollbarComp = Math.max(0, window.innerWidth - body.offsetWidth);
+			body.style.setProperty('--mobile-menu-scrollbar-comp', `${scrollbarComp}px`);
 		};
 
-		syncScrollbarComp();
-		root.classList.toggle('mobile-menu-open', isMobileMenuOpen);
-		document.body.classList.toggle('mobile-menu-open', isMobileMenuOpen);
 		if (!isMobileMenuOpen) {
-			root.style.setProperty('--mobile-menu-scrollbar-comp', '0px');
+			root.classList.remove('mobile-menu-open');
+			body.classList.remove('mobile-menu-open');
+			body.style.setProperty('--mobile-menu-scrollbar-comp', '0px');
+			return;
 		}
 
+		syncScrollbarComp();
+		root.classList.add('mobile-menu-open');
+		body.classList.add('mobile-menu-open');
 		window.addEventListener('resize', syncScrollbarComp);
 		return () => {
 			window.removeEventListener('resize', syncScrollbarComp);
-			document.documentElement.classList.remove('mobile-menu-open');
-			document.body.classList.remove('mobile-menu-open');
-			root.style.setProperty('--mobile-menu-scrollbar-comp', '0px');
+			root.classList.remove('mobile-menu-open');
+			body.classList.remove('mobile-menu-open');
+			body.style.setProperty('--mobile-menu-scrollbar-comp', '0px');
 		};
 	});
 
@@ -258,7 +262,6 @@
 				height: 100%;
 				margin: 0;
 				padding: 0;
-				scrollbar-gutter: stable;
 			}
 
 		:global(html.dark) {
