@@ -22,6 +22,10 @@
         --color-success-bg: #EDF2F7;
         --color-error: #000000;
         --color-error-bg: #F7FAFC;
+        --color-success-text: var(--color-success);
+        --color-danger-text: var(--color-error);
+        --color-danger-bg: var(--color-error-bg);
+        --color-warning-text: var(--color-secondary);
     }
 
     :global(.dark) .exp-wrapper {
@@ -35,5 +39,9 @@
         --color-border: #2D3748;
         --color-success-bg: #1A202C;
         --color-error-bg: #171923;
+        --color-success-text: var(--color-success);
+        --color-danger-text: var(--color-error);
+        --color-danger-bg: var(--color-error-bg);
+        --color-warning-text: var(--color-secondary);
     }
 </style>

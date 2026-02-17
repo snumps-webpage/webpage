@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SNUMPS Poster 2026</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Serif+KR:wght@400;500;600;700&family=STIX+Two+Math&family=STIX+Two+Text:ital,wght@0,400;0,500;0,600;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --latex-bg: #f4f4f4;
+        --latex-text: #111111;
+        --latex-muted: #4a4a4a;
+        --latex-rule: #1a1a1a;
+        --logo-ink: #1f4862;
+        --accent: #b22222;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #d8d8d8;
+        color: var(--latex-text);
+        font-family: "Noto Serif KR", "STIX Two Text", "Noto Sans KR", serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .stage {
+        width: min(92vw, 1050px);
+        aspect-ratio: 1 / 1.4142;
+      }
+
+      .poster {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        background: var(--latex-bg);
+        border: 1px solid var(--latex-rule);
+        padding: clamp(1.4rem, 2.7vw, 2.2rem);
+        display: grid;
+        grid-template-rows: auto auto 1fr auto;
+        gap: clamp(0.75rem, 1.5vw, 1.2rem);
+      }
+
+      .poster::before {
+        content: "";
+        position: absolute;
+        inset: 14px;
+        border: 1px solid color-mix(in srgb, var(--latex-rule) 58%, transparent);
+        pointer-events: none;
+      }
+
+      .side-mark {
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: rotate(-90deg) translateX(-50%);
+        transform-origin: left top;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: color-mix(in srgb, var(--latex-text) 30%, transparent);
+        white-space: nowrap;
+      }
+
+      .rule-thick {
+        height: 0;
+        border-top: 2px solid var(--latex-rule);
+      }
+
+      .masthead {
+        display: grid;
+        gap: 0.44rem;
+      }
+
+      .journal-meta {
+        margin: 0;
+        font-family: "JetBrains Mono", monospace;
+        font-size: clamp(0.57rem, 0.9vw, 0.72rem);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--latex-muted);
+      }
+
+      .title {
+        margin: 0;
+        font-size: clamp(3.2rem, 8.2vw, 6.6rem);
+        line-height: 0.9;
+        letter-spacing: 0.045em;
+        font-weight: 500;
+      }
+
+      .subtitle {
+        margin: 0;
+        font-size: clamp(1.02rem, 1.75vw, 1.45rem);
+        font-weight: 500;
+      }
+
+      .content {
+        display: grid;
+        grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+        gap: clamp(1rem, 2vw, 1.6rem);
+      }
+
+      .column {
+        display: grid;
+        align-content: start;
+        gap: clamp(0.9rem, 1.5vw, 1.2rem);
+      }
+
+      .section {
+        border-top: 1px solid color-mix(in srgb, var(--latex-rule) 70%, transparent);
+        padding-top: 0.54rem;
+      }
+
+      .section h2 {
+        margin: 0 0 0.36rem;
+        font-family: "JetBrains Mono", monospace;
+        font-size: clamp(0.62rem, 0.95vw, 0.76rem);
+        letter-spacing: 0.12em;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .section p {
+        margin: 0;
+        line-height: 1.56;
+        font-size: clamp(0.74rem, 1.02vw, 0.92rem);
+      }
+
+      .equation {
+        margin-top: 0.44rem;
+        font-family: "STIX Two Math", "Noto Serif KR", serif;
+        font-size: clamp(0.77rem, 1vw, 0.9rem);
+      }
+
+      .authors {
+        display: grid;
+        gap: 0.58rem;
+      }
+
+      .author-item {
+        display: grid;
+        gap: 0.07rem;
+      }
+
+      .author-name {
+        margin: 0;
+        font-size: clamp(0.83rem, 1.06vw, 0.98rem);
+        font-weight: 600;
+      }
+
+      .author-role,
+      .author-contact {
+        margin: 0;
+        font-size: clamp(0.68rem, 0.92vw, 0.82rem);
+        color: var(--latex-muted);
+      }
+
+      .fractal-panel {
+        position: relative;
+        border-top: 1px solid var(--latex-rule);
+        border-bottom: 1px solid var(--latex-rule);
+        min-height: clamp(230px, 34vw, 370px);
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+      }
+
+      .fractal-panel::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(
+            0deg,
+            color-mix(in srgb, var(--latex-text) 3%, transparent) 0%,
+            transparent 45%,
+            color-mix(in srgb, var(--latex-text) 2%, transparent) 100%
+          );
+        pointer-events: none;
+      }
+
+      .fractal-field {
+        position: relative;
+        width: min(82%, 340px);
+        aspect-ratio: 1 / 1;
+      }
+
+      .fractal-node {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform-origin: 50% 50%;
+        object-fit: contain;
+        filter: grayscale(16%) contrast(112%) brightness(86%);
+      }
+
+      .major-seed {
+        position: absolute;
+        width: 54%;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        filter: grayscale(12%) contrast(108%) brightness(90%);
+        z-index: 3;
+      }
+
+      .caption {
+        margin: 0.48rem 0 0;
+        font-size: clamp(0.61rem, 0.84vw, 0.72rem);
+        line-height: 1.4;
+        color: var(--latex-muted);
+      }
+
+      .mini-graph {
+        margin-top: 0.68rem;
+      }
+
+      .mini-graph svg {
+        width: 100%;
+        height: auto;
+        display: block;
+        border-top: 1px solid color-mix(in srgb, var(--latex-rule) 75%, transparent);
+      }
+
+      .mini-graph figcaption {
+        margin-top: 0.36rem;
+        font-size: clamp(0.61rem, 0.84vw, 0.72rem);
+        color: var(--latex-muted);
+      }
+
+      .footer {
+        border-top: 1px solid var(--latex-rule);
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 0.8rem;
+        padding-top: 0.45rem;
+      }
+
+      .footer p {
+        margin: 0;
+        font-size: clamp(0.62rem, 0.85vw, 0.74rem);
+      }
+
+      .footnote {
+        font-family: "JetBrains Mono", monospace;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--latex-muted);
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px dotted color-mix(in srgb, var(--latex-rule) 70%, transparent);
+      }
+
+      @media (max-width: 760px) {
+        .stage {
+          width: 96vw;
+          aspect-ratio: auto;
+        }
+
+        .poster {
+          min-height: 100%;
+          aspect-ratio: auto;
+          grid-template-rows: auto auto auto auto;
+        }
+
+        .content {
+          grid-template-columns: 1fr;
+        }
+
+        .side-mark {
+          left: 8px;
+          font-size: 9px;
+        }
+      }
+
+      @page {
+        size: A4;
+        margin: 0;
+      }
+
+      @media print {
+        body {
+          min-height: auto;
+          display: block;
+          background: var(--latex-bg);
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+        }
+
+        .stage {
+          width: 210mm;
+          height: 297mm;
+          max-width: none;
+          aspect-ratio: auto;
+        }
+
+        .poster {
+          border-width: 1px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="stage">
+      <article class="poster">
+        <span class="side-mark">SNUMPS @ 29 NOV 2024</span>
+
+        <div class="rule-thick"></div>
+
+        <header class="masthead">
+          <p class="journal-meta">
+            Proceedings of SNUMPS · Vol. 1 · Manuscript Edition
+          </p>
+          <h1 class="title">SNUMPS</h1>
+          <p class="subtitle">서울대학교 수학문제연구회</p>
+        </header>
+
+        <section class="content">
+          <div class="column">
+            <section class="section">
+              <h2>Abstract</h2>
+              <p>
+                SNUMPS는 수학을 좋아하는 사람들이 모여 자유롭게 생각을 나누고,
+                직접 문제를 만들고 풀이를 공유하며 새로운 시각을 발견하는
+                연구회입니다. 단순한 정답보다 증명의 구조, 아이디어의 전이,
+                그리고 사고의 정밀도를 중요하게 다룹니다.
+              </p>
+            </section>
+
+            <section class="section">
+              <h2>Fractal Motif</h2>
+              <p>
+                로고의 분할 원형 구조를 <em>φ-scaling</em>으로 반복 배치하여,
+                하나의 아이디어가 여러 난이도와 관점으로 재귀적으로 확장되는
+                문제 연구 과정을 시각화했습니다.
+              </p>
+              <p class="equation">
+                L<sub>n+1</sub> = φ<sup>-1</sup>R<sub>137.5°</sub>(L<sub>n</sub>), ·
+                P = Σ<sub>n≥0</sub> L<sub>n</sub>
+              </p>
+            </section>
+
+            <section class="section">
+              <h2>Authors</h2>
+              <div class="authors">
+                <div class="author-item">
+                  <p class="author-name">김건호<sup>*</sup></p>
+                  <p class="author-role">회장 / Author</p>
+                  <p class="author-contact">010-3472-6234</p>
+                </div>
+                <div class="author-item">
+                  <p class="author-name">서성욱<sup>†</sup></p>
+                  <p class="author-role">부회장 / Co-author</p>
+                  <p class="author-contact">010-2865-4851</p>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="column">
+            <section class="section">
+              <h2>Figure 1</h2>
+              <div class="fractal-panel" aria-hidden="true">
+                <div class="fractal-field" id="fractalField">
+                  <img
+                    src="./favicon.svg"
+                    alt=""
+                    class="major-seed"
+                    loading="eager"
+                    decoding="async"
+                  />
+                </div>
+              </div>
+              <p class="caption">
+                Recursive placements of the SNUMPS mark. Topology is fixed, scale
+                decays by φ.
+              </p>
+            </section>
+
+            <figure class="mini-graph">
+              <svg viewBox="0 0 440 180" role="img" aria-label="활동 추세 그래프">
+                <line x1="0" y1="178" x2="440" y2="178" stroke="#1a1a1a" stroke-width="1" />
+                <line x1="2" y1="12" x2="2" y2="178" stroke="#1a1a1a" stroke-width="1" />
+                <path
+                  d="M12 138 L72 120 L112 102 L156 110 L210 82 L260 70 L320 55 L374 48 L430 36"
+                  fill="none"
+                  stroke="#1f4862"
+                  stroke-width="2"
+                />
+                <path
+                  d="M12 154 L72 146 L112 134 L156 141 L210 126 L260 118 L320 108 L374 96 L430 86"
+                  fill="none"
+                  stroke="#6a6a6a"
+                  stroke-width="1.5"
+                  stroke-dasharray="4 3"
+                />
+              </svg>
+              <figcaption>
+                Figure 2: 활동 밀도(실선)와 난이도 축적(점선)의 선형 비교.
+              </figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <footer class="footer">
+          <p class="footnote">* Chair &nbsp;&nbsp; † Vice Chair</p>
+          <p>
+            [1] <a href="https://instagram.com/snu_mps">instagram.com/snu_mps</a>
+            &nbsp;&nbsp; [2]
+            <a href="https://www.youtube.com/@snu_mps">youtube.com/@snu_mps</a>
+          </p>
+        </footer>
+      </article>
+    </main>
+
+    <script>
+      (() => {
+        const field = document.getElementById("fractalField");
+        if (!field) return;
+        const total = 17;
+        for (let i = 0; i < total; i += 1) {
+          const node = document.createElement("img");
+          const scale = Math.pow(0.78, i + 1);
+          const radius = 8 + i * 2.75;
+          const angle = (i * 137.5 * Math.PI) / 180;
+          const x = 50 + Math.cos(angle) * radius;
+          const y = 50 + Math.sin(angle) * radius;
+          const opacity = Math.max(0.06, 0.35 - i * 0.015);
+
+          node.src = "./favicon.svg";
+          node.alt = "";
+          node.className = "fractal-node";
+          node.width = 345;
+          node.height = 345;
+          node.style.left = `${x}%`;
+          node.style.top = `${y}%`;
+          node.style.width = `${58 * scale}%`;
+          node.style.opacity = `${opacity}`;
+          node.style.zIndex = `${2 - Math.floor(i / 6)}`;
+          node.style.transform = `translate(-50%, -50%) rotate(${i * 11}deg)`;
+          field.appendChild(node);
+        }
+      })();
+    </script>
+  </body>
+</html>
