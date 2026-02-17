@@ -2,6 +2,7 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import instagram from '$lib/assets/instagram.svg';
 	import menuIcon from '$lib/assets/menu.svg';
+	import { browser } from '$app/environment';
 	import { page, navigating } from '$app/state';
 	import { onNavigate, afterNavigate } from '$app/navigation';
 	import { signOut } from '@auth/sveltekit/client';
@@ -10,6 +11,7 @@
 
 	let { children } = $props();
 	const session = $derived(page.data.session);
+	const isGuestLanding = $derived(!session?.user && page.url.pathname === '/');
 
 	// Theme state
 	let currentTheme = $state<Theme>(getInitialTheme());
@@ -17,6 +19,12 @@
 
 	$effect(() => {
 		applyTheme(currentTheme);
+	});
+
+	$effect(() => {
+		if (!browser) return;
+		document.documentElement.classList.toggle('guest-landing', isGuestLanding);
+		return () => document.documentElement.classList.remove('guest-landing');
 	});
 
 	onNavigate((navigation) => {
@@ -56,44 +64,53 @@
 	</div>
 {/if}
 
-<nav class="global-nav">
+<nav class="global-nav" class:guest-latex={isGuestLanding}>
 	<div class="nav-content">
-		<div class="nav-left">
-			<a href="/" class="logo-btn" aria-label="Home">
-				<img src={favicon} alt="SNUMPS" />
-			</a>
-			{#if session?.user}
-				<div class="nav-menus desktop-only">
-					<div class="dropdown">
-						<button class="nav-link">Seminar</button>
-						<div class="dropdown-content">
-							<a href="/seminar/apply">세미나 개설</a>
+		{#if isGuestLanding}
+			<div class="nav-left">
+				<a href="/" class="guest-wordmark no-sel" aria-label="SNUMPS Home">
+					<img src={favicon} alt="" aria-hidden="true" class="guest-logo-mark" />
+				</a>
+			</div>
+			<div class="nav-right"></div>
+		{:else}
+			<div class="nav-left">
+				<a href="/" class="logo-btn" aria-label="Home">
+					<img src={favicon} alt="SNUMPS" />
+				</a>
+				{#if session?.user}
+					<div class="nav-menus desktop-only">
+						<div class="dropdown">
+							<button class="nav-link">Seminar</button>
+							<div class="dropdown-content">
+								<a href="/seminar/apply">세미나 개설</a>
+							</div>
 						</div>
 					</div>
-				</div>
-			{/if}
-		</div>
-		<div class="nav-right">
-			{#if session?.user}
-				<div class="desktop-only nav-actions">
-					{#if page.data.isAdmin}
-						<a href="/admin" class="circle-btn">Admin</a>
-						<a href="/notion" class="circle-btn">DB</a>
-					{/if}
-				</div>
-				<button class="logout-btn" onclick={() => signOut()}>로그아웃</button>
-				<button 
-					class="mobile-menu-toggle mobile-only" 
-					onclick={() => isMobileMenuOpen = !isMobileMenuOpen}
-					aria-label="Toggle menu"
-				>
-					<img src={menuIcon} alt="" />
-				</button>
-			{/if}
-		</div>
+				{/if}
+			</div>
+			<div class="nav-right">
+				{#if session?.user}
+					<div class="desktop-only nav-actions">
+						{#if page.data.isAdmin}
+							<a href="/admin" class="circle-btn">Admin</a>
+							<a href="/notion" class="circle-btn">DB</a>
+						{/if}
+					</div>
+					<button class="logout-btn" onclick={() => signOut()}>로그아웃</button>
+					<button 
+						class="mobile-menu-toggle mobile-only" 
+						onclick={() => isMobileMenuOpen = !isMobileMenuOpen}
+						aria-label="Toggle menu"
+					>
+						<img src={menuIcon} alt="" />
+					</button>
+				{/if}
+			</div>
+		{/if}
 	</div>
 
-	{#if isMobileMenuOpen}
+	{#if !isGuestLanding && isMobileMenuOpen}
 		<div class="mobile-dropdown mobile-only stagger-1">
 			<div class="mobile-dropdown-content">
 				<div class="mobile-group">
@@ -112,61 +129,92 @@
 	{/if}
 </nav>
 
-<main>
+<main class:guest-latex-main={isGuestLanding}>
 	{@render children()}
 </main>
 
 <Toasts />
 
-<footer>
-	<div class="footer-content">
-		<div class="footer-info">
-			<p>
-				<span class="no-sel">회장:</span> {page.data.presidentName} | 
-				<a href="mailto:snumps0@gmail.com">snumps0@gmail.com</a> |
-				<a href="https://instagram.com/snu_mps" target="_blank" rel="noopener noreferrer" class="social-link" aria-label="Instagram">
-					<img src={instagram} alt="Instagram" class="social-icon" />
-				</a>
-			</p>
+{#if isGuestLanding}
+	<footer class="guest-latex-footer">
+		<div class="footer-content">
+			<div class="footer-info">
+				<p>
+					<span class="no-sel">회장:</span> {page.data.presidentName} |
+					<a href="mailto:snumps0@gmail.com">snumps0@gmail.com</a> |
+					<a href="https://instagram.com/snu_mps" target="_blank" rel="noopener noreferrer" class="social-link" aria-label="Instagram">
+						<img src={instagram} alt="Instagram" class="social-icon" />
+					</a>
+				</p>
+			</div>
+			<div class="theme-selector guest-theme-selector">
+				<button class="theme-btn" class:active={currentTheme === 'light'} onclick={() => currentTheme = 'light'}>라이트</button>
+				<span class="sep">|</span>
+				<button class="theme-btn" class:active={currentTheme === 'dark'} onclick={() => currentTheme = 'dark'}>다크</button>
+				<span class="sep">|</span>
+				<button class="theme-btn" class:active={currentTheme === 'system'} onclick={() => currentTheme = 'system'}>시스템</button>
+			</div>
 		</div>
-		<div class="theme-selector">
-			<button class="theme-btn" class:active={currentTheme === 'light'} onclick={() => currentTheme = 'light'}>Light</button>
-			<span class="sep">|</span>
-			<button class="theme-btn" class:active={currentTheme === 'dark'} onclick={() => currentTheme = 'dark'}>Dark</button>
-			<span class="sep">|</span>
-			<button class="theme-btn" class:active={currentTheme === 'system'} onclick={() => currentTheme = 'system'}>System</button>
+	</footer>
+{:else}
+	<footer>
+		<div class="footer-content">
+			<div class="footer-info">
+				<p>
+					<span class="no-sel">회장:</span> {page.data.presidentName} | 
+					<a href="mailto:snumps0@gmail.com">snumps0@gmail.com</a> |
+					<a href="https://instagram.com/snu_mps" target="_blank" rel="noopener noreferrer" class="social-link" aria-label="Instagram">
+						<img src={instagram} alt="Instagram" class="social-icon" />
+					</a>
+				</p>
+			</div>
+			<div class="theme-selector">
+				<button class="theme-btn" class:active={currentTheme === 'light'} onclick={() => currentTheme = 'light'}>Light</button>
+				<span class="sep">|</span>
+				<button class="theme-btn" class:active={currentTheme === 'dark'} onclick={() => currentTheme = 'dark'}>Dark</button>
+				<span class="sep">|</span>
+				<button class="theme-btn" class:active={currentTheme === 'system'} onclick={() => currentTheme = 'system'}>System</button>
+			</div>
 		</div>
-	</div>
-</footer>
+	</footer>
+{/if}
 
 <style>
 		:root {
 			/* Header Height for sticky elements */
-			--nav-height: 4rem;
+			--nav-height: 4.1rem;
 	
-			/* Centralized Color Tokens — Academic Legacy (Default) */
-			--color-bg: #fdfbf7;
-			--color-surface: #f4f1ea;
-			--color-primary: #1a365d;
-			--color-secondary: #3e2723;
-			--color-accent: #9b2c2c;
+			/* Academic paper palette */
+			--color-bg: #f8f5ee;
+			--color-surface: #fcfbf8;
+			--color-primary: #1f2730;
+			--color-secondary: #4b4036;
+			--color-accent: #7c2d12;
 			
-			--color-text-primary: #2a2f35;
-			--color-text-secondary: #5f666d;
-			--color-text-muted: #718096;
+			--color-text-primary: #1f2730;
+			--color-text-secondary: #5c646d;
+			--color-text-muted: #737d87;
 			
-			--color-border: #d8d4cd;
-			--color-btn-secondary: #ebe7e0;
+			--color-border: #cfc8bb;
+			--color-btn-secondary: #efebe3;
 	
-			--color-success: #1b5e20;
-			--color-success-bg: #e8f5e9;
-			--color-error: #b71c1c;
-			--color-error-bg: #ffebee;
-			--color-warning: #f57f17;
-			--color-warning-bg: #fffde7;
+			--color-success: #1f6d3b;
+			--color-success-bg: #e8f5ea;
+			--color-error: #8a1d1d;
+			--color-error-bg: #fceceb;
+			--color-warning: #9a6900;
+			--color-warning-bg: #fff8dc;
 	
-			--color-brand-gradient: linear-gradient(135deg, #1a365d 0%, #3e2723 100%);
-			--color-bg-gradient: radial-gradient(circle at 50% 0%, #fffefc 0%, #fdfbf7 60%, #f4f1ea 100%);
+			--color-brand-gradient: linear-gradient(90deg, #1f2730 0%, #626a74 100%);
+			--color-bg-gradient: radial-gradient(circle at 50% 0%, #fffdf8 0%, #f8f5ee 60%, #f1ece1 100%);
+
+			/* Guest landing LaTeX palette */
+			--latex-bg: #f4f4f4;
+			--latex-text: #111111;
+			--latex-muted: #4a4a4a;
+			--latex-rule: #1a1a1a;
+			--latex-accent: #b22222;
+			--latex-side-mark: rgba(17, 17, 17, 0.22);
 	
 			/* Legacy support/internal aliases */
 			--bg-paper: var(--color-bg);
@@ -184,43 +232,51 @@
 			--color-warning-text: var(--color-warning);
 	
 			/* Refined Shadows */
-			--shadow: 
+			--shadow:
 				0 1px 2px -1px rgba(0, 0, 0, 0.08),
-				0 4px 12px -2px rgba(42, 47, 53, 0.06); 
+				0 4px 12px -2px rgba(42, 47, 53, 0.06);
 	
 			/* Typography */
-			--font-body: "Crimson Pro", "Gowun Batang", serif;
-			--font-display: "Newsreader", "Gowun Batang", serif;
+			--font-body: "Computer Modern Serif", "CMU Serif", "Latin Modern Roman", "STIX Two Text", "Gowun Batang", serif;
+			--font-display: "Computer Modern Serif", "CMU Serif", "Latin Modern Roman", "STIX Two Text", "Gowun Batang", serif;
+			--font-math: "STIX Two Math", "STIX Two Text", "Cambria Math", serif;
 			--font-mono: "JetBrains Mono", monospace;
 		}
 	
 		:global(.dark) {
-			--color-bg: #1c1c1e;
-			--color-surface: #252528;
-			--color-primary: #a5b4fc;
-			--color-secondary: #fca5a5;
-			--color-accent: #fca5a5;
+			--color-bg: #141519;
+			--color-surface: #1b1c21;
+			--color-primary: #d6dfeb;
+			--color-secondary: #c8b8a8;
+			--color-accent: #f2a97d;
 	
-			--color-text-primary: #e6e6e6;
-			--color-text-secondary: #a1a1aa;
-			--color-text-muted: #71717a;
+			--color-text-primary: #e7e9ee;
+			--color-text-secondary: #aeb4bf;
+			--color-text-muted: #8b93a1;
 	
-			--color-border: #3f3f42;
-			--color-btn-secondary: #2c2c2e;
+			--color-border: #3a3d46;
+			--color-btn-secondary: #23262e;
 	
-			--color-success: #86efac;
-			--color-success-bg: #052e16;
-			--color-error: #fca5a5;
-			--color-error-bg: #450a0a;
-			--color-warning: #fcd34d;
-			--color-warning-bg: #422006;
+			--color-success: #90d6a8;
+			--color-success-bg: #153021;
+			--color-error: #f5abab;
+			--color-error-bg: #401616;
+			--color-warning: #f5d483;
+			--color-warning-bg: #3d3215;
 	
-			--color-brand-gradient: linear-gradient(135deg, #a5b4fc 0%, #fca5a5 100%);
-			--color-bg-gradient: radial-gradient(circle at 50% 0%, #2c2c2e 0%, #1c1c1e 70%, #151516 100%);
+			--color-brand-gradient: linear-gradient(90deg, #d6dfeb 0%, #c8b8a8 100%);
+			--color-bg-gradient: radial-gradient(circle at 50% 0%, #242731 0%, #141519 68%, #111217 100%);
+
+			--latex-bg: #121212;
+			--latex-text: #e8e8e8;
+			--latex-muted: #b7b7b7;
+			--latex-rule: #d0d0d0;
+			--latex-accent: #ff7b7b;
+			--latex-side-mark: rgba(232, 232, 232, 0.22);
 	
-			--shadow: 
-				0 4px 20px -2px rgba(0, 0, 0, 0.6),
-				0 2px 8px -2px rgba(0, 0, 0, 0.4);
+			--shadow:
+				0 6px 24px -3px rgba(0, 0, 0, 0.66),
+				0 2px 8px -2px rgba(0, 0, 0, 0.5);
 		}
 		:global(*) {
 		box-sizing: border-box;
@@ -228,12 +284,45 @@
 
 	:global(html) {
 		background: var(--bg-primary);
-		background-image: var(--bg-gradient);
+		background-image:
+			repeating-linear-gradient(
+				to bottom,
+				transparent 0,
+				transparent 35px,
+				rgba(93, 101, 111, 0.11) 35px,
+				rgba(93, 101, 111, 0.11) 36px
+			),
+			var(--bg-gradient);
 		background-attachment: fixed;
-		background-size: cover;
+		background-size: 100% 36px, cover;
 		height: 100%;
 		margin: 0;
 		padding: 0;
+	}
+
+	:global(html.dark) {
+		background-image:
+			repeating-linear-gradient(
+				to bottom,
+				transparent 0,
+				transparent 35px,
+				rgba(255, 255, 255, 0.06) 35px,
+				rgba(255, 255, 255, 0.06) 36px
+			),
+			var(--bg-gradient);
+	}
+
+	:global(html.guest-landing),
+	:global(html.guest-landing.dark) {
+		background: var(--latex-bg);
+		background-image: none;
+		scroll-snap-type: y mandatory;
+	}
+
+	:global(html.guest-landing body) {
+		background: var(--latex-bg);
+		color: var(--latex-text);
+		scroll-snap-type: y mandatory;
 	}
 
 	:global(body) {
@@ -246,12 +335,12 @@
 		min-height: 100%;
 		transition: color 0.2s;
 		-webkit-font-smoothing: antialiased;
-		line-height: 1.6;
+		line-height: 1.68;
 	}
 
 	:global(h1), :global(h2), :global(h3), :global(h4), :global(h5), :global(h6) {
 		font-family: var(--font-display);
-		font-weight: 600; /* Lighter weight for elegance */
+		font-weight: 550;
 		letter-spacing: -0.01em;
 		color: var(--text-primary);
 	}
@@ -274,10 +363,10 @@
 	}
 
 	.global-nav {
-		background: rgba(253, 251, 247, 0.85); /* Glassy Paper */
-		backdrop-filter: blur(16px);
-		-webkit-backdrop-filter: blur(16px);
-		border-bottom: 1px solid var(--border-color); /* Thinner, refined border */
+		background: rgba(248, 245, 238, 0.92);
+		backdrop-filter: blur(10px);
+		-webkit-backdrop-filter: blur(10px);
+		border-bottom: 1px solid var(--border-color);
 		padding: 0 1.5rem;
 		height: var(--nav-height);
 		display: flex;
@@ -285,54 +374,96 @@
 		position: sticky;
 		top: 0;
 		z-index: 50;
-		transition: border-color 0.3s;
+		transition: border-color 0.3s, background-color 0.3s;
+		box-shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
 	}
 
 	:global(.dark) .global-nav {
-		background: rgba(28, 28, 30, 0.85);
+		background: rgba(20, 21, 25, 0.88);
+	}
+
+	.global-nav.guest-latex {
+		background: var(--latex-bg);
+		backdrop-filter: none;
+		-webkit-backdrop-filter: none;
+		border-bottom: 1px solid color-mix(in srgb, var(--latex-rule) 28%, transparent);
+		box-shadow: none;
+	}
+
+	.global-nav.guest-latex .nav-content {
+		max-width: 980px;
+	}
+
+	.guest-wordmark {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.15rem;
+		height: 1.15rem;
+		text-decoration: none;
+	}
+
+	.guest-logo-mark {
+		width: 0.98rem;
+		height: 0.98rem;
+		opacity: 0.82;
+		filter: grayscale(1) contrast(0.86);
+	}
+
+	.guest-theme-selector {
+		font-size: 0.72rem;
+		gap: 0.3rem;
+		color: var(--latex-muted);
 	}
 
 	.nav-link {
 		background: none;
 		border: none;
-		font-family: var(--font-display); /* Serif nav */
-		font-size: 1.05rem;
-		font-style: italic; /* Editorial touch */
-		font-weight: 500;
+		font-family: var(--font-display);
+		font-size: 1rem;
+		font-style: italic;
+		font-weight: 540;
 		color: var(--text-primary);
 		cursor: pointer;
 		padding: 0.5rem 0.75rem;
-		border-radius: 4px; 
-		transition: all 0.2s;
+		border-radius: 2px;
+		transition: background 0.2s;
 		user-select: none;
         display: block;
+	}
+
+	.nav-link:hover {
+		background: rgba(31, 39, 48, 0.08);
+	}
+
+	:global(.dark) .nav-link:hover {
+		background: rgba(255, 255, 255, 0.08);
 	}
 
 	.circle-btn {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		padding: 0 1.2rem;
-		height: 2.25rem;
-		border-radius: 9999px; /* Full pill */
+		padding: 0 0.9rem;
+		height: 1.95rem;
+		border-radius: 0;
 		background: transparent;
 		color: var(--text-primary);
 		text-decoration: none;
-		font-size: 0.8rem;
+		font-size: 0.72rem;
 		font-weight: 600;
-		font-family: var(--font-mono); /* Technical contrast */
+		font-family: var(--font-mono);
 		border: 1px solid var(--border-color);
-		transition: all 0.2s;
+		transition: background 0.2s, color 0.2s;
 		text-transform: uppercase;
 		user-select: none;
-		letter-spacing: 0.05em;
+		letter-spacing: 0.09em;
 	}
 
 	.circle-btn:hover {
 		background: var(--text-primary);
 		color: var(--bg-primary);
 		border-color: var(--text-primary);
-		transform: translateY(-1px);
 	}
 
     /* Update other font usages to vars */
@@ -351,6 +482,10 @@
         flex: 1;
         width: 100%;
     }
+
+	main.guest-latex-main {
+		background: var(--latex-bg);
+	}
 
     .nav-content {
         max-width: 1200px;
@@ -431,16 +566,18 @@
         display: block;
     }
 
-    .logout-btn {
-        background: none;
-        border: none;
-        color: var(--text-secondary);
-        cursor: pointer;
-        font-family: var(--font-body);
-        font-size: 0.9rem;
-        transition: color 0.2s;
-        padding: 0.5rem;
-    }
+	.logout-btn {
+		background: none;
+		border: none;
+		color: var(--text-secondary);
+		cursor: pointer;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		transition: color 0.2s;
+		padding: 0.5rem;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+	}
     .logout-btn:hover { color: var(--color-danger-text); }
 
     /* Mobile Menu Toggle */
@@ -524,13 +661,135 @@
         }
     }
 
+	@media (max-width: 900px) {
+		:global(html.guest-landing),
+		:global(html.guest-landing.dark),
+		:global(html.guest-landing body) {
+			scroll-snap-type: y proximity;
+		}
+
+		footer.guest-latex-footer .footer-content {
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 0.55rem;
+		}
+
+		footer.guest-latex-footer .theme-selector {
+			align-self: flex-end;
+		}
+	}
+
+	@media (max-width: 620px) {
+		:global(html.guest-landing),
+		:global(html.guest-landing.dark),
+		:global(html.guest-landing body) {
+			scroll-snap-type: none;
+		}
+
+		.global-nav {
+			padding: 0 0.9rem;
+		}
+
+		.global-nav.guest-latex .nav-content {
+			max-width: 100%;
+		}
+
+		.guest-wordmark {
+			width: 1rem;
+			height: 1rem;
+		}
+
+		.guest-logo-mark {
+			width: 0.9rem;
+			height: 0.9rem;
+		}
+
+		footer.guest-latex-footer {
+			padding: 0.78rem 0 calc(0.78rem + env(safe-area-inset-bottom));
+		}
+
+		footer.guest-latex-footer .footer-content {
+			padding: 0 0.88rem;
+		}
+
+		footer.guest-latex-footer .footer-info p {
+			font-size: 0.72rem;
+			line-height: 1.42;
+		}
+
+		footer.guest-latex-footer .theme-selector {
+			width: 100%;
+			justify-content: flex-end;
+			font-size: 0.66rem;
+		}
+
+		footer.guest-latex-footer .theme-btn {
+			padding: 0.22rem 0.34rem;
+			min-height: 1.75rem;
+		}
+	}
+
     /* Footer */
-    footer {
-        border-top: 1px solid var(--border-color);
-        background: var(--bg-secondary);
-        padding: 2rem 0;
-        margin-top: auto;
-    }
+	footer {
+		border-top: 1px solid var(--border-color);
+		background: var(--bg-secondary);
+		padding: 1.7rem 0;
+		margin-top: auto;
+	}
+
+	footer.guest-latex-footer {
+		border-top: 1px solid var(--latex-rule);
+		background: var(--latex-bg);
+		padding: 0.95rem 0;
+	}
+
+	footer.guest-latex-footer .footer-content {
+		max-width: 980px;
+		justify-content: space-between;
+		padding: 0 1.2rem;
+	}
+
+	footer.guest-latex-footer .footer-info {
+		color: var(--latex-muted);
+	}
+
+	footer.guest-latex-footer .footer-info p {
+		font-size: 0.78rem;
+		letter-spacing: 0.01em;
+	}
+
+	footer.guest-latex-footer .footer-info a {
+		color: var(--latex-text);
+		text-decoration: underline;
+		text-underline-offset: 0.16em;
+	}
+
+	footer.guest-latex-footer .theme-selector {
+		gap: 0.3rem;
+		font-size: 0.7rem;
+		color: var(--latex-muted);
+	}
+
+	footer.guest-latex-footer .theme-btn {
+		padding: 0.16rem 0.3rem;
+		border: 1px solid transparent;
+		font-size: 0.7rem;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+	}
+
+	footer.guest-latex-footer .theme-btn:hover,
+	footer.guest-latex-footer .theme-btn.active {
+		background: var(--latex-text);
+		color: var(--latex-bg);
+		border-color: var(--latex-rule);
+		text-decoration: none;
+	}
+
+	footer.guest-latex-footer .sep {
+		opacity: 0.55;
+		color: var(--latex-muted);
+	}
 
     .footer-content {
         max-width: 1200px;
@@ -559,13 +818,13 @@
         margin-left: 0.5rem;
     }
 
-    .social-icon {
-        width: 16px;
-        height: 16px;
-        opacity: 0.7;
-        transition: opacity 0.2s;
-        filter: contrast(0.5) sepia(1) hue-rotate(200deg); /* Adjust for ink aesthetic */
-    }
+	.social-icon {
+		width: 16px;
+		height: 16px;
+		opacity: 0.7;
+		transition: opacity 0.2s;
+		filter: grayscale(1) contrast(0.45);
+	}
     .social-link:hover .social-icon { opacity: 1; filter: none; }
 
     .theme-selector {
