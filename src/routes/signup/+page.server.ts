@@ -1,11 +1,33 @@
 import { redirect, fail } from "@sveltejs/kit";
+import { dev } from "$app/environment";
 import { getMemberByEmail } from "$lib/server/notion";
 import { getApplications, isAdmin, type Application } from "$lib/server/admin";
 import { normalizePhoneNumber } from "$lib/utils";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
+  const isPreview = dev && event.url.searchParams.get("preview") === "1";
   const session = await event.locals.auth();
+
+  if (isPreview) {
+    const previewName = session?.user?.name || "홍길동 / 학부생 / 수리과학부";
+    const parts = previewName.split("/").map((p) => p.trim());
+
+    return {
+      user: session?.user || {
+        email: "preview@snu.ac.kr",
+        name: previewName,
+      },
+      parsedInfo: {
+        name: parts[0] || "홍길동",
+        status: parts[1] || "학부생",
+        department: parts[2] || "수리과학부",
+      },
+      pending: false,
+      preview: true,
+    };
+  }
+
   if (!session?.user?.email) {
     throw redirect(302, "/");
   }
@@ -42,11 +64,18 @@ export const load: PageServerLoad = async (event) => {
     user: session.user,
     parsedInfo,
     pending: !!pending,
+    preview: false,
   };
 };
 
 export const actions = {
-  default: async ({ request, locals }) => {
+  default: async ({ request, locals, url }) => {
+    if (dev && url.searchParams.get("preview") === "1") {
+      return fail(400, {
+        error: "미리보기 모드에서는 신청을 제출할 수 없습니다.",
+      });
+    }
+
     const session = await locals.auth();
     if (!session?.user?.email)
       return fail(401, { error: "로그인이 필요합니다." });

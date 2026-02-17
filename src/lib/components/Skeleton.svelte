@@ -6,7 +6,7 @@
 		className?: string;
 	}
 
-	let { width = '100%', height = '1rem', borderRadius = '4px', className = '' }: Props = $props();
+	let { width = '100%', height = '1rem', borderRadius = '0', className = '' }: Props = $props();
 </script>
 
 <div 
@@ -16,12 +16,12 @@
 
 <style>
 	.skeleton {
-		background-color: var(--border-color);
+		background-color: color-mix(in srgb, var(--border-color) 80%, var(--bg-primary));
 		background-image: linear-gradient(
 			90deg, 
 			rgba(255, 255, 255, 0) 0, 
-			rgba(255, 255, 255, 0.2) 20%, 
-			rgba(255, 255, 255, 0.5) 60%, 
+			rgba(255, 255, 255, 0.12) 24%, 
+			rgba(255, 255, 255, 0.3) 58%, 
 			rgba(255, 255, 255, 0)
 		);
 		background-size: 200% 100%;
@@ -31,7 +31,7 @@
 	}
 
 	:global(.dark) .skeleton {
-		background-color: #334155; /* Darker base for dark mode */
+		background-color: color-mix(in srgb, var(--border-color) 75%, var(--bg-primary));
 		background-image: linear-gradient(
 			90deg, 
 			rgba(255, 255, 255, 0) 0, 

@@ -42,6 +42,15 @@ NOTION_DB_ACTIVITIES=id_of_activities_db
 NOTION_DB_SEMINARS=id_of_seminars_db
 NOTION_DB_APPLICATIONS=id_of_applications_db
 NOTION_DB_SEMINAR_REQUESTS=id_of_seminar_proposals_db
+NOTION_DB_SETTINGS=id_of_site_settings_db # optional
+POSTER_INTERNAL_TOKEN=strong_random_token # internal poster API protection
+```
+
+`POSTER_INTERNAL_TOKEN` is required if you use `/api/posters/seminar/png`.  
+Requests to this endpoint must include:
+
+```http
+x-poster-internal-token: <POSTER_INTERNAL_TOKEN>
 ```
 
 ## 🔍 Utilities

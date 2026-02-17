@@ -18,7 +18,7 @@
 
     const attendedCount = mockActivities.filter((activity) => activity.attended).length;
     const totalCount = mockActivities.length;
-    const attendancePercent = totalCount > 0 ? (attendedCount / totalCount) * 100 : 0;
+    const attendancePercent = totalCount > 0 ? Math.round((attendedCount / totalCount) * 100) : 0;
 </script>
 
 <div class="replica-root manuscript">
@@ -119,7 +119,15 @@
                             <span class="label">전체 활동</span>
                         </div>
                     </div>
-                    <div class="chart" style={`--percent: ${attendancePercent}%`}></div>
+                    <div class="meter-figure">
+                        <div class="meter-track" aria-hidden="true">
+                            <div class="meter-fill" style={`width: ${attendancePercent}%`}></div>
+                        </div>
+                        <p class="meter-meta">
+                            <span>출석률</span>
+                            <strong>{attendancePercent}%</strong>
+                        </p>
+                    </div>
                 </div>
             </figure>
         </div>
@@ -428,11 +436,11 @@
     }
 
     .seminar-item.request.pending {
-        border-left-color: var(--color-warning);
+        border-left-color: var(--color-warning-text);
     }
 
     .seminar-item.request.approved {
-        border-left-color: var(--color-success);
+        border-left-color: var(--color-success-text);
     }
 
     .tag {
@@ -544,12 +552,37 @@
         font-family: var(--font-math, var(--font-display));
     }
 
-    .chart {
-        width: 74px;
-        height: 74px;
-        border-radius: 9999px;
+    .meter-figure {
+        min-width: 160px;
+    }
+
+    .meter-track {
+        height: 0.9rem;
         border: 1px solid var(--paper-border);
-        background: conic-gradient(var(--paper-text) var(--percent), var(--paper-border) 0);
+        background: var(--paper-bg);
+    }
+
+    .meter-fill {
+        height: 100%;
+        background: var(--paper-text);
+    }
+
+    .meter-meta {
+        margin: 0.36rem 0 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.64rem;
+        font-family: var(--font-mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--paper-muted);
+    }
+
+    .meter-meta strong {
+        color: var(--paper-text);
+        font-size: 0.75rem;
+        font-weight: 650;
     }
 
     .list-block {
@@ -589,9 +622,9 @@
 
     .alert {
         margin: 0.95rem 1rem 0.8rem;
-        border: 1px solid var(--color-success);
+        border: 1px solid var(--color-success-text);
         background: var(--color-success-bg);
-        color: var(--color-success);
+        color: var(--color-success-text);
         padding: 0.72rem;
         font-size: 0.82rem;
         text-align: center;
@@ -665,12 +698,12 @@
 
     .badge.success {
         background: var(--color-success-bg);
-        color: var(--color-success);
+        color: var(--color-success-text);
     }
 
     .badge.fail {
-        background: var(--color-error-bg);
-        color: var(--color-error);
+        background: var(--color-danger-bg);
+        color: var(--color-danger-text);
     }
 
     .mobile-list {

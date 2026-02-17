@@ -22,25 +22,27 @@
 
 <style>
     .copy-btn-component {
-        background: none;
-        border: none;
-        padding: 0.25rem;
+        background: transparent;
+        border: 1px solid var(--border-color);
+        padding: 0.2rem 0.28rem;
         cursor: pointer;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border-radius: 4px;
-        transition: background-color 0.2s, color 0.2s;
+        transition: background-color 0.16s, color 0.16s, border-color 0.16s;
         color: var(--text-secondary);
         vertical-align: middle;
     }
 
     .copy-btn-component:hover {
-        background-color: var(--border-color);
-        color: var(--text-primary);
+        background-color: var(--text-primary);
+        border-color: var(--text-primary);
+        color: var(--bg-primary);
     }
 
     .copy-btn-component :global(svg) {
         display: block;
+        width: 15px;
+        height: 15px;
     }
 </style>

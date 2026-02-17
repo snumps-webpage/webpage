@@ -15,75 +15,111 @@
 
     <div class="exp-grid">
         {#each experiments as exp}
-            <a href="/experiment/{exp.id}" class="exp-card">
-                <div class="swatch-grid">
-                    {#each exp.colors as color}
-                        <div class="swatch" style="background: {color}"></div>
-                    {/each}
-                </div>
-                <div class="exp-info">
-                    <h2>{exp.name}</h2>
-                    <p>{exp.desc}</p>
-                    <span class="exp-link">View Experiment →</span>
-                </div>
-            </a>
+            <figure class="exp-figure">
+                <figcaption class="figure-caption no-sel">
+                    <span class="figure-label">Figure X{exp.id}</span>
+                    <span class="figure-title">{exp.name}</span>
+                </figcaption>
+                <a href="/experiment/{exp.id}" class="exp-link-block">
+                    <div class="swatch-grid" aria-hidden="true">
+                        {#each exp.colors as color}
+                            <div class="swatch" style="background: {color}"></div>
+                        {/each}
+                    </div>
+                    <div class="exp-info">
+                        <h2>{exp.name}</h2>
+                        <p>{exp.desc}</p>
+                        <span class="exp-link">Open Study</span>
+                    </div>
+                </a>
+            </figure>
         {/each}
     </div>
 </div>
 
 <style>
     .exp-container {
-        max-width: 1000px;
-        margin: 4rem auto;
-        padding: 0 2rem;
+        width: min(100%, 68rem);
+        margin: 1.5rem auto;
+        padding: 0 1rem 1.2rem;
     }
 
     .exp-header {
+        margin-bottom: 1rem;
+        border-top: 2px solid var(--border-color);
+        border-bottom: 1px solid var(--border-color);
+        padding: 0.72rem 0;
         text-align: center;
-        margin-bottom: 4rem;
     }
 
     .exp-header h1 {
         font-family: var(--font-display);
-        font-size: 3rem;
+        font-size: clamp(1.52rem, 3.2vw, 2.08rem);
         font-style: italic;
-        margin-bottom: 1rem;
+        margin: 0;
+        font-weight: 560;
     }
 
     .exp-header p {
+        margin: 0.34rem 0 0;
         font-family: var(--font-mono);
-        color: var(--color-text-secondary);
+        color: var(--text-secondary);
         text-transform: uppercase;
-        letter-spacing: 0.1em;
+        letter-spacing: 0.08em;
+        font-size: 0.67rem;
     }
 
     .exp-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 2rem;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 0.62rem;
     }
 
-    .exp-card {
-        background: var(--color-surface);
-        border: 1px solid var(--color-border);
-        border-radius: 12px;
-        overflow: hidden;
-        text-decoration: none;
-        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    .exp-figure {
+        margin: 0;
+        border: 1px solid var(--border-color);
+        background: var(--bg-secondary);
+        border-left: 2px solid var(--text-secondary);
+    }
+
+    .figure-caption {
         display: flex;
-        flex-direction: column;
+        gap: 0.45rem;
+        align-items: center;
+        padding: 0.45rem 0.62rem;
+        border-bottom: 1px solid var(--border-color);
     }
 
-    .exp-card:hover {
-        transform: translateY(-8px);
-        box-shadow: var(--shadow);
-        border-color: var(--color-primary);
+    .figure-label {
+        font-family: var(--font-mono);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.62rem;
+        color: var(--text-secondary);
+    }
+
+    .figure-title {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        font-style: italic;
+    }
+
+    .exp-link-block {
+        display: block;
+        color: inherit;
+        text-decoration: none;
+        transition: background-color 0.16s, border-color 0.16s;
+    }
+
+    .exp-link-block:hover {
+        background: color-mix(in srgb, var(--bg-secondary) 86%, var(--text-primary));
     }
 
     .swatch-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
-        height: 120px;
+        height: 90px;
+        border-bottom: 1px solid var(--border-color);
     }
 
     .swatch {
@@ -91,27 +127,31 @@
     }
 
     .exp-info {
-        padding: 2rem;
+        padding: 0.72rem;
     }
 
     .exp-info h2 {
         font-family: var(--font-display);
-        font-size: 1.5rem;
-        margin-bottom: 0.5rem;
-        color: var(--color-text-primary);
+        font-size: 1.06rem;
+        margin: 0 0 0.2rem;
+        color: var(--text-primary);
+        font-style: italic;
+        font-weight: 550;
     }
 
     .exp-info p {
         font-family: var(--font-body);
-        color: var(--color-text-secondary);
-        margin-bottom: 1.5rem;
+        color: var(--text-secondary);
+        margin: 0 0 0.42rem;
+        font-size: 0.88rem;
     }
 
     .exp-link {
         font-family: var(--font-mono);
-        font-size: 0.8rem;
-        font-weight: 700;
+        font-size: 0.65rem;
+        font-weight: 650;
         text-transform: uppercase;
-        color: var(--color-primary);
+        color: var(--text-secondary);
+        letter-spacing: 0.08em;
     }
 </style>

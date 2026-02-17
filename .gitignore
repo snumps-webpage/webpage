@@ -28,3 +28,5 @@ vite.config.ts.timestamp-*
 .extra/
 .env*.local
 .vercel
+
+static/posters/exports

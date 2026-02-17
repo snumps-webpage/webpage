@@ -4,417 +4,253 @@
     let submitting = $state(false);
 </script>
 
-<div class="container">
-	<div class="card">
-		<h1 class="no-sel">회원가입 신청</h1>
-		
-		{#if data.pending}
-			<div class="status-box pending">
-				<h2>⏳ 가입 승인 대기중</h2>
-				<p>가입 신청이 이미 접수되었습니다. 관리자 승인을 기다려주세요.</p>
-                <div class="alert-actions mt-4">
-                    <a href="/wait" class="btn-home">대기 페이지로 가기</a>
-                </div>
-			</div>
-		{:else}
-			<p class="desc no-sel">
-				<span class="text-break">입력하신 정보는</span> <span class="text-break">동아리 운영 목적으로만</span> <span class="text-break">사용됩니다.</span>
-			</p>
+<article class="paper-document signup-paper">
+	<header class="paper-document-header">
+		<h1 class="paper-document-title no-sel">회원가입 신청</h1>
+		<p class="paper-document-subtitle no-sel">Membership Submission Draft</p>
+	</header>
 
-			{#if form?.error}
-				<div class="error">{form.error}</div>
-			{/if}
+	{#if data.preview}
+		<p class="paper-status-note muted">
+			미리보기 모드입니다. 이 화면에서는 실제 가입 신청이 제출되지 않습니다.
+		</p>
+	{/if}
+
+	{#if data.pending}
+		<ol class="paper-sections">
+			<li class="paper-section">
+				<h2 class="paper-section-title">Application Status</h2>
+				<p class="paper-form-note">가입 신청이 이미 접수되었습니다. 관리자 승인 결과를 기다려 주세요.</p>
+				<div class="paper-actions">
+					<a href="/wait" class="paper-btn primary">대기 페이지로 이동</a>
+				</div>
+			</li>
+		</ol>
+	{:else}
+		{#if form?.error}
+			<p class="paper-status-note error">{form.error}</p>
+		{/if}
 
 			{#if form?.success}
-				<div class="success-message">
-					<h3><span class="text-break">신청이</span> <span class="text-break">완료되었습니다!</span></h3>
-					<p>가입 신청이 성공적으로 접수되었습니다. 관리자 승인 후 이용이 가능합니다.</p>
-					<p>가입 승인 여부는 메일로 안내되므로 확인 부탁드립니다.</p>
-                    <div class="alert-actions mt-4">
-					    <a href="/" class="btn home">메인으로 가기</a>
-                    </div>
-				</div>
-			{:else}
-							<form method="POST" use:enhance={() => {
-                                submitting = true;
-                                return async ({ update }) => {
-                                    await update();
-                                    submitting = false;
-                                };
-                            }}>
-								<div class="form-group no-sel">
-									<label for="name">이름</label>
-									<input type="text" id="name" value={data.parsedInfo.name} disabled />
-									<span class="hint">SNU 계정 기반</span>
+				<ol class="paper-sections">
+					<li class="paper-section">
+						<h2 class="paper-section-title">Submission Completed</h2>
+						<p class="paper-status-note success">가입 신청이 성공적으로 접수되었습니다.</p>
+						<p class="paper-form-note">승인 여부는 메일로 안내됩니다.</p>
+						<div class="paper-actions">
+							<a href="/" class="paper-btn primary">메인으로 이동</a>
+					</div>
+				</li>
+			</ol>
+		{:else}
+				<form
+					method="POST"
+					class="paper-form"
+				use:enhance={() => {
+					submitting = true;
+					return async ({ update }) => {
+						await update();
+						submitting = false;
+					};
+				}}
+				>
+						<ol class="paper-sections">
+							<li class="paper-section">
+								<h2 class="paper-section-title">Metadata</h2>
+								<fieldset class="paper-fieldset">
+									<div class="paper-field">
+										<label for="name" class="paper-label">이름</label>
+										<input type="text" id="name" value={data.parsedInfo.name} disabled />
 								</div>
-			
-								<div class="form-group no-sel">
-									<label for="department">학과</label>
+								<div class="paper-field">
+									<label for="department" class="paper-label">학과</label>
 									<input type="text" id="department" value={data.parsedInfo.department} disabled />
-									<span class="hint">SNU 계정 기반</span>
 								</div>
-			
-								<div class="form-group no-sel">
-									<label for="email">이메일</label>
+								<div class="paper-field">
+									<label for="email" class="paper-label">이메일</label>
 									<input type="text" id="email" value={data.user?.email} disabled />
-									<span class="hint">로그인된 계정</span>
 								</div>
-			
-								<div class="form-group">
-									<label for="phone">전화번호 <span class="req">*</span></label>
-									<input 
-			                            type="tel" 
-			                            id="phone" 
-			                            name="phone" 
-			                            required 
-			                            placeholder="010-0000-0000" 
-			                            pattern="(\d&#123;11&#125;)|(\d&#123;3&#125;-\d&#123;4&#125;-\d&#123;4&#125;)"
-			                            title="11자리 숫자 또는 XXX-XXXX-XXXX 형식으로 입력해주세요."
-			                        />
-								</div>
-					<div class="form-group">
-						<label for="background" class="no-sel">배경지식</label>
-						<textarea id="background" name="background" rows="4" placeholder="관심 분야나 관련 경험을 적어주세요."></textarea>
-					</div>
+							</fieldset>
+							</li>
 
-					<div class="agreement">
-						<label class="checkbox-container">
-							<input type="checkbox" name="agreement" required />
-							<span class="checkmark"></span>
-							개인정보 수집 및 이용에 동의합니다. (필수)
+							<li class="paper-section">
+								<h2 class="paper-section-title">Submission</h2>
+								<fieldset class="paper-fieldset">
+									<div class="paper-field">
+										<label for="phone" class="paper-label">전화번호 <span class="req">*</span></label>
+									<input
+										type="tel"
+										id="phone"
+									name="phone"
+									required
+									placeholder="010-0000-0000"
+									pattern="(\d&#123;11&#125;)|(\d&#123;3&#125;-\d&#123;4&#125;-\d&#123;4&#125;)"
+									title="11자리 숫자 또는 XXX-XXXX-XXXX 형식으로 입력해주세요."
+								/>
+							</div>
+							<div class="paper-field">
+								<label for="background" class="paper-label">배경지식</label>
+								<textarea
+									id="background"
+									name="background"
+									rows="4"
+									placeholder="관심 분야나 관련 경험을 적어주세요."
+									></textarea>
+								</div>
+							</fieldset>
+							</li>
+
+							<li class="paper-section">
+								<h2 class="paper-section-title">Consent</h2>
+								<label class="consent-line">
+									<input type="checkbox" name="agreement" required />
+									<span>개인정보 수집 및 이용에 동의합니다. (필수)</span>
 						</label>
-					</div>
-					<div class="desc no-sel">
-						<p>
-							가입 승인 관련 사항은 메일로 안내됩니다.
+						<p class="paper-form-note no-sel">
+							입력하신 정보는 동아리 운영 목적으로만 사용됩니다. 가입 승인 관련 사항은 메일로 안내됩니다.
 						</p>
-					</div>
+					</li>
+				</ol>
 
-					<button type="submit" class="btn-submit" disabled={submitting}>
-                        {submitting ? '처리 중...' : '가입 신청하기'}
-                    </button>
-                    <a href="/" class="btn-cancel-link">취소</a>
-				</form>
-			{/if}
+				<div class="paper-actions">
+					<button type="submit" class="paper-btn primary" disabled={submitting}>
+						{submitting ? '처리 중...' : '가입 신청하기'}
+					</button>
+					<a href="/" class="paper-btn secondary">취소</a>
+				</div>
+			</form>
 		{/if}
-	</div>
-</div>
+	{/if}
+</article>
 
 <style>
-    .container {
-        min-height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: var(--bg-primary);
-        padding: 2rem 1rem;
-        animation: slide-up-fade 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-        width: 100%;
-        box-sizing: border-box;
-    }
-
-    .card {
-        background: var(--bg-secondary);
-        padding: 3rem;
-        border-radius: 8px;
-        box-shadow: var(--shadow);
-        width: 100%;
-        max-width: 500px;
-        border: 1px solid var(--border-color);
-        box-sizing: border-box;
-    }
-
-    @media (max-width: 600px) {
-        .container {
-            padding: 1rem;
-        }
-        .card {
-            padding: 1.5rem;
-        }
-        .alert-actions {
-            max-width: 100%;
-        }
-    }
-
-    h1 {
-        font-size: 2rem;
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-        color: var(--text-primary);
-        text-align: center;
-        font-family: var(--font-display);
-        font-style: italic;
-    }
-
-	.desc { 
-        color: var(--text-secondary); 
-        margin-bottom: 2.5rem; 
-        font-size: 1rem; 
-        text-align: center; 
-        font-family: var(--font-body); 
-        font-style: italic; 
-        word-break: keep-all;
-        overflow-wrap: break-word;
-        line-height: 1.5;
-    }
-
-    .form-group {
-        margin-bottom: 1.75rem;
-    }
-
-    .form-group label {
-        display: block;
-        margin-bottom: 0.5rem;
-        font-weight: 700;
-        color: var(--text-secondary);
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        font-family: var(--font-mono);
-    }
-
-    .form-group label span.req {
-        color: var(--color-danger-text);
-    }
-
-    .form-group input, .form-group textarea {
-        width: 100%;
-        padding: 0.85rem;
-        border: 1px solid var(--border-color);
-        border-radius: 4px;
-        font-size: 1.05rem;
-        background: var(--bg-primary);
-        color: var(--text-primary);
-        box-sizing: border-box;
-        font-family: var(--font-body);
-        transition: border-color 0.2s;
-    }
-
-    .form-group input[id="email"], .form-group input[id="phone"] {
-        font-family: var(--font-mono);
-        font-size: 0.95rem;
-    }
-
-    .form-group input:focus, .form-group textarea:focus {
-        outline: none;
-        border-color: var(--text-primary);
-    }
-
-    .form-group input:disabled {
-        background: var(--bg-secondary);
-        color: var(--text-secondary);
-        cursor: not-allowed;
-        opacity: 0.6;
-        border-style: dashed;
-        -webkit-user-select: none;
-        user-select: none;
-    }
-
-    .form-group .hint {
-        font-size: 0.75rem;
-        color: var(--text-secondary);
-        margin-top: 0.4rem;
-        display: block;
-        font-style: italic;
-        font-family: var(--font-body);
-    }
-
-    .agreement {
-        margin: 2.5rem 0;
-    }
-
-    .checkbox-container {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        cursor: pointer;
-        font-size: 0.9rem;
-        color: var(--text-primary);
-        position: relative;
-        padding-left: 35px;
-        user-select: none;
-        font-family: var(--font-body);
-    }
-
-    .checkbox-container input {
-        position: absolute;
-        opacity: 0;
-        cursor: pointer;
-        height: 0;
-        width: 0;
-    }
-
-    .checkmark {
-        position: absolute;
-        top: -2px;
-        left: 0;
-        height: 24px;
-        width: 24px;
-        background-color: var(--bg-primary);
-        border: 1px solid var(--border-color);
-        border-radius: 4px;
-        transition: all 0.2s;
-    }
-
-    .checkbox-container:hover input ~ .checkmark {
-        border-color: var(--text-primary);
-    }
-
-    .checkbox-container input:checked ~ .checkmark {
-        background-color: var(--text-primary);
-        border-color: var(--text-primary);
-    }
-
-    .checkmark:after {
-        content: "";
-        position: absolute;
-        display: none;
-        left: 8px;
-        top: 4px;
-        width: 5px;
-        height: 10px;
-        border: solid var(--bg-primary);
-        border-width: 0 2.5px 2.5px 0;
-        transform: rotate(45deg);
-    }
-
-    .checkbox-container input:checked ~ .checkmark:after {
-        display: block;
-    }
-
-    .btn-submit {
-        width: 100%;
-        padding: 1.25rem;
-        background: var(--text-primary);
-        color: var(--bg-primary);
-        border: none;
-        border-radius: 4px;
-        font-size: 1rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        font-family: var(--font-mono);
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-    }
-
-	.btn-submit:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--shadow);
+	.signup-paper {
+		width: min(100%, 54rem);
+		margin: 1.1rem auto;
+		padding: 1rem 1rem 1.12rem;
+		background: var(--latex-bg);
+		border: 1px solid var(--latex-rule);
+		border-top-width: 2px;
+		color: var(--latex-text);
 	}
 
-    .status-box.pending {
-        background: var(--bg-secondary);
-        color: var(--text-primary);
-        padding: 2.5rem;
-        border-radius: 8px;
-        text-align: center;
-        border: 1px solid var(--border-color);
-    }
+	.paper-form {
+		width: 100%;
+	}
 
-    .btn-home {
-        display: inline-block;
-        margin-top: 1.5rem;
-        padding: 0.85rem 2rem;
-        background: var(--text-primary);
-        color: var(--bg-primary);
-        text-decoration: none;
-        border-radius: 4px;
-        font-weight: 600;
-        font-family: var(--font-mono);
-        text-transform: uppercase;
-        font-size: 0.8rem;
-        letter-spacing: 0.05em;
-    }
+	.signup-paper .paper-sections {
+		gap: 0.95rem;
+	}
 
-    .btn-cancel-link {
-        display: block;
-        text-align: center;
-        margin-top: 1.25rem;
-        color: var(--text-secondary);
-        font-size: 0.85rem;
-        text-decoration: none;
-        font-family: var(--font-mono);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    .btn-cancel-link:hover { color: var(--text-primary); text-decoration: underline; }
+	.signup-paper .paper-section {
+		padding-top: 0.76rem;
+		border-top-color: var(--latex-rule);
+	}
 
-    .error {
-        background: var(--color-danger-bg);
-        color: var(--color-danger-text);
-        padding: 1rem;
-        border-radius: 4px;
-        margin-bottom: 2rem;
-        font-size: 0.9rem;
-        text-align: center;
-        font-family: var(--font-body);
-        font-weight: 600;
-    }
+	.signup-paper .paper-fieldset {
+		gap: 0.85rem;
+		max-width: 42rem;
+	}
 
-    .success-message {
-        text-align: center;
-        padding: 2rem 0;
-        color: var(--text-primary);
-    }
-    
-    .success-message h3 {
-        font-family: var(--font-display);
-        color: var(--color-success-text);
-        font-style: italic;
-        font-size: clamp(1.25rem, 5vw, 1.75rem);
-        margin-bottom: 1rem;
-        word-break: keep-all;
-        overflow-wrap: break-word;
-        line-height: 1.3;
-    }
+	.signup-paper .paper-label {
+		display: block;
+		margin-bottom: 0.16rem;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		font-weight: 650;
+		letter-spacing: 0.11em;
+		text-transform: uppercase;
+		color: var(--latex-muted);
+	}
 
-    .success-message p {
-        word-break: keep-all;
-        overflow-wrap: break-word;
-        line-height: 1.5;
-        margin-bottom: 0.5rem;
-    }
+	.req {
+		color: var(--latex-accent);
+	}
 
-    .text-break {
-        display: inline-block;
-    }
+	.signup-paper input,
+	.signup-paper textarea {
+		width: 100%;
+		padding: 0.7rem 0.76rem;
+		border: 1px solid var(--latex-rule);
+		background: var(--latex-bg);
+		color: var(--latex-text);
+		font-family: var(--font-body);
+		font-size: 0.98rem;
+		line-height: 1.5;
+		resize: vertical;
+	}
 
-    .btn {
-        width: 100%;
-        padding: 1rem;
-        border-radius: 4px;
-        font-weight: 600;
-        font-size: 1rem;
-        cursor: pointer;
-        border: none;
-        transition: all 0.2s;
-        text-align: center;
-        text-decoration: none;
-        display: inline-block;
-        user-select: none;
-        font-family: var(--font-mono);
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        box-sizing: border-box;
-    }
+	.signup-paper input::placeholder,
+	.signup-paper textarea::placeholder {
+		color: var(--latex-muted);
+	}
 
-    .home { background: transparent; color: var(--text-primary); border: 1px solid var(--border-color); margin-top: 1rem; }
-    .home:hover { border-color: var(--text-primary); }
+	.signup-paper input:focus-visible,
+	.signup-paper textarea:focus-visible {
+		outline: 2px solid var(--latex-accent);
+		outline-offset: 2px;
+	}
 
-    .mt-4 { margin-top: 1.5rem; }
+	.signup-paper .paper-status-note {
+		margin-bottom: 0.7rem;
+	}
 
-    .alert-actions { 
-        display: flex; 
-        flex-direction: column; 
-        gap: 1rem; 
-        max-width: 300px;
-        margin: 0 auto;
-    }
+	.signup-paper .paper-field input[id="phone"] {
+		font-family: var(--font-mono);
+		font-size: 0.86rem;
+	}
 
-    @keyframes slide-up-fade {
-        from { opacity: 0; transform: translateY(12px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
+	.signup-paper .paper-field input:disabled {
+		opacity: 0.8;
+		color: var(--latex-muted);
+		border-style: dashed;
+		background: color-mix(in srgb, var(--latex-bg) 90%, var(--latex-rule));
+	}
+
+	.signup-paper .paper-field textarea {
+		min-height: 7.2rem;
+	}
+
+	.consent-line {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		align-items: flex-start;
+		column-gap: 0.62rem;
+		row-gap: 0;
+		font-size: 0.92rem;
+		line-height: 1.52;
+		padding: 0.66rem 0;
+		border-top: 1px solid var(--latex-rule);
+		border-bottom: 1px solid var(--latex-rule);
+		margin-bottom: 0.52rem;
+		color: var(--latex-text);
+	}
+
+	.consent-line input {
+		margin-top: 0.16rem;
+		width: 0.95rem;
+		height: 0.95rem;
+		accent-color: var(--latex-text);
+	}
+
+	.consent-line span {
+		font-size: 0.91rem;
+	}
+
+	.signup-paper .paper-actions {
+		margin-top: 0.72rem;
+		padding-top: 0.62rem;
+		border-top-color: var(--latex-rule);
+	}
+
+	@media (max-width: 620px) {
+		.signup-paper {
+			margin: 1rem auto;
+			padding: 1.2rem 1rem 1.35rem;
+		}
+
+		.signup-paper .paper-fieldset {
+			max-width: 100%;
+		}
+	}
 </style>
-
