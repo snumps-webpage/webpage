@@ -7,6 +7,7 @@ A secure SvelteKit web application designed to automate membership management an
 - **[Features Overview](./docs/FEATURES.md)**: Explore the authentication, membership, and attendance systems.
 - **[Setup & Installation](./docs/SETUP.md)**: Instructions for local development and Gmail API configuration.
 - **[System Architecture](./docs/ARCHITECTURE.md)**: Detailed breakdown of the project structure and hybrid storage model.
+- **[Design Blueprint](./docs/DESIGN_BLUEPRINT.md)**: Guest landing LaTeX/arXiv design rules and implementation constraints.
 
 ## 🌟 Key Highlights
 
@@ -28,5 +29,6 @@ A secure SvelteKit web application designed to automate membership management an
 - [**Auth Variables**](docs/AUTH_VARS.md) - Usage of Admin and Authorized user lists.
 - [**Architecture**](docs/ARCHITECTURE.md) - System design and operational protocols.
 - [**Features**](docs/FEATURES.md) - Detailed breakdown of application capabilities.
+- [**Design Blueprint**](docs/DESIGN_BLUEPRINT.md) - Pre-login landing design principles and guardrails.
 - [**Caching Policy**](docs/CACHE.md) - Cache durations and management strategy.
 - [**Database Schema**](docs/schema.md) - Notion database structures and property mappings.

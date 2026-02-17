@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SNUMPS Instagram Poster</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Serif+KR:wght@400;500;600;700&family=STIX+Two+Math&family=STIX+Two+Text:ital,wght@0,400;0,500;0,600;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --latex-bg: #f4f4f4;
+        --latex-text: #111111;
+        --latex-muted: #4a4a4a;
+        --latex-rule: #1a1a1a;
+        --logo-ink: #1f4862;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #d8d8d8;
+        color: var(--latex-text);
+        font-family: "Noto Serif KR", "STIX Two Text", "Noto Sans KR", serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .stage {
+        width: min(100vw, 1080px);
+        aspect-ratio: 4 / 5;
+      }
+
+      .poster {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        background: var(--latex-bg);
+        border: 1px solid var(--latex-rule);
+        padding: clamp(1.3rem, 2.8vw, 2rem);
+        display: grid;
+        grid-template-rows: auto auto 1fr auto;
+        gap: clamp(0.65rem, 1.3vw, 1rem);
+        overflow: hidden;
+      }
+
+      .poster::before {
+        content: "";
+        position: absolute;
+        inset: 14px;
+        border: 1px solid color-mix(in srgb, var(--latex-rule) 58%, transparent);
+        pointer-events: none;
+      }
+
+      .side-mark {
+        position: absolute;
+        left: 12px;
+        top: 52%;
+        transform: rotate(-90deg) translateX(-50%);
+        transform-origin: left top;
+        font-family: "JetBrains Mono", monospace;
+        font-size: clamp(0.5rem, 0.72vw, 0.62rem);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: color-mix(in srgb, var(--latex-text) 34%, transparent);
+        white-space: nowrap;
+      }
+
+      .rule-thick {
+        height: 0;
+        border-top: 2px solid var(--latex-rule);
+      }
+
+      .masthead {
+        display: grid;
+        gap: 0.34rem;
+      }
+
+      .meta {
+        margin: 0;
+        font-family: "JetBrains Mono", monospace;
+        font-size: clamp(0.5rem, 0.73vw, 0.65rem);
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        color: var(--latex-muted);
+      }
+
+      .title {
+        margin: 0;
+        font-size: clamp(3.8rem, 12.4vw, 8.1rem);
+        line-height: 0.88;
+        letter-spacing: 0.05em;
+        font-weight: 500;
+      }
+
+      .subtitle {
+        margin: 0;
+        font-size: clamp(0.95rem, 1.7vw, 1.35rem);
+        font-weight: 500;
+      }
+
+      .hero {
+        border-top: 1px solid var(--latex-rule);
+        border-bottom: 1px solid var(--latex-rule);
+        min-height: clamp(280px, 42vh, 420px);
+        display: grid;
+        place-items: center;
+        background:
+          linear-gradient(
+            0deg,
+            color-mix(in srgb, var(--latex-text) 3%, transparent) 0%,
+            transparent 50%,
+            color-mix(in srgb, var(--latex-text) 2%, transparent) 100%
+          );
+      }
+
+      .fractal-stage {
+        position: relative;
+        width: min(76%, 460px);
+        aspect-ratio: 1 / 1;
+      }
+
+      .fractal-node {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform-origin: 50% 50%;
+        object-fit: contain;
+        filter: grayscale(18%) contrast(112%) brightness(88%);
+      }
+
+      .core-logo {
+        position: absolute;
+        width: 45%;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        filter: grayscale(10%) contrast(108%) brightness(92%);
+        z-index: 3;
+      }
+
+      .copy {
+        display: grid;
+        align-content: start;
+        gap: 0.38rem;
+      }
+
+      .lede {
+        margin: 0;
+        font-size: clamp(0.96rem, 1.35vw, 1.2rem);
+        font-weight: 500;
+      }
+
+      .abstract {
+        margin: 0;
+        line-height: 1.5;
+        font-size: clamp(0.76rem, 1vw, 0.9rem);
+      }
+
+      .footer {
+        border-top: 1px solid var(--latex-rule);
+        padding-top: 0.42rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 1rem;
+      }
+
+      .footer p {
+        margin: 0;
+      }
+
+      .join {
+        font-family: "JetBrains Mono", monospace;
+        text-transform: uppercase;
+        letter-spacing: 0.13em;
+        font-size: clamp(0.58rem, 0.8vw, 0.7rem);
+        color: var(--latex-muted);
+      }
+
+      .handle {
+        font-size: clamp(0.97rem, 1.45vw, 1.27rem);
+        font-weight: 600;
+      }
+
+      .links {
+        text-align: right;
+        font-size: clamp(0.59rem, 0.8vw, 0.71rem);
+        line-height: 1.45;
+        color: var(--latex-muted);
+      }
+
+      @media (max-width: 760px) {
+        .stage {
+          width: 96vw;
+        }
+
+        .poster {
+          padding: 1.05rem;
+        }
+
+        .title {
+          font-size: clamp(3.1rem, 16vw, 4.8rem);
+        }
+
+        .hero {
+          min-height: 240px;
+        }
+
+        .footer {
+          flex-direction: column;
+          align-items: start;
+          gap: 0.32rem;
+        }
+
+        .links {
+          text-align: left;
+        }
+
+        .side-mark {
+          left: 8px;
+          font-size: 8.5px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="stage">
+      <article class="poster">
+        <span class="side-mark">SNUMPS @ 29 NOV 2024</span>
+
+        <div class="rule-thick"></div>
+
+        <header class="masthead">
+          <p class="meta">Mathematics Problem Society · Seoul National University</p>
+          <h1 class="title">SNUMPS</h1>
+          <p class="subtitle">서울대학교 수학문제연구회</p>
+        </header>
+
+        <section class="hero" aria-hidden="true">
+          <div class="fractal-stage" id="fractalStage">
+            <img
+              src="./favicon.svg"
+              alt=""
+              class="core-logo"
+              loading="eager"
+              decoding="async"
+            />
+          </div>
+        </section>
+
+        <section class="copy">
+          <p class="lede">문제를 풀고, 만들고, 증명하는 사람들의 연구회.</p>
+          <p class="abstract">
+            정답보다 아이디어와 논증의 구조를 탐구합니다. 세미나, 문제 제작, 풀이
+            공유를 통해 함께 성장합니다.
+          </p>
+        </section>
+
+        <footer class="footer">
+          <div>
+            <p class="join">Join / DM</p>
+            <p class="handle">@snu_mps</p>
+          </div>
+          <p class="links">
+            instagram.com/snu_mps
+          </p>
+        </footer>
+      </article>
+    </main>
+
+    <script>
+      (() => {
+        const stage = document.getElementById("fractalStage");
+        if (!stage) return;
+        const total = 21;
+        for (let i = 0; i < total; i += 1) {
+          const node = document.createElement("img");
+          const scale = Math.pow(0.84, i + 1);
+          const radius = 6 + i * 3.2;
+          const angle = ((i * 137.5 - 12) * Math.PI) / 180;
+          const x = 50 + Math.cos(angle) * radius;
+          const y = 50 + Math.sin(angle) * radius;
+          const opacity = Math.max(0.05, 0.31 - i * 0.011);
+
+          node.src = "./favicon.svg";
+          node.alt = "";
+          node.className = "fractal-node";
+          node.width = 420;
+          node.height = 420;
+          node.style.left = `${x}%`;
+          node.style.top = `${y}%`;
+          node.style.width = `${55 * scale}%`;
+          node.style.opacity = `${opacity}`;
+          node.style.zIndex = `${2 - Math.floor(i / 7)}`;
+          node.style.transform = `translate(-50%, -50%) rotate(${i * 13}deg)`;
+          stage.appendChild(node);
+        }
+      })();
+    </script>
+  </body>
+</html>

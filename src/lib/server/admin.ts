@@ -2,11 +2,13 @@
  * Service for managing club membership applications stored in Notion.
  */
 import { env } from "$env/dynamic/private";
+import { dev } from "$app/environment";
 import {
   getApplicationsFromNotion,
   createApplicationInNotion,
   removeApplicationInNotion,
 } from "./notion";
+import { DEV_PREVIEW_ADMIN_EMAIL } from "./dev-preview";
 
 export interface Application {
   id: string;
@@ -70,6 +72,7 @@ export async function removeApplication(id: string) {
 
 export function isAdmin(email: string | null | undefined) {
   if (!email) return false;
+  if (dev && email === DEV_PREVIEW_ADMIN_EMAIL) return true;
   const admins = (env.ADMINS_EMAILS || "").split(",").map((e) => e.trim());
   return admins.includes(email);
 }

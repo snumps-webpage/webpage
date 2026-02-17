@@ -8,42 +8,69 @@ import {
 import type { PageServerLoad, Actions } from "./$types";
 
 export const load: PageServerLoad = async ({ locals, url }) => {
-  const session = await locals.auth();
+  let session = null;
+  try {
+    session = await locals.auth();
+  } catch (error) {
+    console.error("[Seminar Apply] Failed to resolve auth session:", error);
+  }
   if (!session?.user)
     throw redirect(302, `/login?redirect=${encodeURIComponent(url.pathname)}`);
 
-  const [members, privateInfos] = await Promise.all([
-    getAllMembers(),
-    getAllPrivateInfo(),
-  ]);
+  let memberDirectoryUnavailable = false;
+  let searchableMembers: {
+    id: string;
+    name: string;
+    department: string;
+    email: string;
+  }[] = [];
 
-  // Create a map for quick lookup
-  const memberMap = new Map(members.map((m) => [m.id, m]));
+  try {
+    const [members, privateInfos] = await Promise.all([
+      getAllMembers(),
+      getAllPrivateInfo(),
+    ]);
 
-  const searchableMembers = privateInfos
-    .filter((p) => p.memberId && memberMap.has(p.memberId))
-    .map((p) => {
-      const member = memberMap.get(p.memberId!)!;
-      return {
-        id: member.id, // We use the Member Database ID for relations
-        name: member.name,
-        department: member.department,
-        email: p.email,
-      };
-    });
+    // Create a map for quick lookup
+    const memberMap = new Map(members.map((m) => [m.id, m]));
+
+    searchableMembers = privateInfos
+      .filter((p) => p.memberId && memberMap.has(p.memberId))
+      .map((p) => {
+        const member = memberMap.get(p.memberId!)!;
+        return {
+          id: member.id, // We use the Member Database ID for relations
+          name: member.name,
+          department: member.department,
+          email: p.email,
+        };
+      });
+  } catch (error) {
+    memberDirectoryUnavailable = true;
+    console.error(
+      "[Seminar Apply] Failed to load member directory. Falling back to empty list.",
+      error,
+    );
+  }
 
   return {
     user: session.user,
     members: searchableMembers,
+    memberDirectoryUnavailable,
   };
 };
 
 export const actions: Actions = {
   default: async ({ request, locals }) => {
-    const session = await locals.auth();
+    let session = null;
+    try {
+      session = await locals.auth();
+    } catch (error) {
+      console.error("[Seminar Apply] Failed to resolve auth session:", error);
+    }
     if (!session?.user?.email || !session.user.name) {
       return fail(401, {
-        error: "Authentication required to apply for a seminar.",
+        error: "세미나 신청을 위해 로그인이 필요합니다.",
       });
     }
 
@@ -58,8 +85,7 @@ export const actions: Actions = {
     const member = await getMemberByEmail(session.user.email);
     if (!member)
       return fail(404, {
-        error:
-          "Member record not found. Please ensure you are a registered member.",
+        error: "회원 정보를 찾을 수 없습니다. 가입 상태를 확인해 주세요.",
       });
 
     let speakerIds: string[] = [];
@@ -78,7 +104,7 @@ export const actions: Actions = {
 
     if (!title || !description) {
       return fail(400, {
-        error: "Seminar title and description are required.",
+        error: "세미나 제목과 설명은 필수 입력 항목입니다.",
       });
     }
 
@@ -101,7 +127,7 @@ export const actions: Actions = {
     } catch (e) {
       console.error("[Seminar Apply] Action Error:", e);
       return fail(500, {
-        error: "Internal server error while processing seminar application.",
+        error: "세미나 신청 처리 중 서버 오류가 발생했습니다.",
       });
     }
   },
