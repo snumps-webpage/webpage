@@ -1,5 +1,5 @@
 <script lang="ts">
-    import Replica from "$lib/components/ExperimentReplica.svelte";
+    import Replica from "../../../lib/components/ExperimentReplica.svelte";
 </script>
 
 <div class="exp-wrapper">
