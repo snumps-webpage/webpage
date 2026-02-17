@@ -1,4 +1,6 @@
 <script lang="ts">
+  type PosterMode = "light" | "dark";
+
   interface Props {
     title?: string;
     abstract?: string;
@@ -9,6 +11,7 @@
     clubName?: string;
     handle?: string;
     logoSrc?: string;
+    mode?: PosterMode;
   }
 
   let {
@@ -21,6 +24,7 @@
     clubName = "서울대학교 수학문제연구회",
     handle = "@SNU_MPS",
     logoSrc = "/posters/favicon.svg",
+    mode = "light",
   }: Props = $props();
 
   function charUnits(value: string): number {
@@ -110,7 +114,7 @@
 </script>
 
 <main class="stage" data-poster-root="seminar">
-  <article class="poster">
+  <article class="poster" data-mode={mode}>
     <div class="paper-symbols" aria-hidden="true">
       <span class="paper-symbol">∑</span>
       <span class="paper-symbol">∫</span>
@@ -176,6 +180,9 @@
     --latex-muted: #4a4a4a;
     --latex-rule: #1a1a1a;
     --latex-accent: #b22222;
+    --poster-outline: rgba(26, 26, 26, 0.56);
+    --poster-rule-soft: rgba(26, 26, 26, 0.62);
+    --symbol-opacity: 0.11;
 
     position: relative;
     width: 100%;
@@ -198,11 +205,22 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  .poster[data-mode="dark"] {
+    --latex-bg: #121212;
+    --latex-text: #ececec;
+    --latex-muted: #b5b5b5;
+    --latex-rule: #d0d0d0;
+    --latex-accent: #ff7b7b;
+    --poster-outline: rgba(232, 232, 232, 0.5);
+    --poster-rule-soft: rgba(232, 232, 232, 0.56);
+    --symbol-opacity: 0.13;
+  }
+
   .poster::before {
     content: "";
     position: absolute;
     inset: 12px;
-    border: 1px solid rgba(26, 26, 26, 0.56);
+    border: 1px solid var(--poster-outline);
     pointer-events: none;
   }
 
@@ -242,19 +260,27 @@
     filter: grayscale(14%) contrast(108%) brightness(88%);
   }
 
+  .poster[data-mode="dark"] .logo-overlay img {
+    filter: grayscale(12%) contrast(108%) brightness(132%);
+  }
+
+  .poster[data-mode="dark"] .logo-overlay-secondary img {
+    filter: grayscale(20%) contrast(105%) brightness(142%);
+  }
+
   .paper-symbols {
     position: absolute;
     inset: 0;
     pointer-events: none;
     z-index: 0;
-    color: #666;
+    color: var(--latex-muted);
     font-family: "STIX Two Text", "Times New Roman", serif;
     font-style: italic;
   }
 
   .paper-symbol {
     position: absolute;
-    opacity: 0.11;
+    opacity: var(--symbol-opacity);
     line-height: 1;
     transform-origin: center;
   }
@@ -404,8 +430,8 @@
   }
 
   .left-info {
-    border-top: 1px solid rgba(26, 26, 26, 0.62);
-    border-bottom: 1px solid rgba(26, 26, 26, 0.62);
+    border-top: 1px solid var(--poster-rule-soft);
+    border-bottom: 1px solid var(--poster-rule-soft);
     padding: 2.2rem 1.08rem;
     display: grid;
     height: auto;
