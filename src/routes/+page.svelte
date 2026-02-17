@@ -919,19 +919,25 @@
 
 		.table-figure {
 			margin-top: 0.58rem;
+			width: 100%;
 		}
 
 		.table-scroll {
+			justify-self: stretch;
+			width: 100%;
+			max-width: 100%;
 			overflow-x: auto;
+			overflow-y: hidden;
+			-webkit-overflow-scrolling: touch;
 		}
 
 		.activity-table {
-			width: fit-content;
-			min-width: var(--table-min-width, 34rem);
-			max-width: 100%;
+			width: max(100%, var(--table-min-width, 34rem));
+			min-width: max(100%, var(--table-min-width, 34rem));
+			max-width: none;
 			border-collapse: collapse;
 			text-align: left;
-			margin-inline: auto;
+			margin-inline: 0;
 		}
 
 		.activity-table thead th {
