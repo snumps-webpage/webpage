@@ -1,23 +1,39 @@
 import { redirect } from "@sveltejs/kit";
+import { dev } from "$app/environment";
 import { getMemberByEmail, getPresidentName } from "$lib/server/notion";
 import { isAdmin, getApplications, type Application } from "$lib/server/admin";
+import { resolveDevPreviewRole } from "$lib/server/dev-preview";
 import type { LayoutServerLoad } from "./$types";
 
 export const load: LayoutServerLoad = async (event) => {
   console.log(`>>> [Layout Load] Starting for path: ${event.url.pathname}`);
+  const devPreviewRole = resolveDevPreviewRole(event.url, event.cookies);
 
-  // Parallelize session and global context fetching
-  const [session, presidentName] = await Promise.all([
-    event.locals.auth(),
-    getPresidentName().catch((e) => {
-      console.error("Failed to fetch president name:", e);
-      return "공석";
-    }),
-  ]);
+  let session = null;
+  try {
+    session = await event.locals.auth();
+  } catch (error) {
+    console.error("[Layout Load] Failed to resolve auth session:", error);
+  }
 
-  const isUserAdmin = session?.user?.email
-    ? isAdmin(session.user.email)
-    : false;
+  const presidentName = await getPresidentName().catch((e) => {
+    console.error("Failed to fetch president name:", e);
+    return "공석";
+  });
+
+  const isUserAdmin =
+    devPreviewRole === "admin" ||
+    (session?.user?.email ? isAdmin(session.user.email) : false);
+
+  if (dev && devPreviewRole && session?.user?.email) {
+    return {
+      session,
+      isAdmin: isUserAdmin,
+      isMember: true,
+      application: null,
+      presidentName,
+    };
+  }
 
   let userMember = null;
 

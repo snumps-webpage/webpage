@@ -8,12 +8,26 @@ import {
 import type { PageServerLoad, Actions } from "./$types";
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
-  const session = await locals.auth();
+  let session = null;
+  try {
+    session = await locals.auth();
+  } catch (error) {
+    console.error("[Seminar Edit] Failed to resolve auth session:", error);
+  }
   if (!session?.user)
     throw redirect(302, `/login?redirect=${encodeURIComponent(url.pathname)}`);
 
   const requestId = params.id;
-  const requests = await getSeminarRequests();
+  let requests = [];
+  try {
+    requests = await getSeminarRequests();
+  } catch (error) {
+    console.error(
+      "[Seminar Edit] Failed to load seminar requests. Redirecting to home.",
+      error,
+    );
+    throw redirect(302, "/");
+  }
   const request = requests.find((r) => r.id === requestId);
 
   if (!request) {
@@ -25,24 +39,40 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     throw redirect(302, "/");
   }
 
-  const [members, privateInfos] = await Promise.all([
-    getAllMembers(),
-    getAllPrivateInfo(),
-  ]);
+  let memberDirectoryUnavailable = false;
+  let searchableMembers: {
+    id: string;
+    name: string;
+    department: string;
+    email: string;
+  }[] = [];
 
-  const memberMap = new Map(members.map((m) => [m.id, m]));
+  try {
+    const [members, privateInfos] = await Promise.all([
+      getAllMembers(),
+      getAllPrivateInfo(),
+    ]);
 
-  const searchableMembers = privateInfos
-    .filter((p) => p.memberId && memberMap.has(p.memberId))
-    .map((p) => {
-      const member = memberMap.get(p.memberId!)!;
-      return {
-        id: member.id,
-        name: member.name,
-        department: member.department,
-        email: p.email,
-      };
-    });
+    const memberMap = new Map(members.map((m) => [m.id, m]));
+
+    searchableMembers = privateInfos
+      .filter((p) => p.memberId && memberMap.has(p.memberId))
+      .map((p) => {
+        const member = memberMap.get(p.memberId!)!;
+        return {
+          id: member.id,
+          name: member.name,
+          department: member.department,
+          email: p.email,
+        };
+      });
+  } catch (error) {
+    memberDirectoryUnavailable = true;
+    console.error(
+      "[Seminar Edit] Failed to load member directory. Falling back to empty list.",
+      error,
+    );
+  }
 
   // Reconstruct the initial speakers list for the UI
   const initialSpeakers = request.speakerIds
@@ -52,6 +82,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
   return {
     user: session.user,
     members: searchableMembers,
+    memberDirectoryUnavailable,
     request: {
       ...request,
       initialSpeakers,
@@ -61,7 +92,12 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 
 export const actions: Actions = {
   default: async ({ request, locals, params }) => {
-    const session = await locals.auth();
+    let session = null;
+    try {
+      session = await locals.auth();
+    } catch (error) {
+      console.error("[Seminar Edit] Failed to resolve auth session:", error);
+    }
     if (!session?.user?.email) return fail(401, { error: "Login required" });
 
     const data = await request.formData();
