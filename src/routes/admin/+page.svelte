@@ -464,11 +464,12 @@
                             <!-- Mobile Cards -->
                             <div class="mobile-card-list mobile-only">
                                 {#each paginatedSeminars as req (req.id)}
-                                    <div class="admin-card">
-                                        <div class="card-header">
-                                            <span class="title">{req.title}</span>
-                                            <span class="tag status {req.status}">{req.status}</span>
-                                        </div>
+                                                                <div class="admin-card">
+                                                                    <div class="card-header">
+                                                                        <span class="title">{req.title}</span>
+                                                                        <span class="status-badge {req.status}">{req.status}</span>
+                                                                    </div>
+                                    
                                         <div class="card-body">
                                             <p><strong>발표자:</strong> {req.speakerNames?.join(', ') || '미지정'}</p>
                                             <p><strong>신청일:</strong> {new Date(req.submittedAt).toLocaleDateString()}</p>
@@ -553,7 +554,7 @@
                                         </td>
                                         <td class="actions-cell">
                                             {#if app.accepted}
-                                                <span class="status-badge active">승인됨</span>
+                                                <span class="status-badge approved">승인됨</span>
                                             {:else}
                                                 <form method="POST" action="?/approve" use:enhance={({ formData }) => {
                                                     const id = formData.get('id');
@@ -618,7 +619,7 @@
                                 </div>
                                 <div class="card-actions">
                                     {#if app.accepted}
-                                        <span class="status-badge active">승인됨</span>
+                                        <span class="status-badge approved">승인됨</span>
                                     {:else}
                                         <form method="POST" action="?/approve" use:enhance>
                                             <input type="hidden" name="id" value={app.id} />
@@ -694,17 +695,21 @@
 	.admin-action-btn {
 		background: var(--text-primary);
 		color: var(--bg-primary);
-		padding: 0.6rem 1.25rem;
+		padding: 0.75rem 1.5rem;
 		border-radius: 99px;
 		text-decoration: none;
-		font-weight: 600;
-		font-size: 0.8rem;
+		font-weight: 700;
+		font-size: 0.85rem;
 		user-select: none;
 		font-family: var(--font-mono);
 		transition: all 0.2s;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         border: 1px solid var(--text-primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
 	}
 
 	.admin-action-btn:hover { background: transparent; color: var(--text-primary); }
@@ -713,8 +718,11 @@
 	.admin-action-btn.signup { background: var(--color-success-text); border-color: var(--color-success-text); color: white; }
 
 	.status-badge {
-		display: inline-block;
-		padding: 0.25rem 0.6rem;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0 0.8rem;
+		height: 2rem;
 		border-radius: 4px;
 		font-size: 0.65rem;
 		font-weight: 700;
@@ -723,15 +731,21 @@
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
         font-family: var(--font-mono);
+        line-height: 1;
 	}
 	.status-badge.draft { background: var(--bg-secondary); color: var(--text-secondary); }
-	.status-badge.active { background: var(--color-success-bg); color: var(--color-success-text); }
-	.status-badge.expired { background: var(--color-danger-bg); color: var(--color-danger-text); }
+	.status-badge.active, .status-badge.approved { background: var(--color-success-bg); color: var(--color-success-text); }
+	.status-badge.expired, .status-badge.rejected { background: var(--color-danger-bg); color: var(--color-danger-text); }
+    .status-badge.pending { background: var(--color-warning-bg); color: var(--color-warning-text); }
 
 	.hint { color: var(--text-secondary); font-size: 0.85rem; font-style: italic; font-family: var(--font-body); }
 
 	.btn {
-		padding: 0.4rem 0.8rem;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0 0.8rem;
+		height: 2rem;
 		border: none;
 		border-radius: 4px;
 		cursor: pointer;
@@ -742,6 +756,7 @@
         font-size: 0.75rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
+        line-height: 1;
 	}
 
 	.btn:hover { opacity: 0.9; transform: translateY(-1px); }
