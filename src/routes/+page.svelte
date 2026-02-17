@@ -1537,13 +1537,13 @@
 			margin-bottom: 0.58rem;
 		}
 
-		.abstract-page {
-			justify-content: flex-start;
-			align-items: center;
-			min-height: auto;
-			padding: 1.7rem 0 1.25rem;
+			.abstract-page {
+				justify-content: center;
+				align-items: center;
+				min-height: calc(100svh - var(--nav-height) - 0.35rem);
+				padding: 1.5rem 0;
+			}
 		}
-	}
 
 	@media (max-width: 620px) {
 		.guest-paper {
