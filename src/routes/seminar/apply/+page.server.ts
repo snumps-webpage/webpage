@@ -118,10 +118,13 @@ export const actions: Actions = {
         attachment,
       });
 
+      // Extract only the name from the session name ("Name / Affiliation / Dept")
+      const displayName = session.user.name.split("/")[0].trim();
+
       // Notify admins about the new seminar application
       const { sendSeminarApplicationNotification } =
         await import("$lib/server/mail");
-      await sendSeminarApplicationNotification(session.user.name, title);
+      await sendSeminarApplicationNotification(displayName, title);
 
       return { success: true };
     } catch (e) {
