@@ -77,3 +77,19 @@ This document outlines the expected property structure for the Notion databases 
 | **StartTime** | Date     | Check-in timestamp.                |
 | **EndTime**   | Date     | Check-out timestamp.               |
 | **Status**    | Select   | `pending`, `approved`, `rejected`. |
+
+## 7. Events DB (`NOTION_DB_EVENTS`)
+
+**Purpose:** Stores publishable attendance-session events linked to activity pages.
+
+| Property Name    | Type     | Description                                                   |
+| :--------------- | :------- | :------------------------------------------------------------ |
+| **Title**        | Title    | Event title shown on attendance page.                        |
+| **Date**         | Date     | Event date/time used for lifecycle and application deadline.  |
+| **Type**         | Select   | Event type label (e.g., Seminar, Study, Meeting).            |
+| **Status**       | Select   | Lifecycle state (`draft`, `active`, `expired`).              |
+| **PathId**       | RichText | Public path segment for attendance link routing.              |
+| **AttendCode**   | RichText | Obfuscated access code segment for attendance link routing.   |
+| **NotionPageId** | RichText | Linked activity page ID in Activities DB.                     |
+| **Applicants**   | Relation | Members who applied to the event before it starts.            |
+| **Presenters**   | Relation | Seminar presenters who can manage applicant attendance checks. |

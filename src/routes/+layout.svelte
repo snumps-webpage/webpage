@@ -93,14 +93,15 @@
 
 <nav class="global-nav" class:guest-latex={isGuestLanding}>
 	<div class="nav-content">
-		<div class="nav-left">
-			<a href="/" class="guest-wordmark no-sel" aria-label="SNUMPS Home">
-				<img src={favicon} alt="" aria-hidden="true" class="guest-logo-mark" />
-			</a>
-			{#if session?.user}
-				<a href="/seminar/apply" class="paper-nav-link desktop-only">Seminar</a>
-			{/if}
-		</div>
+			<div class="nav-left">
+				<a href="/" class="guest-wordmark no-sel" aria-label="SNUMPS Home">
+					<img src={favicon} alt="" aria-hidden="true" class="guest-logo-mark" />
+				</a>
+				{#if session?.user}
+					<a href="/seminar/apply" class="paper-nav-link desktop-only">Seminar</a>
+					<a href="/events/manage" class="paper-nav-link desktop-only">Manage</a>
+				{/if}
+			</div>
 		<div class="nav-right">
 			{#if session?.user}
 				<div class="desktop-only nav-actions">
@@ -130,11 +131,12 @@
 
 		{#if session?.user && isMobileMenuOpen}
 			<div id="mobile-nav-menu" class="mobile-dropdown mobile-only stagger-1">
-			<div class="mobile-dropdown-content">
-				<div class="mobile-group">
-					<span class="group-label">Seminar</span>
-					<a href="/seminar/apply" class="mobile-link">세미나 개설</a>
-				</div>
+				<div class="mobile-dropdown-content">
+					<div class="mobile-group">
+						<span class="group-label">Seminar</span>
+						<a href="/seminar/apply" class="mobile-link">세미나 개설</a>
+						<a href="/events/manage" class="mobile-link">세미나 출석 관리</a>
+					</div>
 				{#if page.data.isAdmin}
 					<div class="mobile-group">
 						<span class="group-label">Admin</span>

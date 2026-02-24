@@ -7,6 +7,7 @@ import {
   getUserSeminars,
   updateSeminar,
 } from "$lib/server/notion";
+import { applyToEvent, cancelEventApplication, getEvents } from "$lib/server/events";
 import { getSeminarRequests } from "$lib/server/seminars";
 import { getApplications, type Application } from "$lib/server/admin";
 import {
@@ -36,6 +37,12 @@ interface UserAttendedActivity {
   url: string;
 }
 
+const SEMINAR_TYPES = new Set(["Seminar", "세미나"]);
+
+function isSeminarType(type: string) {
+  return SEMINAR_TYPES.has(type);
+}
+
 function buildDevDashboardPreview(semesterKey: string) {
   const today = new Date();
   const toDate = (offsetDays: number) =>
@@ -61,6 +68,10 @@ function buildDevDashboardPreview(semesterKey: string) {
       attended: false,
       url: "https://example.com/preview/geometry",
       semester: semesterKey,
+      eventId: "preview-event-1",
+      isApplied: false,
+      canApply: true,
+      pendingAttendance: false,
     },
     {
       id: "preview-activity-3",
@@ -70,6 +81,10 @@ function buildDevDashboardPreview(semesterKey: string) {
       attended: true,
       url: "https://example.com/preview/logic",
       semester: semesterKey,
+      eventId: "preview-event-2",
+      isApplied: true,
+      canApply: false,
+      pendingAttendance: false,
     },
   ];
 
@@ -159,13 +174,21 @@ export const load: PageServerLoad = async (event) => {
           allSeminarRequests,
           privateInfo,
           approvedSeminars,
+          allEvents,
         ] = await Promise.all([
           getActivities(semester.startDate, semester.endDate, skipCache),
           getUserActivities(member.memberId, skipCache),
           getSeminarRequests(skipCache),
           getPrivateInfo(member.privateInfoId),
           getUserSeminars(member.memberId),
+          getEvents(skipCache),
         ]);
+
+        const eventByNotionPageId = new Map(
+          allEvents
+            .filter((evt) => !!evt.notionPageId)
+            .map((evt) => [evt.notionPageId!, evt]),
+        );
 
         // Combine and Deduplicate Seminars
         const requests = allSeminarRequests.filter((req) =>
@@ -175,6 +198,32 @@ export const load: PageServerLoad = async (event) => {
         const currentActivities = (
           rawCurrentActivities as DashboardActivity[]
         ).map((act) => ({
+          ...act,
+          eventId: eventByNotionPageId.get(act.id)?.id,
+          isApplied: !!eventByNotionPageId
+            .get(act.id)
+            ?.applicantIds?.includes(member.memberId),
+          canApply: (() => {
+            const event = eventByNotionPageId.get(act.id);
+            if (!event?.date) return false;
+            const startAt = new Date(event.date).getTime();
+            return Number.isFinite(startAt) && startAt > Date.now();
+          })(),
+          pendingAttendance: (() => {
+            const event = eventByNotionPageId.get(act.id);
+            if (!event) return false;
+            const startAt = new Date(event.date).getTime();
+            const eventStarted = Number.isFinite(startAt) && startAt <= Date.now();
+            const applied =
+              Array.isArray(event.applicantIds) &&
+              event.applicantIds.includes(member.memberId);
+            return (
+              eventStarted &&
+              applied &&
+              !act.attendees.includes(member.memberId) &&
+              isSeminarType(act.type)
+            );
+          })(),
           id: act.id,
           name: act.name,
           date: act.date,
@@ -205,6 +254,10 @@ export const load: PageServerLoad = async (event) => {
             attended: true,
             semester: getSemesterKeyFromDate(a.date),
             url: a.url,
+            eventId: eventByNotionPageId.get(a.id)?.id,
+            isApplied: false,
+            canApply: false,
+            pendingAttendance: false,
           }));
 
         return {
@@ -301,6 +354,80 @@ export const actions = {
     } catch (e) {
       console.error("[Action UpdateSeminar] Error:", e);
       return fail(500, { error: "세미나 정보 업데이트에 실패했습니다." });
+    }
+  },
+
+  applyActivity: async ({ request, locals, url, cookies }) => {
+    const devPreviewRole = resolveDevPreviewRole(url, cookies);
+    if (dev && devPreviewRole) {
+      return { success: true, preview: true };
+    }
+
+    const session = await locals.auth();
+    if (!session?.user?.email) {
+      return fail(401, { error: "로그인이 필요합니다." });
+    }
+
+    const data = await request.formData();
+    const eventId = data.get("eventId") as string;
+    if (!eventId) {
+      return fail(400, { error: "이벤트 정보가 누락되었습니다." });
+    }
+
+    try {
+      const member = await getMemberByEmail(session.user.email);
+      if (!member) {
+        return fail(404, { error: "회원 정보를 찾을 수 없습니다." });
+      }
+
+      await applyToEvent(eventId, member.memberId);
+      return { success: true };
+    } catch (e) {
+      if (e instanceof Error && e.message === "EVENT_NOT_FOUND") {
+        return fail(404, { error: "활동 정보를 찾을 수 없습니다." });
+      }
+      if (e instanceof Error && e.message === "EVENT_NOT_OPEN") {
+        return fail(400, { error: "활동 시작 이후에는 신청할 수 없습니다." });
+      }
+      console.error("[Action ApplyActivity] Error:", e);
+      return fail(500, { error: "활동 신청 처리에 실패했습니다." });
+    }
+  },
+
+  cancelActivity: async ({ request, locals, url, cookies }) => {
+    const devPreviewRole = resolveDevPreviewRole(url, cookies);
+    if (dev && devPreviewRole) {
+      return { success: true, preview: true };
+    }
+
+    const session = await locals.auth();
+    if (!session?.user?.email) {
+      return fail(401, { error: "로그인이 필요합니다." });
+    }
+
+    const data = await request.formData();
+    const eventId = data.get("eventId") as string;
+    if (!eventId) {
+      return fail(400, { error: "이벤트 정보가 누락되었습니다." });
+    }
+
+    try {
+      const member = await getMemberByEmail(session.user.email);
+      if (!member) {
+        return fail(404, { error: "회원 정보를 찾을 수 없습니다." });
+      }
+
+      await cancelEventApplication(eventId, member.memberId);
+      return { success: true };
+    } catch (e) {
+      if (e instanceof Error && e.message === "EVENT_NOT_FOUND") {
+        return fail(404, { error: "활동 정보를 찾을 수 없습니다." });
+      }
+      if (e instanceof Error && e.message === "EVENT_NOT_OPEN") {
+        return fail(400, { error: "활동 시작 이후에는 신청 취소할 수 없습니다." });
+      }
+      console.error("[Action CancelActivity] Error:", e);
+      return fail(500, { error: "활동 신청 취소 처리에 실패했습니다." });
     }
   },
 };

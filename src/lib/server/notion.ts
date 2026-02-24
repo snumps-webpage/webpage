@@ -873,6 +873,23 @@ export async function addAttendeeToActivity(pageId: string, memberId: string) {
   });
 }
 
+export async function getActivityAttendeeIds(pageId: string): Promise<string[]> {
+  const page = await notionRetrieve(pageId);
+  const attendeeIds = getPropertyValue(page.properties[NOTION_PROPS.ATTENDANCE]);
+  return Array.isArray(attendeeIds) ? attendeeIds : [];
+}
+
+export async function replaceActivityAttendees(
+  pageId: string,
+  attendeeIds: string[],
+) {
+  await notionUpdate(pageId, {
+    [NOTION_PROPS.ATTENDANCE]: {
+      relation: attendeeIds.map((id) => ({ id })),
+    },
+  });
+}
+
 export async function checkPageExists(pageId: string): Promise<boolean> {
   try {
     const page = await notionRetrieve(pageId);
@@ -936,21 +953,32 @@ export async function getEventsFromNotion() {
   if (!dbId) return [];
 
   const results = await notionQuery(dbId);
-  return results.map((page) => ({
-    id: page.id,
-    title: getPropertyValue(page.properties[NOTION_PROPS.EVENT_TITLE]),
-    date: getPropertyValue(page.properties[NOTION_PROPS.EVENT_DATE]),
-    type: getPropertyValue(page.properties[NOTION_PROPS.EVENT_TYPE]),
-    status:
-      getPropertyValue(page.properties[NOTION_PROPS.EVENT_STATUS]) || "draft",
-    pathId: getPropertyValue(page.properties[NOTION_PROPS.EVENT_PATH_ID]),
-    attendCode: getPropertyValue(
-      page.properties[NOTION_PROPS.EVENT_ATTEND_CODE],
-    ),
-    notionPageId: getPropertyValue(
-      page.properties[NOTION_PROPS.EVENT_NOTION_PAGE_ID],
-    ),
-  }));
+  return results.map((page) => {
+    const applicantIds = getPropertyValue(
+      page.properties[NOTION_PROPS.EVENT_APPLICANTS],
+    );
+    const presenterIds = getPropertyValue(
+      page.properties[NOTION_PROPS.EVENT_PRESENTERS],
+    );
+
+    return {
+      id: page.id,
+      title: getPropertyValue(page.properties[NOTION_PROPS.EVENT_TITLE]),
+      date: getPropertyValue(page.properties[NOTION_PROPS.EVENT_DATE]),
+      type: getPropertyValue(page.properties[NOTION_PROPS.EVENT_TYPE]),
+      status:
+        getPropertyValue(page.properties[NOTION_PROPS.EVENT_STATUS]) || "draft",
+      pathId: getPropertyValue(page.properties[NOTION_PROPS.EVENT_PATH_ID]),
+      attendCode: getPropertyValue(
+        page.properties[NOTION_PROPS.EVENT_ATTEND_CODE],
+      ),
+      notionPageId: getPropertyValue(
+        page.properties[NOTION_PROPS.EVENT_NOTION_PAGE_ID],
+      ),
+      applicantIds: Array.isArray(applicantIds) ? applicantIds : [],
+      presenterIds: Array.isArray(presenterIds) ? presenterIds : [],
+    };
+  });
 }
 
 export async function createEventInNotion(data: any) {
@@ -979,8 +1007,42 @@ export async function createEventInNotion(data: any) {
     };
   }
 
+  if (Array.isArray(data.applicantIds) && data.applicantIds.length > 0) {
+    props[NOTION_PROPS.EVENT_APPLICANTS] = {
+      relation: data.applicantIds.map((id: string) => ({ id })),
+    };
+  }
+
+  if (Array.isArray(data.presenterIds) && data.presenterIds.length > 0) {
+    props[NOTION_PROPS.EVENT_PRESENTERS] = {
+      relation: data.presenterIds.map((id: string) => ({ id })),
+    };
+  }
+
   const page = await notionCreate(dbId, props);
   return page.id;
+}
+
+export async function updateEventApplicantsInNotion(
+  id: string,
+  applicantIds: string[],
+) {
+  await notionUpdate(id, {
+    [NOTION_PROPS.EVENT_APPLICANTS]: {
+      relation: applicantIds.map((memberId) => ({ id: memberId })),
+    },
+  });
+}
+
+export async function updateEventPresentersInNotion(
+  id: string,
+  presenterIds: string[],
+) {
+  await notionUpdate(id, {
+    [NOTION_PROPS.EVENT_PRESENTERS]: {
+      relation: presenterIds.map((memberId) => ({ id: memberId })),
+    },
+  });
 }
 
 export async function updateEventStatusInNotion(

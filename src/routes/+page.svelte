@@ -4,11 +4,11 @@
 	import { enhance } from '$app/forms';
     	import { signIn } from '@auth/sveltekit/client';
         import { goto } from '$app/navigation';
-    	import Skeleton from '$lib/components/Skeleton.svelte';
+	import Skeleton from '$lib/components/Skeleton.svelte';
         import type { DashboardData, Activity } from '$lib/types';
     	import type { PageData } from './$types';
     
-    	let { data }: { data: PageData } = $props();
+    	let { data, form }: { data: PageData; form?: { error?: string } } = $props();
     	const session = $derived(page.data.session);
         const isAdmin = $derived(page.data.isAdmin);
         const isMember = $derived(data.isMember);
@@ -74,6 +74,10 @@
 		return Array.from(new Set(activities.map((activity) => activity.type))).filter(
 			(type): type is string => Boolean(type)
 		);
+	}
+
+	function isSeminarType(type: string) {
+		return type === '세미나' || type === 'Seminar';
 	}
 
 	function getActivityTableMetrics(activities: Activity[]) {
@@ -173,6 +177,7 @@
 										</summary>
 										<div class="paper-details-content seminar-content">
 											<a href="/seminar/apply" class="paper-btn apply-seminar-btn">새 세미나 신청</a>
+											<a href="/events/manage" class="paper-btn secondary manage-seminar-btn">세미나 신청자 출석 관리</a>
 										{#if result.approvedSeminars.length === 0 && result.seminarRequests.length === 0}
 											<p class="paper-form-note empty-hint">참여 중인 세미나나 신청 내역이 없습니다.</p>
 										{:else}
@@ -361,11 +366,14 @@
 									</select>
 								</div>
 
-								{#if filteredActivities.length === 0}
-									<p class="paper-form-note empty-hint">조건에 맞는 활동 내역이 없습니다.</p>
-								{:else}
-									<figure class="paper-figure table-figure">
-										<div class="table-scroll">
+									{#if filteredActivities.length === 0}
+										<p class="paper-form-note empty-hint">조건에 맞는 활동 내역이 없습니다.</p>
+									{:else}
+										{#if form?.error}
+											<p class="paper-status-note error">{form.error}</p>
+										{/if}
+										<figure class="paper-figure table-figure">
+											<div class="table-scroll">
 											<table
 												class="activity-table"
 												style="
@@ -392,14 +400,33 @@
 																	{activity.name}
 																</a>
 															</td>
-															<td>{activity.type}</td>
-															<td>
-																<span class="attendance-badge {activity.attended ? 'attended' : 'absent'}">
-																	{activity.attended ? '출석' : '결석'}
-																</span>
-															</td>
-														</tr>
-													{/each}
+																<td>{activity.type}</td>
+																<td>
+																	{#if activity.attended}
+																		<span class="attendance-badge attended">출석</span>
+																	{:else if activity.canApply && activity.eventId}
+																		{#if activity.isApplied}
+																			<div class="attendance-cell-actions">
+																				<span class="attendance-badge applied">신청 완료</span>
+																				<form method="POST" action="?/cancelActivity" class="attendance-action-form" use:enhance>
+																					<input type="hidden" name="eventId" value={activity.eventId} />
+																					<button class="attendance-action-btn cancel">취소</button>
+																				</form>
+																			</div>
+																		{:else}
+																			<form method="POST" action="?/applyActivity" class="attendance-action-form" use:enhance>
+																				<input type="hidden" name="eventId" value={activity.eventId} />
+																				<button class="attendance-action-btn">신청</button>
+																			</form>
+																		{/if}
+																	{:else if activity.pendingAttendance || (activity.isApplied && isSeminarType(activity.type))}
+																		<span class="attendance-badge pending">출석 확인 대기</span>
+																	{:else}
+																		<span class="attendance-badge absent">결석</span>
+																	{/if}
+																</td>
+															</tr>
+														{/each}
 												</tbody>
 											</table>
 										</div>
@@ -653,6 +680,13 @@
 		}
 
 		.seminar-content .apply-seminar-btn {
+			width: 100%;
+			justify-content: center;
+			font-size: 0.66rem;
+			letter-spacing: 0.075em;
+		}
+
+		.seminar-content .manage-seminar-btn {
 			width: 100%;
 			justify-content: center;
 			font-size: 0.66rem;
@@ -953,7 +987,7 @@
 		.activity-table thead th:last-child,
 		.activity-table tbody td:last-child {
 			text-align: center;
-			width: 6.2rem;
+			width: 9.6rem;
 		}
 
 		.activity-table tbody td {
@@ -1022,6 +1056,55 @@
 			color: var(--color-danger-text);
 			background: color-mix(in srgb, var(--color-danger-bg) 82%, var(--bg-primary));
 			border-color: color-mix(in srgb, var(--color-danger-text) 66%, var(--border-color));
+		}
+
+		.attendance-badge.applied {
+			color: var(--text-primary);
+			background: color-mix(in srgb, var(--bg-secondary) 85%, var(--bg-primary));
+			border-color: var(--border-color);
+		}
+
+		.attendance-badge.pending {
+			color: var(--color-warning-text);
+			background: color-mix(in srgb, var(--color-warning-text) 14%, var(--bg-primary));
+			border-color: color-mix(in srgb, var(--color-warning-text) 66%, var(--border-color));
+		}
+
+		.attendance-cell-actions {
+			display: grid;
+			gap: 0.28rem;
+			justify-items: center;
+		}
+
+		.attendance-action-form {
+			margin: 0;
+		}
+
+		.attendance-action-btn {
+			border: 1px solid var(--text-primary);
+			background: transparent;
+			color: var(--text-primary);
+			font-family: var(--font-mono);
+			font-size: 0.6rem;
+			text-transform: uppercase;
+			letter-spacing: 0.07em;
+			padding: 0.22rem 0.48rem;
+			cursor: pointer;
+		}
+
+		.attendance-action-btn:hover {
+			background: var(--text-primary);
+			color: var(--bg-primary);
+		}
+
+		.attendance-action-btn.cancel {
+			border-color: var(--color-danger-text);
+			color: var(--color-danger-text);
+		}
+
+		.attendance-action-btn.cancel:hover {
+			background: var(--color-danger-text);
+			color: var(--bg-primary);
 		}
 
 		.empty-hint {

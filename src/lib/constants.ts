@@ -44,6 +44,8 @@ export const NOTION_PROPS = {
   EVENT_PATH_ID: n("PathId"),
   EVENT_ATTEND_CODE: n("AttendCode"),
   EVENT_NOTION_PAGE_ID: n("NotionPageId"),
+  EVENT_APPLICANTS: n("Applicants"),
+  EVENT_PRESENTERS: n("Presenters"),
 };
 
 export const ACTIVITY_TYPES = [

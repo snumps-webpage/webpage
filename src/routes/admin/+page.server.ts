@@ -3,6 +3,7 @@ import { getApplications, isAdmin, removeApplication } from "$lib/server/admin";
 import {
   createMember,
   getAllMembers,
+  getAllPrivateInfo,
   getMemberByEmail,
   createActivityPage,
   addAttendeeToActivity,
@@ -25,6 +26,7 @@ import {
   updateSeminarRequestStatus,
 } from "$lib/server/seminars";
 import {
+  sendSeminarAnnouncementToMembers,
   sendSeminarStatusNotification,
   sendWelcomeEmail,
 } from "$lib/server/mail";
@@ -295,11 +297,37 @@ export const actions = {
           title: seminar.title,
           type: "Seminar",
           notionPageId: page.id,
+          presenterIds: seminar.speakerIds,
         }),
         updateSeminarRequestStatus(id, "approved"),
       ];
 
-      // 3. Notify Speaker(s)
+      // 3. Notify all members about the newly approved seminar
+      tasks.push(
+        (async () => {
+          try {
+            const privateInfos = await getAllPrivateInfo();
+            const recipientEmails = Array.from(
+              new Set(
+                privateInfos
+                  .filter((info) => info.memberId && info.email)
+                  .map((info) => info.email),
+              ),
+            );
+            if (recipientEmails.length > 0) {
+              await sendSeminarAnnouncementToMembers(
+                recipientEmails,
+                seminar.title,
+              );
+            }
+          } catch (e) {
+            console.error("Failed to send seminar announcement email:", e);
+            // Don't fail the whole request just because email failed
+          }
+        })(),
+      );
+
+      // 4. Notify Speaker(s)
       if (seminar.speakerIds.length > 0) {
         tasks.push(
           (async () => {

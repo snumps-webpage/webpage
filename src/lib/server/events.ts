@@ -8,22 +8,28 @@ import {
   getEventsFromNotion,
   createEventInNotion,
   updateEventStatusInNotion,
+  updateEventApplicantsInNotion,
   deleteEventInNotion,
 } from "./notion";
-import { withCache } from "./cache";
+import { invalidateCache, withCache } from "./cache";
 
 // --- Events Management (Notion Only) ---
 
-export async function getEvents(): Promise<Event[]> {
+export async function getEvents(skipCache = false): Promise<Event[]> {
   // Cache events for 1 minute to reduce API calls
-  return withCache("all_events", 60000, async () => {
-    try {
-      return (await getEventsFromNotion()) as Event[];
-    } catch (e) {
-      console.error("Failed to fetch events from Notion:", e);
-      return [];
-    }
-  });
+  return withCache(
+    "all_events",
+    60000,
+    async () => {
+      try {
+        return (await getEventsFromNotion()) as Event[];
+      } catch (e) {
+        console.error("Failed to fetch events from Notion:", e);
+        return [];
+      }
+    },
+    { skipCache },
+  );
 }
 
 export async function getEvent(id: string): Promise<Event | undefined> {
@@ -43,6 +49,8 @@ export async function createEvent(data: {
   date?: string;
   type: string;
   notionPageId?: string;
+  presenterIds?: string[];
+  applicantIds?: string[];
 }) {
   const newEventData = {
     title: data.title,
@@ -52,11 +60,14 @@ export async function createEvent(data: {
     pathId: crypto.randomUUID().slice(0, 8),
     attendCode: crypto.randomUUID().slice(0, 12),
     notionPageId: data.notionPageId,
+    presenterIds: data.presenterIds ?? [],
+    applicantIds: data.applicantIds ?? [],
   };
 
   const id = await createEventInNotion(newEventData);
   if (!id) throw new Error("Failed to create event in Notion");
 
+  invalidateCache("all_events");
   return { ...newEventData, id } as Event;
 }
 
@@ -66,10 +77,65 @@ export async function updateEventStatus(
   notionPageId?: string,
 ) {
   await updateEventStatusInNotion(id, status, notionPageId);
+  invalidateCache("all_events");
 }
 
 export async function deleteEvent(id: string) {
   await deleteEventInNotion(id);
+  invalidateCache("all_events");
+}
+
+function getEventStartTimestamp(date: string): number | null {
+  if (!date) return null;
+  const timestamp = new Date(date).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function isEventOpenForApplication(event: Event): boolean {
+  const start = getEventStartTimestamp(event.date);
+  if (start === null) return false;
+  return start > Date.now();
+}
+
+export async function applyToEvent(eventId: string, memberId: string) {
+  const event = await getEvent(eventId);
+  if (!event) {
+    throw new Error("EVENT_NOT_FOUND");
+  }
+  if (!isEventOpenForApplication(event)) {
+    throw new Error("EVENT_NOT_OPEN");
+  }
+
+  const applicantIds = Array.isArray(event.applicantIds) ? event.applicantIds : [];
+  if (applicantIds.includes(memberId)) {
+    return { changed: false };
+  }
+
+  await updateEventApplicantsInNotion(eventId, [...applicantIds, memberId]);
+  invalidateCache("all_events");
+  return { changed: true };
+}
+
+export async function cancelEventApplication(eventId: string, memberId: string) {
+  const event = await getEvent(eventId);
+  if (!event) {
+    throw new Error("EVENT_NOT_FOUND");
+  }
+  if (!isEventOpenForApplication(event)) {
+    throw new Error("EVENT_NOT_OPEN");
+  }
+
+  const applicantIds = Array.isArray(event.applicantIds) ? event.applicantIds : [];
+  if (!applicantIds.includes(memberId)) {
+    return { changed: false };
+  }
+
+  await updateEventApplicantsInNotion(
+    eventId,
+    applicantIds.filter((id) => id !== memberId),
+  );
+  invalidateCache("all_events");
+  return { changed: true };
 }
 
 // --- Attendance Queue (Notion Only) ---

@@ -9,6 +9,10 @@ export interface NotionActivity {
 export interface Activity extends NotionActivity {
   attended: boolean;
   semester: string;
+  eventId?: string;
+  isApplied?: boolean;
+  canApply?: boolean;
+  pendingAttendance?: boolean;
 }
 
 export interface AttendanceStats {
@@ -34,6 +38,7 @@ export interface DashboardData {
   mySeminars?: SeminarRequest[];
   profile: {
     phone: string;
+    background?: string;
   };
   semesters: string[];
   error?: string;
@@ -48,6 +53,8 @@ export interface Event {
   status: "draft" | "active" | "expired";
   pathId: string;
   attendCode: string;
+  applicantIds?: string[];
+  presenterIds?: string[];
 }
 
 export interface AttendanceRecord {

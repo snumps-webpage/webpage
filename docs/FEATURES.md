@@ -30,3 +30,11 @@
 - **Smart Paging**: Handles large databases via automatic pagination helpers.
 - **Skeleton Loaders**: Shimmering placeholders ensure a smooth perceived performance during data loading.
 - **Instant Admin Feedback**: Optimistic UI updates provide immediate feedback for critical actions like membership approval.
+
+## 🧭 Roadmap TODO
+
+- **수요조사(투표) 기능**: 추후 구현 예정
+- **투표 단위 설계**: 한 설문당 질문/옵션 구조 확정
+- **1인 1표 규칙**: 중복 투표 방지 정책 및 검증 방식 정의
+- **관리자 기능**: 설문 생성/마감/수정/삭제 플로우 설계
+- **결과 공개 범위**: 전체 공개/관리자 전용/마감 후 공개 정책 결정

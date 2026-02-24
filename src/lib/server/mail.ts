@@ -144,6 +144,31 @@ export async function sendSeminarApplicationNotification(
 }
 
 /**
+ * Sends an announcement email to all members when a seminar is approved.
+ */
+export async function sendSeminarAnnouncementToMembers(
+  recipients: string[],
+  seminarTitle: string,
+) {
+  try {
+    if (!Array.isArray(recipients) || recipients.length === 0) return;
+
+    const dedupedRecipients = Array.from(
+      new Set(recipients.map((email) => email.trim()).filter(Boolean)),
+    );
+    if (dedupedRecipients.length === 0) return;
+
+    const accessToken = await getAdminAccessToken();
+    const subject = `[SNUMPS] 신규 세미나 개설 안내: ${seminarTitle}`;
+    const body = `안녕하세요, 수학문제연구회 회원 여러분.\n\n'${seminarTitle}' 세미나가 새롭게 개설되었습니다.\n\n자세한 일정과 안내는 동아리 채널 및 공지에서 확인 부탁드립니다.\n\n감사합니다.`;
+
+    await dispatchEmail(accessToken, dedupedRecipients, subject, body);
+  } catch (e) {
+    console.error("Seminar announcement mail error:", e);
+  }
+}
+
+/**
  * Sends a welcome email to a new member upon acceptance.
  */
 export async function sendWelcomeEmail(
