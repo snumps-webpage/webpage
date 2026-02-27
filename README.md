@@ -4,31 +4,42 @@ A secure SvelteKit web application designed to automate membership management an
 
 ## 🚀 Quick Links
 
-- **[Features Overview](./docs/FEATURES.md)**: Explore the authentication, membership, and attendance systems.
-- **[Setup & Installation](./docs/SETUP.md)**: Instructions for local development and Gmail API configuration.
-- **[System Architecture](./docs/ARCHITECTURE.md)**: Detailed breakdown of the project structure and hybrid storage model.
-- **[Design Blueprint](./docs/DESIGN_BLUEPRINT.md)**: Guest landing LaTeX/arXiv design rules and implementation constraints.
+### For Users & Admins
+- **[Features Overview](docs/FEATURES.md)**: Explore authentication, membership, and attendance systems.
+- **[Setup & Installation](docs/SETUP.md)**: Instructions for local development and API keys.
+- **[Design Blueprint](docs/DESIGN_BLUEPRINT.md)**: UI/UX principles (LaTeX/arXiv style).
+
+### For Developers
+- **[Contributing Guide](CONTRIBUTING.md)**: Dev workflow, code standards, and git conventions.
+- **[System Architecture](docs/ARCHITECTURE.md)**: High-level system design and hybrid storage.
+- **[API Documentation](docs/API.md)**: Internal API endpoints and Cron jobs.
+- **[Deployment Guide](docs/DEPLOYMENT.md)**: Vercel deployment and production configuration.
+- **[Commenting Rules](COMMENTING_RULES.md)**: Standards for high-signal code documentation.
 
 ## 🌟 Key Highlights
 
-- **Math Journal Aesthetic**: A distinctive editorial UI overhaul using `Crimson Pro`, `Newsreader`, and `Gowun Batang` typography. Features atmospheric paper-like backgrounds and staggered entrance animations for a refined academic experience.
-- **High Performance**: Optimized backend actions using parallelized Notion requests and intelligent token caching, ensuring sub-second response times.
+- **Math Journal Aesthetic**: A distinctive editorial UI overhaul using `Crimson Pro`, `Newsreader`, and `Gowun Batang`.
+- **High Performance**: Optimized backend actions using parallelized Notion requests and intelligent token caching.
 - **Smart Integration**: Two-way sync with multiple Notion databases for members and activities.
 
 ## 🛠️ Tech Stack
 
 - **Frontend**: Svelte 5 (Runes) & SvelteKit.
 - **Backend**: SvelteKit Server Routes with In-memory Caching.
-- **Authentication**: Auth.js with Google OAuth.
-- **Storage**: Notion (Primary) + In-Memory Cache.
+- **Authentication**: Auth.js with Google OAuth (restricted to `@snu.ac.kr`).
+- **Storage**: Notion (Primary) + In-Memory Cache (Performance).
 - **Communication**: Google Gmail API.
 
----
+## 📂 Documentation Index
 
-- [**Setup Guide**](docs/SETUP.md) - Environment variables and initial configuration.
-- [**Auth Variables**](docs/AUTH_VARS.md) - Usage of Admin and Authorized user lists.
-- [**Architecture**](docs/ARCHITECTURE.md) - System design and operational protocols.
-- [**Features**](docs/FEATURES.md) - Detailed breakdown of application capabilities.
-- [**Design Blueprint**](docs/DESIGN_BLUEPRINT.md) - Pre-login landing design principles and guardrails.
-- [**Caching Policy**](docs/CACHE.md) - Cache durations and management strategy.
-- [**Database Schema**](docs/schema.md) - Notion database structures and property mappings.
+| Doc | Description |
+| :-- | :-- |
+| [**SETUP.md**](docs/SETUP.md) | Env vars and initial config. |
+| [**AUTH_VARS.md**](docs/AUTH_VARS.md) | Admin authorization logic. |
+| [**ARCHITECTURE.md**](docs/ARCHITECTURE.md) | System design & storage model. |
+| [**FEATURES.md**](docs/FEATURES.md) | Detailed capability breakdown. |
+| [**DESIGN_BLUEPRINT.md**](docs/DESIGN_BLUEPRINT.md) | Design rules and guardrails. |
+| [**CACHE.md**](docs/CACHE.md) | Server-side caching policy. |
+| [**schema.md**](docs/schema.md) | Notion database schemas. |
+| [**API.md**](docs/API.md) | Internal API endpoints. |
+| [**DEPLOYMENT.md**](docs/DEPLOYMENT.md) | Vercel & Cron setup. |
