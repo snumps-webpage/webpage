@@ -132,15 +132,29 @@
     let editingRecord = $state<AttendanceRecord | null>(null);
     let editDialog: HTMLDialogElement;
     
-        function openEdit(record: AttendanceRecord) {
-            editingRecord = record;
-            editDialog.showModal();
-        }
-    
-        function closeEdit() {
-            editDialog.close();
-            editingRecord = null;
-        }
+    // State for application details
+    let selectedApp = $state<Application | null>(null);
+    let appDetailsDialog: HTMLDialogElement;
+
+    function openEdit(record: AttendanceRecord) {
+        editingRecord = record;
+        editDialog.showModal();
+    }
+
+    function closeEdit() {
+        editDialog.close();
+        editingRecord = null;
+    }
+
+    function openAppDetails(app: Application) {
+        selectedApp = app;
+        appDetailsDialog.showModal();
+    }
+
+    function closeAppDetails() {
+        appDetailsDialog.close();
+        selectedApp = null;
+    }
         
         /**
          * Converts an ISO string to a format compatible with <input type="datetime-local">.
@@ -388,6 +402,48 @@
                 </form>
             {/if}
         </dialog>
+
+        <!-- Application Details Dialog -->
+        <dialog bind:this={appDetailsDialog} class="edit-dialog app-details-dialog">
+            {#if selectedApp}
+                <h3>신청 상세 정보</h3>
+                <p class="app-meta"><strong>{selectedApp.name}</strong> ({selectedApp.department})</p>
+                
+                <div class="details-body">
+                    <div class="detail-item">
+                        <span class="detail-label">이메일</span>
+                        <div class="row">
+                            <span>{selectedApp.email}</span>
+                            <CopyButton text={selectedApp.email} title="이메일 복사" />
+                        </div>
+                    </div>
+                    
+                    <div class="detail-item">
+                        <span class="detail-label">전화번호</span>
+                        <div class="row">
+                            <span>{selectedApp.phone}</span>
+                            <CopyButton text={selectedApp.phone} title="전화번호 복사" />
+                        </div>
+                    </div>
+
+                    <div class="detail-item">
+                        <span class="detail-label">신청일</span>
+                        <p>{new Date(selectedApp.submittedAt).toLocaleString()}</p>
+                    </div>
+
+                    <div class="detail-item">
+                        <span class="detail-label">배경지식</span>
+                        <div class="background-box">
+                            {selectedApp.background || '없음'}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dialog-actions">
+                    <button type="button" class="btn cancel" onclick={closeAppDetails}>닫기</button>
+                </div>
+            {/if}
+        </dialog>
     
     				<section class="mt-4">
     
@@ -522,9 +578,9 @@
                         <table>
                             <thead>
                                 <tr>
-                                    <th>이름</th>
-                                    <th>학과</th>
-                                    <th>신청일</th>
+                                    <th class="col-name">이름</th>
+                                    <th class="col-dept">학과</th>
+                                    <th class="col-date">신청일</th>
                                     <th>상세 정보</th>
                                     <th>관리</th>
                                 </tr>
@@ -532,24 +588,11 @@
                             <tbody>
                                 {#each paginatedApps as app (app.id)}
                                     <tr class:accepted={app.accepted}>
-                                        <td>{app.name}</td>
-                                        <td><span class="tag">{app.department}</span></td>
-                                        <td>{new Date(app.submittedAt).toLocaleDateString()}</td>
+                                        <td class="col-name">{app.name}</td>
+                                        <td class="col-dept"><span class="tag">{app.department}</span></td>
+                                        <td class="col-date">{new Date(app.submittedAt).toLocaleDateString()}</td>
                                         <td>
-                                            <details>
-                                                <summary>보기</summary>
-                                                <div class="details-content">
-                                                    <p class="email-row">
-                                                        <strong>이메일:</strong> {app.email}
-                                                        <CopyButton text={app.email} title="이메일 복사" />
-                                                    </p>
-                                                    <p class="phone-row">
-                                                        <strong>전화번호:</strong> {app.phone}
-                                                        <CopyButton text={app.phone} title="전화번호 복사" />
-                                                    </p>
-                                                    <p><strong>배경지식:</strong><br>{app.background || '-'}</p>
-                                                </div>
-                                            </details>
+                                            <button class="btn info small" onclick={() => openAppDetails(app)}>보기</button>
                                         </td>
                                         <td class="actions-cell">
                                             {#if app.accepted}
@@ -607,14 +650,7 @@
                                 </div>
                                 <div class="card-body">
                                     <p><strong>신청일:</strong> {new Date(app.submittedAt).toLocaleDateString()}</p>
-                                    <details>
-                                        <summary>상세 정보 보기</summary>
-                                        <div class="details-content mt-2">
-                                            <p class="email-row"><strong>이메일:</strong> {app.email} <CopyButton text={app.email} /></p>
-                                            <p class="phone-row"><strong>전화번호:</strong> {app.phone} <CopyButton text={app.phone} /></p>
-                                            <p><strong>배경지식:</strong><br>{app.background || '-'}</p>
-                                        </div>
-                                    </details>
+                                    <button class="btn info small" onclick={() => openAppDetails(app)}>상세 정보 보기</button>
                                 </div>
                                 <div class="card-actions">
                                     {#if app.accepted}
@@ -814,7 +850,8 @@
         border-color: var(--latex-accent);
     }
 
-    .edit {
+    .edit,
+    .info {
         border-color: var(--latex-text);
     }
 
@@ -908,6 +945,13 @@
         vertical-align: top;
 	}
 
+    .col-name,
+    .col-dept,
+    .col-date {
+        white-space: nowrap;
+        width: 1%;
+    }
+
     tr.accepted td {
         color: var(--latex-muted);
     }
@@ -963,37 +1007,43 @@
         border-color: var(--latex-rule);
     }
 
-    summary {
-        cursor: pointer;
-        color: var(--latex-muted);
-        font-family: var(--font-mono);
-        font-size: 0.68rem;
-        font-weight: 680;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-    }
-
-    details[open] summary {
-        margin-bottom: 0.45rem;
-    }
-
-    .details-content {
-        border: 1px solid var(--latex-rule);
-        padding: 0.62rem 0.7rem;
+    .app-meta {
         font-family: var(--font-body);
-        background: var(--latex-bg);
+        font-size: 0.94rem;
+        color: var(--latex-text);
+        margin-bottom: 1.25rem;
     }
 
-    .details-content p {
-        margin: 0.4rem 0;
+    .detail-item {
+        margin-bottom: 0.85rem;
     }
 
-    .phone-row,
-    .email-row {
+    .detail-label {
+        display: block;
+        font-family: var(--font-mono);
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--latex-muted);
+        margin-bottom: 0.35rem;
+    }
+
+    .detail-item .row {
         display: flex;
         align-items: center;
-        gap: 0.4rem;
-        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .background-box {
+        border: 1px solid var(--latex-rule);
+        padding: 0.72rem 0.8rem;
+        font-family: var(--font-body);
+        background: var(--latex-bg);
+        line-height: 1.5;
+        white-space: pre-wrap;
+        min-height: 4rem;
+        max-height: 12rem;
+        overflow-y: auto;
     }
 
     .pagination {
