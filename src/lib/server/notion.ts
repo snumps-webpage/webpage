@@ -1,6 +1,6 @@
-/**
+/** --- DATA ORCHESTRATION --- 
  * Core service for interacting with the Notion API.
- * Provides generic CRUD operations using standard fetch with explicit headers.
+ * Encapsulates CRUD operations and property parsing logic.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { env } from "$env/dynamic/private";
@@ -16,17 +16,10 @@ export interface DatabasePropertySchema {
   options?: string[];
 }
 
-/**
- * --- GENERIC NOTION HELPERS ---
- */
-
-/**
- * Returns the required headers for any Notion API request.
- */
+/** [Internal: Authentication] */
 function getHeaders() {
   if (!env.NOTION_API_KEY) {
-    console.error(">>> [Notion Service] FATAL: NOTION_API_KEY is missing.");
-    throw new Error("NOTION_API_KEY is missing");
+    throw new Error("NOTION_API_KEY is missing from environment");
   }
   return {
     Authorization: `Bearer ${env.NOTION_API_KEY}`,
@@ -35,14 +28,14 @@ function getHeaders() {
   };
 }
 
-/**
- * Generic database query with automatic pagination.
+/** 
+ * [Constraint: Pagination] 
+ * Automatically handles Notion's cursor-based pagination to return all results.
  */
 export async function notionQuery(
   databaseId: string,
   options: any = {},
 ): Promise<any[]> {
-  console.log(`>>> [Notion Service] notionQuery START [DB: ${databaseId}]`);
   let allResults: any[] = [];
   let hasMore = true;
   let nextCursor: string | undefined = undefined;
@@ -64,7 +57,6 @@ export async function notionQuery(
       const data: any = await fetchRes.json();
 
       if (!fetchRes.ok) {
-        console.error(`>>> [Notion Service] Query Failed:`, data);
         throw new Error(data.message || "Notion API Query Error");
       }
 
@@ -76,26 +68,19 @@ export async function notionQuery(
       hasMore = data.has_more;
       nextCursor = data.next_cursor ?? undefined;
     }
-    console.log(
-      `>>> [Notion Service] Query success. Count: ${allResults.length}`,
-    );
     return allResults;
   } catch (error) {
-    console.error(`>>> [Notion Service] Error in notionQuery:`, error);
+    console.error(`[Notion Service] Query failed for DB ${databaseId}:`, error);
     throw error;
   }
 }
 
 export const queryDatabase = notionQuery;
 
-/**
- * Generic page creation.
- */
 export async function notionCreate(
   databaseId: string,
   properties: any,
 ): Promise<any> {
-  console.log(`>>> [Notion Service] notionCreate START [DB: ${databaseId}]`);
   try {
     const response = await fetch(`https://api.notion.com/v1/pages`, {
       method: "POST",
@@ -109,26 +94,20 @@ export async function notionCreate(
     const data: any = await response.json();
 
     if (!response.ok) {
-      console.error(`>>> [Notion Service] Create Failed:`, data);
       throw new Error(data.message || "Notion API Create Error");
     }
 
-    console.log(`>>> [Notion Service] Create success: ${data.id}`);
     return data;
   } catch (error) {
-    console.error(`>>> [Notion Service] Error in notionCreate:`, error);
+    console.error(`[Notion Service] Create failed for DB ${databaseId}:`, error);
     throw error;
   }
 }
 
-/**
- * Generic page update.
- */
 export async function notionUpdate(
   pageId: string,
   properties: any,
 ): Promise<any> {
-  console.log(`>>> [Notion Service] notionUpdate START [Page: ${pageId}]`);
   try {
     const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
       method: "PATCH",
@@ -139,23 +118,17 @@ export async function notionUpdate(
     const data: any = await response.json();
 
     if (!response.ok) {
-      console.error(`>>> [Notion Service] Update Failed:`, data);
       throw new Error(data.message || "Notion API Update Error");
     }
 
-    console.log(">>> [Notion Service] Update success");
     return data;
   } catch (error) {
-    console.error(`>>> [Notion Service] Error in notionUpdate:`, error);
+    console.error(`[Notion Service] Update failed for Page ${pageId}:`, error);
     throw error;
   }
 }
 
-/**
- * Generic page archive (delete).
- */
 export async function notionArchive(pageId: string): Promise<void> {
-  console.log(`>>> [Notion Service] notionArchive START [Page: ${pageId}]`);
   try {
     const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
       method: "PATCH",
@@ -165,22 +138,15 @@ export async function notionArchive(pageId: string): Promise<void> {
 
     if (!response.ok) {
       const data: any = await response.json();
-      console.error(`>>> [Notion Service] Archive Failed:`, data);
       throw new Error(data.message || "Notion API Archive Error");
     }
-
-    console.log(">>> [Notion Service] Archive success");
   } catch (error) {
-    console.error(`>>> [Notion Service] Error in notionArchive:`, error);
+    console.error(`[Notion Service] Archive failed for Page ${pageId}:`, error);
     throw error;
   }
 }
 
-/**
- * Generic page retrieval.
- */
 export async function notionRetrieve(pageId: string): Promise<any> {
-  console.log(`>>> [Notion Service] notionRetrieve START [Page: ${pageId}]`);
   try {
     const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
       method: "GET",
@@ -190,25 +156,17 @@ export async function notionRetrieve(pageId: string): Promise<any> {
     const data: any = await response.json();
 
     if (!response.ok) {
-      console.error(`>>> [Notion Service] Retrieve Failed:`, data);
       throw new Error(data.message || "Notion API Retrieve Error");
     }
 
-    console.log(">>> [Notion Service] Retrieve success");
     return data;
   } catch (error) {
-    console.error(`>>> [Notion Service] Error in notionRetrieve:`, error);
+    console.error(`[Notion Service] Retrieve failed for Page ${pageId}:`, error);
     throw error;
   }
 }
 
-/**
- * Generic database retrieval.
- */
 export async function notionRetrieveDatabase(databaseId: string): Promise<any> {
-  console.log(
-    `>>> [Notion Service] notionRetrieveDatabase START [DB: ${databaseId}]`,
-  );
   try {
     const response = await fetch(
       `https://api.notion.com/v1/databases/${databaseId}`,
@@ -221,25 +179,19 @@ export async function notionRetrieveDatabase(databaseId: string): Promise<any> {
     const data: any = await response.json();
 
     if (!response.ok) {
-      console.error(`>>> [Notion Service] Retrieve DB Failed:`, data);
       throw new Error(data.message || "Notion API Retrieve DB Error");
     }
 
-    console.log(">>> [Notion Service] Retrieve DB success");
     return data;
   } catch (error) {
-    console.error(
-      `>>> [Notion Service] Error in notionRetrieveDatabase:`,
-      error,
-    );
+    console.error(`[Notion Service] Retrieve DB failed for ID ${databaseId}:`, error);
     throw error;
   }
 }
 
-/**
- * --- DATA PARSERS ---
+/** --- DATA PARSERS --- 
+ * Normalizes complex Notion property objects into standard JS types.
  */
-
 export function getPropertyValue(property: any): any {
   if (!property) return "";
 
@@ -277,13 +229,12 @@ export function getPropertyValue(property: any): any {
         return "";
     }
   } catch (e) {
-    console.log(">>> [Notion Service] Parsing Error:", e);
     return "";
   }
 }
 
-/**
- * --- BUSINESS LOGIC ---
+/** --- BUSINESS LOGIC --- 
+ * Higher-level abstractions for SNUMPS domain entities.
  */
 
 export async function createMember(data: {
@@ -696,8 +647,6 @@ export async function updateSeminarRequestInNotion(
       relation: data.speakerIds.map((sid) => ({ id: sid })),
     };
   if (data.attachment !== undefined) {
-    // If empty string, we might want to clear it? url property requires valid url or null?
-    // Notion API: url property can be null or string.
     properties[NOTION_PROPS.SEMINAR_FILES] = data.attachment
       ? { url: data.attachment }
       : { url: null };
@@ -806,7 +755,6 @@ export async function getPresidentName(): Promise<string> {
     const dbId = env.NOTION_DB_MEMBERS;
     if (!dbId) return "";
 
-    // Query for all members who have any value in the Executives property
     const results = await notionQuery(dbId, {
       filter: {
         property: NOTION_PROPS.EXECUTIVES,
@@ -826,13 +774,11 @@ export async function getPresidentName(): Promise<string> {
 
       for (const tag of executives) {
         const tagName = tag.name as string;
-        // Match patterns like "25-1 회장", "25-2 회 장", etc.
         const match = tagName.match(/(\d{2})-(\d)\s*회\s*장/);
 
         if (match) {
           const year = parseInt(match[1]);
           const sem = parseInt(match[2]);
-          // Calculate a sortable value (e.g., 25.2 for 25-2)
           const score = year + sem / 10;
 
           if (score > latestSemesterValue) {
@@ -882,10 +828,6 @@ export async function checkPageExists(pageId: string): Promise<boolean> {
   }
 }
 
-/**
- * --- Legacy/Misc fetch-based ones (if any left) ---
- */
-
 export async function getAttendanceQueueFromNotion() {
   const dbId = env.NOTION_DB_ATTENDANCE_QUEUE;
   if (!dbId) return [];
@@ -928,8 +870,6 @@ export async function updateAttendanceRecordInNotion(id: string, updates: any) {
 export async function removeAttendanceRecordInNotion(id: string) {
   await notionArchive(id);
 }
-
-// --- Event Persistence (Replacing JSON) ---
 
 export async function getEventsFromNotion() {
   const dbId = env.NOTION_DB_EVENTS;

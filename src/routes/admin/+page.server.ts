@@ -1,3 +1,7 @@
+/** --- ADMINISTRATIVE ORCHESTRATION --- 
+ * Central control point for membership approval, event management, and attendance validation.
+ * Orchestrates multi-step Notion workflows and external notifications.
+ */
 import { fail, redirect } from "@sveltejs/kit";
 import { getApplications, isAdmin, removeApplication } from "$lib/server/admin";
 import {
@@ -80,26 +84,26 @@ export const load: PageServerLoad = async (event) => {
 };
 
 export const actions = {
+  /** 
+   * [Workflow: Membership Approval] 
+   * 1. Creates Member & PrivateInfo records. 
+   * 2. Marks application as accepted. 
+   * 3. Triggers welcome notification.
+   */
   approve: async ({ request, locals }) => {
     const session = await locals.auth();
     if (!session?.user?.email || !isAdmin(session.user.email)) {
-      return fail(403, {
-        error: "Access denied. Administrator privileges required.",
-      });
+      return fail(403, { error: "Admin privileges required." });
     }
 
     const data = await request.formData();
     const id = data.get("id") as string;
-
     const apps = await getApplications();
     const app = apps.find((a) => a.id === id);
 
-    if (!app) return fail(404, { error: "Membership application not found" });
+    if (!app) return fail(404, { error: "Application not found" });
 
     try {
-      console.log(`[Admin] Processing approval for ${app.name} (${app.email})`);
-
-      // 1. Create Member record in Notion (Critical)
       await createMember({
         name: app.name,
         email: app.email,
@@ -109,20 +113,13 @@ export const actions = {
       });
 
       invalidateCache(`member_${app.email}`);
-
-      // 2. Mark as accepted in Notion (Critical)
       await markApplicationAsAccepted(id);
-
-      // 3. Send welcome email with chat link
       await sendWelcomeEmail(app.email, app.name);
 
-      console.log(`[Admin] Approval flow completed for ${app.name}`);
       return { success: true };
     } catch (e) {
-      console.error("[Admin] Approval flow failed:", e);
-      return fail(500, {
-        error: "Internal server error during approval: " + (e as Error).message,
-      });
+      console.error("[Admin Action] Approval flow failed:", e);
+      return fail(500, { error: "Internal server error during approval." });
     }
   },
 
@@ -143,8 +140,6 @@ export const actions = {
     }
   },
 
-  // --- Event Management ---
-
   activateEvent: async ({ request, locals }) => {
     const session = await locals.auth();
     if (!session?.user?.email || !isAdmin(session.user.email))
@@ -152,11 +147,9 @@ export const actions = {
 
     const data = await request.formData();
     const id = data.get("id") as string;
-
     const event = await getEvent(id);
     if (!event) return fail(404, { error: "Event not found" });
 
-    // Ensure a corresponding activity page exists in Notion before activation
     if (!event.notionPageId) {
       try {
         const page = await createActivityPage({
@@ -166,7 +159,6 @@ export const actions = {
         });
         await updateEventStatus(id, "active", page.id);
       } catch (e) {
-        console.error(e);
         return fail(502, { error: "Failed to create Notion Page" });
       }
     } else {
@@ -193,8 +185,6 @@ export const actions = {
     return { success: true };
   },
 
-  // --- Attendance Review ---
-
   approveAttendance: async ({ request, locals }) => {
     const session = await locals.auth();
     if (!session?.user?.email || !isAdmin(session.user.email))
@@ -206,17 +196,14 @@ export const actions = {
     const userEmail = data.get("userEmail") as string;
 
     try {
-      // 1. Get Event & Notion Page
       const event = await getEvent(eventId);
       if (!event || !event.notionPageId)
         return fail(404, { error: "Event or Notion Page not found" });
 
-      // 2. Get Member ID
       const memberLink = await getMemberByEmail(userEmail);
-      if (!memberLink)
-        return fail(404, { error: "Member not found in database" });
+      if (!memberLink) return fail(404, { error: "Member not found" });
 
-      // 3. Parallelize independent Notion updates
+      /** [Performance: Parallelization] Executes independent Notion updates concurrently. */
       await Promise.all([
         addAttendeeToActivity(event.notionPageId, memberLink.memberId).then(
           () => invalidateCache(`user_activities_${memberLink.memberId}`),
@@ -226,8 +213,7 @@ export const actions = {
 
       return { success: true };
     } catch (e) {
-      console.error(e);
-      return fail(500, { error: "Approval failed: " + (e as Error).message });
+      return fail(500, { error: "Approval failed." });
     }
   },
 
@@ -267,8 +253,10 @@ export const actions = {
     return { success: true };
   },
 
-  // --- Seminar Management ---
-
+  /** 
+   * [Workflow: Seminar Approval] 
+   * Converts a proposal into a formal Activity Page and Event.
+   */
   approveSeminar: async ({ request, locals }) => {
     const session = await locals.auth();
     if (!session?.user?.email || !isAdmin(session.user.email))
@@ -282,14 +270,12 @@ export const actions = {
     if (!seminar) return fail(404, { error: "Seminar request not found" });
 
     try {
-      // 1. Create Activity Page in Notion (Critical Dependency) - Date left empty
       const page = await createActivityPage({
         title: seminar.title,
         type: "Seminar",
         attendeeIds: seminar.speakerIds,
       });
 
-      // 2. Parallelize remaining independent tasks
       const tasks: Promise<unknown>[] = [
         createEvent({
           title: seminar.title,
@@ -299,39 +285,29 @@ export const actions = {
         updateSeminarRequestStatus(id, "approved"),
       ];
 
-      // 3. Notify Speaker(s)
       if (seminar.speakerIds.length > 0) {
         tasks.push(
           (async () => {
             try {
-              const { getMemberById, getPrivateInfo } =
-                await import("$lib/server/notion");
+              const { getMemberById, getPrivateInfo } = await import("$lib/server/notion");
               const member = await getMemberById(seminar.speakerIds[0]);
               if (member?.privateInfoId) {
                 const info = await getPrivateInfo(member.privateInfoId);
                 if (info?.email) {
-                  await sendSeminarStatusNotification(
-                    info.email,
-                    member.name,
-                    seminar.title,
-                    "approved",
-                  );
+                  await sendSeminarStatusNotification(info.email, member.name, seminar.title, "approved");
                 }
               }
             } catch (e) {
-              console.error("Failed to send seminar approval email:", e);
-              // Don't fail the whole request just because email failed
+              console.error("[Admin Action] Seminar approval email failed:", e);
             }
           })(),
         );
       }
 
       await Promise.all(tasks);
-
       return { success: true };
     } catch (e) {
-      console.error(e);
-      return fail(500, { error: "Approval failed: " + (e as Error).message });
+      return fail(500, { error: "Seminar approval failed." });
     }
   },
 
@@ -348,20 +324,13 @@ export const actions = {
     if (!seminar) return fail(404, { error: "Seminar request not found" });
 
     try {
-      // Notify Speaker(s) before deletion
       if (seminar.speakerIds.length > 0) {
-        const { getMemberById, getPrivateInfo } =
-          await import("$lib/server/notion");
+        const { getMemberById, getPrivateInfo } = await import("$lib/server/notion");
         const member = await getMemberById(seminar.speakerIds[0]);
         if (member?.privateInfoId) {
           const info = await getPrivateInfo(member.privateInfoId);
           if (info?.email) {
-            await sendSeminarStatusNotification(
-              info.email,
-              member.name,
-              seminar.title,
-              "rejected",
-            );
+            await sendSeminarStatusNotification(info.email, member.name, seminar.title, "rejected");
           }
         }
       }
@@ -369,8 +338,7 @@ export const actions = {
       await deleteSeminarRequest(id);
       return { success: true };
     } catch (e) {
-      console.error(e);
-      return fail(500, { error: "Internal error during rejection/deletion" });
+      return fail(500, { error: "Seminar rejection failed." });
     }
   },
 };

@@ -1,6 +1,7 @@
-/**
- * Simple in-memory cache for server-side Notion queries to reduce API latency.
- * NOTE: In serverless environments, this cache is ephemeral and per-instance.
+/** --- PERFORMANCE LAYER --- 
+ * In-memory cache for reducing Notion API latency.
+ * [Performance: Ephemeral] In serverless environments (Vercel), this is per-instance 
+ * and resets on cold starts. It is not a distributed cache (like Redis).
  */
 
 interface CacheEntry<T> {
@@ -10,7 +11,7 @@ interface CacheEntry<T> {
 
 const cache = new Map<string, CacheEntry<unknown>>();
 
-// Maximum number of items to keep in cache to prevent OOM
+/** [Constraint: OOM Prevention] Hard limit on total entries. */
 const MAX_CACHE_SIZE = 1000;
 
 function pruneCache() {
@@ -21,7 +22,6 @@ function pruneCache() {
     }
   }
 
-  // Hard limit: if still too big after pruning, delete oldest (simple FIFO approximation)
   if (cache.size > MAX_CACHE_SIZE) {
     const keysToDelete = Array.from(cache.keys()).slice(
       0,
@@ -33,6 +33,10 @@ function pruneCache() {
   }
 }
 
+/** 
+ * [Performance: Probabilistic Pruning] 
+ * Uses a 5% chance on write to trigger pruning, avoiding high-cost Map iterations on every request.
+ */
 export async function withCache<T>(
   key: string,
   ttlMs: number,
@@ -48,7 +52,6 @@ export async function withCache<T>(
 
   const data = await fetcher();
 
-  // Probabilistic pruning (5% chance) to avoid overhead on every write
   if (Math.random() < 0.05) {
     pruneCache();
   }

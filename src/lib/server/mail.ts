@@ -1,5 +1,5 @@
-/**
- * Service for sending automated alerts from the Admin account via Google's Gmail API.
+/** --- EXTERNAL INTEGRATIONS --- 
+ * Service for automated email notifications using the Google Gmail API.
  */
 import { env } from "$env/dynamic/private";
 import { CHATROOM_NOTICE_LINK, CHATROOM_CHAT_LINK } from "../constants";
@@ -7,9 +7,10 @@ import { CHATROOM_NOTICE_LINK, CHATROOM_CHAT_LINK } from "../constants";
 let cachedAccessToken: string | null = null;
 let tokenExpiry = 0;
 
-/**
- * Exchanges the ADMIN_REFRESH_TOKEN for a fresh Access Token.
- * Uses in-memory caching to avoid redundant requests.
+/** 
+ * [Performance: Token Caching] 
+ * Exchanges ADMIN_REFRESH_TOKEN for an access token and caches it in memory 
+ * to minimize OAuth handshakes.
  */
 async function getAdminAccessToken(): Promise<string> {
   const now = Date.now();
@@ -38,26 +39,16 @@ async function getAdminAccessToken(): Promise<string> {
 
   if (!response.ok) {
     const errorText = await response.text();
-    if (errorText.includes("invalid_grant")) {
-      console.error(
-        "CRITICAL: ADMIN_REFRESH_TOKEN has expired or is invalid. Please generate a new one using Google OAuth Playground.",
-      );
-    }
     throw new Error(`Failed to refresh admin access token: ${errorText}`);
   }
 
   const data = await response.json();
   cachedAccessToken = data.access_token;
-  // Set expiry to 5 minutes less than actual expiry (usually 3600s) to be safe
   tokenExpiry = now + (data.expires_in - 300) * 1000;
 
   return data.access_token;
 }
 
-/**
- * Sends an email notification to admins about a new member signup.
- * Sent FROM the admin account TO the admin emails.
- */
 export async function sendSignupNotification(applicantName: string) {
   try {
     const accessToken = await getAdminAccessToken();
@@ -75,10 +66,6 @@ export async function sendSignupNotification(applicantName: string) {
   }
 }
 
-/**
- * Sends an email notification to admins about a completed attendance request.
- * Sent FROM the admin account TO the admin emails.
- */
 export async function sendAttendanceNotification(
   userName: string,
   eventName: string,
@@ -99,9 +86,6 @@ export async function sendAttendanceNotification(
   }
 }
 
-/**
- * Sends an email notification to a user about their seminar application status.
- */
 export async function sendSeminarStatusNotification(
   recipientEmail: string,
   recipientName: string,
@@ -120,9 +104,6 @@ export async function sendSeminarStatusNotification(
   }
 }
 
-/**
- * Sends an email notification to admins about a new seminar application.
- */
 export async function sendSeminarApplicationNotification(
   applicantName: string,
   seminarTitle: string,
@@ -143,34 +124,24 @@ export async function sendSeminarApplicationNotification(
   }
 }
 
-/**
- * Sends a welcome email to a new member upon acceptance.
- */
 export async function sendWelcomeEmail(
   recipientEmail: string,
   recipientName: string,
 ) {
   try {
-    console.log(
-      `[Mail] Attempting welcome email: ${recipientName} (${recipientEmail})`,
-    );
     const accessToken = await getAdminAccessToken();
     const subject = `[SNUMPS] 가입이 승인되었습니다!`;
     const body = `안녕하세요, ${recipientName}님!\n\n수학문제연구회 가입을 축하드립니다!\n\n동아리 카카오톡 채팅방은 다음과 같습니다.\n- 공지방 : ${CHATROOM_NOTICE_LINK}\n- 잡담방 : ${CHATROOM_CHAT_LINK}\n\n공지방에서는 채팅을 자제하시고, 문의 사항은 잡담방이나 회장을 통해 알려주세요. 동아리의 모든 자료와 가이드라인은 공식 노션(https://snumps.notion.site)에서 확인할 수 있습니다. 수학문제연구회에 오신 것을 환영합니다.`;
 
     await dispatchEmail(accessToken, [recipientEmail], subject, body);
-    console.log(`[Mail] Welcome email sent to ${recipientEmail}`);
   } catch (e) {
-    console.error(
-      `[Mail] Failed to send welcome email to ${recipientEmail}:`,
-      e,
-    );
-    // We don't re-throw here to prevent blocking the Notion DB update
+    console.error(`[Mail] Failed to send welcome email to ${recipientEmail}:`, e);
   }
 }
 
-/**
- * Internal helper to send the actual RFC 2822 email via Gmail API.
+/** 
+ * [Internal: RFC 2822 Formatting] 
+ * Constructs a base64url encoded raw message for the Gmail API. 
  */
 async function dispatchEmail(
   accessToken: string,
@@ -178,7 +149,6 @@ async function dispatchEmail(
   subject: string,
   body: string,
 ) {
-  console.log(`Dispatching email to: ${recipients.join(", ")}`);
   const message = [
     `To: ${recipients.join(", ")}`,
     `Subject: =?utf-8?B?${Buffer.from(subject).toString("base64")}?=`,
@@ -206,10 +176,6 @@ async function dispatchEmail(
   );
 
   if (!response.ok) {
-    const err = await response.json();
-    console.error("Google Gmail API Send Error:", JSON.stringify(err, null, 2));
     throw new Error("Gmail API failure");
-  } else {
-    console.log("Email successfully sent via Google API.");
   }
 }

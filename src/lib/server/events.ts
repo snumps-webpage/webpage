@@ -1,3 +1,6 @@
+/** --- DOMAIN LOGIC --- 
+ * Manages event lifecycle and attendance tracking.
+ */
 import type { Event, AttendanceRecord } from "$lib/types";
 import {
   getAttendanceQueueFromNotion,
@@ -12,15 +15,13 @@ import {
 } from "./notion";
 import { withCache } from "./cache";
 
-// --- Events Management (Notion Only) ---
-
 export async function getEvents(): Promise<Event[]> {
-  // Cache events for 1 minute to reduce API calls
+  /** [Performance: TTL] 1-minute cache ensures freshness for active events while reducing API load. */
   return withCache("all_events", 60000, async () => {
     try {
       return (await getEventsFromNotion()) as Event[];
     } catch (e) {
-      console.error("Failed to fetch events from Notion:", e);
+      console.error("[Events Domain] Failed to fetch events:", e);
       return [];
     }
   });
@@ -44,6 +45,7 @@ export async function createEvent(data: {
   type: string;
   notionPageId?: string;
 }) {
+  /** [Security: Obscurity] Generates high-entropy tokens for public URLs to prevent enumeration. */
   const newEventData = {
     title: data.title,
     date: data.date || "",
@@ -72,20 +74,19 @@ export async function deleteEvent(id: string) {
   await deleteEventInNotion(id);
 }
 
-// --- Attendance Queue (Notion Only) ---
-
 export async function getAttendanceQueue(): Promise<AttendanceRecord[]> {
   try {
     const results = await getAttendanceQueueFromNotion();
     return results.map((r) => ({ ...r, notionId: r.id })) as AttendanceRecord[];
   } catch (e) {
-    console.error("Failed to fetch attendance queue from Notion:", e);
+    console.error("[Events Domain] Failed to fetch attendance queue:", e);
     return [];
   }
 }
 
-/**
- * Records a complete attendance in one go (Start & End time set to now).
+/** 
+ * [Domain: Atomic Record] 
+ * Records both check-in and check-out simultaneously for club efficiency. 
  */
 export async function recordAttendance(
   eventId: string,
@@ -111,7 +112,6 @@ export async function recordAttendance(
     });
 
     if (notionId) {
-      // Immediately update end time for complete record
       updateAttendanceRecordInNotion(notionId, { endTime: now }).catch(
         console.error,
       );
@@ -130,17 +130,16 @@ export async function recordAttendance(
       return { record: newRecord, isNew: true };
     }
   } catch (e) {
-    console.error("Notion attendance write failed:", e);
+    console.error("[Events Domain] Attendance write failed:", e);
   }
 
-  throw new Error("Failed to record attendance in Notion");
+  throw new Error("Failed to record attendance");
 }
 
 export async function updateAttendanceRecord(
   recordId: string,
   updates: { startTime?: string; endTime?: string },
 ) {
-  // recordId is assumed to be Notion ID in this architecture
   await updateAttendanceRecordInNotion(recordId, updates);
 }
 
@@ -155,22 +154,18 @@ export async function removeAttendanceRecord(recordId: string) {
   await removeAttendanceRecordInNotion(recordId);
 }
 
-/**
- * Checks all events and updates their status based on the current date.
- * Also verifies if the linked Notion page still exists.
+/** 
+ * [Domain: Lifecycle Management] 
+ * Reconciles scheduled dates with current time to auto-activate or expire events. 
  */
 export async function syncEventStatuses() {
   const events = await getEvents();
   const now = new Date();
 
   for (const event of events) {
-    // Validation: Check if Notion page exists
     if (event.notionPageId) {
       const exists = await checkPageExists(event.notionPageId);
       if (!exists) {
-        console.warn(
-          `Event '${event.title}' (ID: ${event.id}) removed because Notion page ${event.notionPageId} is missing or archived.`,
-        );
         if (event.status !== "expired") {
           await updateEventStatusInNotion(event.id, "expired");
         }
@@ -179,22 +174,15 @@ export async function syncEventStatuses() {
     }
 
     const eventDate = new Date(event.date);
-
-    // Get YYYY-MM-DD of 'now' and 'event'
     const nowDay = now.toISOString().split("T")[0];
     const eventDay = eventDate.toISOString().split("T")[0];
 
-    // Status Logic
-    // Activate draft events on their scheduled day
     if (event.status === "draft" && nowDay >= eventDay) {
       await updateEventStatusInNotion(event.id, "active");
-      console.log(`Event '${event.title}' activated.`);
     }
 
-    // Expire active events after their day is over
     if (event.status === "active" && nowDay > eventDay) {
       await updateEventStatusInNotion(event.id, "expired");
-      console.log(`Event '${event.title}' expired.`);
     }
   }
 }

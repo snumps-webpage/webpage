@@ -1,3 +1,8 @@
+/** --- DASHBOARD DATA ORCHESTRATION --- 
+ * Aggregates user-specific activity, seminar proposals, and profile data.
+ * [Performance: Streaming] Uses SvelteKit's top-level streaming to allow immediate 
+ * landing page rendering while long-running Notion queries are resolved.
+ */
 import {
   getMemberByEmail,
   getActivities,
@@ -37,6 +42,7 @@ interface UserAttendedActivity {
   url: string;
 }
 
+/** [Internal: Dev Tooling] Mocks the dashboard state for UI/UX testing. */
 function buildDevDashboardPreview(semesterKey: string) {
   const today = new Date();
   const toDate = (offsetDays: number) =>
@@ -149,9 +155,7 @@ export const load: PageServerLoad = async (event) => {
     }
 
     const dashboardPromise = async () => {
-      if (!member) {
-        return null; // Local handled
-      }
+      if (!member) return null;
 
       try {
         const [
@@ -168,7 +172,6 @@ export const load: PageServerLoad = async (event) => {
           getUserSeminars(member.memberId),
         ]);
 
-        // Combine and Deduplicate Seminars
         const requests = allSeminarRequests.filter((req) =>
           req.speakerIds.includes(member.memberId),
         );
@@ -185,9 +188,7 @@ export const load: PageServerLoad = async (event) => {
           semester: semester.key,
         }));
 
-        const attendedCount = currentActivities.filter(
-          (a) => a.attended,
-        ).length;
+        const attendedCount = currentActivities.filter((a) => a.attended).length;
 
         const semesters = Array.from(
           new Set(
@@ -223,8 +224,8 @@ export const load: PageServerLoad = async (event) => {
           semesters,
         };
       } catch (e) {
-        console.error("[Dashboard Load] Promise Error:", e);
-        return { error: "데이터를 처리하는 중 오류가 발생했습니다." };
+        console.error("[Dashboard Load] Resolution error:", e);
+        return { error: "Failed to resolve dashboard data." };
       }
     };
 
@@ -238,14 +239,13 @@ export const load: PageServerLoad = async (event) => {
       },
     };
   } catch (e) {
-    console.error("[Dashboard Load] Member Lookup Error:", e);
-    // Return basic info so the page doesn't 500
+    console.error("[Dashboard Load] Critical failure:", e);
     return {
       semester: semester.name,
       currentSemesterKey: semester.key,
       streamed: {
         dashboard: Promise.resolve({
-          error: "회원 정보를 확인할 수 없습니다. (Notion API 오류)",
+          error: "Notion API Connectivity Error.",
         }),
       },
     };
@@ -260,8 +260,7 @@ export const actions = {
     }
 
     const session = await locals.auth();
-    if (!session?.user?.email)
-      return fail(401, { error: "로그인이 필요합니다." });
+    if (!session?.user?.email) return fail(401, { error: "Login required" });
 
     const data = await request.formData();
     const rawPhone = ((data.get("phone") as string | null) ?? "").trim();
@@ -277,13 +276,13 @@ export const actions = {
 
     try {
       const member = await getMemberByEmail(session.user.email);
-      if (!member) return fail(404, { error: "회원 정보를 찾을 수 없습니다." });
+      if (!member) return fail(404, { error: "Member not found" });
 
       await updatePrivateInfo(member.privateInfoId, { phone, background });
       return { success: true };
     } catch (e) {
-      console.error("[Action UpdateProfile] Error:", e);
-      return fail(500, { error: "프로필 업데이트에 실패했습니다." });
+      console.error("[Action UpdateProfile] Update failed:", e);
+      return fail(500, { error: "Failed to update profile." });
     }
   },
 
@@ -294,22 +293,21 @@ export const actions = {
     }
 
     const session = await locals.auth();
-    if (!session?.user?.email)
-      return fail(401, { error: "로그인이 필요합니다." });
+    if (!session?.user?.email) return fail(401, { error: "Login required" });
 
     const data = await request.formData();
     const id = data.get("id") as string;
     const title = data.get("title") as string;
     const remarks = data.get("remarks") as string;
 
-    if (!id) return fail(400, { error: "요청 ID가 누락되었습니다." });
+    if (!id) return fail(400, { error: "Request ID missing" });
 
     try {
       await updateSeminar(id, { title, remarks });
       return { success: true };
     } catch (e) {
-      console.error("[Action UpdateSeminar] Error:", e);
-      return fail(500, { error: "세미나 정보 업데이트에 실패했습니다." });
+      console.error("[Action UpdateSeminar] Update failed:", e);
+      return fail(500, { error: "Failed to update seminar." });
     }
   },
 };

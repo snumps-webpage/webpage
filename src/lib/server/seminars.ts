@@ -1,3 +1,6 @@
+/** --- DOMAIN LOGIC --- 
+ * Manages the lifecycle of member-led seminar proposals.
+ */
 import type { SeminarRequest } from "$lib/types";
 import {
   getSeminarRequestsFromNotion,
@@ -14,7 +17,7 @@ export async function getSeminarRequests(
     const results = await getSeminarRequestsFromNotion(skipCache);
     return results as SeminarRequest[];
   } catch (e) {
-    console.error("Failed to fetch seminar requests from Notion:", e);
+    console.error("[Seminars Domain] Fetch failed:", e);
     return [];
   }
 }
@@ -23,7 +26,7 @@ export async function deleteSeminarRequest(id: string) {
   try {
     await removeSeminarRequestInNotion(id);
   } catch (e) {
-    console.error("Failed to delete seminar request from Notion:", e);
+    console.error("[Seminars Domain] Deletion failed:", e);
     throw e;
   }
 }
@@ -37,9 +40,7 @@ export async function createSeminarRequest(data: {
   attachment?: string;
 }) {
   try {
-    const id = await createSeminarRequestInNotion({
-      ...data,
-    });
+    const id = await createSeminarRequestInNotion(data);
     if (!id) throw new Error("Notion creation returned no ID");
 
     return {
@@ -49,7 +50,7 @@ export async function createSeminarRequest(data: {
       submittedAt: new Date().toISOString(),
     };
   } catch (e) {
-    console.error("Notion seminar request write failed:", e);
+    console.error("[Seminars Domain] Creation failed:", e);
     throw e;
   }
 }
@@ -69,7 +70,7 @@ export async function updateSeminarRequest(
     await updateSeminarRequestInNotion(id, data);
     return { id, ...data };
   } catch (e) {
-    console.error("Failed to update seminar request in Notion:", e);
+    console.error("[Seminars Domain] Update failed:", e);
     throw e;
   }
 }
@@ -82,7 +83,7 @@ export async function updateSeminarRequestStatus(
     await updateSeminarRequestStatusInNotion(id, status);
     return { id, status };
   } catch (e) {
-    console.error("Failed to update seminar request in Notion:", e);
+    console.error("[Seminars Domain] Status update failed:", e);
     throw e;
   }
 }
