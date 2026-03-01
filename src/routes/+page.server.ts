@@ -12,6 +12,7 @@ import { getApplications, type Application } from "$lib/server/admin";
 import {
   getSemesterInfo,
   getSemesterKeyFromDate,
+  isValidPhoneNumber,
   normalizePhoneNumber,
 } from "$lib/utils";
 import { dev } from "$app/environment";
@@ -263,8 +264,16 @@ export const actions = {
       return fail(401, { error: "로그인이 필요합니다." });
 
     const data = await request.formData();
-    const phone = normalizePhoneNumber(data.get("phone") as string);
+    const rawPhone = ((data.get("phone") as string | null) ?? "").trim();
     const background = data.get("background") as string;
+
+    if (rawPhone && !isValidPhoneNumber(rawPhone)) {
+      return fail(400, {
+        error: "전화번호는 10~11자리 숫자 또는 XXX-XXX(X)-XXXX 형식으로 입력해주세요.",
+      });
+    }
+
+    const phone = rawPhone ? normalizePhoneNumber(rawPhone) : "";
 
     try {
       const member = await getMemberByEmail(session.user.email);

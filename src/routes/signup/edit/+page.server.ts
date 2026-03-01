@@ -6,7 +6,7 @@ import {
   updateApplication,
   type Application,
 } from "$lib/server/admin";
-import { normalizePhoneNumber } from "$lib/utils";
+import { isValidPhoneNumber, normalizePhoneNumber } from "$lib/utils";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
@@ -68,7 +68,7 @@ export const actions = {
     }
 
     const data = await request.formData();
-    const phone = normalizePhoneNumber(data.get("phone") as string);
+    const rawPhone = ((data.get("phone") as string | null) ?? "").trim();
     const background = data.get("background") as string;
     const appId = data.get("id") as string;
 
@@ -76,9 +76,17 @@ export const actions = {
       return fail(400, { error: "수정할 신청 내역을 찾을 수 없습니다." });
     }
 
-    if (!phone) {
+    if (!rawPhone) {
       return fail(400, { error: "전화번호를 입력해주세요." });
     }
+
+    if (!isValidPhoneNumber(rawPhone)) {
+      return fail(400, {
+        error: "전화번호는 10~11자리 숫자 또는 XXX-XXX(X)-XXXX 형식으로 입력해주세요.",
+      });
+    }
+
+    const phone = normalizePhoneNumber(rawPhone);
 
     try {
       await updateApplication(appId, {

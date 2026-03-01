@@ -12,6 +12,7 @@
     	const session = $derived(page.data.session);
         const isAdmin = $derived(page.data.isAdmin);
         const isMember = $derived(data.isMember);
+	const phoneInputPattern = '0[0-9]{9,10}|0[0-9]{2}-[0-9]{3,4}-[0-9]{4}';
     
     	// Visibility states
     	let showProfile = $state(false); // Default to false to keep view clean
@@ -263,8 +264,8 @@
 														name="phone"
 														value={result.profile.phone}
 														placeholder="010-1234-5678"
-														pattern="[0-9]{3}-[0-9]{4}-[0-9]{4}"
-														title="XXX-XXXX-XXXX 형식으로 입력해주세요."
+														pattern={phoneInputPattern}
+														title="10~11자리 숫자 또는 XXX-XXX(X)-XXXX 형식으로 입력해주세요."
 													/>
 												</div>
 												<div class="paper-field">

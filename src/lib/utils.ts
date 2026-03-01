@@ -9,6 +9,13 @@ export interface SemesterInfo {
   endDate: string; // YYYY-MM-DD
 }
 
+export const PHONE_HTML_PATTERN =
+  "0[0-9]{9,10}|0[0-9]{2}-[0-9]{3,4}-[0-9]{4}";
+
+function extractPhoneDigits(phone: string): string {
+  return phone.replace(/\D/g, "");
+}
+
 /**
  * Calculates semester information based on a given date.
  * Academic Calendar:
@@ -75,7 +82,7 @@ export function getSemesterKeyFromDate(dateStr: string): string {
  */
 export function normalizePhoneNumber(phone: string): string {
   // Remove all non-digit characters
-  const digits = phone.replace(/\D/g, "");
+  const digits = extractPhoneDigits(phone);
 
   if (digits.length === 11) {
     return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
@@ -84,4 +91,20 @@ export function normalizePhoneNumber(phone: string): string {
   }
 
   return phone; // Return as-is if it doesn't match expected length
+}
+
+/**
+ * Validates phone numbers accepted by forms.
+ * Accepts:
+ * - 10~11 digits (e.g., 01012345678)
+ * - dashed format (e.g., 010-1234-5678 or 031-123-4567)
+ */
+export function isValidPhoneNumber(phone: string): boolean {
+  const value = phone.trim();
+  if (!value) return false;
+
+  if (!/^[0-9-\s]+$/.test(value)) return false;
+
+  const digits = extractPhoneDigits(value);
+  return /^0\d{9,10}$/.test(digits);
 }
