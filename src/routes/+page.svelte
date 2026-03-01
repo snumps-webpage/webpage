@@ -480,9 +480,9 @@
 				</section>
 
 				<section class="paper-page abstract-page">
-					<h2 class="abstract-title">Abstract</h2>
+					<h2 class="abstract-title" data-glyph="∫">Abstract</h2>
 					<p class="abstract-body">
-						SNUMPS는 수학을 좋아하는 사람들이 모여 자유롭게 생각을 나누고, 함께 배우는 모임입니다.
+						<span class="drop-cap">S</span>NUMPS는 수학을 좋아하는 사람들이 모여 자유롭게 생각을 나누고, 함께 배우는 모임입니다.
 						단순히 문제를 풀고 끝나는 것이 아니라, 직접 문제를 만들어보거나 풀이 과정을 공유하면서 새로운 시각을 발견하는 활동을 합니다.
 						이를 통해 수학의 다양한 주제를 탐구하며 서로 배우고 성장하는 것을 목표로 하는 동아리입니다.
 						또한 유튜브와 인스타그램에서도 활동 소식과 기록을 꾸준히 공유하고 있습니다.<sup class="inline-ref">[1, 2]</sup>
@@ -1313,13 +1313,26 @@
 	.abstract-title {
 		margin: 0;
 		margin-inline: auto;
-		padding-top: 0.5rem;
+		padding-top: 1.2rem;
 		border-top: 1px solid var(--latex-rule, var(--border-color));
 		font-size: clamp(1.42rem, 3vw, 1.9rem);
 		font-weight: 600;
 		text-align: center;
 		color: var(--latex-text, var(--text-primary));
 		width: min(100%, 46rem);
+		position: relative;
+	}
+
+	.abstract-title::before {
+		content: attr(data-glyph);
+		position: absolute;
+		top: -1.35rem;
+		left: 50%;
+		transform: translateX(-50%);
+		font-family: var(--font-math, var(--font-display));
+		font-size: 1.55rem;
+		color: var(--latex-muted, var(--text-secondary));
+		opacity: 0.5;
 	}
 
 	.abstract-body {
@@ -1328,9 +1341,20 @@
 		font-size: clamp(0.96rem, 1.65vw, 1.04rem);
 		line-height: 1.78;
 		text-align: justify;
-		text-indent: 1.5em;
 		color: var(--latex-text, var(--text-primary));
 		width: min(100%, 46rem);
+	}
+
+	.drop-cap {
+		float: left;
+		font-family: var(--font-display);
+		font-size: 3.42rem;
+		line-height: 0.82;
+		padding-top: 0.12rem;
+		padding-right: 0.46rem;
+		padding-left: 0.08rem;
+		color: var(--text-primary);
+		font-weight: 640;
 	}
 
 	.inline-ref {
