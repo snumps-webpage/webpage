@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - **Executive Retrieval Logic**: Enhanced the Notion service to automatically identify the latest executives by semester score and retrieve their contact details from the linked private info database.
 - **Global Layout Integration**: Updated the site-wide footer and dashboard components to use the centralized executive data for consistent information display.
 - **Abstract Section Styling**: Enhanced the visual prominence of the Abstract section on the landing page with a decorative drop cap and section marker (∫) to reinforce the academic manuscript aesthetic.
+- **Visual Scroll Bridge**: Added a vertical "Section Guide" connector and a viewport-peeking effect to the cover page to naturally lead users from the front matter into the Abstract.
 
 ## [2026-02-16]
 

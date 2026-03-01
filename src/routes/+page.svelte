@@ -474,7 +474,10 @@
 							<p class="login-hint">@snu.ac.kr 계정만 이용 가능합니다.</p>
 						</div>
 
-						<p class="scroll-hint">다음 페이지: Abstract</p>
+						<div class="scroll-hint-wrapper">
+							<p class="scroll-hint">Section I: Abstract</p>
+							<div class="scroll-connector"></div>
+						</div>
 					</div>
 					<p class="author-note cover-footnote">* Chair &nbsp;&nbsp; † Vice Chair</p>
 				</section>
@@ -1098,9 +1101,12 @@
 	}
 
 	.cover-page {
+		min-height: calc(100vh - var(--nav-height) - 4rem);
+		min-height: calc(100dvh - var(--nav-height) - 4rem);
 		padding: clamp(1.4rem, 3vw, 2.2rem) 0;
 		justify-content: flex-start;
 		--cover-center-width: 66rem;
+		margin-bottom: 2rem;
 	}
 
 	.cover-main {
@@ -1290,24 +1296,70 @@
 		text-transform: uppercase;
 	}
 
+	.scroll-hint-wrapper {
+		margin-top: 1.8rem;
+		display: grid;
+		justify-items: center;
+		gap: 0.6rem;
+		opacity: 0.82;
+	}
+
 	.scroll-hint {
-		margin: 1.2rem 0 0;
+		margin: 0;
 		text-align: center;
-		font-size: 0.69rem;
+		font-size: 0.72rem;
 		font-family: var(--font-mono);
-		letter-spacing: 0.06em;
+		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: var(--latex-muted, var(--text-secondary));
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 0.26rem;
+		gap: 0.42rem;
 	}
 
-	.scroll-hint::before {
-		content: "↓";
-		opacity: 0.7;
-		animation: hint-bob 1.6s ease-in-out infinite;
+	.scroll-connector {
+		width: 1px;
+		height: 4rem;
+		background: linear-gradient(to bottom, var(--latex-rule, var(--border-color)), transparent);
+		position: relative;
+	}
+
+	.scroll-connector::after {
+		content: "";
+		position: absolute;
+		bottom: 0;
+		left: 50%;
+		transform: translateX(-50%);
+		width: 5px;
+		height: 5px;
+		border-right: 1px solid var(--latex-rule, var(--border-color));
+		border-bottom: 1px solid var(--latex-rule, var(--border-color));
+		transform: translateX(-50%) rotate(45deg);
+		animation: arrow-slide 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+	}
+
+	@keyframes arrow-slide {
+		0% { transform: translateX(-50%) translateY(-20px) rotate(45deg); opacity: 0; }
+		50% { opacity: 1; }
+		100% { transform: translateX(-50%) translateY(5px) rotate(45deg); opacity: 0; }
+	}
+
+	.abstract-page {
+		padding: clamp(1.7rem, 3.5vw, 2.5rem) 0;
+		align-items: center;
+		position: relative;
+	}
+
+	.abstract-page::before {
+		content: "";
+		position: absolute;
+		top: -2.5rem;
+		left: 50%;
+		transform: translateX(-50%);
+		width: 1px;
+		height: 2.5rem;
+		background: linear-gradient(to top, var(--latex-rule, var(--border-color)), transparent);
 	}
 
 	.abstract-title {
