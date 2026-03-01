@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-02-28]
+
+### Changed
+
+- **Dynamic Executive Information**: Replaced hardcoded "회장" (President) and "부회장" (Vice President) names and phone numbers on the main page with live data fetched from the Notion DB.
+- **Executive Retrieval Logic**: Enhanced the Notion service to automatically identify the latest executives by semester score and retrieve their contact details from the linked private info database.
+- **Global Layout Integration**: Updated the site-wide footer and dashboard components to use the centralized executive data for consistent information display.
+
 ## [2026-02-16]
 
 ### Added

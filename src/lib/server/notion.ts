@@ -801,12 +801,26 @@ export async function getAllPrivateInfo() {
   }));
 }
 
-export async function getPresidentName(): Promise<string> {
-  return withCache("latest_president", 3600000, async () => {
-    const dbId = env.NOTION_DB_MEMBERS;
-    if (!dbId) return "";
+export interface ExecutiveInfo {
+  name: string;
+  phone: string;
+}
 
-    // Query for all members who have any value in the Executives property
+export interface LatestExecutives {
+  president: ExecutiveInfo;
+  vicePresident: ExecutiveInfo;
+}
+
+export async function getLatestExecutives(): Promise<LatestExecutives> {
+  return withCache("latest_executives", 3600000, async () => {
+    const dbId = env.NOTION_DB_MEMBERS;
+    const defaultExecs = {
+      president: { name: "공석", phone: "" },
+      vicePresident: { name: "공석", phone: "" },
+    };
+
+    if (!dbId) return defaultExecs;
+
     const results = await notionQuery(dbId, {
       filter: {
         property: NOTION_PROPS.EXECUTIVES,
@@ -814,36 +828,62 @@ export async function getPresidentName(): Promise<string> {
       },
     });
 
-    if (results.length === 0) return "";
+    if (results.length === 0) return defaultExecs;
 
     let latestSemesterValue = -1;
-    let currentPresident = "";
+    const semesterMap: Record<number, { presidentId?: string; vicePresidentId?: string }> = {};
 
     for (const page of results) {
-      const executives =
-        page.properties[NOTION_PROPS.EXECUTIVES]?.multi_select || [];
-      const name = getPropertyValue(page.properties[NOTION_PROPS.NAME]);
-
+      const executives = page.properties[NOTION_PROPS.EXECUTIVES]?.multi_select || [];
       for (const tag of executives) {
         const tagName = tag.name as string;
-        // Match patterns like "25-1 회장", "25-2 회 장", etc.
-        const match = tagName.match(/(\d{2})-(\d)\s*회\s*장/);
+        const match = tagName.match(/(\d{2})-(\d)\s*(회\s*장|부\s*회\s*장)/);
 
         if (match) {
           const year = parseInt(match[1]);
           const sem = parseInt(match[2]);
-          // Calculate a sortable value (e.g., 25.2 for 25-2)
+          const role = match[3].replace(/\s/g, "");
           const score = year + sem / 10;
 
           if (score > latestSemesterValue) {
             latestSemesterValue = score;
-            currentPresident = name;
+          }
+
+          if (!semesterMap[score]) semesterMap[score] = {};
+          if (role === "회장") {
+            semesterMap[score].presidentId = page.id;
+          } else if (role === "부회장") {
+            semesterMap[score].vicePresidentId = page.id;
           }
         }
       }
     }
 
-    return currentPresident || "공석";
+    if (latestSemesterValue === -1) return defaultExecs;
+
+    const latest = semesterMap[latestSemesterValue];
+
+    const fetchExecutive = async (id: string | undefined): Promise<ExecutiveInfo> => {
+      if (!id) return { name: "공석", phone: "" };
+      try {
+        const page = await notionRetrieve(id);
+        const name = getPropertyValue(page.properties[NOTION_PROPS.NAME]);
+        const privateRelation = (page.properties[NOTION_PROPS.MEMBER_TO_PRIVATE] as any)?.relation?.[0]?.id;
+        if (!privateRelation) return { name, phone: "" };
+        const privateInfo = await getPrivateInfo(privateRelation);
+        return { name, phone: privateInfo.phone || "" };
+      } catch (e) {
+        console.error(`Failed to fetch executive info for ${id}:`, e);
+        return { name: "오류", phone: "" };
+      }
+    };
+
+    const [president, vicePresident] = await Promise.all([
+      fetchExecutive(latest.presidentId),
+      fetchExecutive(latest.vicePresidentId),
+    ]);
+
+    return { president, vicePresident };
   });
 }
 

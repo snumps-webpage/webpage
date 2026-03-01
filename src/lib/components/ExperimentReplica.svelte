@@ -198,7 +198,7 @@
         </figure>
 
         <footer class="replica-footer">
-            <p>회장: 홍길동 | snumps0@gmail.com | snu_mps</p>
+            <p>회장: 공석 | snumps0@gmail.com | snu_mps</p>
         </footer>
     </main>
 </div>

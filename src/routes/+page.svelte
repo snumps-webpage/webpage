@@ -448,14 +448,14 @@
 							</div>
 							<div class="paper-authors" aria-label="SNUMPS 운영진">
 								<div class="author-entry">
-									<p class="author-name">김건호<sup>*</sup></p>
-									<p class="author-role">회장 / Author</p>
-									<p class="author-contact">010-3472-6234</p>
+									<p class="author-name">{page.data.executives?.president?.name || "공석"}<sup>*</sup></p>
+									<p class="author-role">회장</p>
+									<p class="author-contact">{page.data.executives?.president?.phone || ""}</p>
 								</div>
 								<div class="author-entry">
-									<p class="author-name">서성욱<sup>†</sup></p>
-									<p class="author-role">부회장 / Co-author</p>
-									<p class="author-contact">010-2865-4851</p>
+									<p class="author-name">{page.data.executives?.vicePresident?.name || "공석"}<sup>†</sup></p>
+									<p class="author-role">부회장</p>
+									<p class="author-contact">{page.data.executives?.vicePresident?.phone || ""}</p>
 								</div>
 							</div>
 						</div>

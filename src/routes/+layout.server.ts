@@ -1,6 +1,6 @@
 import { redirect } from "@sveltejs/kit";
 import { dev } from "$app/environment";
-import { getMemberByEmail, getPresidentName } from "$lib/server/notion";
+import { getMemberByEmail, getLatestExecutives } from "$lib/server/notion";
 import { isAdmin, getApplications, type Application } from "$lib/server/admin";
 import { resolveDevPreviewRole } from "$lib/server/dev-preview";
 import type { LayoutServerLoad } from "./$types";
@@ -16,9 +16,12 @@ export const load: LayoutServerLoad = async (event) => {
     console.error("[Layout Load] Failed to resolve auth session:", error);
   }
 
-  const presidentName = await getPresidentName().catch((e) => {
-    console.error("Failed to fetch president name:", e);
-    return "공석";
+  const executives = await getLatestExecutives().catch((e) => {
+    console.error("Failed to fetch latest executives:", e);
+    return {
+      president: { name: "공석", phone: "" },
+      vicePresident: { name: "공석", phone: "" },
+    };
   });
 
   const isUserAdmin =
@@ -31,7 +34,7 @@ export const load: LayoutServerLoad = async (event) => {
       isAdmin: isUserAdmin,
       isMember: true,
       application: null,
-      presidentName,
+      executives,
     };
   }
 
@@ -100,6 +103,6 @@ export const load: LayoutServerLoad = async (event) => {
 
     application: userApplication,
 
-    presidentName,
+    executives,
   };
 };

@@ -160,7 +160,7 @@
 	<div class="footer-content">
 		<div class="footer-info">
 			<p>
-				<span class="footer-chip"><span class="no-sel">회장:</span> {page.data.presidentName}</span>
+				<span class="footer-chip"><span class="no-sel">회장:</span> {page.data.executives?.president?.name || "공석"}</span>
 				<span class="footer-sep" aria-hidden="true">|</span>
 				<a href="mailto:snumps0@gmail.com" class="footer-chip">snumps0@gmail.com</a>
 				<span class="footer-sep" aria-hidden="true">|</span>
