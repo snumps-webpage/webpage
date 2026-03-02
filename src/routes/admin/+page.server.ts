@@ -30,7 +30,7 @@ import {
   sendWelcomeEmail,
 } from "$lib/server/mail";
 import { invalidateCache } from "$lib/server/cache";
-import { normalizePhoneNumber } from "$lib/utils";
+import { normalizePhoneNumber, getKSTDate } from "$lib/utils";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
@@ -293,10 +293,13 @@ export const actions = {
 
     if (!seminar) return fail(404, { error: "Seminar request not found" });
 
+    const todayKST = getKSTDate(undefined, true);
+
     try {
-      // 1. Create Activity Page in Notion (Critical Dependency) - Date left empty
+      // 1. Create Activity Page in Notion (Critical Dependency)
       const page = await createActivityPage({
         title: seminar.title,
+        date: todayKST,
         type: "Seminar",
         attendeeIds: seminar.speakerIds,
       });
@@ -305,6 +308,7 @@ export const actions = {
       const tasks: Promise<unknown>[] = [
         createEvent({
           title: seminar.title,
+          date: todayKST,
           type: "Seminar",
           notionPageId: page.id,
         }),
