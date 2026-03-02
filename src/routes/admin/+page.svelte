@@ -4,6 +4,7 @@
 	import type { AttendanceRecord } from '$lib/types';
     import Skeleton from '$lib/components/Skeleton.svelte';
     import CopyButton from '$lib/components/CopyButton.svelte';
+    import ActionButton from '$lib/components/ActionButton.svelte';
 
 	let { data } = $props();
     
@@ -36,6 +37,20 @@
         status: string;
         pathId?: string;
         attendCode?: string;
+        processing?: boolean;
+    }
+
+    interface AttendanceRecord {
+        id: string;
+        notionId?: string;
+        eventId: string;
+        userEmail: string;
+        userName: string;
+        userDept: string;
+        startTime: string;
+        endTime?: string;
+        status: string;
+        processing?: boolean;
     }
 
     // State for applications to allow partial updates
@@ -67,7 +82,7 @@
             loadingEvents = false;
         });
         data.attendanceQueue.then(val => {
-            attendanceQueue = val;
+            attendanceQueue = val.map(r => ({ ...r, processing: false }));
             loadingQueue = false;
         });
     });
@@ -206,20 +221,30 @@
     									</td>
     									<td class="actions-cell">
     										{#if event.status === 'draft' || event.status === 'expired'}
-    											<form method="POST" action="?/activateEvent" use:enhance>
-    												<input type="hidden" name="id" value={event.id} />
-    												<button class="btn activate small">Activate</button>
-    											</form>
+                                                <ActionButton 
+                                                    action="?/activateEvent" 
+                                                    params={{ id: event.id }} 
+                                                    label="Activate" 
+                                                    className="btn activate small"
+                                                    bind:processing={event.processing}
+                                                />
     										{:else if event.status === 'active'}
-    											<form method="POST" action="?/expireEvent" use:enhance>
-    												<input type="hidden" name="id" value={event.id} />
-    												<button class="btn expire small">Expire</button>
-    											</form>
+                                                <ActionButton 
+                                                    action="?/expireEvent" 
+                                                    params={{ id: event.id }} 
+                                                    label="Expire" 
+                                                    className="btn expire small"
+                                                    bind:processing={event.processing}
+                                                />
     										{/if}
-    										<form method="POST" action="?/deleteEvent" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까?')}>
-    											<input type="hidden" name="id" value={event.id} />
-    											<button class="btn delete small">Delete</button>
-    										</form>
+                                            <ActionButton 
+                                                action="?/deleteEvent" 
+                                                params={{ id: event.id }} 
+                                                label="Delete" 
+                                                className="btn delete small"
+                                                confirmMessage="정말 삭제하시겠습니까?"
+                                                bind:processing={event.processing}
+                                            />
     									</td>
     								</tr>
     							{/each}
@@ -247,20 +272,30 @@
                                 </div>
                                 <div class="card-actions">
                                     {#if event.status === 'draft' || event.status === 'expired'}
-                                        <form method="POST" action="?/activateEvent" use:enhance>
-                                            <input type="hidden" name="id" value={event.id} />
-                                            <button class="btn activate small">Activate</button>
-                                        </form>
+                                        <ActionButton 
+                                            action="?/activateEvent" 
+                                            params={{ id: event.id }} 
+                                            label="Activate" 
+                                            className="btn activate small"
+                                            bind:processing={event.processing}
+                                        />
                                     {:else if event.status === 'active'}
-                                        <form method="POST" action="?/expireEvent" use:enhance>
-                                            <input type="hidden" name="id" value={event.id} />
-                                            <button class="btn expire small">Expire</button>
-                                        </form>
+                                        <ActionButton 
+                                            action="?/expireEvent" 
+                                            params={{ id: event.id }} 
+                                            label="Expire" 
+                                            className="btn expire small"
+                                            bind:processing={event.processing}
+                                        />
                                     {/if}
-                                    <form method="POST" action="?/deleteEvent" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까?')}>
-                                        <input type="hidden" name="id" value={event.id} />
-                                        <button class="btn delete small">Delete</button>
-                                    </form>
+                                    <ActionButton 
+                                        action="?/deleteEvent" 
+                                        params={{ id: event.id }} 
+                                        label="Delete" 
+                                        className="btn delete small"
+                                        confirmMessage="정말 삭제하시겠습니까?"
+                                        bind:processing={event.processing}
+                                    />
                                 </div>
                             </div>
                         {/each}
@@ -301,21 +336,29 @@
     	    									<td>{new Date(record.startTime).toLocaleTimeString()}</td>
     	    									<td>{record.endTime ? new Date(record.endTime).toLocaleTimeString() : '-'}</td>
     	    									<td class="actions-cell">
-    	    										<form method="POST" action="?/approveAttendance" use:enhance>
-    	    											<input type="hidden" name="id" value={record.id} />
-    	    											<input type="hidden" name="eventId" value={record.eventId} />
-    	    											<input type="hidden" name="userEmail" value={record.userEmail} />
-    	    											<button class="btn approve small">승인</button>
-    	    										</form>
-    	    										<form method="POST" action="?/rejectAttendance" use:enhance>
-    	    											<input type="hidden" name="id" value={record.id} />
-    	    											<button class="btn reject small">거절</button>
-    	    										</form>
-    	    	                                    <button class="btn edit small" onclick={() => openEdit(record)}>수정</button>
-    	    	                                    <form method="POST" action="?/deleteAttendanceRecord" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까?')}>
-    	    	                                        <input type="hidden" name="id" value={record.id} />
-    	    	                                        <button class="btn delete small">삭제</button>
-    	    	                                    </form>
+                                                    <ActionButton 
+                                                        action="?/approveAttendance" 
+                                                        params={{ id: record.id, eventId: record.eventId, userEmail: record.userEmail }} 
+                                                        label="승인" 
+                                                        className="btn approve small"
+                                                        bind:processing={record.processing}
+                                                    />
+                                                    <ActionButton 
+                                                        action="?/rejectAttendance" 
+                                                        params={{ id: record.id }} 
+                                                        label="거절" 
+                                                        className="btn reject small"
+                                                        bind:processing={record.processing}
+                                                    />
+    	    	                                    <button class="btn edit small" onclick={() => openEdit(record)} disabled={record.processing}>수정</button>
+                                                    <ActionButton 
+                                                        action="?/deleteAttendanceRecord" 
+                                                        params={{ id: record.id }} 
+                                                        label="삭제" 
+                                                        className="btn delete small"
+                                                        confirmMessage="정말 삭제하시겠습니까?"
+                                                        bind:processing={record.processing}
+                                                    />
     	    									</td>
     	    								</tr>
     	    							{/each}
@@ -337,21 +380,29 @@
                                             <p><strong>시간:</strong> {new Date(record.startTime).toLocaleTimeString()} ~ {record.endTime ? new Date(record.endTime).toLocaleTimeString() : '-'}</p>
                                         </div>
                                         <div class="card-actions wrap">
-                                            <form method="POST" action="?/approveAttendance" use:enhance>
-                                                <input type="hidden" name="id" value={record.id} />
-                                                <input type="hidden" name="eventId" value={record.eventId} />
-                                                <input type="hidden" name="userEmail" value={record.userEmail} />
-                                                <button class="btn approve small">승인</button>
-                                            </form>
-                                            <form method="POST" action="?/rejectAttendance" use:enhance>
-                                                <input type="hidden" name="id" value={record.id} />
-                                                <button class="btn reject small">거절</button>
-                                            </form>
-                                            <button class="btn edit small" onclick={() => openEdit(record)}>수정</button>
-                                            <form method="POST" action="?/deleteAttendanceRecord" use:enhance onsubmit={() => confirm('정말 삭제하시겠습니까?')}>
-                                                <input type="hidden" name="id" value={record.id} />
-                                                <button class="btn delete small">삭제</button>
-                                            </form>
+                                            <ActionButton 
+                                                action="?/approveAttendance" 
+                                                params={{ id: record.id, eventId: record.eventId, userEmail: record.userEmail }} 
+                                                label="승인" 
+                                                className="btn approve small"
+                                                bind:processing={record.processing}
+                                            />
+                                            <ActionButton 
+                                                action="?/rejectAttendance" 
+                                                params={{ id: record.id }} 
+                                                label="거절" 
+                                                className="btn reject small"
+                                                bind:processing={record.processing}
+                                            />
+                                            <button class="btn edit small" onclick={() => openEdit(record)} disabled={record.processing}>수정</button>
+                                            <ActionButton 
+                                                action="?/deleteAttendanceRecord" 
+                                                params={{ id: record.id }} 
+                                                label="삭제" 
+                                                className="btn delete small"
+                                                confirmMessage="정말 삭제하시겠습니까?"
+                                                bind:processing={record.processing}
+                                            />
                                         </div>
                                     </div>
                                 {/each}
@@ -437,33 +488,28 @@
     											</td>
     											<td>{new Date(req.submittedAt).toLocaleDateString()}</td>
     											<td class="actions-cell">
-    												<form method="POST" action="?/approveSeminar" use:enhance={({ formData }) => {
-                                                        const id = formData.get('id');
-                                                        const idx = seminarRequests.findIndex(r => r.id === id);
-                                                        if (idx !== -1) seminarRequests[idx].processing = true;
-    													return ({ result, update }) => {
-    														if (result.type === 'success') {
-                                                                toasts.success('세미나가 승인되었습니다.');
-                                                                refreshSeminars();
-                                                            } else {
-                                                                if (idx !== -1) seminarRequests[idx].processing = false;
-                                                                if (result.type === 'failure') toasts.error((result.data as any)?.error || '승인 중 오류가 발생했습니다.');
-                                                            }
-    														update();
-    													};
-    												}} onsubmit={() => confirm(`'${req.title}' 세미나 개설을 승인하시겠습니까?`)}>
-    													<input type="hidden" name="id" value={req.id} />
-    													<button class="btn approve small" disabled={req.processing}>승인</button>
-    												</form>
-    												<form method="POST" action="?/rejectSeminar" use:enhance={() => {
-    													return ({ result, update }) => {
-    														if (result.type === 'success') toasts.info('신청이 반려/삭제되었습니다.');
-    														update();
-    													};
-    												}} onsubmit={() => confirm('반려하시겠습니까?')}>
-    													<input type="hidden" name="id" value={req.id} />
-    													<button class="btn reject small">반려</button>
-    												</form>
+                                                    <ActionButton 
+                                                        action="?/approveSeminar" 
+                                                        params={{ id: req.id }} 
+                                                        label="승인" 
+                                                        className="btn approve small"
+                                                        confirmMessage={`'${req.title}' 세미나 개설을 승인하시겠습니까?`}
+                                                        successMessage="세미나가 승인되었습니다."
+                                                        errorMessage="승인 중 오류가 발생했습니다."
+                                                        bind:processing={req.processing}
+                                                        onSuccess={refreshSeminars}
+                                                    />
+                                                    <ActionButton 
+                                                        action="?/rejectSeminar" 
+                                                        params={{ id: req.id }} 
+                                                        label="반려" 
+                                                        className="btn reject small"
+                                                        confirmMessage="반려하시겠습니까?"
+                                                        successMessage="신청이 반려/삭제되었습니다."
+                                                        errorMessage="반려 중 오류가 발생했습니다."
+                                                        bind:processing={req.processing}
+                                                        onSuccess={refreshSeminars}
+                                                    />
     											</td>
     										</tr>
     									{/each}
@@ -484,39 +530,28 @@
                                             <p><strong>신청일:</strong> {new Date(req.submittedAt).toLocaleDateString()}</p>
                                         </div>
                                         <div class="card-actions">
-                                            <form method="POST" action="?/approveSeminar" use:enhance={({ formData }) => {
-                                                const id = formData.get('id');
-                                                const idx = seminarRequests.findIndex(r => r.id === id);
-                                                if (idx !== -1) seminarRequests[idx].processing = true;
-                                                return ({ result, update }) => {
-                                                    if (result.type === 'success') {
-                                                        toasts.success('세미나가 승인되었습니다.');
-                                                        refreshSeminars();
-                                                    } else {
-                                                        if (idx !== -1) seminarRequests[idx].processing = false;
-                                                        if (result.type === 'failure') toasts.error((result.data as any)?.error || '승인 중 오류가 발생했습니다.');
-                                                    }
-                                                    update();
-                                                };
-                                            }}>
-                                                <input type="hidden" name="id" value={req.id} />
-                                                <button class="btn approve small" disabled={req.processing}>승인</button>
-                                            </form>
-                                            <form method="POST" action="?/rejectSeminar" use:enhance={({ formData }) => {
-                                                const id = formData.get('id');
-                                                const idx = seminarRequests.findIndex(r => r.id === id);
-                                                if (idx !== -1) seminarRequests[idx].processing = true;
-                                                return ({ result, update }) => {
-                                                    if (result.type === 'failure' || result.type === 'error') {
-                                                        if (idx !== -1) seminarRequests[idx].processing = false;
-                                                        toasts.error('반려 중 오류가 발생했습니다.');
-                                                    }
-                                                    update();
-                                                };
-                                            }}>
-                                                <input type="hidden" name="id" value={req.id} />
-                                                <button class="btn reject small" disabled={req.processing}>반려</button>
-                                            </form>
+                                            <ActionButton 
+                                                action="?/approveSeminar" 
+                                                params={{ id: req.id }} 
+                                                label="승인" 
+                                                className="btn approve small"
+                                                confirmMessage={`'${req.title}' 세미나 개설을 승인하시겠습니까?`}
+                                                successMessage="세미나가 승인되었습니다."
+                                                errorMessage="승인 중 오류가 발생했습니다."
+                                                bind:processing={req.processing}
+                                                onSuccess={refreshSeminars}
+                                            />
+                                            <ActionButton 
+                                                action="?/rejectSeminar" 
+                                                params={{ id: req.id }} 
+                                                label="반려" 
+                                                className="btn reject small"
+                                                confirmMessage="반려하시겠습니까?"
+                                                successMessage="신청이 반려/삭제되었습니다."
+                                                errorMessage="반려 중 오류가 발생했습니다."
+                                                bind:processing={req.processing}
+                                                onSuccess={refreshSeminars}
+                                            />
                                         </div>
                                     </div>
                                 {/each}
@@ -590,43 +625,29 @@
                                             {#if app.accepted}
                                                 <span class="status-badge active">승인됨</span>
                                             {:else}
-                                                <form method="POST" action="?/approve" use:enhance={({ formData }) => {
-                                                    const id = formData.get('id');
-                                                    const idx = applications.findIndex(a => a.id === id);
-                                                    if (idx !== -1) applications[idx].processing = true;
-                                                    return async ({ result }) => {
-                                                        if (result.type === 'success') {
-                                                            toasts.success('회원 가입이 승인되었습니다.');
-                                                            // Refresh from server to verify actual state
-                                                            await refreshApplications(false);
-                                                        } else {
-                                                            if (idx !== -1) applications[idx].processing = false;
-                                                            if (result.type === 'failure') {
-                                                                toasts.error((result.data as any)?.error || '승인 중 오류가 발생했습니다.');
-                                                            }
-                                                        }
-                                                    };
-                                                }}>
-                                                    <input type="hidden" name="id" value={app.id} />
-                                                    <button class="btn approve small" disabled={app.processing}>승인</button>
-                                                </form>
+                                                <ActionButton 
+                                                    action="?/approve" 
+                                                    params={{ id: app.id }} 
+                                                    label="승인" 
+                                                    className="btn approve small"
+                                                    successMessage="회원 가입이 승인되었습니다."
+                                                    errorMessage="승인 중 오류가 발생했습니다."
+                                                    bind:processing={app.processing}
+                                                    onSuccess={() => refreshApplications(false)}
+                                                />
                                             {/if}
 
-                                            <form method="POST" action="?/reject" use:enhance={({ formData }) => {
-                                                const id = formData.get('id');
-                                                const idx = applications.findIndex(a => a.id === id);
-                                                if (idx !== -1) applications[idx].processing = true;
-                                                return async ({ result, update }) => {
-                                                    if (result.type === 'failure' || result.type === 'error') {
-                                                        if (idx !== -1) applications[idx].processing = false;
-                                                        toasts.error('거절/삭제 중 오류가 발생했습니다.');
-                                                    }
-                                                    update();
-                                                };
-                                            }} onsubmit={() => confirm(app.accepted ? '신청 내역을 삭제하시겠습니까?' : '정말 거절하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.')}>
-                                                <input type="hidden" name="id" value={app.id} />
-                                                <button class="btn reject small" disabled={app.processing}>{app.accepted ? '삭제' : '거절'}</button>
-                                            </form>
+                                            <ActionButton 
+                                                action="?/reject" 
+                                                params={{ id: app.id }} 
+                                                label={app.accepted ? '삭제' : '거절'} 
+                                                className="btn reject small"
+                                                confirmMessage={app.accepted ? '신청 내역을 삭제하시겠습니까?' : '정말 거절하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.'}
+                                                successMessage={app.accepted ? '신청 내역이 삭제되었습니다.' : '가입 신청이 거절되었습니다.'}
+                                                errorMessage="처리 중 오류가 발생했습니다."
+                                                bind:processing={app.processing}
+                                                onSuccess={() => refreshApplications(false)}
+                                            />
                                         </td>
                                     </tr>
                                 {/each}
@@ -657,42 +678,28 @@
                                     {#if app.accepted}
                                         <span class="status-badge active">승인됨</span>
                                     {:else}
-                                        <form method="POST" action="?/approve" use:enhance={({ formData }) => {
-                                            const id = formData.get('id');
-                                            const idx = applications.findIndex(a => a.id === id);
-                                            if (idx !== -1) applications[idx].processing = true;
-                                            return async ({ result }) => {
-                                                if (result.type === 'success') {
-                                                    toasts.success('회원 가입이 승인되었습니다.');
-                                                    // Refresh applications to confirm state with backend
-                                                    await refreshApplications(false);
-                                                } else {
-                                                    if (idx !== -1) applications[idx].processing = false;
-                                                    if (result.type === 'failure') {
-                                                        toasts.error((result.data as any)?.error || '승인 중 오류가 발생했습니다.');
-                                                    }
-                                                }
-                                            };
-                                        }}>
-                                            <input type="hidden" name="id" value={app.id} />
-                                            <button class="btn approve small" disabled={app.processing}>승인</button>
-                                        </form>
+                                        <ActionButton 
+                                            action="?/approve" 
+                                            params={{ id: app.id }} 
+                                            label="승인" 
+                                            className="btn approve small"
+                                            successMessage="회원 가입이 승인되었습니다."
+                                            errorMessage="승인 중 오류가 발생했습니다."
+                                            bind:processing={app.processing}
+                                            onSuccess={() => refreshApplications(false)}
+                                        />
                                     {/if}
-                                    <form method="POST" action="?/reject" use:enhance={({ formData }) => {
-                                        const id = formData.get('id');
-                                        const idx = applications.findIndex(a => a.id === id);
-                                        if (idx !== -1) applications[idx].processing = true;
-                                        return async ({ result, update }) => {
-                                            if (result.type === 'failure' || result.type === 'error') {
-                                                if (idx !== -1) applications[idx].processing = false;
-                                                toasts.error('거절/삭제 중 오류가 발생했습니다.');
-                                            }
-                                            update();
-                                        };
-                                    }} onsubmit={() => confirm(app.accepted ? '신청 내역을 삭제하시겠습니까?' : '정말 거절하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.')}>
-                                        <input type="hidden" name="id" value={app.id} />
-                                        <button class="btn reject small" disabled={app.processing}>{app.accepted ? '삭제' : '거절'}</button>
-                                    </form>
+                                    <ActionButton 
+                                        action="?/reject" 
+                                        params={{ id: app.id }} 
+                                        label={app.accepted ? '삭제' : '거절'} 
+                                        className="btn reject small"
+                                        confirmMessage={app.accepted ? '신청 내역을 삭제하시겠습니까?' : '정말 거절하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.'}
+                                        successMessage={app.accepted ? '신청 내역이 삭제되었습니다.' : '가입 신청이 거절되었습니다.'}
+                                        errorMessage="처리 중 오류가 발생했습니다."
+                                        bind:processing={app.processing}
+                                        onSuccess={() => refreshApplications(false)}
+                                    />
                                 </div>
                             </div>
                         {/each}
