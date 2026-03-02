@@ -30,6 +30,8 @@ A secure SvelteKit web application designed to automate membership management an
 - [**Auth Variables**](docs/AUTH_VARS.md) - Usage of Admin and Authorized user lists.
 - [**Architecture**](docs/ARCHITECTURE.md) - System design and operational protocols.
 - [**Features**](docs/FEATURES.md) - Detailed breakdown of application capabilities.
+- [**Component Guide**](docs/COMPONENTS.md) - Documentation for reusable UI components and utilities.
+- [**Maintenance Guide**](docs/MAINTAINING_DOCS.md) - Guidelines for documentation and system maintenance.
 - [**Design Blueprint**](docs/DESIGN_BLUEPRINT.md) - Pre-login landing design principles and guardrails.
 - [**Caching Policy**](docs/CACHE.md) - Cache durations and management strategy.
 - [**Database Schema**](docs/schema.md) - Notion database structures and property mappings.
