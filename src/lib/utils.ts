@@ -20,8 +20,16 @@ export interface SemesterInfo {
 export function getSemesterInfo(date?: Date): SemesterInfo {
   if (!date) date = new Date();
 
-  const month = date.getMonth() + 1;
-  const year = date.getFullYear();
+  // Use Intl.DateTimeFormat to get KST parts regardless of system timezone
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "numeric",
+  });
+
+  const parts = formatter.formatToParts(date);
+  const year = parseInt(parts.find((p) => p.type === "year")!.value);
+  const month = parseInt(parts.find((p) => p.type === "month")!.value);
 
   if (month >= 3 && month <= 8) {
     return {
@@ -46,6 +54,32 @@ export function getSemesterInfo(date?: Date): SemesterInfo {
       endDate: `${year}-02-28`,
     };
   }
+}
+
+/**
+ * Returns a KST-adjusted ISO string or YYYY-MM-DD string.
+ * Useful for ensuring server-side 'now' matches Korean time.
+ */
+export function getKSTDate(date?: Date, onlyDate = false): string {
+  const d = date || new Date();
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: onlyDate ? undefined : "2-digit",
+    minute: onlyDate ? undefined : "2-digit",
+    second: onlyDate ? undefined : "2-digit",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(d);
+  const getPart = (type: string) => parts.find((p) => p.type === type)!.value;
+
+  const yyyymmdd = `${getPart("year")}-${getPart("month")}-${getPart("day")}`;
+  if (onlyDate) return yyyymmdd;
+
+  return `${yyyymmdd}T${getPart("hour")}:${getPart("minute")}:${getPart("second")}.000Z`;
 }
 
 /**

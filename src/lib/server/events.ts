@@ -11,6 +11,7 @@ import {
   deleteEventInNotion,
 } from "./notion";
 import { withCache } from "./cache";
+import { getKSTDate } from "$lib/utils";
 
 // --- Events Management (Notion Only) ---
 
@@ -99,7 +100,8 @@ export async function recordAttendance(
     return { record: existing, isNew: false };
   }
 
-  const now = new Date().toISOString();
+  // Use KST instead of UTC for recording attendance
+  const nowKST = getKSTDate();
 
   try {
     const notionId = await createAttendanceRecordInNotion({
@@ -107,12 +109,12 @@ export async function recordAttendance(
       userEmail: user.email,
       userName: user.name,
       userDept: user.dept,
-      startTime: now,
+      startTime: nowKST,
     });
 
     if (notionId) {
       // Immediately update end time for complete record
-      updateAttendanceRecordInNotion(notionId, { endTime: now }).catch(
+      updateAttendanceRecordInNotion(notionId, { endTime: nowKST }).catch(
         console.error,
       );
 
@@ -123,8 +125,8 @@ export async function recordAttendance(
         userEmail: user.email,
         userName: user.name,
         userDept: user.dept,
-        startTime: now,
-        endTime: now,
+        startTime: nowKST,
+        endTime: nowKST,
         status: "pending",
       };
       return { record: newRecord, isNew: true };
@@ -161,7 +163,7 @@ export async function removeAttendanceRecord(recordId: string) {
  */
 export async function syncEventStatuses() {
   const events = await getEvents();
-  const now = new Date();
+  const todayKST = getKSTDate(undefined, true); // YYYY-MM-DD in KST
 
   for (const event of events) {
     // Validation: Check if Notion page exists
@@ -178,21 +180,18 @@ export async function syncEventStatuses() {
       }
     }
 
-    const eventDate = new Date(event.date);
-
-    // Get YYYY-MM-DD of 'now' and 'event'
-    const nowDay = now.toISOString().split("T")[0];
-    const eventDay = eventDate.toISOString().split("T")[0];
+    // event.date is stored in YYYY-MM-DD format (already KST based from creation)
+    const eventDay = event.date;
 
     // Status Logic
     // Activate draft events on their scheduled day
-    if (event.status === "draft" && nowDay >= eventDay) {
+    if (event.status === "draft" && todayKST >= eventDay) {
       await updateEventStatusInNotion(event.id, "active");
       console.log(`Event '${event.title}' activated.`);
     }
 
     // Expire active events after their day is over
-    if (event.status === "active" && nowDay > eventDay) {
+    if (event.status === "active" && todayKST > eventDay) {
       await updateEventStatusInNotion(event.id, "expired");
       console.log(`Event '${event.title}' expired.`);
     }
