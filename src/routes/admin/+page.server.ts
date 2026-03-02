@@ -95,6 +95,7 @@ export const actions = {
     const app = apps.find((a) => a.id === id);
 
     if (!app) return fail(404, { error: "Membership application not found" });
+    if (app.accepted) return fail(400, { error: "Application already accepted" });
 
     try {
       console.log(`[Admin] Processing approval for ${app.name} (${app.email})`);
@@ -108,6 +109,12 @@ export const actions = {
         background: app.background,
       });
 
+      // Verify member was created (Optional but good for robustness)
+      const member = await getMemberByEmail(app.email, true); // true to skip cache
+      if (!member) {
+        throw new Error("Member record creation verification failed in Notion");
+      }
+
       invalidateCache(`member_${app.email}`);
 
       // 2. Mark as accepted in Notion (Critical)
@@ -117,6 +124,10 @@ export const actions = {
       await sendWelcomeEmail(app.email, app.name);
 
       console.log(`[Admin] Approval flow completed for ${app.name}`);
+      
+      // Invalidate applications cache to ensure fresh data on refresh
+      invalidateCache("all_applications");
+      
       return { success: true };
     } catch (e) {
       console.error("[Admin] Approval flow failed:", e);

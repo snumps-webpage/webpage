@@ -25,6 +25,7 @@
         speakerNames: string[];
         submittedAt: string;
         status: string;
+        processing?: boolean;
     }
 
     interface Event {
@@ -81,14 +82,14 @@
         }
     });
 
-    async function refreshApplications() {
+    async function refreshApplications(resetPage = true) {
         refreshingApps = true;
         try {
             const res = await fetch('/api/admin/applications');
             if (res.ok) {
                 const newApps = await res.json();
                 applications = newApps.map((app: Application) => ({ ...app, processing: false }));
-                appPage = 1; // Reset to first page on refresh
+                if (resetPage) appPage = 1; // Reset to first page ONLY on manual refresh
             }
         } catch (e) {
             console.error(e);
@@ -436,14 +437,23 @@
     											</td>
     											<td>{new Date(req.submittedAt).toLocaleDateString()}</td>
     											<td class="actions-cell">
-    												<form method="POST" action="?/approveSeminar" use:enhance={() => {
+    												<form method="POST" action="?/approveSeminar" use:enhance={({ formData }) => {
+                                                        const id = formData.get('id');
+                                                        const idx = seminarRequests.findIndex(r => r.id === id);
+                                                        if (idx !== -1) seminarRequests[idx].processing = true;
     													return ({ result, update }) => {
-    														if (result.type === 'success') toasts.success('세미나가 승인되었습니다.');
+    														if (result.type === 'success') {
+                                                                toasts.success('세미나가 승인되었습니다.');
+                                                                refreshSeminars();
+                                                            } else {
+                                                                if (idx !== -1) seminarRequests[idx].processing = false;
+                                                                if (result.type === 'failure') toasts.error((result.data as any)?.error || '승인 중 오류가 발생했습니다.');
+                                                            }
     														update();
     													};
     												}} onsubmit={() => confirm(`'${req.title}' 세미나 개설을 승인하시겠습니까?`)}>
     													<input type="hidden" name="id" value={req.id} />
-    													<button class="btn approve small">승인</button>
+    													<button class="btn approve small" disabled={req.processing}>승인</button>
     												</form>
     												<form method="POST" action="?/rejectSeminar" use:enhance={() => {
     													return ({ result, update }) => {
@@ -474,13 +484,38 @@
                                             <p><strong>신청일:</strong> {new Date(req.submittedAt).toLocaleDateString()}</p>
                                         </div>
                                         <div class="card-actions">
-                                            <form method="POST" action="?/approveSeminar" use:enhance>
+                                            <form method="POST" action="?/approveSeminar" use:enhance={({ formData }) => {
+                                                const id = formData.get('id');
+                                                const idx = seminarRequests.findIndex(r => r.id === id);
+                                                if (idx !== -1) seminarRequests[idx].processing = true;
+                                                return ({ result, update }) => {
+                                                    if (result.type === 'success') {
+                                                        toasts.success('세미나가 승인되었습니다.');
+                                                        refreshSeminars();
+                                                    } else {
+                                                        if (idx !== -1) seminarRequests[idx].processing = false;
+                                                        if (result.type === 'failure') toasts.error((result.data as any)?.error || '승인 중 오류가 발생했습니다.');
+                                                    }
+                                                    update();
+                                                };
+                                            }}>
                                                 <input type="hidden" name="id" value={req.id} />
-                                                <button class="btn approve small">승인</button>
+                                                <button class="btn approve small" disabled={req.processing}>승인</button>
                                             </form>
-                                            <form method="POST" action="?/rejectSeminar" use:enhance>
+                                            <form method="POST" action="?/rejectSeminar" use:enhance={({ formData }) => {
+                                                const id = formData.get('id');
+                                                const idx = seminarRequests.findIndex(r => r.id === id);
+                                                if (idx !== -1) seminarRequests[idx].processing = true;
+                                                return ({ result, update }) => {
+                                                    if (result.type === 'failure' || result.type === 'error') {
+                                                        if (idx !== -1) seminarRequests[idx].processing = false;
+                                                        toasts.error('반려 중 오류가 발생했습니다.');
+                                                    }
+                                                    update();
+                                                };
+                                            }}>
                                                 <input type="hidden" name="id" value={req.id} />
-                                                <button class="btn reject small">반려</button>
+                                                <button class="btn reject small" disabled={req.processing}>반려</button>
                                             </form>
                                         </div>
                                     </div>
@@ -503,7 +538,7 @@
     			
     	    		    <div class="section-header">
     	    		        <h2 class="no-sel">가입 승인 대기 ({applications.length})</h2>
-    	    		        <button class="refresh-btn" onclick={refreshApplications} disabled={refreshingApps || loadingApps} aria-label="Refresh applications">
+    	    		        <button class="refresh-btn" onclick={() => refreshApplications(true)} disabled={refreshingApps || loadingApps} aria-label="Refresh applications">
     	    		            <span class="refresh-icon" class:spinning={refreshingApps}>🔄</span>
     	    		        </button>
     	    		    </div>
@@ -562,12 +597,13 @@
                                                     return async ({ result }) => {
                                                         if (result.type === 'success') {
                                                             toasts.success('회원 가입이 승인되었습니다.');
-                                                            if (idx !== -1) {
-                                                                applications[idx].accepted = true;
-                                                                applications[idx].processing = false;
-                                                            }
+                                                            // Refresh from server to verify actual state
+                                                            await refreshApplications(false);
                                                         } else {
                                                             if (idx !== -1) applications[idx].processing = false;
+                                                            if (result.type === 'failure') {
+                                                                toasts.error((result.data as any)?.error || '승인 중 오류가 발생했습니다.');
+                                                            }
                                                         }
                                                     };
                                                 }}>
@@ -583,6 +619,7 @@
                                                 return async ({ result, update }) => {
                                                     if (result.type === 'failure' || result.type === 'error') {
                                                         if (idx !== -1) applications[idx].processing = false;
+                                                        toasts.error('거절/삭제 중 오류가 발생했습니다.');
                                                     }
                                                     update();
                                                 };
@@ -620,14 +657,41 @@
                                     {#if app.accepted}
                                         <span class="status-badge active">승인됨</span>
                                     {:else}
-                                        <form method="POST" action="?/approve" use:enhance>
+                                        <form method="POST" action="?/approve" use:enhance={({ formData }) => {
+                                            const id = formData.get('id');
+                                            const idx = applications.findIndex(a => a.id === id);
+                                            if (idx !== -1) applications[idx].processing = true;
+                                            return async ({ result }) => {
+                                                if (result.type === 'success') {
+                                                    toasts.success('회원 가입이 승인되었습니다.');
+                                                    // Refresh applications to confirm state with backend
+                                                    await refreshApplications(false);
+                                                } else {
+                                                    if (idx !== -1) applications[idx].processing = false;
+                                                    if (result.type === 'failure') {
+                                                        toasts.error((result.data as any)?.error || '승인 중 오류가 발생했습니다.');
+                                                    }
+                                                }
+                                            };
+                                        }}>
                                             <input type="hidden" name="id" value={app.id} />
-                                            <button class="btn approve small">승인</button>
+                                            <button class="btn approve small" disabled={app.processing}>승인</button>
                                         </form>
                                     {/if}
-                                    <form method="POST" action="?/reject" use:enhance>
+                                    <form method="POST" action="?/reject" use:enhance={({ formData }) => {
+                                        const id = formData.get('id');
+                                        const idx = applications.findIndex(a => a.id === id);
+                                        if (idx !== -1) applications[idx].processing = true;
+                                        return async ({ result, update }) => {
+                                            if (result.type === 'failure' || result.type === 'error') {
+                                                if (idx !== -1) applications[idx].processing = false;
+                                                toasts.error('거절/삭제 중 오류가 발생했습니다.');
+                                            }
+                                            update();
+                                        };
+                                    }} onsubmit={() => confirm(app.accepted ? '신청 내역을 삭제하시겠습니까?' : '정말 거절하시겠습니까? 신청 내역이 영구적으로 삭제됩니다.')}>
                                         <input type="hidden" name="id" value={app.id} />
-                                        <button class="btn reject small">{app.accepted ? '삭제' : '거절'}</button>
+                                        <button class="btn reject small" disabled={app.processing}>{app.accepted ? '삭제' : '거절'}</button>
                                     </form>
                                 </div>
                             </div>
