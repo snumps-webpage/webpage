@@ -505,6 +505,40 @@ export async function getUserSeminars(memberId: string) {
   }));
 }
 
+export async function createSeminarInNotion(data: {
+  title: string;
+  speakerIds: string[];
+  remarks?: string;
+  semester?: string;
+}) {
+  const dbId = env.NOTION_DB_SEMINARS;
+  if (!dbId) throw new Error("NOTION_DB_SEMINARS missing");
+
+  // Use provided semester or calculate current one based on KST
+  const { getSemesterInfo } = await import("../utils");
+  const semester = data.semester || getSemesterInfo().key;
+
+  const properties: any = {
+    [NOTION_PROPS.SEMINAR_TITLE]: {
+      title: [{ text: { content: data.title } }],
+    },
+    [NOTION_PROPS.SEMINAR_SPEAKER]: {
+      relation: data.speakerIds.map((id) => ({ id })),
+    },
+    [NOTION_PROPS.SEMINAR_SEMESTER]: {
+      select: { name: semester },
+    },
+  };
+
+  if (data.remarks) {
+    properties[NOTION_PROPS.SEMINAR_REMARKS] = {
+      rich_text: [{ text: { content: data.remarks } }],
+    };
+  }
+
+  return await notionCreate(dbId, properties);
+}
+
 export async function getApplicationsFromNotion(skipCache = false) {
   return withCache(
     "all_applications",

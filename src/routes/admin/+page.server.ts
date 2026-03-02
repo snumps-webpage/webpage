@@ -7,6 +7,7 @@ import {
   createActivityPage,
   addAttendeeToActivity,
   markApplicationAsAccepted,
+  createSeminarInNotion,
 } from "$lib/server/notion";
 import {
   getEvents,
@@ -306,6 +307,11 @@ export const actions = {
           title: seminar.title,
           type: "Seminar",
           notionPageId: page.id,
+        }),
+        createSeminarInNotion({
+          title: seminar.title,
+          speakerIds: seminar.speakerIds,
+          remarks: seminar.description,
         }),
         updateSeminarRequestStatus(id, "approved"),
       ];
