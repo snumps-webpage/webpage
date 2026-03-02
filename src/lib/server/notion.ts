@@ -360,6 +360,7 @@ export async function getMemberById(memberId: string) {
   return {
     id: page.id,
     name: getPropertyValue(page.properties[NOTION_PROPS.NAME]),
+    department: getPropertyValue(page.properties[NOTION_PROPS.DEPT]),
     privateInfoId: (page.properties[NOTION_PROPS.MEMBER_TO_PRIVATE] as any)
       ?.relation?.[0]?.id,
   };

@@ -2,7 +2,7 @@ import { redirect, fail } from "@sveltejs/kit";
 import { dev } from "$app/environment";
 import { getMemberByEmail } from "$lib/server/notion";
 import { getApplications, isAdmin, type Application } from "$lib/server/admin";
-import { normalizePhoneNumber } from "$lib/utils";
+import { normalizePhoneNumber, parseGoogleName } from "$lib/utils";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
@@ -11,18 +11,14 @@ export const load: PageServerLoad = async (event) => {
 
   if (isPreview) {
     const previewName = session?.user?.name || "홍길동 / 학부생 / 수리과학부";
-    const parts = previewName.split("/").map((p) => p.trim());
+    const parsedInfo = parseGoogleName(previewName);
 
     return {
       user: session?.user || {
         email: "preview@snu.ac.kr",
         name: previewName,
       },
-      parsedInfo: {
-        name: parts[0] || "홍길동",
-        status: parts[1] || "학부생",
-        department: parts[2] || "수리과학부",
-      },
+      parsedInfo,
       pending: false,
       preview: true,
     };
@@ -52,13 +48,7 @@ export const load: PageServerLoad = async (event) => {
   }
 
   // Parse user info from name field: "Name / Status / Dept"
-  const rawName = session.user.name || "";
-  const parts = rawName.split("/").map((p) => p.trim());
-  const parsedInfo = {
-    name: parts[0] || "",
-    status: parts[1] || "",
-    department: parts[2] || "",
-  };
+  const parsedInfo = parseGoogleName(session.user.name);
 
   return {
     user: session.user,
@@ -81,10 +71,9 @@ export const actions = {
       return fail(401, { error: "로그인이 필요합니다." });
 
     // Extract immutable info from session name
-    const rawName = session.user.name || "";
-    const parts = rawName.split("/").map((p) => p.trim());
-    const immutableName = parts[0] || "";
-    const immutableDept = parts[2] || "";
+    const { name: immutableName, department: immutableDept } = parseGoogleName(
+      session.user.name,
+    );
 
     if (!immutableName || !immutableDept) {
       return fail(400, {

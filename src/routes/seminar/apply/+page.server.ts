@@ -1,11 +1,12 @@
 import { fail, redirect } from "@sveltejs/kit";
 import { createSeminarRequest } from "$lib/server/seminars";
 import {
-  getAllMembers,
-  getAllPrivateInfo,
-  getMemberByEmail,
-  getMemberById,
-} from "$lib/server/notion";
+  getSearchableMembers,
+  resolveActualName,
+  type SearchableMember,
+} from "$lib/server/admin";
+import { getMemberByEmail } from "$lib/server/notion";
+import { parseGoogleName } from "$lib/utils";
 import type { PageServerLoad, Actions } from "./$types";
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -19,49 +20,21 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     throw redirect(302, `/login?redirect=${encodeURIComponent(url.pathname)}`);
 
   let memberDirectoryUnavailable = false;
-  let searchableMembers: {
-    id: string;
-    name: string;
-    department: string;
-    email: string;
-  }[] = [];
-
-  const [memberInfo, members, privateInfos] = await Promise.all([
-    session.user.email ? getMemberByEmail(session.user.email) : null,
-    getAllMembers(),
-    getAllPrivateInfo(),
-  ]);
-
+  let searchableMembers: SearchableMember[] = [];
   let actualName = "";
-  if (memberInfo) {
-    const m = await getMemberById(memberInfo.memberId);
-    actualName = m.name;
-  } else {
-    // Fallback to parsing from Google name: "Name / Status / Dept"
-    actualName = (session.user.name || "").split("/")[0].trim();
-  }
 
   try {
-    // Create a map for quick lookup
-    const memberMap = new Map(members.map((m) => [m.id, m]));
-
-    searchableMembers = privateInfos
-      .filter((p) => p.memberId && memberMap.has(p.memberId))
-      .map((p) => {
-        const member = memberMap.get(p.memberId!)!;
-        return {
-          id: member.id, // We use the Member Database ID for relations
-          name: member.name,
-          department: member.department,
-          email: p.email,
-        };
-      });
+    [searchableMembers, actualName] = await Promise.all([
+      getSearchableMembers(),
+      resolveActualName(session),
+    ]);
   } catch (error) {
     memberDirectoryUnavailable = true;
     console.error(
-      "[Seminar Apply] Failed to load member directory. Falling back to empty list.",
+      "[Seminar Apply] Failed to load member data. Falling back.",
       error,
     );
+    actualName = parseGoogleName(session.user.name).name;
   }
 
   return {
@@ -130,8 +103,8 @@ export const actions: Actions = {
         attachment,
       });
 
-      // Extract only the name from the session name ("Name / Affiliation / Dept")
-      const displayName = session.user.name.split("/")[0].trim();
+      // Use centralized name parser
+      const displayName = parseGoogleName(session.user.name).name;
 
       // Notify admins about the new seminar application
       const { sendSeminarApplicationNotification } =

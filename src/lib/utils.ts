@@ -83,6 +83,18 @@ export function getKSTDate(date?: Date, onlyDate = false): string {
 }
 
 /**
+ * Parses info from the SNU Google account name format: "Name / Status / Dept"
+ */
+export function parseGoogleName(rawName?: string | null) {
+  const parts = (rawName || "").split("/").map((p) => p.trim());
+  return {
+    name: parts[0] || "",
+    status: parts[1] || "",
+    department: parts[2] || "",
+  };
+}
+
+/**
  * Derives a semester key (e.g. "25-1") from a date string.
  * Parses string directly to avoid timezone shifts.
  * Expected formats: "YYYY-MM-DD" or "YYYY-MM-DDTHH:mm..."

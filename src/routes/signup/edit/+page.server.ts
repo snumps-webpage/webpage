@@ -6,7 +6,7 @@ import {
   updateApplication,
   type Application,
 } from "$lib/server/admin";
-import { normalizePhoneNumber } from "$lib/utils";
+import { normalizePhoneNumber, parseGoogleName } from "$lib/utils";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
@@ -34,13 +34,7 @@ export const load: PageServerLoad = async (event) => {
   }
 
   // Parse user info from name field: "Name / Status / Dept"
-  const rawName = session.user.name || "";
-  const parts = rawName.split("/").map((p) => p.trim());
-  const parsedInfo = {
-    name: parts[0] || "",
-    status: parts[1] || "",
-    department: parts[2] || "",
-  };
+  const parsedInfo = parseGoogleName(session.user.name);
 
   return {
     user: session.user,
@@ -56,10 +50,9 @@ export const actions = {
       return fail(401, { error: "로그인이 필요합니다." });
 
     // Extract immutable info from session name
-    const rawName = session.user.name || "";
-    const parts = rawName.split("/").map((p) => p.trim());
-    const immutableName = parts[0] || "";
-    const immutableDept = parts[2] || "";
+    const { name: immutableName, department: immutableDept } = parseGoogleName(
+      session.user.name,
+    );
 
     if (!immutableName || !immutableDept) {
       return fail(400, {

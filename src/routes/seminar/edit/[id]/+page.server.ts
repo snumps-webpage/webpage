@@ -1,11 +1,12 @@
 import { fail, redirect } from "@sveltejs/kit";
 import { getSeminarRequests, updateSeminarRequest } from "$lib/server/seminars";
 import {
-  getAllMembers,
-  getAllPrivateInfo,
-  getMemberByEmail,
-  getMemberById,
-} from "$lib/server/notion";
+  getSearchableMembers,
+  resolveActualName,
+  type SearchableMember,
+} from "$lib/server/admin";
+import { getMemberByEmail } from "$lib/server/notion";
+import { parseGoogleName } from "$lib/utils";
 import type { PageServerLoad, Actions } from "./$types";
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
@@ -41,47 +42,21 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
   }
 
   let memberDirectoryUnavailable = false;
-  let searchableMembers: {
-    id: string;
-    name: string;
-    department: string;
-    email: string;
-  }[] = [];
-
-  const [memberInfo, members, privateInfos] = await Promise.all([
-    session.user.email ? getMemberByEmail(session.user.email) : null,
-    getAllMembers(),
-    getAllPrivateInfo(),
-  ]);
-
+  let searchableMembers: SearchableMember[] = [];
   let actualName = "";
-  if (memberInfo) {
-    const m = await getMemberById(memberInfo.memberId);
-    actualName = m.name;
-  } else {
-    actualName = (session.user.name || "").split("/")[0].trim();
-  }
 
   try {
-    const memberMap = new Map(members.map((m) => [m.id, m]));
-
-    searchableMembers = privateInfos
-      .filter((p) => p.memberId && memberMap.has(p.memberId))
-      .map((p) => {
-        const member = memberMap.get(p.memberId!)!;
-        return {
-          id: member.id,
-          name: member.name,
-          department: member.department,
-          email: p.email,
-        };
-      });
+    [searchableMembers, actualName] = await Promise.all([
+      getSearchableMembers(),
+      resolveActualName(session),
+    ]);
   } catch (error) {
     memberDirectoryUnavailable = true;
     console.error(
-      "[Seminar Edit] Failed to load member directory. Falling back to empty list.",
+      "[Seminar Edit] Failed to load member data. Falling back.",
       error,
     );
+    actualName = parseGoogleName(session.user.name).name;
   }
 
   // Reconstruct the initial speakers list for the UI

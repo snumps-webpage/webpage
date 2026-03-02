@@ -7,8 +7,13 @@ import {
   getApplicationsFromNotion,
   createApplicationInNotion,
   removeApplicationInNotion,
+  getAllMembers,
+  getAllPrivateInfo,
+  getMemberByEmail,
+  getMemberById,
 } from "./notion";
 import { DEV_PREVIEW_ADMIN_EMAIL } from "./dev-preview";
+import { parseGoogleName } from "../utils";
 
 export interface Application {
   id: string;
@@ -19,6 +24,53 @@ export interface Application {
   background: string;
   accepted: boolean;
   submittedAt: string;
+}
+
+export interface SearchableMember {
+  id: string;
+  name: string;
+  department: string;
+  email: string;
+}
+
+/**
+ * Merges the Members and Private Info databases into a single searchable list.
+ */
+export async function getSearchableMembers(): Promise<SearchableMember[]> {
+  const [members, privateInfos] = await Promise.all([
+    getAllMembers(),
+    getAllPrivateInfo(),
+  ]);
+
+  const memberMap = new Map(members.map((m) => [m.id, m]));
+
+  return privateInfos
+    .filter((p) => p.memberId && memberMap.has(p.memberId))
+    .map((p) => {
+      const member = memberMap.get(p.memberId!)!;
+      return {
+        id: member.id,
+        name: member.name,
+        department: member.department,
+        email: p.email,
+      };
+    });
+}
+
+/**
+ * Resolves the "Actual Name" of a user by checking the Member DB first,
+ * then falling back to parsing the Google account string.
+ */
+export async function resolveActualName(session: any): Promise<string> {
+  if (!session?.user?.email) return "";
+
+  const memberInfo = await getMemberByEmail(session.user.email);
+  if (memberInfo) {
+    const m = await getMemberById(memberInfo.memberId);
+    return m.name;
+  }
+
+  return parseGoogleName(session.user.name).name;
 }
 
 export async function getApplications(

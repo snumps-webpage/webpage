@@ -6,9 +6,10 @@ import {
 } from "$lib/server/events";
 import {
   getMemberByEmail,
-  getAllMembers,
+  getMemberById,
   checkPageExists,
 } from "$lib/server/notion";
+import { parseGoogleName } from "$lib/utils";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ params, locals, url }) => {
@@ -67,13 +68,15 @@ export const actions = {
       return fail(404, { error: "Invalid attendance link or code." });
     }
 
-    // Fetch Department
-    let dept = "Unknown";
+    // Extract name info
+    const { name: parsedName, department: parsedDept } = parseGoogleName(session.user.name);
+
+    // Fetch Department (Priority: Notion DB -> parsedDept -> "Unknown")
+    let dept = parsedDept || "Unknown";
     try {
-      const members = await getAllMembers();
       const memberLink = await getMemberByEmail(session.user.email);
       if (memberLink) {
-        const member = members.find((m) => m.id === memberLink.memberId);
+        const member = await getMemberById(memberLink.memberId);
         if (member) dept = member.department;
       }
     } catch (e) {
@@ -94,10 +97,10 @@ export const actions = {
         });
       }
 
-      // Notify admins
+      // Notify admins using parsed name
       const { sendAttendanceNotification } = await import("$lib/server/mail");
       try {
-        await sendAttendanceNotification(session.user.name, event.title);
+        await sendAttendanceNotification(parsedName, event.title);
       } catch (e) {
         console.error("[Attendance] Failed to send admin notification:", e);
       }
