@@ -59,3 +59,22 @@ export const ACTIVITY_TYPES = [
 // Chatroom configuration for welcome emails
 export const CHATROOM_NOTICE_LINK = "https://invite.kakao.com/tc/0PrN2Zk2VZ";
 export const CHATROOM_CHAT_LINK = "https://invite.kakao.com/tc/tGxjs2oKOV";
+
+// Academic Manuscript Branding
+export const MANUSCRIPT = {
+  FOUNDATION_DATE: "29 NOV 2024",
+  JOURNAL_TITLE: "SNUMPS Researcher Portal",
+  FIGURES: {
+    DASHBOARD: "Figure D-1 · Researcher Status Overview",
+    SIGNUP: "Figure S-1 · Membership Application Draft",
+    REVISION: "Figure S-2 · Revision Manuscript",
+    SEMINAR_APPLY: "Figure P-1 · Seminar Proposal Form",
+    SEMINAR_EDIT: "Figure P-2 · Proposal Revision Draft",
+    ADMIN: "Figure A-1 · Administrative Control Panel",
+    EVENT_NEW: "Figure A-New · Event Draft",
+    EVENT_CONNECT: "Figure A-Connect · Existing Activity Index",
+    WAIT: "Figure W-1 · Queue Status Notice",
+    ATTENDANCE: "Figure E-1 · Attendance Submission Sheet"
+  }
+};
+

@@ -7,6 +7,18 @@ import {
   removeSeminarRequestInNotion,
 } from "./notion";
 
+/**
+ * Parses speaker IDs from raw form data (JSON string or comma-separated).
+ */
+export function parseSpeakerIds(rawIds?: string | null): string[] {
+  if (!rawIds) return [];
+  try {
+    return JSON.parse(rawIds);
+  } catch {
+    return rawIds.split(",").map((id) => id.trim()).filter(Boolean);
+  }
+}
+
 export async function getSeminarRequests(
   skipCache = false,
 ): Promise<SeminarRequest[]> {
@@ -86,3 +98,27 @@ export async function updateSeminarRequestStatus(
     throw e;
   }
 }
+
+/**
+ * Fetches all pending seminar requests and resolves speaker names.
+ */
+export async function getPendingSeminarRequests(skipCache = false) {
+  const { getAllMembers } = await import("./notion");
+  const [requests, members] = await Promise.all([
+    getSeminarRequests(skipCache),
+    getAllMembers(skipCache),
+  ]);
+
+  return requests
+    .filter((r) => r.status === "pending")
+    .map((r) => ({
+      ...r,
+      speakerNames: Array.isArray(r.speakerIds)
+        ? r.speakerIds.map((id) => {
+            const m = members.find((member) => member.id === id);
+            return m ? m.name : "Unknown";
+          })
+        : [],
+    }));
+}
+

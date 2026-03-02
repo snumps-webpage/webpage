@@ -1,23 +1,17 @@
-import { fail, redirect } from "@sveltejs/kit";
-import { getSeminarRequests, updateSeminarRequest } from "$lib/server/seminars";
+import { redirect } from "@sveltejs/kit";
+import { getSeminarRequests, updateSeminarRequest, parseSpeakerIds } from "$lib/server/seminars";
 import {
   getSearchableMembers,
   resolveActualName,
   type SearchableMember,
 } from "$lib/server/admin";
+import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
 import { getMemberByEmail } from "$lib/server/notion";
 import { parseGoogleName } from "$lib/utils";
 import type { PageServerLoad, Actions } from "./$types";
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
-  let session = null;
-  try {
-    session = await locals.auth();
-  } catch (error) {
-    console.error("[Seminar Edit] Failed to resolve auth session:", error);
-  }
-  if (!session?.user)
-    throw redirect(302, `/login?redirect=${encodeURIComponent(url.pathname)}`);
+  const session = await ensureSession(locals, url);
 
   const requestId = params.id;
   let requests = [];
@@ -78,44 +72,24 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 
 export const actions: Actions = {
   default: async ({ request, locals, params }) => {
-    let session = null;
-    try {
-      session = await locals.auth();
-    } catch (error) {
-      console.error("[Seminar Edit] Failed to resolve auth session:", error);
-    }
-    if (!session?.user?.email) return fail(401, { error: "Login required" });
+    return handleUserAction(locals, async (session) => {
+      const data = await request.formData();
+      const title = data.get("title") as string;
+      const description = data.get("description") as string;
+      const prerequisites = data.get("prerequisites") as string;
+      const duration = data.get("duration") as string;
+      const speakerIdsRaw = data.get("speakerIds") as string;
+      const attachment = data.get("attachment") as string;
 
-    const data = await request.formData();
-    const title = data.get("title") as string;
-    const description = data.get("description") as string;
-    const prerequisites = data.get("prerequisites") as string;
-    const duration = data.get("duration") as string;
-    const speakerIdsRaw = data.get("speakerIds") as string;
-    const attachment = data.get("attachment") as string;
+      const requestId = params.id;
+      if (!title || !description) throw new Error("필수 항목을 입력해주세요.");
 
-    const requestId = params.id;
-
-    if (!title || !description) {
-      return fail(400, { error: "Missing required fields" });
-    }
-
-    let speakerIds: string[] = [];
-    if (speakerIdsRaw) {
-      try {
-        speakerIds = JSON.parse(speakerIdsRaw);
-      } catch {
-        speakerIds = [];
+      let speakerIds = parseSpeakerIds(speakerIdsRaw);
+      if (speakerIds.length === 0) {
+        const member = await getMemberByEmail(session.user.email);
+        if (member) speakerIds = [member.memberId];
       }
-    }
 
-    // Fallback if empty
-    if (speakerIds.length === 0) {
-      const member = await getMemberByEmail(session.user.email);
-      if (member) speakerIds = [member.memberId];
-    }
-
-    try {
       await updateSeminarRequest(requestId, {
         title,
         description,
@@ -124,11 +98,6 @@ export const actions: Actions = {
         speakerIds,
         attachment,
       });
-
-      return { success: true };
-    } catch (e) {
-      console.error("[Seminar Edit] Error:", e);
-      return fail(500, { error: "Failed to update seminar request" });
-    }
+    }, { invalidate: "all_seminar_requests" });
   },
 };

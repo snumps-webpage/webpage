@@ -2,12 +2,13 @@ import { redirect, fail } from "@sveltejs/kit";
 import { dev } from "$app/environment";
 import { getMemberByEmail } from "$lib/server/notion";
 import { getApplications, isAdmin, type Application } from "$lib/server/admin";
+import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
 import { normalizePhoneNumber, parseGoogleName } from "$lib/utils";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
   const isPreview = dev && event.url.searchParams.get("preview") === "1";
-  const session = await event.locals.auth();
+  const session = await (isPreview ? event.locals.auth() : ensureSession(event.locals, event.url));
 
   if (isPreview) {
     const previewName = session?.user?.name || "홍길동 / 학부생 / 수리과학부";
@@ -24,23 +25,23 @@ export const load: PageServerLoad = async (event) => {
     };
   }
 
-  if (!session?.user?.email) {
-    throw redirect(302, "/");
-  }
+  // At this point, session is guaranteed by ensureSession
+  const user = session!.user!;
+  if (!user.email) throw redirect(302, "/");
 
   const [member, apps] = await Promise.all([
-    getMemberByEmail(session.user.email),
+    getMemberByEmail(user.email),
     getApplications(),
   ]);
 
-  const isUserAdmin = isAdmin(session.user.email);
+  const isUserAdmin = isAdmin(user.email);
 
   if (member && !isUserAdmin) {
     throw redirect(302, "/");
   }
 
   const pending = apps.find(
-    (a: Application) => a.email === session.user?.email,
+    (a: Application) => a.email === user.email,
   );
 
   if (pending && !isUserAdmin) {
@@ -48,10 +49,10 @@ export const load: PageServerLoad = async (event) => {
   }
 
   // Parse user info from name field: "Name / Status / Dept"
-  const parsedInfo = parseGoogleName(session.user.name);
+  const parsedInfo = parseGoogleName(user.name);
 
   return {
-    user: session.user,
+    user,
     parsedInfo,
     pending: !!pending,
     preview: false,
@@ -66,55 +67,34 @@ export const actions = {
       });
     }
 
-    const session = await locals.auth();
-    if (!session?.user?.email)
-      return fail(401, { error: "로그인이 필요합니다." });
+    return handleUserAction(locals, async (session) => {
+      const user = session.user;
+      const { name: immutableName, department: immutableDept } = parseGoogleName(user.name);
 
-    // Extract immutable info from session name
-    const { name: immutableName, department: immutableDept } = parseGoogleName(
-      session.user.name,
-    );
+      if (!immutableName || !immutableDept) {
+        throw new Error("계정 정보에서 이름 또는 학과를 찾을 수 없습니다.");
+      }
 
-    if (!immutableName || !immutableDept) {
-      return fail(400, {
-        error: "계정 정보에서 이름 또는 학과를 찾을 수 없습니다.",
-      });
-    }
+      const data = await request.formData();
+      const phone = normalizePhoneNumber(data.get("phone") as string);
+      const background = data.get("background") as string;
+      const agreement = data.get("agreement");
 
-    const data = await request.formData();
-    const phone = normalizePhoneNumber(data.get("phone") as string);
-    const background = data.get("background") as string;
-    const agreement = data.get("agreement");
+      if (!agreement) throw new Error("개인정보 수집 및 이용에 동의해야 합니다.");
+      if (!phone) throw new Error("전화번호를 입력해주세요.");
 
-    if (!agreement) {
-      return fail(400, { error: "개인정보 수집 및 이용에 동의해야 합니다." });
-    }
+      const { addApplication } = await import("$lib/server/admin");
+      const { sendSignupNotification } = await import("$lib/server/mail");
 
-    if (!phone) {
-      return fail(400, { error: "전화번호를 입력해주세요." });
-    }
-
-    const { addApplication } = await import("$lib/server/admin");
-    const { sendSignupNotification } = await import("$lib/server/mail");
-
-    try {
       await addApplication({
-        email: session.user.email,
+        email: user.email,
         name: immutableName,
         department: immutableDept,
         phone,
         background,
       });
 
-      // Notify admins about the new registration application
       await sendSignupNotification(immutableName);
-
-      return { success: true };
-    } catch (e) {
-      console.error(e);
-      return fail(500, {
-        error: "신청 처리에 실패했습니다. 잠시 후 다시 시도해주세요.",
-      });
-    }
+    }, { invalidate: "all_applications" });
   },
 };

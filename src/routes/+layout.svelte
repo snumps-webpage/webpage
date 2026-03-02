@@ -1,4 +1,5 @@
 <script lang="ts">
+    import '$lib/manuscript.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import instagram from '$lib/assets/instagram.svg';
 	import { browser } from '$app/environment';

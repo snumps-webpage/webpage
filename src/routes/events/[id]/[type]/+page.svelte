@@ -1,6 +1,9 @@
 <script lang="ts">
     import { enhance } from '$app/forms';
     import { toasts } from '$lib/toasts';
+    import ManuscriptHeader from '$lib/components/ManuscriptHeader.svelte';
+    import SuccessScreen from '$lib/components/SuccessScreen.svelte';
+    import { MANUSCRIPT } from '$lib/constants';
 
     let { data } = $props();
     let processing = $state(false);
@@ -8,22 +11,18 @@
 </script>
 
 <article class="paper-document event-paper">
-	<header class="paper-document-header">
-		<h1 class="paper-document-title">{data.event.title}</h1>
-		<p class="paper-document-subtitle">Attendance Submission Sheet</p>
-	</header>
+    <ManuscriptHeader 
+        title={data.event.title} 
+        subtitle="Attendance Submission Sheet" 
+        figure={MANUSCRIPT.FIGURES.ATTENDANCE}
+    />
+
 	{#if success}
-		<ol class="paper-sections">
-			<li class="paper-section">
-				<h2 class="paper-section-title">Submission Result</h2>
-				<p class="paper-status-note success">출석이 성공적으로 처리되었습니다.</p>
-				<div class="meta">
-					<span class="type">{data.event.type}</span>
-					<span class="date">{new Date(data.event.date).toLocaleString()}</span>
-				</div>
-				<p class="paper-form-note">창을 닫으셔도 됩니다.</p>
-			</li>
-		</ol>
+        <SuccessScreen 
+            title="출석이 완료되었습니다!" 
+            description="성공적으로 처리되었습니다. 창을 닫으셔도 됩니다." 
+            buttonLabel="홈으로 이동"
+        />
 	{:else}
 		<ol class="paper-sections">
 			<li class="paper-section">

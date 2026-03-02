@@ -1,0 +1,223 @@
+/* 
+ * SNUMPS Webpage: Global Manuscript (LaTeX/Academic) Theme
+ * Standardized styles for all "Paper" documents and forms.
+ */
+
+.paper-document {
+	width: min(100%, 54rem);
+	margin: 1.1rem auto;
+	padding: 1.2rem 1.25rem 1.5rem;
+	background: var(--latex-bg);
+	border: 1px solid var(--latex-rule);
+	border-top-width: 2px;
+	color: var(--latex-text);
+}
+
+.paper-sections {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	display: grid;
+	gap: 1.2rem;
+}
+
+.paper-section {
+	padding-top: 0.8rem;
+	border-top: 1px solid var(--latex-rule);
+}
+
+.paper-section:first-child {
+	border-top: none;
+	padding-top: 0;
+}
+
+.paper-section-title {
+	margin: 0 0 1rem;
+	font-family: var(--font-display);
+	font-size: clamp(1.1rem, 2vw, 1.34rem);
+	font-weight: 540;
+}
+
+.paper-field {
+	margin-bottom: 1.45rem;
+}
+
+.paper-field:last-child {
+	margin-bottom: 0;
+}
+
+.paper-label {
+	display: block;
+	margin-bottom: 0.42rem;
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	font-weight: 650;
+	letter-spacing: 0.11em;
+	text-transform: uppercase;
+	color: var(--latex-muted);
+}
+
+.paper-field input,
+.paper-field textarea {
+	width: 100%;
+	padding: 0.7rem 0.76rem;
+	border: 1px solid var(--latex-rule);
+	border-radius: 0;
+	background: var(--latex-bg);
+	color: var(--latex-text);
+	font-family: var(--font-body);
+	font-size: 0.98rem;
+	line-height: 1.5;
+	resize: vertical;
+}
+
+.paper-field input:focus-visible,
+.paper-field textarea:focus-visible {
+	outline: 2px solid var(--latex-accent);
+	outline-offset: 2px;
+}
+
+.paper-field input:disabled {
+	opacity: 0.8;
+	color: var(--latex-muted);
+	border-style: dashed;
+	background: color-mix(in srgb, var(--latex-bg) 90%, var(--latex-rule));
+	cursor: not-allowed;
+}
+
+.paper-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0.65rem 1rem;
+	border: 1px solid var(--latex-rule);
+	background: transparent;
+	color: var(--latex-text);
+	font-family: var(--font-mono);
+	font-weight: 640;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	cursor: pointer;
+	text-decoration: none;
+	transition: background-color 0.16s ease, color 0.16s ease;
+	font-size: 0.74rem;
+}
+
+.paper-btn:hover:not(:disabled) {
+	background: var(--latex-text);
+	color: var(--latex-bg);
+}
+
+.paper-btn.primary {
+	background: var(--latex-text);
+	color: var(--latex-bg);
+}
+
+.paper-btn.primary:hover:not(:disabled) {
+	background: var(--latex-accent);
+	border-color: var(--latex-accent);
+}
+
+.paper-btn.small {
+	padding: 0.38rem 0.75rem;
+	font-size: 0.66rem;
+}
+
+.paper-btn:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+
+.paper-actions {
+	margin-top: 2.2rem;
+	padding-top: 1.2rem;
+	border-top: 1px solid var(--latex-rule);
+	display: flex;
+	gap: 0.65rem;
+}
+
+.paper-hint {
+	margin: 0.34rem 0 0;
+	color: var(--latex-muted);
+	font-size: 0.83rem;
+	line-height: 1.45;
+}
+
+.paper-status-note {
+	padding: 0.7rem 0.85rem;
+	margin-bottom: 1.5rem;
+	border: 1px solid var(--latex-rule);
+	font-family: var(--font-body);
+	font-size: 0.92rem;
+}
+
+.paper-status-note.error {
+	border-left: 4px solid var(--latex-accent);
+	color: var(--latex-accent);
+	background: color-mix(in srgb, var(--latex-accent) 4%, var(--latex-bg));
+}
+
+.paper-status-note.success {
+	border-left: 4px solid var(--latex-text);
+	color: var(--latex-text);
+	background: color-mix(in srgb, var(--latex-text) 4%, var(--latex-bg));
+}
+
+/* --- Academic Tables (booktabs style) --- */
+
+.paper-table-container {
+	width: 100%;
+	overflow-x: auto;
+	margin: 1rem 0;
+	border-top: 2px solid var(--latex-rule);
+	border-bottom: 2px solid var(--latex-rule);
+}
+
+.paper-table {
+	width: 100%;
+	border-collapse: collapse;
+	text-align: left;
+	font-family: var(--font-body);
+	font-size: 0.94rem;
+}
+
+.paper-table th {
+	padding: 0.75rem 0.85rem;
+	font-family: var(--font-display);
+	font-weight: 600;
+	border-bottom: 1px solid var(--latex-rule);
+	color: var(--latex-text);
+}
+
+.paper-table td {
+	padding: 0.7rem 0.85rem;
+	border-bottom: 1px solid color-mix(in srgb, var(--latex-rule) 20%, transparent);
+	color: var(--latex-text);
+}
+
+.paper-table tr:last-child td {
+	border-bottom: none;
+}
+
+.paper-table tr:hover td {
+	background: color-mix(in srgb, var(--latex-text) 2%, transparent);
+}
+
+.paper-table .tag {
+	display: inline-flex;
+	padding: 0.18rem 0.45rem;
+	font-family: var(--font-mono);
+	font-size: 0.64rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	border: 1px solid var(--latex-rule);
+	color: var(--latex-muted);
+}
+
+@media (max-width: 620px) {
+	.paper-document {
+		margin: 1rem auto;
+		padding: 1.2rem 1rem 1.35rem;
+	}
+}

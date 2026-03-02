@@ -9,6 +9,7 @@ import {
 } from "$lib/server/notion";
 import { getSeminarRequests } from "$lib/server/seminars";
 import { getApplications, type Application } from "$lib/server/admin";
+import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
 import {
   getSemesterInfo,
   getSemesterKeyFromDate,
@@ -254,53 +255,36 @@ export const load: PageServerLoad = async (event) => {
 export const actions = {
   updateProfile: async ({ request, locals, url, cookies }) => {
     const devPreviewRole = resolveDevPreviewRole(url, cookies);
-    if (dev && devPreviewRole) {
-      return { success: true, preview: true };
-    }
-
-    const session = await locals.auth();
-    if (!session?.user?.email)
-      return fail(401, { error: "로그인이 필요합니다." });
+    if (dev && devPreviewRole) return { success: true, preview: true };
 
     const data = await request.formData();
     const phone = normalizePhoneNumber(data.get("phone") as string);
     const background = data.get("background") as string;
 
-    try {
+    return handleUserAction(locals, async (session) => {
       const member = await getMemberByEmail(session.user.email);
-      if (!member) return fail(404, { error: "회원 정보를 찾을 수 없습니다." });
+      if (!member) throw new Error("회원 정보를 찾을 수 없습니다.");
 
       await updatePrivateInfo(member.privateInfoId, { phone, background });
-      return { success: true };
-    } catch (e) {
-      console.error("[Action UpdateProfile] Error:", e);
-      return fail(500, { error: "프로필 업데이트에 실패했습니다." });
-    }
+    }, { invalidate: `member_${locals.auth().then(s => s?.user?.email)}` }); // Optimization: refresh member cache
   },
 
   updateSeminar: async ({ request, locals, url, cookies }) => {
     const devPreviewRole = resolveDevPreviewRole(url, cookies);
-    if (dev && devPreviewRole) {
-      return { success: true, preview: true };
-    }
-
-    const session = await locals.auth();
-    if (!session?.user?.email)
-      return fail(401, { error: "로그인이 필요합니다." });
+    if (dev && devPreviewRole) return { success: true, preview: true };
 
     const data = await request.formData();
     const id = data.get("id") as string;
     const title = data.get("title") as string;
     const remarks = data.get("remarks") as string;
 
-    if (!id) return fail(400, { error: "요청 ID가 누락되었습니다." });
-
-    try {
-      await updateSeminar(id, { title, remarks });
-      return { success: true };
-    } catch (e) {
-      console.error("[Action UpdateSeminar] Error:", e);
-      return fail(500, { error: "세미나 정보 업데이트에 실패했습니다." });
+    if (!id) {
+        const { fail } = await import("@sveltejs/kit");
+        return fail(400, { error: "요청 ID가 누락되었습니다." });
     }
+
+    return handleUserAction(locals, async () => {
+      await updateSeminar(id, { title, remarks });
+    });
   },
 };

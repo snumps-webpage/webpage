@@ -61,6 +61,33 @@ export async function createEvent(data: {
   return { ...newEventData, id } as Event;
 }
 
+/**
+ * High-level service to atomically create a Notion Activity page 
+ * AND a corresponding local Event record.
+ */
+export async function publishEvent(data: {
+  title: string;
+  date?: string;
+  type: string;
+  attendeeIds?: string[];
+}) {
+  const notionPage = await createActivityPage({
+    title: data.title,
+    date: data.date,
+    type: data.type,
+    attendeeIds: data.attendeeIds,
+  });
+
+  const event = await createEvent({
+    title: data.title,
+    date: data.date,
+    type: data.type,
+    notionPageId: notionPage.id,
+  });
+
+  return { id: event.id, notionPageId: notionPage.id };
+}
+
 export async function updateEventStatus(
   id: string,
   status: Event["status"],

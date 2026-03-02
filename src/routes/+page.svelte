@@ -4,9 +4,11 @@
 	import { enhance } from '$app/forms';
     	import { signIn } from '@auth/sveltekit/client';
         import { goto } from '$app/navigation';
-    	import Skeleton from '$lib/components/Skeleton.svelte';
-        import type { DashboardData, Activity } from '$lib/types';
-    	import type { PageData } from './$types';
+    		import Skeleton from '$lib/components/Skeleton.svelte';
+    		import SymbolBackground from '$lib/components/SymbolBackground.svelte';
+    		import ManuscriptHeader from '$lib/components/ManuscriptHeader.svelte';
+    		import { MANUSCRIPT } from '$lib/constants';
+    		import type { DashboardData, Activity } from '$lib/types';    	import type { PageData } from './$types';
     
     	let { data }: { data: PageData } = $props();
     	const session = $derived(page.data.session);
@@ -138,11 +140,12 @@
 	{#if session?.user}
 		{#if isMember || isAdmin}
 			<article class="paper-document dashboard-paper">
-				<header class="paper-document-header dashboard-header">
-					<div class="header-title-group">
-						<p class="paper-document-subtitle no-sel">Issue {data.semester}</p>
-						<h1 class="paper-document-title no-sel">활동 현황</h1>
-					</div>
+				<div class="dashboard-header-wrapper">
+					<ManuscriptHeader 
+						title="활동 현황" 
+						subtitle={`Issue ${data.semester}`} 
+						figure={MANUSCRIPT.FIGURES.DASHBOARD}
+					/>
 					<button
 						class="refresh-dashboard-btn"
 						onclick={refreshDashboard}
@@ -151,7 +154,7 @@
 					>
 						새로고침
 					</button>
-				</header>
+				</div>
 
 				{#await data.streamed.dashboard}
 					<div class="dashboard-skeleton">
@@ -394,9 +397,7 @@
 															</td>
 															<td>{activity.type}</td>
 															<td>
-																<span class="attendance-badge {activity.attended ? 'attended' : 'absent'}">
-																	{activity.attended ? '출석' : '결석'}
-																</span>
+																<StatusBadge status={activity.attended ? 'attended' : 'absent'} />
 															</td>
 														</tr>
 													{/each}
@@ -414,25 +415,7 @@
 		{/if}
 		{:else}
 			<article class="guest-paper">
-				<span class="paper-side-mark" aria-hidden="true">SNUMPS @ 29 NOV 2024</span>
-				<div class="paper-symbol-bg" aria-hidden="true">
-					<span>∫</span>
-					<span>∑</span>
-					<span>∂</span>
-					<span>∀</span>
-					<span>∃</span>
-					<span>∴</span>
-					<span>ℕ</span>
-					<span>π</span>
-					<span>∞</span>
-					<span>∇</span>
-					<span>⊂</span>
-					<span>⇒</span>
-					<span>≈</span>
-					<span>⊕</span>
-					<span>λ</span>
-					<span>φ</span>
-				</div>
+				<SymbolBackground date={MANUSCRIPT.FOUNDATION_DATE} />
 
 				<section class="paper-page cover-page">
 					<div class="cover-main">

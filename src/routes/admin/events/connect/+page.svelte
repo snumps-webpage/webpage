@@ -1,7 +1,10 @@
 <script lang="ts">
     import { enhance } from '$app/forms';
     import { getSemesterKeyFromDate } from '$lib/utils';
+    import ManuscriptHeader from '$lib/components/ManuscriptHeader.svelte';
+    import StatusBadge from '$lib/components/StatusBadge.svelte';
     import type { NotionActivity } from '$lib/types';
+    import { MANUSCRIPT } from '$lib/constants';
 
     let { data } = $props();
     
@@ -28,9 +31,12 @@
     }
 </script>
 
-<div class="container">
-    <p class="figure-label no-sel">Figure A-Connect · Existing Activity Index</p>
-    <h1>기존 이벤트 연결하기</h1>
+<div class="connect-container">
+    <ManuscriptHeader 
+        title="기존 이벤트 연결하기" 
+        subtitle="Existing Activity Index" 
+        figure={MANUSCRIPT.FIGURES.EVENT_CONNECT}
+    />
     <p class="desc">Notion에 이미 등록된 활동을 선택하여 출석 페이지를 생성합니다.</p>
 
     <ol class="paper-sections">
@@ -55,11 +61,12 @@
                     <div class="event-grid">
                         {#each filteredActivities as activity (activity.id)}
                             <button
+                                type="button"
                                 class="event-card"
                                 class:selected={selectedEvent?.id === activity.id}
                                 onclick={() => selectEvent(activity)}
                             >
-                                <span class="type-tag">{activity.type}</span>
+                                <StatusBadge status={activity.type} type="tag" />
                                 <span class="event-name">{activity.name}</span>
                                 <span class="event-date">{activity.date}</span>
                             </button>
@@ -86,38 +93,20 @@
 </div>
 
 <style>
-    .container {
+    .connect-container {
         width: min(100%, 66rem);
         margin: 1.4rem auto;
         padding: 1.2rem 1.1rem 1.25rem;
-        background: var(--bg-secondary);
-        border: 1px solid var(--border-color);
+        background: var(--latex-bg);
+        border: 1px solid var(--latex-rule);
         border-top-width: 2px;
     }
 
-    .figure-label {
-        margin: 0;
-        color: var(--text-secondary);
-        font-size: 0.64rem;
-        font-family: var(--font-mono);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-    }
-
-    h1 {
-        margin: 0.32rem 0 0.45rem;
-        color: var(--text-primary);
-        font-family: var(--font-display);
-        font-style: italic;
-        font-weight: 560;
-        font-size: clamp(1.24rem, 2.5vw, 1.52rem);
-    }
-
     .desc {
-        color: var(--text-secondary);
+        color: var(--latex-muted);
         margin: 0 0 0.82rem;
         padding-bottom: 0.65rem;
-        border-bottom: 1px solid var(--border-color);
+        border-bottom: 1px solid var(--latex-rule);
     }
 
     .filter-bar {
@@ -131,17 +120,17 @@
     .search-box input {
         width: 100%;
         padding: 0.58rem 0.64rem;
-        border: 1px solid var(--border-color);
+        border: 1px solid var(--latex-rule);
         font-size: 0.92rem;
-        background: var(--bg-primary);
-        color: var(--text-primary);
+        background: var(--latex-bg);
+        color: var(--latex-text);
     }
 
     .semester-select {
         padding: 0.58rem 0.7rem;
-        border: 1px solid var(--border-color);
-        background: var(--bg-primary);
-        color: var(--text-primary);
+        border: 1px solid var(--latex-rule);
+        background: var(--latex-bg);
+        color: var(--latex-text);
         font-family: var(--font-mono);
         font-size: 0.68rem;
         text-transform: uppercase;
@@ -151,9 +140,9 @@
     .list-container {
         height: min(54vh, 26rem);
         overflow-y: auto;
-        border: 1px solid var(--border-color);
+        border: 1px solid var(--latex-rule);
         padding: 0.75rem;
-        background: var(--bg-primary);
+        background: var(--latex-bg);
         margin-bottom: 0.92rem;
     }
 
@@ -164,9 +153,9 @@
     }
 
     .event-card {
-        background: var(--bg-secondary);
-        border: 1px solid var(--border-color);
-        border-left: 2px solid var(--text-secondary);
+        background: var(--latex-bg);
+        border: 1px solid var(--latex-rule);
+        border-left: 2px solid var(--latex-muted);
         padding: 0.65rem 0.72rem;
         text-align: left;
         cursor: pointer;
@@ -178,40 +167,25 @@
     }
 
     .event-card:hover {
-        border-color: var(--text-primary);
+        border-color: var(--latex-text);
     }
 
     .event-card.selected {
-        border-left-color: var(--text-primary);
-        border-color: var(--text-primary);
-        background: color-mix(in srgb, var(--bg-secondary) 85%, var(--text-primary));
-    }
-
-    .type-tag {
-        font-size: 0.63rem;
-        font-weight: 650;
-        background: transparent;
-        color: var(--text-secondary);
-        padding: 0.14rem 0.4rem;
-        border: 1px solid var(--border-color);
-        width: fit-content;
-        white-space: nowrap;
-        user-select: none;
-        font-family: var(--font-mono);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
+        border-left-color: var(--latex-text);
+        border-color: var(--latex-text);
+        background: color-mix(in srgb, var(--latex-text) 4%, var(--latex-bg));
     }
 
     .event-name {
         font-weight: 550;
-        color: var(--text-primary);
+        color: var(--latex-text);
         line-height: 1.4;
         font-family: var(--font-display);
     }
 
     .event-date {
         font-size: 0.72rem;
-        color: var(--text-secondary);
+        color: var(--latex-muted);
         font-family: var(--font-mono);
     }
 
@@ -220,7 +194,7 @@
         justify-content: flex-end;
         gap: 0.42rem;
         padding-top: 0.7rem;
-        border-top: 1px solid var(--border-color);
+        border-top: 1px solid var(--latex-rule);
     }
 
     .btn {
@@ -228,34 +202,34 @@
         font-weight: 640;
         font-size: 0.68rem;
         cursor: pointer;
-        border: 1px solid var(--text-primary);
+        border: 1px solid var(--latex-text);
         text-decoration: none;
         user-select: none;
         font-family: var(--font-mono);
         text-transform: uppercase;
         letter-spacing: 0.08em;
         background: transparent;
-        color: var(--text-primary);
+        color: var(--latex-text);
     }
 
     .abort {
-        border-color: var(--border-color);
-        color: var(--text-secondary);
+        border-color: var(--latex-rule);
+        color: var(--latex-muted);
     }
 
     .abort:hover {
-        border-color: var(--text-primary);
-        color: var(--text-primary);
+        border-color: var(--latex-text);
+        color: var(--latex-text);
     }
 
     .publish {
-        background: var(--text-primary);
-        color: var(--bg-primary);
+        background: var(--latex-text);
+        color: var(--latex-bg);
     }
 
     .publish:hover:enabled {
         background: transparent;
-        color: var(--text-primary);
+        color: var(--latex-text);
     }
 
     .publish:disabled {
@@ -265,13 +239,13 @@
 
     .empty {
         text-align: center;
-        color: var(--text-secondary);
+        color: var(--latex-muted);
         padding: 2.4rem 1rem;
-        border: 1px dashed var(--border-color);
+        border: 1px dashed var(--latex-rule);
     }
 
     @media (max-width: 768px) {
-        .container {
+        .connect-container {
             padding: 1rem 0.85rem 1.05rem;
         }
 

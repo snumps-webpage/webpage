@@ -1,4 +1,4 @@
-import { error, redirect, fail } from "@sveltejs/kit";
+import { error } from "@sveltejs/kit";
 import {
   getEventByPathId,
   recordAttendance,
@@ -9,15 +9,12 @@ import {
   getMemberById,
   checkPageExists,
 } from "$lib/server/notion";
+import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
 import { parseGoogleName } from "$lib/utils";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ params, locals, url }) => {
-  const session = await locals.auth();
-
-  if (!session?.user?.email) {
-    throw redirect(302, `/login?redirect=${encodeURIComponent(url.pathname)}`);
-  }
+  const session = await ensureSession(locals, url);
 
   const event = await getEventByPathId(params.id);
   if (!event) throw error(404, "Event not found");
@@ -50,40 +47,24 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 
 export const actions = {
   attend: async ({ params, locals }) => {
-    const session = await locals.auth();
-    if (!session?.user?.email || !session.user.name) {
-      return fail(401, {
-        error: "Authentication required to record attendance.",
-      });
-    }
+    return handleUserAction(locals, async (session) => {
+      const event = await getEventByPathId(params.id);
+      if (!event || event.status !== "active") throw new Error("Event not found or is not currently active.");
+      if (params.type !== event.attendCode) throw new Error("Invalid attendance link or code.");
 
-    const event = await getEventByPathId(params.id);
-    if (!event || event.status !== "active") {
-      return fail(404, {
-        error: "Event not found or is not currently active.",
-      });
-    }
+      const { name: parsedName, department: parsedDept } = parseGoogleName(session.user.name);
 
-    if (params.type !== event.attendCode) {
-      return fail(404, { error: "Invalid attendance link or code." });
-    }
-
-    // Extract name info
-    const { name: parsedName, department: parsedDept } = parseGoogleName(session.user.name);
-
-    // Fetch Department (Priority: Notion DB -> parsedDept -> "Unknown")
-    let dept = parsedDept || "Unknown";
-    try {
-      const memberLink = await getMemberByEmail(session.user.email);
-      if (memberLink) {
-        const member = await getMemberById(memberLink.memberId);
-        if (member) dept = member.department;
+      let dept = parsedDept || "Unknown";
+      try {
+        const memberLink = await getMemberByEmail(session.user.email);
+        if (memberLink) {
+          const member = await getMemberById(memberLink.memberId);
+          if (member) dept = member.department;
+        }
+      } catch (e) {
+        console.error("[Attendance] Failed to fetch department:", e);
       }
-    } catch (e) {
-      console.error("[Attendance] Failed to fetch department:", e);
-    }
 
-    try {
       const result = await recordAttendance(event.id, {
         email: session.user.email,
         name: session.user.name,
@@ -91,26 +72,12 @@ export const actions = {
       });
 
       if (!result.isNew) {
-        return fail(409, {
-          error: "Duplicate",
-          message: "이미 출석하셨습니다.",
-        });
+        const { fail } = await import("@sveltejs/kit");
+        return fail(409, { error: "이미 출석하셨습니다." });
       }
 
-      // Notify admins using parsed name
       const { sendAttendanceNotification } = await import("$lib/server/mail");
-      try {
-        await sendAttendanceNotification(parsedName, event.title);
-      } catch (e) {
-        console.error("[Attendance] Failed to send admin notification:", e);
-      }
-
-      return { success: true };
-    } catch (e) {
-      console.error("[Attendance] Action Error:", e);
-      return fail(500, {
-        error: "Internal server error while recording attendance.",
-      });
-    }
+      await sendAttendanceNotification(parsedName, event.title);
+    });
   },
 };

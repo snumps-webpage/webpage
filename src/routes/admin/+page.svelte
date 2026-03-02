@@ -5,6 +5,13 @@
     import Skeleton from '$lib/components/Skeleton.svelte';
     import CopyButton from '$lib/components/CopyButton.svelte';
     import ActionButton from '$lib/components/ActionButton.svelte';
+    import ManuscriptHeader from '$lib/components/ManuscriptHeader.svelte';
+    import StatusBadge from '$lib/components/StatusBadge.svelte';
+    import SectionHeader from '$lib/components/SectionHeader.svelte';
+    import Pagination from '$lib/components/Pagination.svelte';
+    import ApplicationDetails from '$lib/components/admin/ApplicationDetails.svelte';
+    import { MANUSCRIPT } from '$lib/constants';
+    import { createPagination } from '$lib/state.svelte';
 
 	let { data } = $props();
     
@@ -53,7 +60,7 @@
         processing?: boolean;
     }
 
-    // State for applications to allow partial updates
+    // State for data lists
     let applications = $state<Application[]>([]);
     let seminarRequests = $state<SeminarRequest[]>([]);
     let events = $state<Event[]>([]);
@@ -66,6 +73,10 @@
 
     let refreshingApps = $state(false);
     let refreshingSeminars = $state(false);
+
+    // Pagination controllers
+    const appPagination = createPagination(() => applications, 5);
+    const seminarPagination = createPagination(() => seminarRequests, 5);
 
     // Resolve streamed data
     $effect(() => {
@@ -87,16 +98,6 @@
         });
     });
 
-    // Clamp indices if data length changes
-    $effect(() => {
-        if (applications.length > 0 && appPage > totalAppPages && totalAppPages > 0) {
-            appPage = totalAppPages;
-        }
-        if (seminarRequests.length > 0 && seminarPage > totalSeminarPages && totalSeminarPages > 0) {
-            seminarPage = totalSeminarPages;
-        }
-    });
-
     async function refreshApplications(resetPage = true) {
         refreshingApps = true;
         try {
@@ -104,7 +105,7 @@
             if (res.ok) {
                 const newApps = await res.json();
                 applications = newApps.map((app: Application) => ({ ...app, processing: false }));
-                if (resetPage) appPage = 1; // Reset to first page ONLY on manual refresh
+                if (resetPage) appPagination.reset();
             }
         } catch (e) {
             console.error(e);
@@ -119,7 +120,7 @@
             const res = await fetch('/api/admin/seminar-requests');
             if (res.ok) {
                 seminarRequests = await res.json();
-                seminarPage = 1; // Reset pagination to first page
+                seminarPagination.reset();
             }
         } catch (e) {
             console.error(e);
@@ -127,22 +128,6 @@
             refreshingSeminars = false;
         }
     }
-
-    // Pagination for applications
-    let appPage = $state(1);
-    const appLimit = 5;
-    let totalAppPages = $derived(Math.ceil(applications.length / appLimit));
-    let paginatedApps = $derived(
-        applications.slice((appPage - 1) * appLimit, appPage * appLimit)
-    );
-
-    // Pagination for seminar requests
-    let seminarPage = $state(1);
-    const seminarLimit = 5;
-    let totalSeminarPages = $derived(Math.ceil(seminarRequests.length / seminarLimit));
-    let paginatedSeminars = $derived(
-        seminarRequests.slice((seminarPage - 1) * seminarLimit, seminarPage * seminarLimit)
-    );
 
     // State for editing attendance
     let editingRecord = $state<AttendanceRecord | null>(null);
@@ -169,8 +154,8 @@
     </script>
     
     <div class="admin-container">
+        <ManuscriptHeader title="관리자 대시보드" figure={MANUSCRIPT.FIGURES.ADMIN} />
     	<header>
-    		<h1 class="no-sel">관리자 대시보드</h1>
     		<div class="header-actions">
     			<a href="/admin/events/new" class="admin-action-btn">새 이벤트 만들기</a>
     			<a href="/admin/events/connect" class="admin-action-btn secondary">기존 이벤트 연결</a>
@@ -207,8 +192,8 @@
     								<tr class={event.status}>
     									<td>{event.title}</td>
     									<td>{event.date}</td>
-    									<td><span class="tag">{event.type}</span></td>
-    									<td><span class="status-badge {event.status}">{event.status.toUpperCase()}</span></td>
+    									<td><StatusBadge status={event.type} type="tag" /></td>
+    									<td><StatusBadge status={event.status} /></td>
     									<td>
     										{#if event.status !== 'draft'}
     											<div class="links">
@@ -258,11 +243,11 @@
                             <div class="admin-card {event.status}">
                                 <div class="card-header">
                                     <span class="title">{event.title}</span>
-                                    <span class="status-badge {event.status}">{event.status}</span>
+                                    <StatusBadge status={event.status} />
                                 </div>
                                 <div class="card-body">
                                     <p><strong>일시:</strong> {event.date}</p>
-                                    <p><strong>종류:</strong> <span class="tag">{event.type}</span></p>
+                                    <p><strong>종류:</strong> <StatusBadge status={event.type} type="tag" /></p>
                                     {#if event.status !== 'draft'}
                                         <div class="links mt-2">
                                             <span class="hint">출석 링크:</span>
@@ -442,18 +427,13 @@
         </dialog>
     
     				<section class="mt-4">
-    
-    					<div class="section-header">
-    			            <h2 class="no-sel">세미나 개설 신청 ({seminarRequests.length})</h2>
-    			            <button 
-    			                class="refresh-btn" 
-    			                onclick={refreshSeminars} 
-    			                disabled={refreshingSeminars || loadingSeminars}
-    			                aria-label="Refresh seminars"
-    			            >
-    			                <span class="refresh-icon" class:spinning={refreshingSeminars}>🔄</span>
-    			            </button>
-    			        </div>
+    					<SectionHeader 
+                            title={`세미나 개설 신청 (${seminarRequests.length})`}
+                            refreshing={refreshingSeminars}
+                            loading={loadingSeminars}
+                            onRefresh={refreshSeminars}
+                            ariaLabel="Refresh seminars"
+                        />
     
     					{#if loadingSeminars}
     			            <div class="skeleton-list">
@@ -476,7 +456,7 @@
     									</tr>
     								</thead>
     								<tbody>
-    									{#each paginatedSeminars as req (req.id)}
+    									{#each seminarPagination.items as req (req.id)}
     										<tr>
     											<td>{req.title}</td>
     											<td>
@@ -519,14 +499,14 @@
 
                             <!-- Mobile Cards -->
                             <div class="mobile-card-list mobile-only">
-                                {#each paginatedSeminars as req (req.id)}
+                                {#each seminarPagination.items as req (req.id)}
                                     <div class="admin-card">
                                         <div class="card-header">
                                             <span class="title">{req.title}</span>
-                                            <span class="tag status {req.status}">{req.status}</span>
+                                            <StatusBadge status={req.status} />
                                         </div>
                                         <div class="card-body">
-                                            <p><strong>발표자:</strong> {req.speakerNames?.join(', ') || '미지정'}</p>
+                                            <p><strong>발표자:</strong> {req.speakerNames?.join(', ') || '미정'}</p>
                                             <p><strong>신청일:</strong> {new Date(req.submittedAt).toLocaleDateString()}</p>
                                         </div>
                                         <div class="card-actions">
@@ -557,26 +537,18 @@
                                 {/each}
                             </div>
     			
-    			            {#if totalSeminarPages > 1}
-    			                <div class="pagination">
-    			                    <button class="page-btn" disabled={seminarPage === 1} onclick={() => seminarPage--}>이전</button>
-    			                    {#each Array.from({ length: totalSeminarPages }).map((_, i) => i) as i (i)}
-    			                        <button class:active={seminarPage === i + 1} onclick={() => seminarPage = i + 1} class="page-btn">{i + 1}</button>
-    			                    {/each}
-    			                    <button class="page-btn" disabled={seminarPage === totalSeminarPages} onclick={() => seminarPage++}>다음</button>
-    			                </div>
-    			            {/if}
+    			            <Pagination controller={seminarPagination} />
     					{/if}
     				</section>
     			
     	    		<section class="mt-4">
-    			
-    	    		    <div class="section-header">
-    	    		        <h2 class="no-sel">가입 승인 대기 ({applications.length})</h2>
-    	    		        <button class="refresh-btn" onclick={() => refreshApplications(true)} disabled={refreshingApps || loadingApps} aria-label="Refresh applications">
-    	    		            <span class="refresh-icon" class:spinning={refreshingApps}>🔄</span>
-    	    		        </button>
-    	    		    </div>
+    					<SectionHeader 
+                            title={`가입 승인 대기 (${applications.length})`}
+                            refreshing={refreshingApps}
+                            loading={loadingApps}
+                            onRefresh={() => refreshApplications(true)}
+                            ariaLabel="Refresh applications"
+                        />
     
     			{#if loadingApps}
     	    		<div class="skeleton-list">
@@ -600,7 +572,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {#each paginatedApps as app (app.id)}
+                                {#each appPagination.items as app (app.id)}
                                     <tr class:accepted={app.accepted}>
                                         <td>{app.name}</td>
                                         <td><span class="tag">{app.department}</span></td>
@@ -608,22 +580,16 @@
                                         <td>
                                             <details>
                                                 <summary>보기</summary>
-                                                <div class="details-content">
-                                                    <p class="email-row">
-                                                        <strong>이메일:</strong> {app.email}
-                                                        <CopyButton text={app.email} title="이메일 복사" />
-                                                    </p>
-                                                    <p class="phone-row">
-                                                        <strong>전화번호:</strong> {app.phone}
-                                                        <CopyButton text={app.phone} title="전화번호 복사" />
-                                                    </p>
-                                                    <p><strong>배경지식:</strong><br>{app.background || '-'}</p>
-                                                </div>
+                                                <ApplicationDetails 
+                                                    email={app.email} 
+                                                    phone={app.phone} 
+                                                    background={app.background} 
+                                                />
                                             </details>
                                         </td>
                                         <td class="actions-cell">
                                             {#if app.accepted}
-                                                <span class="status-badge active">승인됨</span>
+                                                <StatusBadge status="approved" />
                                             {:else}
                                                 <ActionButton 
                                                     action="?/approve" 
@@ -657,7 +623,7 @@
 
                     <!-- Mobile Cards -->
                     <div class="mobile-card-list mobile-only">
-                        {#each paginatedApps as app (app.id)}
+                        {#each appPagination.items as app (app.id)}
                             <div class="admin-card {app.accepted ? 'accepted' : ''}">
                                 <div class="card-header">
                                     <span class="title">{app.name}</span>
@@ -667,16 +633,16 @@
                                     <p><strong>신청일:</strong> {new Date(app.submittedAt).toLocaleDateString()}</p>
                                     <details>
                                         <summary>상세 정보 보기</summary>
-                                        <div class="details-content mt-2">
-                                            <p class="email-row"><strong>이메일:</strong> {app.email} <CopyButton text={app.email} /></p>
-                                            <p class="phone-row"><strong>전화번호:</strong> {app.phone} <CopyButton text={app.phone} /></p>
-                                            <p><strong>배경지식:</strong><br>{app.background || '-'}</p>
-                                        </div>
+                                        <ApplicationDetails 
+                                            email={app.email} 
+                                            phone={app.phone} 
+                                            background={app.background} 
+                                        />
                                     </details>
                                 </div>
                                 <div class="card-actions">
                                     {#if app.accepted}
-                                        <span class="status-badge active">승인됨</span>
+                                        <StatusBadge status="approved" />
                                     {:else}
                                         <ActionButton 
                                             action="?/approve" 
@@ -705,15 +671,7 @@
                         {/each}
                     </div>
 
-                    {#if totalAppPages > 1}
-                        <div class="pagination">
-                            <button class="page-btn" disabled={appPage === 1} onclick={() => appPage--}>이전</button>
-                            {#each Array.from({ length: totalAppPages }).map((_, i) => i) as i (i)}
-                                <button class:active={appPage === i + 1} onclick={() => appPage = i + 1} class="page-btn">{i + 1}</button>
-                            {/each}
-                            <button class="page-btn" disabled={appPage === totalAppPages} onclick={() => appPage++}>다음</button>
-                        </div>
-                    {/if}
+                    <Pagination controller={appPagination} />
     			{/if}
     				</section>
     			</div>
@@ -746,15 +704,6 @@
 		padding: 0.95rem 0 0.95rem;
 	}
 
-	h1 {
-		margin: 0;
-		color: var(--latex-text);
-		font-family: var(--font-display);
-		font-weight: 550;
-        letter-spacing: 0.01em;
-		font-size: clamp(1.45rem, 2.8vw, 2.05rem);
-	}
-
     section + section {
         margin-top: 2.3rem;
         padding-top: 1.1rem;
@@ -768,14 +717,6 @@
 		font-weight: 540;
 		color: var(--latex-text);
 	}
-
-    .section-header h2 {
-        margin: 0;
-		font-family: var(--font-display);
-		font-size: clamp(1.1rem, 2vw, 1.34rem);
-		font-weight: 540;
-		color: var(--latex-text);
-    }
 
 	.header-actions {
 		display: flex;
@@ -816,15 +757,6 @@
         color: var(--latex-bg);
     }
 
-    .section-header {
-        display: flex;
-        align-items: center;
-        gap: 0.65rem;
-        margin-bottom: 1rem;
-    }
-
-    .refresh-btn,
-    .page-btn,
     .btn {
         border: 1px solid var(--latex-rule);
         border-radius: 0;
@@ -838,23 +770,10 @@
         transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
     }
 
-    .refresh-btn {
-        width: 1.9rem;
-        height: 1.9rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.92rem;
-        padding: 0;
-    }
-
-    .refresh-icon {
-        display: inline-block;
-        line-height: 1;
-    }
-
-    .refresh-icon.spinning {
-        animation: spin 1.05s linear infinite;
+    .btn:hover:not(:disabled) {
+        background: var(--latex-text);
+        color: var(--latex-bg);
+        border-color: var(--latex-text);
     }
 
     .btn {
@@ -893,14 +812,6 @@
         border-color: var(--latex-rule);
     }
 
-    .refresh-btn:hover:not(:disabled),
-    .page-btn:hover:not(:disabled),
-    .btn:hover:not(:disabled) {
-        background: var(--latex-text);
-        color: var(--latex-bg);
-        border-color: var(--latex-text);
-    }
-
     .reject:hover:not(:disabled),
     .delete:hover:not(:disabled) {
         background: var(--latex-accent);
@@ -908,9 +819,7 @@
         border-color: var(--latex-accent);
     }
 
-    .btn:disabled,
-    .refresh-btn:disabled,
-    .page-btn:disabled {
+    .btn:disabled {
         opacity: 0.45;
         cursor: not-allowed;
     }
@@ -994,7 +903,6 @@
         flex-wrap: wrap;
 	}
 
-    .status-badge,
     .tag {
         display: inline-flex;
         align-items: center;
@@ -1011,29 +919,6 @@
         color: var(--latex-muted);
 	}
 
-    .status-badge.active,
-    .status-badge.approved,
-    .tag.status.approved {
-        border-color: var(--latex-text);
-        color: var(--latex-text);
-        background: var(--latex-text);
-        color: var(--latex-bg);
-    }
-
-    .status-badge.expired,
-    .status-badge.rejected,
-    .tag.status.rejected {
-        border-color: var(--latex-accent);
-        color: var(--latex-accent);
-    }
-
-    .status-badge.pending,
-    .tag.status.pending,
-    .status-badge.draft {
-        color: var(--latex-muted);
-        border-color: var(--latex-rule);
-    }
-
     summary {
         cursor: pointer;
         color: var(--latex-muted);
@@ -1046,45 +931,6 @@
 
     details[open] summary {
         margin-bottom: 0.45rem;
-    }
-
-    .details-content {
-        border: 1px solid var(--latex-rule);
-        padding: 0.62rem 0.7rem;
-        font-family: var(--font-body);
-        background: var(--latex-bg);
-    }
-
-    .details-content p {
-        margin: 0.4rem 0;
-    }
-
-    .phone-row,
-    .email-row {
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-        flex-wrap: wrap;
-    }
-
-    .pagination {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 0.35rem;
-        margin-top: 1.05rem;
-    }
-
-    .page-btn {
-        padding: 0.4rem 0.64rem;
-        font-size: 0.66rem;
-    }
-
-    .page-btn.active {
-        background: var(--latex-text);
-        color: var(--latex-bg);
-        border-color: var(--latex-text);
     }
 
     .edit-dialog {
@@ -1140,9 +986,7 @@
 
     .edit-dialog input:focus-visible,
     .admin-action-btn:focus-visible,
-    .btn:focus-visible,
-    .page-btn:focus-visible,
-    .refresh-btn:focus-visible {
+    .btn:focus-visible {
         outline: 2px solid var(--latex-accent);
         outline-offset: 2px;
     }
@@ -1250,10 +1094,6 @@
     }
 
     @media (max-width: 620px) {
-        h1 {
-            font-size: 1.36rem;
-        }
-
         .section-header {
             align-items: flex-start;
         }
@@ -1265,20 +1105,9 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .refresh-btn,
-        .page-btn,
         .btn,
         .admin-action-btn {
             transition: none;
         }
-
-        .refresh-icon.spinning {
-            animation: none;
-        }
-    }
-
-    @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
     }
 </style>
