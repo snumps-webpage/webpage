@@ -1,11 +1,11 @@
 # Color Identity Experimentation System
 
-This directory contains a series of color palette experiments for the SNUMPS Automation platform. Each experiment tests a different strategic visual direction while maintaining the core functionality and prestigious academic tone of the brand.
+This directory contains a series of color palette experiments for the SNUMPS Webpage platform. Each experiment tests a different strategic visual direction while maintaining the core functionality and prestigious academic tone of the brand.
 
 ## Visual Identity Diagnosis
 
 ### 1. Brand Positioning
-SNUMPS (Seoul National University Mathematical Problem solving Society) is an elite academic club. The platform serves as an automation tool for its internal operations.
+SNUMPS (Seoul National University Mathematical Problem solving Society) is an elite academic club. The platform serves as an webpage platform for its internal operations.
 - **Tone**: Academic, Institutional, Technical, Prestigious.
 - **Typography**: Editorial Serif mix (`Crimson Pro`, `Newsreader`, `Gowun Batang`) with high-contrast Monospaced accents (`JetBrains Mono`).
 - **Layout Density**: Dashboard-like, information-heavy but structured.

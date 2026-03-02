@@ -1,8 +1,8 @@
-# Project Context: SNUMPS Automation
+# Project Context: SNUMPS Webpage
 
 ## 1. Project Overview
 
-**SNUMPS Automation** is a secure SvelteKit web application designed to automate membership management, activity tracking, and seminar organization for the SNUMPS club. It utilizes **Notion** as the primary persistent database while employing a local JSON caching layer for performance and reliability.
+**SNUMPS Webpage** is a secure SvelteKit web application designed to manage membership, activity tracking, and seminar organization for the SNUMPS club. It utilizes **Notion** as the primary persistent database while employing a local JSON caching layer for performance and reliability.
 
 ### Key Features
 

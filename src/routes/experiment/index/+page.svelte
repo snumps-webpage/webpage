@@ -10,7 +10,7 @@
 <div class="exp-container">
     <header class="exp-header">
         <h1>Palette Experimentation</h1>
-        <p>Strategic visual identity exploration for SNUMPS Automation.</p>
+        <p>Strategic visual identity exploration for SNUMPS Webpage.</p>
     </header>
 
     <div class="exp-grid">

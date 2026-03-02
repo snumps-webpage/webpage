@@ -1,6 +1,6 @@
 # Notion Database Schema Reference
 
-This document outlines the expected property structure for the Notion databases used in SNUMPS Automation.
+This document outlines the expected property structure for the Notion databases used in SNUMPS Webpage.
 
 ## 1. Members DB (`NOTION_DB_MEMBERS`)
 

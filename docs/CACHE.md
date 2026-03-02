@@ -1,6 +1,6 @@
 # Caching Policy & Configuration
 
-This document outlines the server-side caching strategy used in the SNUMPS Automation platform to optimize performance and reduce Notion API usage.
+This document outlines the server-side caching strategy used in the SNUMPS Webpage platform to optimize performance and reduce Notion API usage.
 
 ## 1. Overview
 

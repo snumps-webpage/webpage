@@ -10,7 +10,7 @@
 
 ```bash
 git clone <repository-url>
-cd snumps-automation-fork
+cd snumps-webpage-fork
 npm install
 ```
 

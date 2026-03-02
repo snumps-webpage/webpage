@@ -1,6 +1,6 @@
 # Authentication & Authorization Variables
 
-This document describes the purpose and usage of key environment variables used for managing access and notifications within the SNUMPS Automation system.
+This document describes the purpose and usage of key environment variables used for managing access and notifications within the SNUMPS Webpage system.
 
 ## 1. ADMINS_EMAILS
 

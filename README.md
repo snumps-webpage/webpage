@@ -1,6 +1,6 @@
-# SNUMPS Automation
+# SNUMPS Webpage
 
-A secure SvelteKit web application designed to automate membership management and activity tracking for SNUMPS, utilizing Notion as the primary database.
+A secure SvelteKit web application designed to manage membership, activity tracking, and academic records for SNUMPS, utilizing Notion as the primary database.
 
 ## 🚀 Quick Links
 
