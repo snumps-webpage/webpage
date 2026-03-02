@@ -4,6 +4,7 @@ import {
   getAllMembers,
   getAllPrivateInfo,
   getMemberByEmail,
+  getMemberById,
 } from "$lib/server/notion";
 import type { PageServerLoad, Actions } from "./$types";
 
@@ -25,12 +26,22 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     email: string;
   }[] = [];
 
-  try {
-    const [members, privateInfos] = await Promise.all([
-      getAllMembers(),
-      getAllPrivateInfo(),
-    ]);
+  const [memberInfo, members, privateInfos] = await Promise.all([
+    session.user.email ? getMemberByEmail(session.user.email) : null,
+    getAllMembers(),
+    getAllPrivateInfo(),
+  ]);
 
+  let actualName = "";
+  if (memberInfo) {
+    const m = await getMemberById(memberInfo.memberId);
+    actualName = m.name;
+  } else {
+    // Fallback to parsing from Google name: "Name / Status / Dept"
+    actualName = (session.user.name || "").split("/")[0].trim();
+  }
+
+  try {
     // Create a map for quick lookup
     const memberMap = new Map(members.map((m) => [m.id, m]));
 
@@ -55,6 +66,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
   return {
     user: session.user,
+    actualName,
     members: searchableMembers,
     memberDirectoryUnavailable,
   };

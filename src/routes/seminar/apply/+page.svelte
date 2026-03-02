@@ -29,7 +29,7 @@
     let posterSpeaker = $derived(
         selectedSpeakers.length > 0
             ? `발표: ${selectedSpeakers[0].name}${selectedSpeakers.length > 1 ? ` 외 ${selectedSpeakers.length - 1}명` : ''}`
-            : `발표: ${data.user?.name || '미정'}`
+            : `발표: ${data.actualName || '미정'}`
     );
 
     let searchResults = $derived(
