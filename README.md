@@ -12,6 +12,7 @@ A secure SvelteKit web application designed to automate membership management an
 ## 🌟 Key Highlights
 
 - **Math Journal Aesthetic**: A distinctive editorial UI overhaul using `Crimson Pro`, `Newsreader`, and `Gowun Batang` typography. Features atmospheric paper-like backgrounds and staggered entrance animations for a refined academic experience.
+- **Robust Admin Approval**: Enhanced approval workflows with instant button disabling, backend verification, and real-time state synchronization to prevent duplicate entries and ensure data integrity.
 - **High Performance**: Optimized backend actions using parallelized Notion requests and intelligent token caching, ensuring sub-second response times.
 - **Smart Integration**: Two-way sync with multiple Notion databases for members and activities.
 

@@ -10,6 +10,7 @@
 ## 👥 Membership System
 
 - **Signup Flow**: New users must apply for membership. Applications are processed through Notion for Admin approval.
+- **Robust Approval Workflow**: Admin actions (Accept/Reject) include instant button disabling and state verification to prevent duplicate entries and ensure data integrity.
 - **User Profile**: Members can view their full participation history with standardized semester filtering and manage personal details (Phone, Bio, Background).
 - **Seminar Application**: Members can propose and organize their own seminars directly through the web interface.
 - **Automated Alerts**: Admins receive instant email notifications for new signups and completed attendance requests via the Gmail API.
@@ -29,4 +30,4 @@
 - **Smart Phone Normalization**: Automatically converts various input styles (e.g., `01012345678`, `010 1234 5678`) into the standardized `010-XXXX-XXXX` format.
 - **Smart Paging**: Handles large databases via automatic pagination helpers.
 - **Skeleton Loaders**: Shimmering placeholders ensure a smooth perceived performance during data loading.
-- **Instant Admin Feedback**: Optimistic UI updates provide immediate feedback for critical actions like membership approval.
+- **Robust Admin Feedback**: Instant button throttling combined with background state verification and automated refresh for critical operations like membership and seminar approvals.
