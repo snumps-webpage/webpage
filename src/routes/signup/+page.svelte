@@ -60,7 +60,7 @@
 							<SignupMetadataFields 
 								name={data.parsedInfo.name} 
 								department={data.parsedInfo.department} 
-								email={data.user?.email} 
+								email={data.user?.email ?? ''} 
 							/>
 
 							<SignupContactFields title="Submission" />

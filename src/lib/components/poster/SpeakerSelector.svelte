@@ -67,7 +67,6 @@
                 class="search-input" 
                 placeholder="이름, 학과, 또는 이메일로 검색..." 
                 bind:value={searchQuery}
-                autofocus
             />
             {#if searchResults.length > 0}
                 <div class="search-results">
