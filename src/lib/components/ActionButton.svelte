@@ -18,14 +18,14 @@
 		style = ''
 	}: {
 		action: string;
-		params?: Record<string, any>;
+		params?: Record<string, unknown>;
 		label: string;
 		className?: string;
 		confirmMessage?: string;
 		successMessage?: string;
 		errorMessage?: string;
-		onSuccess?: (data: any) => void | Promise<void>;
-		onResult?: (result: any) => void | Promise<void>;
+		onSuccess?: (data: unknown) => void | Promise<void>;
+		onResult?: (result: unknown) => void | Promise<void>;
 		processing?: boolean;
 		disabled?: boolean;
 		style?: string;
@@ -51,7 +51,7 @@
 						await update();
 					}
 				} else if (result.type === 'failure' || result.type === 'error') {
-					const errorMsg = (result as any).data?.error || errorMessage;
+					const errorMsg = (result as { data?: { error?: string } }).data?.error || errorMessage;
 					toasts.error(errorMsg);
 				}
 			}
@@ -62,7 +62,7 @@
 </script>
 
 <form method="POST" {action} use:enhance={handleSubmit} {style} class="action-form">
-	{#each Object.entries(params) as [name, value]}
+	{#each Object.entries(params) as [name, value] (name)}
 		<input type="hidden" {name} value={String(value)} />
 	{/each}
 	<button type="submit" class={className} disabled={disabled || processing}>

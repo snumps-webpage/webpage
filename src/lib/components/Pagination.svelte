@@ -5,7 +5,7 @@
 {#if controller.totalPages > 1}
 	<div class="pagination">
 		<button class="page-btn" disabled={controller.page === 1} onclick={() => controller.prev()}>이전</button>
-		{#each controller.pageNumbers as p}
+		{#each controller.pageNumbers as p (p)}
 			<button class:active={controller.page === p} onclick={() => controller.goTo(p)} class="page-btn">{p}</button>
 		{/each}
 		<button class="page-btn" disabled={controller.page === controller.totalPages} onclick={() => controller.next()}>다음</button>

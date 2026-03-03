@@ -14,7 +14,7 @@
     </header>
 
     <div class="exp-grid">
-        {#each experiments as exp}
+        {#each experiments as exp (exp.id)}
             <figure class="exp-figure">
                 <figcaption class="figure-caption no-sel">
                     <span class="figure-label">Figure X{exp.id}</span>
@@ -22,7 +22,7 @@
                 </figcaption>
                 <a href="/experiment/{exp.id}" class="exp-link-block">
                     <div class="swatch-grid" aria-hidden="true">
-                        {#each exp.colors as color}
+                        {#each exp.colors as color (color)}
                             <div class="swatch" style="background: {color}"></div>
                         {/each}
                     </div>

@@ -136,7 +136,7 @@
 
     <section class="hero">
       <h1 class="title">
-        {#each titleLines as line, index}
+        {#each titleLines as line, index (line + index)}
           <span class="title-line" class:accent={index === accentTitleIndex}>{line}</span>
         {/each}
       </h1>
