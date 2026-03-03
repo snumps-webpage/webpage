@@ -866,10 +866,14 @@ export async function getLatestExecutives(): Promise<LatestExecutives> {
     if (results.length === 0) return defaultExecs;
 
     let latestSemesterValue = -1;
-    const semesterMap: Record<number, { presidentId?: string; vicePresidentId?: string }> = {};
+    const semesterMap: Record<
+      number,
+      { presidentId?: string; vicePresidentId?: string }
+    > = {};
 
     for (const page of results) {
-      const executives = page.properties[NOTION_PROPS.EXECUTIVES]?.multi_select || [];
+      const executives =
+        page.properties[NOTION_PROPS.EXECUTIVES]?.multi_select || [];
       for (const tag of executives) {
         const tagName = tag.name as string;
         const match = tagName.match(/(\d{2})-(\d)\s*(회\s*장|부\s*회\s*장)/);
@@ -898,12 +902,16 @@ export async function getLatestExecutives(): Promise<LatestExecutives> {
 
     const latest = semesterMap[latestSemesterValue];
 
-    const fetchExecutive = async (id: string | undefined): Promise<ExecutiveInfo> => {
+    const fetchExecutive = async (
+      id: string | undefined,
+    ): Promise<ExecutiveInfo> => {
       if (!id) return { name: "공석", phone: "" };
       try {
         const page = await notionRetrieve(id);
         const name = getPropertyValue(page.properties[NOTION_PROPS.NAME]);
-        const privateRelation = (page.properties[NOTION_PROPS.MEMBER_TO_PRIVATE] as any)?.relation?.[0]?.id;
+        const privateRelation = (
+          page.properties[NOTION_PROPS.MEMBER_TO_PRIVATE] as any
+        )?.relation?.[0]?.id;
         if (!privateRelation) return { name, phone: "" };
         const privateInfo = await getPrivateInfo(privateRelation);
         return { name, phone: privateInfo.phone || "" };

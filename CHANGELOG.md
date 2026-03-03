@@ -6,18 +6,18 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-  - **Robust Admin Approval Flow**:
-  - **Instant Throttling**: The "Accept" button for membership applications and seminar requests now disables immediately upon the first click to prevent accidental duplicate actions and race conditions.
-  - **State-Driven Verification**: Integrated a robust backend verification step during approval that confirms successful Notion record creation and status updates before returning success.
-  - **Code Centralization & Optimization**: Refactored redundant logic across the server-side code into shared utilities:
-    - Centralized **Google account name parsing** into `$lib/utils.ts`.
-    - Unified **searchable member list generation** and **actual name resolution** (Member DB with fallback) into `$lib/server/admin.ts`.
-    - Streamlined all seminar and signup routes to use these helpers, significantly reducing code duplication and improving maintainability.
-  - **Centralized Action Components**: Refactored all administrative buttons into a reusable `ActionButton` component. This centralizes the logic for instant throttling, loading indicators, confirmation dialogs, and automated state refreshing, significantly improving code maintainability.
-  - **Dual-Database Seminar Records**: Approving a seminar now automatically creates records in both the **Activity DB** (for attendance tracking) and the **Seminar DB** (for historical cataloging), ensuring cross-referenced data integrity.
-  - **Accurate Poster Naming**: Updated the seminar application and edit flows to retrieve the user's actual registered name from the Member database for posters, replacing the previous reliance on Google account names.
-  - **Seamless UI Sync**: Implemented automatic, non-disruptive background refreshing of the application list after successful approval, ensuring the UI accurately reflects the real-time state in Notion.  - **Comprehensive Feedback**: Improved error handling with descriptive toast notifications for both success and failure states, including specific error messages from the backend.
-  - **Mobile Consistency**: Extended the same robust approval and rejection logic to the mobile card-based views, ensuring a uniform experience across all devices.
+- **Robust Admin Approval Flow**:
+- **Instant Throttling**: The "Accept" button for membership applications and seminar requests now disables immediately upon the first click to prevent accidental duplicate actions and race conditions.
+- **State-Driven Verification**: Integrated a robust backend verification step during approval that confirms successful Notion record creation and status updates before returning success.
+- **Code Centralization & Optimization**: Refactored redundant logic across the server-side code into shared utilities:
+  - Centralized **Google account name parsing** into `$lib/utils.ts`.
+  - Unified **searchable member list generation** and **actual name resolution** (Member DB with fallback) into `$lib/server/admin.ts`.
+  - Streamlined all seminar and signup routes to use these helpers, significantly reducing code duplication and improving maintainability.
+- **Centralized Action Components**: Refactored all administrative buttons into a reusable `ActionButton` component. This centralizes the logic for instant throttling, loading indicators, confirmation dialogs, and automated state refreshing, significantly improving code maintainability.
+- **Dual-Database Seminar Records**: Approving a seminar now automatically creates records in both the **Activity DB** (for attendance tracking) and the **Seminar DB** (for historical cataloging), ensuring cross-referenced data integrity.
+- **Accurate Poster Naming**: Updated the seminar application and edit flows to retrieve the user's actual registered name from the Member database for posters, replacing the previous reliance on Google account names.
+- **Seamless UI Sync**: Implemented automatic, non-disruptive background refreshing of the application list after successful approval, ensuring the UI accurately reflects the real-time state in Notion. - **Comprehensive Feedback**: Improved error handling with descriptive toast notifications for both success and failure states, including specific error messages from the backend.
+- **Mobile Consistency**: Extended the same robust approval and rejection logic to the mobile card-based views, ensuring a uniform experience across all devices.
 
 ## [2026-02-28]
 

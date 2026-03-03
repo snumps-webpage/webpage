@@ -141,6 +141,9 @@ export async function sendWelcomeEmail(
 
     await dispatchEmail(accessToken, [recipientEmail], subject, body);
   } catch (e) {
-    console.error(`[Mail] Failed to send welcome email to ${recipientEmail}:`, e);
+    console.error(
+      `[Mail] Failed to send welcome email to ${recipientEmail}:`,
+      e,
+    );
   }
 }

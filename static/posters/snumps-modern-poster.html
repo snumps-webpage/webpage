@@ -120,7 +120,8 @@
       }
 
       .section {
-        border-top: 1px solid color-mix(in srgb, var(--latex-rule) 70%, transparent);
+        border-top: 1px solid
+          color-mix(in srgb, var(--latex-rule) 70%, transparent);
         padding-top: 0.54rem;
       }
 
@@ -182,13 +183,12 @@
         content: "";
         position: absolute;
         inset: 0;
-        background:
-          linear-gradient(
-            0deg,
-            color-mix(in srgb, var(--latex-text) 3%, transparent) 0%,
-            transparent 45%,
-            color-mix(in srgb, var(--latex-text) 2%, transparent) 100%
-          );
+        background: linear-gradient(
+          0deg,
+          color-mix(in srgb, var(--latex-text) 3%, transparent) 0%,
+          transparent 45%,
+          color-mix(in srgb, var(--latex-text) 2%, transparent) 100%
+        );
         pointer-events: none;
       }
 
@@ -232,7 +232,8 @@
         width: 100%;
         height: auto;
         display: block;
-        border-top: 1px solid color-mix(in srgb, var(--latex-rule) 75%, transparent);
+        border-top: 1px solid
+          color-mix(in srgb, var(--latex-rule) 75%, transparent);
       }
 
       .mini-graph figcaption {
@@ -265,7 +266,8 @@
       a {
         color: inherit;
         text-decoration: none;
-        border-bottom: 1px dotted color-mix(in srgb, var(--latex-rule) 70%, transparent);
+        border-bottom: 1px dotted
+          color-mix(in srgb, var(--latex-rule) 70%, transparent);
       }
 
       @media (max-width: 760px) {
@@ -352,8 +354,11 @@
                 문제 연구 과정을 시각화했습니다.
               </p>
               <p class="equation">
-                L<sub>n+1</sub> = φ<sup>-1</sup>R<sub>137.5°</sub>(L<sub>n</sub>), ·
-                P = Σ<sub>n≥0</sub> L<sub>n</sub>
+                L<sub>n+1</sub> =
+                φ<sup>-1</sup>R<sub>137.5°</sub>(L<sub>n</sub>), · P = Σ<sub
+                  >n≥0</sub
+                >
+                L<sub>n</sub>
               </p>
             </section>
 
@@ -389,15 +394,33 @@
                 </div>
               </div>
               <p class="caption">
-                Recursive placements of the SNUMPS mark. Topology is fixed, scale
-                decays by φ.
+                Recursive placements of the SNUMPS mark. Topology is fixed,
+                scale decays by φ.
               </p>
             </section>
 
             <figure class="mini-graph">
-              <svg viewBox="0 0 440 180" role="img" aria-label="활동 추세 그래프">
-                <line x1="0" y1="178" x2="440" y2="178" stroke="#1a1a1a" stroke-width="1" />
-                <line x1="2" y1="12" x2="2" y2="178" stroke="#1a1a1a" stroke-width="1" />
+              <svg
+                viewBox="0 0 440 180"
+                role="img"
+                aria-label="활동 추세 그래프"
+              >
+                <line
+                  x1="0"
+                  y1="178"
+                  x2="440"
+                  y2="178"
+                  stroke="#1a1a1a"
+                  stroke-width="1"
+                />
+                <line
+                  x1="2"
+                  y1="12"
+                  x2="2"
+                  y2="178"
+                  stroke="#1a1a1a"
+                  stroke-width="1"
+                />
                 <path
                   d="M12 138 L72 120 L112 102 L156 110 L210 82 L260 70 L320 55 L374 48 L430 36"
                   fill="none"
@@ -422,7 +445,8 @@
         <footer class="footer">
           <p class="footnote">* Chair &nbsp;&nbsp; † Vice Chair</p>
           <p>
-            [1] <a href="https://instagram.com/snu_mps">instagram.com/snu_mps</a>
+            [1]
+            <a href="https://instagram.com/snu_mps">instagram.com/snu_mps</a>
             &nbsp;&nbsp; [2]
             <a href="https://www.youtube.com/@snu_mps">youtube.com/@snu_mps</a>
           </p>

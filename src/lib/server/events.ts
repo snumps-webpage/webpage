@@ -68,7 +68,7 @@ export async function createEvent(data: {
 }
 
 /**
- * High-level service to atomically create a Notion Activity page 
+ * High-level service to atomically create a Notion Activity page
  * AND a corresponding local Event record.
  */
 export async function publishEvent(data: {
@@ -117,7 +117,10 @@ export async function getAttendanceQueue(
     async () => {
       try {
         const results = await getAttendanceQueueFromNotion();
-        return results.map((r) => ({ ...r, notionId: r.id })) as AttendanceRecord[];
+        return results.map((r) => ({
+          ...r,
+          notionId: r.id,
+        })) as AttendanceRecord[];
       } catch (e) {
         console.error("Failed to fetch attendance queue from Notion:", e);
         return [];

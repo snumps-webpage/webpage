@@ -74,7 +74,6 @@ export const MANUSCRIPT = {
     EVENT_NEW: "Figure A-New · Event Draft",
     EVENT_CONNECT: "Figure A-Connect · Existing Activity Index",
     WAIT: "Figure W-1 · Queue Status Notice",
-    ATTENDANCE: "Figure E-1 · Attendance Submission Sheet"
-  }
+    ATTENDANCE: "Figure E-1 · Attendance Submission Sheet",
+  },
 };
-

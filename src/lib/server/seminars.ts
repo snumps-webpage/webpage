@@ -15,7 +15,10 @@ export function parseSpeakerIds(rawIds?: string | null): string[] {
   try {
     return JSON.parse(rawIds);
   } catch {
-    return rawIds.split(",").map((id) => id.trim()).filter(Boolean);
+    return rawIds
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
   }
 }
 
@@ -121,4 +124,3 @@ export async function getPendingSeminarRequests(skipCache = false) {
         : [],
     }));
 }
-
