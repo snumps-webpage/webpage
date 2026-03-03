@@ -28,12 +28,21 @@ export interface SeminarRequest {
   submittedAt: string;
 }
 
+export interface ApprovedSeminar {
+  id: string;
+  title: string;
+  remarks: string;
+  semester: string;
+}
+
 export interface DashboardData {
   activities: Activity[];
   myAttendanceStats: AttendanceStats;
-  mySeminars?: SeminarRequest[];
+  seminarRequests: SeminarRequest[];
+  approvedSeminars: ApprovedSeminar[];
   profile: {
     phone: string;
+    background: string;
   };
   semesters: string[];
   error?: string;

@@ -37,28 +37,40 @@
     
         let isRefreshing = $state(false);
     
-        // Optimized: Store resolved data in local state to prevent Promise recreation on every render
+        // State for dashboard data
         let dashboardData = $state<DashboardData | null>(null);
+		let dashboardError = $state<string | null>(null);
+		let dashboardLoading = $state(true);
+
+		$effect(() => {
+			// Resolve the streamed promise and update state
+			data.streamed.dashboard
+				.then((result) => {
+					if (result && 'error' in result) {
+						dashboardError = result.error ?? '알 수 없는 오류가 발생했습니다.';
+					} else if (result) {
+						dashboardData = result as DashboardData;
+					}
+				})
+				.catch((err) => {
+					console.error('Failed to resolve dashboard data:', err);
+					dashboardError = '스트림 데이터를 처리하지 못했습니다.';
+				})
+				.finally(() => {
+					dashboardLoading = false;
+				});
+		});
     
-        // Resolve stream once
-        $effect(() => {
-            data.streamed.dashboard.then(result => {
-                if (result && !('error' in result)) {
-                    dashboardData = result as DashboardData;
-                }
-            });
-        });
-    
-	        // Purely synchronous filtering - FAST
-		        let filteredActivities = $derived(
-		            dashboardData 
-		                ? dashboardData.activities.filter((a: Activity) => 
-		                    (selectedSemester === 'all' || a.semester === selectedSemester) &&
-		                    (attendanceFilter === 'all' || (attendanceFilter === 'attended' ? a.attended : !a.attended)) &&
-		                    (typeFilter === 'all' || a.type === typeFilter)
-		                )
-		                : []
-		        );
+	    // Purely synchronous filtering - FAST
+        let filteredActivities = $derived(
+            dashboardData 
+                ? dashboardData.activities.filter((a: Activity) => 
+                    (selectedSemester === 'all' || a.semester === selectedSemester) &&
+                    (attendanceFilter === 'all' || (attendanceFilter === 'attended' ? a.attended : !a.attended)) &&
+                    (typeFilter === 'all' || a.type === typeFilter)
+                )
+                : []
+        );
 
 		function clampValue(value: number, min: number, max: number) {
 			return Math.max(min, Math.min(max, value));
@@ -157,261 +169,270 @@
 					</button>
 				</div>
 
-				{#await data.streamed.dashboard}
+				{#if dashboardLoading}
 					<div class="dashboard-skeleton">
 						<div class="skeleton-line"><Skeleton width="100%" height="32px" borderRadius="0" /></div>
 						<div class="skeleton-line"><Skeleton width="100%" height="120px" borderRadius="0" /></div>
 						<div class="skeleton-line"><Skeleton width="100%" height="190px" borderRadius="0" /></div>
 					</div>
-				{:then result}
-					{#if result && 'error' in result}
-						<p class="paper-status-note error">데이터를 불러오지 못했습니다: {result.error}</p>
-						<p class="paper-form-note">잠시 후 새로고침을 눌러 다시 시도해 주세요.</p>
-					{:else if result}
-						<ol class="paper-sections dashboard-sections">
-							<li class="paper-section">
-									<details class="paper-details" bind:open={showSeminars}>
-										<summary class="paper-details-summary">
-											<h2 class="paper-level-2" data-number="1">세미나 관리</h2>
-											<span class="toggle-hint">{showSeminars ? '[닫기]' : '[열기]'}</span>
-										</summary>
-										<div class="paper-details-content seminar-content">
-											<a href="/seminar/apply" class="paper-btn apply-seminar-btn">새 세미나 신청</a>
-										{#if result.approvedSeminars.length === 0 && result.seminarRequests.length === 0}
-											<p class="paper-form-note empty-hint">참여 중인 세미나나 신청 내역이 없습니다.</p>
-										{:else}
-											<div class="seminar-list">
-												{#each result.approvedSeminars as seminar (seminar.id)}
-													<article class="seminar-item approved">
-														<div class="seminar-info">
-															<p class="sem-state">기록됨</p>
-															{#if editingSeminarId === seminar.id}
-																<form
-																	method="POST"
-																	action="?/updateSeminar"
-																	use:enhance={() => {
-																		return ({ result }) => {
-																			if (result.type === 'success') editingSeminarId = null;
-																		};
-																	}}
-																	class="edit-form"
-																>
-																	<input type="hidden" name="id" value={seminar.id} />
-																	<label class="paper-label" for={`seminar-title-${seminar.id}`}>제목</label>
-																	<input
-																		id={`seminar-title-${seminar.id}`}
-																		type="text"
-																		name="title"
-																		value={seminar.title}
-																		class="edit-input"
-																	/>
-																	<label class="paper-label" for={`seminar-remarks-${seminar.id}`}>비고</label>
-																	<textarea
-																		id={`seminar-remarks-${seminar.id}`}
-																		name="remarks"
-																		class="edit-textarea"
-																	>{seminar.remarks}</textarea>
-																	<div class="edit-actions">
-																		<button type="button" class="paper-btn secondary" onclick={() => (editingSeminarId = null)}>
-																			취소
-																		</button>
-																		<button class="paper-btn primary">저장</button>
-																	</div>
-																</form>
-															{:else}
-																<div class="view-mode">
-																	<p class="sem-title">{seminar.title}</p>
-																	<p class="sem-meta">{seminar.semester} | {seminar.remarks || '비고 없음'}</p>
-																	<button class="paper-btn secondary btn-edit-inline" onclick={() => (editingSeminarId = seminar.id)}>
-																		수정
+				{:else if dashboardError}
+					<p class="paper-status-note error">데이터를 불러오지 못했습니다: {dashboardError}</p>
+					<p class="paper-form-note">잠시 후 새로고침을 눌러 다시 시도해 주세요.</p>
+				{:else if dashboardData}
+					<ol class="paper-sections dashboard-sections">
+						<li class="paper-section">
+								<details class="paper-details" bind:open={showSeminars}>
+									<summary class="paper-details-summary">
+										<h2 class="paper-level-2" data-number="1">세미나 관리</h2>
+										<span class="toggle-hint">{showSeminars ? '[닫기]' : '[열기]'}</span>
+									</summary>
+									<div class="paper-details-content seminar-content">
+										<a href="/seminar/apply" class="paper-btn apply-seminar-btn">새 세미나 신청</a>
+									{#if dashboardData.approvedSeminars.length === 0 && dashboardData.seminarRequests.length === 0}
+										<p class="paper-form-note empty-hint">참여 중인 세미나나 신청 내역이 없습니다.</p>
+									{:else}
+										<div class="seminar-list">
+											{#each dashboardData.approvedSeminars as seminar (seminar.id)}
+												<article class="seminar-item approved">
+													<div class="seminar-info">
+														<p class="sem-state">기록됨</p>
+														{#if editingSeminarId === seminar.id}
+															<form
+																method="POST"
+																action="?/updateSeminar"
+																use:enhance={() => {
+																	return ({ result }) => {
+																		if (result.type === 'success') editingSeminarId = null;
+																	};
+																}}
+																class="edit-form"
+															>
+																<input type="hidden" name="id" value={seminar.id} />
+																<label class="paper-label" for={`seminar-title-${seminar.id}`}>제목</label>
+																<input
+																	id={`seminar-title-${seminar.id}`}
+																	type="text"
+																	name="title"
+																	value={seminar.title}
+																	class="edit-input"
+																/>
+																<label class="paper-label" for={`seminar-remarks-${seminar.id}`}>비고</label>
+																<textarea
+																	id={`seminar-remarks-${seminar.id}`}
+																	name="remarks"
+																	class="edit-textarea"
+																>{seminar.remarks}</textarea>
+																<div class="edit-actions">
+																	<button type="button" class="paper-btn secondary" onclick={() => (editingSeminarId = null)}>
+																		취소
 																	</button>
+																	<button class="paper-btn primary">저장</button>
 																</div>
-															{/if}
-														</div>
-													</article>
-												{/each}
-												{#each result.seminarRequests as req (req.id)}
-													<article class="seminar-item request {req.status}">
-														<div class="seminar-info">
-															<p class="sem-state">
-																{req.status === 'approved' ? '승인됨' : req.status === 'rejected' ? '반려됨' : '승인 대기'}
-															</p>
-															<p class="sem-title">{req.title}</p>
-															<p class="sem-meta">{new Date(req.submittedAt).toLocaleDateString()} 신청</p>
-															{#if req.status === 'pending'}
-																<a href="/seminar/edit/{req.id}" class="paper-btn secondary btn-edit-inline">신청 정보 수정</a>
-															{/if}
-														</div>
-													</article>
-												{/each}
+															</form>
+														{:else}
+															<div class="view-mode">
+																<p class="sem-title">{seminar.title}</p>
+																<p class="sem-meta">{seminar.semester} | {seminar.remarks || '비고 없음'}</p>
+																<button class="paper-btn secondary btn-edit-inline" onclick={() => (editingSeminarId = seminar.id)}>
+																	수정
+																</button>
+															</div>
+														{/if}
+													</div>
+												</article>
+											{/each}
+											{#each dashboardData.seminarRequests as req (req.id)}
+												<article class="seminar-item request {req.status}">
+													<div class="seminar-info">
+														<p class="sem-state">
+															{req.status === 'approved' ? '승인됨' : req.status === 'rejected' ? '반려됨' : '승인 대기'}
+														</p>
+														<p class="sem-title">{req.title}</p>
+														<p class="sem-meta">{new Date(req.submittedAt).toLocaleDateString()} 신청</p>
+														{#if req.status === 'pending'}
+															<a href="/seminar/edit/{req.id}" class="paper-btn secondary btn-edit-inline">신청 정보 수정</a>
+														{/if}
+													</div>
+												</article>
+											{/each}
+										</div>
+									{/if}
+								</div>
+							</details>
+						</li>
+
+						<li class="paper-section">
+								<details class="paper-details" bind:open={showProfile}>
+									<summary class="paper-details-summary">
+										<h2 class="paper-level-2" data-number="2">회원 정보 관리</h2>
+										<span class="toggle-hint">{showProfile ? '[닫기]' : '[열기]'}</span>
+									</summary>
+									<div class="paper-details-content profile-content">
+									<form method="POST" action="?/updateProfile" use:enhance class="profile-form">
+										<div class="profile-summary">
+											<div class="paper-field">
+												<label for="phone" class="paper-label no-sel">전화번호</label>
+												<input
+													type="tel"
+													id="phone"
+													name="phone"
+													value={dashboardData.profile.phone}
+													placeholder="010-1234-5678"
+													pattern="[0-9]{3}-[0-9]{4}-[0-9]{4}"
+													title="XXX-XXXX-XXXX 형식으로 입력해주세요."
+												/>
 											</div>
-										{/if}
+											<div class="paper-field">
+												<label for="background" class="paper-label no-sel">배경지식</label>
+												<textarea
+													id="background"
+													name="background"
+													rows="4"
+													placeholder="관심 분야 등"
+												>{dashboardData.profile.background}</textarea>
+											</div>
+											<div class="paper-actions profile-actions">
+												<button class="paper-btn primary">저장</button>
+											</div>
+										</div>
+									</form>
+								</div>
+							</details>
+						</li>
+
+							<li class="paper-section">
+								<h2 class="paper-level-2" data-number="3">출석 통계</h2>
+								<p class="paper-bridge paper-bridge-stats">
+									본 절은 <span class="xref">{data.semester}</span>의 출석 지표를 요약한다.
+									출석 {dashboardData.myAttendanceStats.attended}회 / 전체 활동
+									{dashboardData.myAttendanceStats.total}회(출석률
+									{getAttendanceRatio(
+										dashboardData.myAttendanceStats.attended,
+										dashboardData.myAttendanceStats.total
+									)}%)를
+									<span class="xref">Figure 1</span>에 제시한다.
+								</p>
+								<figure class="paper-figure attendance-figure">
+								<div class="figure-body">
+									<table class="stat-table" aria-label="출석 통계">
+										<tbody>
+											<tr>
+												<th scope="row">출석</th>
+												<td>{dashboardData.myAttendanceStats.attended}</td>
+												<th scope="row">전체 활동</th>
+												<td>{dashboardData.myAttendanceStats.total}</td>
+											</tr>
+											<tr>
+												<th scope="row">출석률</th>
+												<td colspan="3">
+													{getAttendanceRatio(
+														dashboardData.myAttendanceStats.attended,
+														dashboardData.myAttendanceStats.total
+													)}%
+												</td>
+											</tr>
+										</tbody>
+									</table>
+									<div class="attendance-meter" aria-hidden="true">
+										<div
+											class="attendance-fill"
+											style="width: {getAttendanceRatio(
+												dashboardData.myAttendanceStats.attended,
+												dashboardData.myAttendanceStats.total
+											)}%"
+										></div>
 									</div>
-								</details>
+								</div>
+									<figcaption>Figure 1: {data.semester} 출석 현황</figcaption>
+								</figure>
+								<div class="attendance-divider" aria-hidden="true"></div>
 							</li>
 
 							<li class="paper-section">
-									<details class="paper-details" bind:open={showProfile}>
-										<summary class="paper-details-summary">
-											<h2 class="paper-level-2" data-number="2">회원 정보 관리</h2>
-											<span class="toggle-hint">{showProfile ? '[닫기]' : '[열기]'}</span>
-										</summary>
-										<div class="paper-details-content profile-content">
-										<form method="POST" action="?/updateProfile" use:enhance class="profile-form">
-											<div class="profile-summary">
-												<div class="paper-field">
-													<label for="phone" class="paper-label no-sel">전화번호</label>
-													<input
-														type="tel"
-														id="phone"
-														name="phone"
-														value={result.profile.phone}
-														placeholder="010-1234-5678"
-														pattern="[0-9]{3}-[0-9]{4}-[0-9]{4}"
-														title="XXX-XXXX-XXXX 형식으로 입력해주세요."
-													/>
-												</div>
-												<div class="paper-field">
-													<label for="background" class="paper-label no-sel">배경지식</label>
-													<textarea
-														id="background"
-														name="background"
-														rows="4"
-														placeholder="관심 분야 등"
-													>{result.profile.background}</textarea>
-												</div>
-												<div class="paper-actions profile-actions">
-													<button class="paper-btn primary">저장</button>
-												</div>
-											</div>
-										</form>
-									</div>
-								</details>
-							</li>
-
-								<li class="paper-section">
-									<h2 class="paper-level-2" data-number="3">출석 통계</h2>
-									<p class="paper-bridge paper-bridge-stats">
-										본 절은 <span class="xref">{data.semester}</span>의 출석 지표를 요약한다.
-										출석 {result.myAttendanceStats.attended}회 / 전체 활동
-										{result.myAttendanceStats.total}회(출석률
-										{getAttendanceRatio(result.myAttendanceStats.attended, result.myAttendanceStats.total)}%)를
-										<span class="xref">Figure 1</span>에 제시한다.
-									</p>
-									<figure class="paper-figure attendance-figure">
-									<div class="figure-body">
-										<table class="stat-table" aria-label="출석 통계">
-											<tbody>
-												<tr>
-													<th scope="row">출석</th>
-													<td>{result.myAttendanceStats.attended}</td>
-													<th scope="row">전체 활동</th>
-													<td>{result.myAttendanceStats.total}</td>
-												</tr>
-												<tr>
-													<th scope="row">출석률</th>
-													<td colspan="3">{getAttendanceRatio(result.myAttendanceStats.attended, result.myAttendanceStats.total)}%</td>
-												</tr>
-											</tbody>
-										</table>
-										<div class="attendance-meter" aria-hidden="true">
-											<div
-												class="attendance-fill"
-												style="width: {getAttendanceRatio(result.myAttendanceStats.attended, result.myAttendanceStats.total)}%"
-											></div>
-										</div>
-									</div>
-										<figcaption>Figure 1: {data.semester} 출석 현황</figcaption>
-									</figure>
-									<div class="attendance-divider" aria-hidden="true"></div>
-								</li>
-
-								<li class="paper-section">
-									<h2 class="paper-level-2" data-number="4">활동 목록</h2>
-									<p class="paper-bridge paper-bridge-activities">
-										<span class="xref">Table 1</span>은 <span class="xref">Figure 1</span>의 집계값을
-										활동 단위로 풀어 쓴 기록이다. 날짜, 활동명, 종류, 출석 상태를 같은 형식으로 정리했으며,
-										상단 필터로 조건별 비교가 가능하다.
-									</p>
-									<div class="filters">
-										<select
-											bind:value={typeFilter}
-											class="semester-select"
-											style={`--select-width-ch: ${getSelectWidthCh(['전체 종류', ...getActivityTypes(result.activities)], 10)};`}
-										>
-											<option value="all">전체 종류</option>
-											{#each getActivityTypes(result.activities) as type (type)}
-												<option value={type}>{type}</option>
-											{/each}
-										</select>
-										<select
-											bind:value={attendanceFilter}
-											class="semester-select"
-											style={`--select-width-ch: ${getSelectWidthCh(['전체 상태', '출석', '결석'], 9)};`}
-										>
-											<option value="all">전체 상태</option>
-											<option value="attended">출석</option>
-											<option value="absent">결석</option>
-										</select>
-										<select
-											bind:value={selectedSemester}
-											class="semester-select"
-											style={`--select-width-ch: ${getSelectWidthCh(['전체 학기', ...result.semesters.map((sem) => `${sem}학기`)], 10)};`}
-										>
-											<option value="all">전체 학기</option>
-											{#each result.semesters as sem (sem)}
-												<option value={sem}>{sem}학기</option>
+								<h2 class="paper-level-2" data-number="4">활동 목록</h2>
+								<p class="paper-bridge paper-bridge-activities">
+									<span class="xref">Table 1</span>은 <span class="xref">Figure 1</span>의 집계값을
+									활동 단위로 풀어 쓴 기록이다. 날짜, 활동명, 종류, 출석 상태를 같은 형식으로 정리했으며,
+									상단 필터로 조건별 비교가 가능하다.
+								</p>
+								<div class="filters">
+									<select
+										bind:value={typeFilter}
+										class="semester-select"
+										style={`--select-width-ch: ${getSelectWidthCh(['전체 종류', ...getActivityTypes(dashboardData.activities)], 10)};`}
+									>
+										<option value="all">전체 종류</option>
+										{#each getActivityTypes(dashboardData.activities) as type (type)}
+											<option value={type}>{type}</option>
 										{/each}
 									</select>
-								</div>
+									<select
+										bind:value={attendanceFilter}
+										class="semester-select"
+										style={`--select-width-ch: ${getSelectWidthCh(['전체 상태', '출석', '결석'], 9)};`}
+									>
+										<option value="all">전체 상태</option>
+										<option value="attended">출석</option>
+										<option value="absent">결석</option>
+									</select>
+									<select
+										bind:value={selectedSemester}
+										class="semester-select"
+										style={`--select-width-ch: ${getSelectWidthCh(['전체 학기', ...dashboardData.semesters.map((sem) => `${sem}학기`)], 10)};`}
+									>
+										<option value="all">전체 학기</option>
+										{#each dashboardData.semesters as sem (sem)}
+											<option value={sem}>{sem}학기</option>
+									{/each}
+								</select>
+							</div>
 
-								{#if filteredActivities.length === 0}
-									<p class="paper-form-note empty-hint">조건에 맞는 활동 내역이 없습니다.</p>
-								{:else}
-									<figure class="paper-figure table-figure">
-										<div class="table-scroll">
-											<table
-												class="activity-table"
-												style="
-													--table-min-width: {activityTableMetrics.minWidthRem}rem;
-													--table-cell-pad: {activityTableMetrics.cellPadRem}rem;
-													--table-font-scale: {activityTableMetrics.fontScale};
-													--table-name-max: {activityTableMetrics.nameMaxWidthCh}ch;
-												"
-											>
-												<thead>
-													<tr>
-														<th>날짜</th>
-														<th>활동명</th>
-														<th>종류</th>
-														<th>출석</th>
-													</tr>
-												</thead>
-													<tbody>
-														{#each filteredActivities as activity (activity.id)}
-															<tr class={activity.attended ? 'is-attended' : 'is-absent'}>
-																<td class="date">{activity.date}</td>
-																<td>
-																	<a href={activity.url} target="_blank" rel="noopener noreferrer" class="activity-link">
-																	{activity.name}
-																</a>
-															</td>
-															<td>{activity.type}</td>
+							{#if filteredActivities.length === 0}
+								<p class="paper-form-note empty-hint">조건에 맞는 활동 내역이 없습니다.</p>
+							{:else}
+								<figure class="paper-figure table-figure">
+									<div class="table-scroll">
+										<table
+											class="activity-table"
+											style="
+												--table-min-width: {activityTableMetrics.minWidthRem}rem;
+												--table-cell-pad: {activityTableMetrics.cellPadRem}rem;
+												--table-font-scale: {activityTableMetrics.fontScale};
+												--table-name-max: {activityTableMetrics.nameMaxWidthCh}ch;
+											"
+										>
+											<thead>
+												<tr>
+													<th>날짜</th>
+													<th>활동명</th>
+													<th>종류</th>
+													<th>출석</th>
+												</tr>
+											</thead>
+												<tbody>
+													{#each filteredActivities as activity (activity.id)}
+														<tr class={activity.attended ? 'is-attended' : 'is-absent'}>
+															<td class="date">{activity.date}</td>
 															<td>
-																<StatusBadge status={activity.attended ? 'attended' : 'absent'} />
-															</td>
-														</tr>
-													{/each}
-												</tbody>
-											</table>
-										</div>
-										<figcaption>Table 1: 필터링된 활동 목록</figcaption>
-									</figure>
-								{/if}
-							</li>
-						</ol>
-					{/if}
-				{/await}
+																<a href={activity.url} target="_blank" rel="noopener noreferrer" class="activity-link">
+																{activity.name}
+															</a>
+														</td>
+														<td>{activity.type}</td>
+														<td>
+															<StatusBadge status={activity.attended ? 'attended' : 'absent'} />
+														</td>
+													</tr>
+												{/each}
+											</tbody>
+										</table>
+									</div>
+									<figcaption>Table 1: 필터링된 활동 목록</figcaption>
+								</figure>
+							{/if}
+						</li>
+					</ol>
+				{/if}
 			</article>
 		{/if}
 		{:else}

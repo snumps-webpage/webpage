@@ -9,7 +9,7 @@ import {
 } from "$lib/server/notion";
 import { getSeminarRequests } from "$lib/server/seminars";
 import { getApplications, type Application } from "$lib/server/admin";
-import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
+import { handleUserAction } from "$lib/server/auth-guards";
 import {
   getSemesterInfo,
   getSemesterKeyFromDate,
@@ -81,8 +81,9 @@ function buildDevDashboardPreview(semesterKey: string) {
         id: "preview-req-1",
         status: "pending",
         title: "대수적 위상수학 입문",
-        submittedAt: new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000)
-          .toISOString(),
+        submittedAt: new Date(
+          today.getTime() - 6 * 24 * 60 * 60 * 1000,
+        ).toISOString(),
       },
     ],
     approvedSeminars: [
@@ -261,12 +262,17 @@ export const actions = {
     const phone = normalizePhoneNumber(data.get("phone") as string);
     const background = data.get("background") as string;
 
-    return handleUserAction(locals, async (session) => {
-      const member = await getMemberByEmail(session.user.email);
-      if (!member) throw new Error("회원 정보를 찾을 수 없습니다.");
+    return handleUserAction(
+      locals,
+      async (session) => {
+        const member = await getMemberByEmail(session.user.email);
+        if (!member) throw new Error("회원 정보를 찾을 수 없습니다.");
 
-      await updatePrivateInfo(member.privateInfoId, { phone, background });
-    }, { invalidate: `member_${locals.auth().then(s => s?.user?.email)}` }); // Optimization: refresh member cache
+        await updatePrivateInfo(member.privateInfoId, { phone, background });
+        return {};
+      },
+      { invalidate: `member_${locals.auth().then((s) => s?.user?.email)}` },
+    ); // Optimization: refresh member cache
   },
 
   updateSeminar: async ({ request, locals, url, cookies }) => {
@@ -279,12 +285,12 @@ export const actions = {
     const remarks = data.get("remarks") as string;
 
     if (!id) {
-        const { fail } = await import("@sveltejs/kit");
-        return fail(400, { error: "요청 ID가 누락되었습니다." });
+      return fail(400, { error: "요청 ID가 누락되었습니다." });
     }
 
     return handleUserAction(locals, async () => {
       await updateSeminar(id, { title, remarks });
+      return {};
     });
   },
 };
