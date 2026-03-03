@@ -16,16 +16,21 @@ import { getKSTDate } from "$lib/utils";
 
 // --- Events Management (Notion Only) ---
 
-export async function getEvents(): Promise<Event[]> {
+export async function getEvents(skipCache = false): Promise<Event[]> {
   // Cache events for 1 minute to reduce API calls
-  return withCache("all_events", 60000, async () => {
-    try {
-      return (await getEventsFromNotion()) as Event[];
-    } catch (e) {
-      console.error("Failed to fetch events from Notion:", e);
-      return [];
-    }
-  });
+  return withCache(
+    "all_events",
+    skipCache ? 0 : 60000,
+    async () => {
+      try {
+        return (await getEventsFromNotion()) as Event[];
+      } catch (e) {
+        console.error("Failed to fetch events from Notion:", e);
+        return [];
+      }
+    },
+    { skipCache },
+  );
 }
 
 export async function getEvent(id: string): Promise<Event | undefined> {
@@ -103,14 +108,23 @@ export async function deleteEvent(id: string) {
 
 // --- Attendance Queue (Notion Only) ---
 
-export async function getAttendanceQueue(): Promise<AttendanceRecord[]> {
-  try {
-    const results = await getAttendanceQueueFromNotion();
-    return results.map((r) => ({ ...r, notionId: r.id })) as AttendanceRecord[];
-  } catch (e) {
-    console.error("Failed to fetch attendance queue from Notion:", e);
-    return [];
-  }
+export async function getAttendanceQueue(
+  skipCache = false,
+): Promise<AttendanceRecord[]> {
+  return withCache(
+    "attendance_queue",
+    skipCache ? 0 : 30000,
+    async () => {
+      try {
+        const results = await getAttendanceQueueFromNotion();
+        return results.map((r) => ({ ...r, notionId: r.id })) as AttendanceRecord[];
+      } catch (e) {
+        console.error("Failed to fetch attendance queue from Notion:", e);
+        return [];
+      }
+    },
+    { skipCache },
+  );
 }
 
 /**

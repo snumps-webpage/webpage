@@ -80,19 +80,19 @@
 
     // Resolve streamed data
     $effect(() => {
-        data.applications.then(val => {
+        data.streamed.applications.then(val => {
             applications = (val as Application[]).map((app) => ({ ...app, processing: false }));
             loadingApps = false;
         });
-        data.seminarRequests.then(val => {
+        data.streamed.seminarRequests.then(val => {
             seminarRequests = val as SeminarRequest[];
             loadingSeminars = false;
         });
-        data.events.then(val => {
+        data.streamed.events.then(val => {
             events = val as Event[];
             loadingEvents = false;
         });
-        data.attendanceQueue.then(val => {
+        data.streamed.attendanceQueue.then(val => {
             attendanceQueue = val.map(r => ({ ...r, processing: false }));
             loadingQueue = false;
         });

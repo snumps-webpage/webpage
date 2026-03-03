@@ -43,22 +43,24 @@ export const load: PageServerLoad = async (event) => {
   const skipCache = event.url.searchParams.has("refresh");
 
   return {
-    applications: (async () => {
-      const apps = await getApplications(skipCache);
-      return apps.sort(
-        (a, b) =>
-          new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime(),
-      );
-    })(),
-    events: (async () => {
-      const events = await getEvents();
-      return events.reverse();
-    })(),
-    attendanceQueue: (async () => {
-      const queue = await getAttendanceQueue();
-      return queue.filter((r) => r.status === "pending");
-    })(),
-    seminarRequests: getPendingSeminarRequests(skipCache),
+    streamed: {
+      applications: (async () => {
+        const apps = await getApplications(skipCache);
+        return apps.sort(
+          (a, b) =>
+            new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime(),
+        );
+      })(),
+      events: (async () => {
+        const events = await getEvents(skipCache);
+        return [...events].reverse();
+      })(),
+      attendanceQueue: (async () => {
+        const queue = await getAttendanceQueue(skipCache);
+        return queue.filter((r) => r.status === "pending");
+      })(),
+      seminarRequests: getPendingSeminarRequests(skipCache),
+    },
   };
 };
 
