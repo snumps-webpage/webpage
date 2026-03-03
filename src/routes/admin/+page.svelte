@@ -153,7 +153,7 @@
         }
     </script>
     
-    <div class="admin-container">
+    <div class="admin-container" class:refreshing={refreshingApps || refreshingSeminars}>
         <ManuscriptHeader title="관리자 대시보드" figure={MANUSCRIPT.FIGURES.ADMIN} />
     	<header>
     		<div class="header-actions">
@@ -690,7 +690,14 @@
 		margin: 0 auto;
 		padding: 1.6rem 1.5rem 2.2rem;
         color: var(--latex-text);
+        transition: opacity 0.3s ease;
 	}
+
+    .admin-container.refreshing {
+        opacity: 0.45;
+        pointer-events: none;
+        user-select: none;
+    }
 
 	header {
 		display: flex;

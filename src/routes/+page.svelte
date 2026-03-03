@@ -139,7 +139,7 @@
 <div class="container" class:manuscript={!!session?.user}>
 	{#if session?.user}
 		{#if isMember || isAdmin}
-			<article class="paper-document dashboard-paper">
+			<article class="paper-document dashboard-paper" class:refreshing={isRefreshing}>
 				<div class="dashboard-header-wrapper">
 					<ManuscriptHeader 
 						title="활동 현황" 
@@ -510,16 +510,22 @@
 			position: relative;
 		}
 
-		.dashboard-paper {
-			width: min(100%, 56rem);
-			background: transparent;
-			border: none;
-			padding: 0;
-			margin: 0 auto;
-		}
-
-		.dashboard-header {
-			margin-bottom: 0.8rem;
+			.dashboard-paper {
+				width: min(100%, 56rem);
+				background: transparent;
+				border: none;
+				padding: 0;
+				margin: 0 auto;
+		        transition: opacity 0.3s ease;
+			}
+		
+		    .dashboard-paper.refreshing {
+		        opacity: 0.45;
+		        pointer-events: none;
+		        user-select: none;
+		    }
+		
+			.dashboard-header {			margin-bottom: 0.8rem;
 			padding-bottom: 0.7rem;
 			display: flex;
 			justify-content: space-between;
