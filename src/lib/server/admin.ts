@@ -14,6 +14,7 @@ import {
 } from "./notion";
 import { DEV_PREVIEW_ADMIN_EMAIL } from "./dev-preview";
 import { parseGoogleName } from "../utils";
+import type { AuthenticatedSession } from "./auth-guards";
 
 export interface Application {
   id: string;
@@ -61,7 +62,9 @@ export async function getSearchableMembers(): Promise<SearchableMember[]> {
  * Resolves the "Actual Name" of a user by checking the Member DB first,
  * then falling back to parsing the Google account string.
  */
-export async function resolveActualName(session: any): Promise<string> {
+export async function resolveActualName(
+  session: AuthenticatedSession,
+): Promise<string> {
   if (!session?.user?.email) return "";
 
   const memberInfo = await getMemberByEmail(session.user.email);

@@ -1,5 +1,9 @@
 import { redirect } from "@sveltejs/kit";
-import { getSeminarRequests, updateSeminarRequest, parseSpeakerIds } from "$lib/server/seminars";
+import {
+  getSeminarRequests,
+  updateSeminarRequest,
+  parseSpeakerIds,
+} from "$lib/server/seminars";
 import {
   getSearchableMembers,
   resolveActualName,
@@ -72,32 +76,37 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 
 export const actions: Actions = {
   default: async ({ request, locals, params }) => {
-    return handleUserAction(locals, async (session) => {
-      const data = await request.formData();
-      const title = data.get("title") as string;
-      const description = data.get("description") as string;
-      const prerequisites = data.get("prerequisites") as string;
-      const duration = data.get("duration") as string;
-      const speakerIdsRaw = data.get("speakerIds") as string;
-      const attachment = data.get("attachment") as string;
+    return handleUserAction(
+      locals,
+      async (session) => {
+        const data = await request.formData();
+        const title = data.get("title") as string;
+        const description = data.get("description") as string;
+        const prerequisites = data.get("prerequisites") as string;
+        const duration = data.get("duration") as string;
+        const speakerIdsRaw = data.get("speakerIds") as string;
+        const attachment = data.get("attachment") as string;
 
-      const requestId = params.id;
-      if (!title || !description) throw new Error("필수 항목을 입력해주세요.");
+        const requestId = params.id;
+        if (!title || !description)
+          throw new Error("필수 항목을 입력해주세요.");
 
-      let speakerIds = parseSpeakerIds(speakerIdsRaw);
-      if (speakerIds.length === 0) {
-        const member = await getMemberByEmail(session.user.email);
-        if (member) speakerIds = [member.memberId];
-      }
+        let speakerIds = parseSpeakerIds(speakerIdsRaw);
+        if (speakerIds.length === 0) {
+          const member = await getMemberByEmail(session.user.email);
+          if (member) speakerIds = [member.memberId];
+        }
 
-      await updateSeminarRequest(requestId, {
-        title,
-        description,
-        prerequisites,
-        duration,
-        speakerIds,
-        attachment,
-      });
-    }, { invalidate: "all_seminar_requests" });
+        await updateSeminarRequest(requestId, {
+          title,
+          description,
+          prerequisites,
+          duration,
+          speakerIds,
+          attachment,
+        });
+      },
+      { invalidate: "all_seminar_requests" },
+    );
   },
 };

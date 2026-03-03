@@ -49,10 +49,14 @@ export const actions = {
   attend: async ({ params, locals }) => {
     return handleUserAction(locals, async (session) => {
       const event = await getEventByPathId(params.id);
-      if (!event || event.status !== "active") throw new Error("Event not found or is not currently active.");
-      if (params.type !== event.attendCode) throw new Error("Invalid attendance link or code.");
+      if (!event || event.status !== "active")
+        throw new Error("Event not found or is not currently active.");
+      if (params.type !== event.attendCode)
+        throw new Error("Invalid attendance link or code.");
 
-      const { name: parsedName, department: parsedDept } = parseGoogleName(session.user.name);
+      const { name: parsedName, department: parsedDept } = parseGoogleName(
+        session.user.name,
+      );
 
       let dept = parsedDept || "Unknown";
       try {
@@ -78,6 +82,7 @@ export const actions = {
 
       const { sendAttendanceNotification } = await import("$lib/server/mail");
       await sendAttendanceNotification(parsedName, event.title);
+      return {};
     });
   },
 };

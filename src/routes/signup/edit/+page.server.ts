@@ -43,27 +43,32 @@ export const load: PageServerLoad = async (event) => {
 
 export const actions = {
   default: async ({ request, locals }) => {
-    return handleUserAction(locals, async (session) => {
-      const { name: immutableName, department: immutableDept } = parseGoogleName(session.user.name);
+    return handleUserAction(
+      locals,
+      async (session) => {
+        const { name: immutableName, department: immutableDept } =
+          parseGoogleName(session.user.name);
 
-      if (!immutableName || !immutableDept) {
-        throw new Error("계정 정보에서 이름 또는 학과를 찾을 수 없습니다.");
-      }
+        if (!immutableName || !immutableDept) {
+          throw new Error("계정 정보에서 이름 또는 학과를 찾을 수 없습니다.");
+        }
 
-      const data = await request.formData();
-      const phone = normalizePhoneNumber(data.get("phone") as string);
-      const background = data.get("background") as string;
-      const appId = data.get("id") as string;
+        const data = await request.formData();
+        const phone = normalizePhoneNumber(data.get("phone") as string);
+        const background = data.get("background") as string;
+        const appId = data.get("id") as string;
 
-      if (!appId) throw new Error("수정할 신청 내역을 찾을 수 없습니다.");
-      if (!phone) throw new Error("전화번호를 입력해주세요.");
+        if (!appId) throw new Error("수정할 신청 내역을 찾을 수 없습니다.");
+        if (!phone) throw new Error("전화번호를 입력해주세요.");
 
-      await updateApplication(appId, {
-        name: immutableName,
-        department: immutableDept,
-        phone,
-        background,
-      });
-    }, { invalidate: "all_applications" });
+        await updateApplication(appId, {
+          name: immutableName,
+          department: immutableDept,
+          phone,
+          background,
+        });
+      },
+      { invalidate: "all_applications" },
+    );
   },
 };

@@ -8,7 +8,9 @@ import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
   const isPreview = dev && event.url.searchParams.get("preview") === "1";
-  const session = await (isPreview ? event.locals.auth() : ensureSession(event.locals, event.url));
+  const session = await (isPreview
+    ? event.locals.auth()
+    : ensureSession(event.locals, event.url));
 
   if (isPreview) {
     const previewName = session?.user?.name || "홍길동 / 학부생 / 수리과학부";
@@ -40,9 +42,7 @@ export const load: PageServerLoad = async (event) => {
     throw redirect(302, "/");
   }
 
-  const pending = apps.find(
-    (a: Application) => a.email === user.email,
-  );
+  const pending = apps.find((a: Application) => a.email === user.email);
 
   if (pending && !isUserAdmin) {
     throw redirect(302, "/signup/edit");
@@ -67,34 +67,40 @@ export const actions = {
       });
     }
 
-    return handleUserAction(locals, async (session) => {
-      const user = session.user;
-      const { name: immutableName, department: immutableDept } = parseGoogleName(user.name);
+    return handleUserAction(
+      locals,
+      async (session) => {
+        const user = session.user;
+        const { name: immutableName, department: immutableDept } =
+          parseGoogleName(user.name);
 
-      if (!immutableName || !immutableDept) {
-        throw new Error("계정 정보에서 이름 또는 학과를 찾을 수 없습니다.");
-      }
+        if (!immutableName || !immutableDept) {
+          throw new Error("계정 정보에서 이름 또는 학과를 찾을 수 없습니다.");
+        }
 
-      const data = await request.formData();
-      const phone = normalizePhoneNumber(data.get("phone") as string);
-      const background = data.get("background") as string;
-      const agreement = data.get("agreement");
+        const data = await request.formData();
+        const phone = normalizePhoneNumber(data.get("phone") as string);
+        const background = data.get("background") as string;
+        const agreement = data.get("agreement");
 
-      if (!agreement) throw new Error("개인정보 수집 및 이용에 동의해야 합니다.");
-      if (!phone) throw new Error("전화번호를 입력해주세요.");
+        if (!agreement)
+          throw new Error("개인정보 수집 및 이용에 동의해야 합니다.");
+        if (!phone) throw new Error("전화번호를 입력해주세요.");
 
-      const { addApplication } = await import("$lib/server/admin");
-      const { sendSignupNotification } = await import("$lib/server/mail");
+        const { addApplication } = await import("$lib/server/admin");
+        const { sendSignupNotification } = await import("$lib/server/mail");
 
-      await addApplication({
-        email: user.email,
-        name: immutableName,
-        department: immutableDept,
-        phone,
-        background,
-      });
+        await addApplication({
+          email: user.email,
+          name: immutableName,
+          department: immutableDept,
+          phone,
+          background,
+        });
 
-      await sendSignupNotification(immutableName);
-    }, { invalidate: "all_applications" });
+        await sendSignupNotification(immutableName);
+      },
+      { invalidate: "all_applications" },
+    );
   },
 };

@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-    import { toasts } from '$lib/toasts';
-	import type { AttendanceRecord } from '$lib/types';
+    import type { AttendanceRecord } from '$lib/types';
     import Skeleton from '$lib/components/Skeleton.svelte';
     import CopyButton from '$lib/components/CopyButton.svelte';
     import ActionButton from '$lib/components/ActionButton.svelte';
