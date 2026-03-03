@@ -63,9 +63,9 @@ export const CHATROOM_CHAT_LINK = "https://invite.kakao.com/tc/tGxjs2oKOV";
 // Academic Manuscript Branding
 export const MANUSCRIPT = {
   FOUNDATION_DATE: "29 NOV 2024",
-  JOURNAL_TITLE: "SNUMPS Researcher Portal",
+  JOURNAL_TITLE: "SNUMPS Webpage",
   FIGURES: {
-    DASHBOARD: "Figure D-1 · Researcher Status Overview",
+    DASHBOARD: "Figure D-1 · Member Dashboard Overview",
     SIGNUP: "Figure S-1 · Membership Application Draft",
     REVISION: "Figure S-2 · Revision Manuscript",
     SEMINAR_APPLY: "Figure P-1 · Seminar Proposal Form",
