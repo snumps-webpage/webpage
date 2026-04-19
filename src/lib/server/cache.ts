@@ -1,38 +1,65 @@
+import Redis from "ioredis";
+import { env } from "$env/dynamic/private";
+
 /**
- * Simple in-memory cache for server-side Notion queries to reduce API latency.
- * NOTE: In serverless environments, this cache is ephemeral and per-instance.
+ * Hybrid cache system: Redis (shared/persistent) + In-memory (local/ephemeral).
+ * Optimized for serverless environments to reduce Notion API load.
  */
+
+const REDIS_URL = env.REDIS_URL;
+let redis: Redis | null = null;
+
+if (REDIS_URL) {
+  try {
+    redis = new Redis(REDIS_URL, {
+      maxRetriesPerRequest: 1,
+      connectTimeout: 5000,
+      lazyConnect: true, // Only connect on first command
+    });
+    redis.on("error", (err) => {
+      // Don't crash the app if Redis fails, just log it.
+      if ((err as any).code !== "ECONNREFUSED") {
+        console.warn(">>> [Cache] Redis Error:", err);
+      }
+    });
+  } catch (e) {
+    console.warn(">>> [Cache] Failed to initialize Redis:", e);
+  }
+}
 
 interface CacheEntry<T> {
   data: T;
   expiry: number;
 }
 
-const cache = new Map<string, CacheEntry<unknown>>();
+const localCache = new Map<string, CacheEntry<unknown>>();
+const MAX_LOCAL_SIZE = 1000;
 
-// Maximum number of items to keep in cache to prevent OOM
-const MAX_CACHE_SIZE = 1000;
-
-function pruneCache() {
+/**
+ * Prunes expired and excessive entries from local memory.
+ */
+function pruneLocalCache() {
   const now = Date.now();
-  for (const [key, entry] of cache.entries()) {
+  for (const [key, entry] of localCache.entries()) {
     if (entry.expiry <= now) {
-      cache.delete(key);
+      localCache.delete(key);
     }
   }
 
-  // Hard limit: if still too big after pruning, delete oldest (simple FIFO approximation)
-  if (cache.size > MAX_CACHE_SIZE) {
-    const keysToDelete = Array.from(cache.keys()).slice(
+  if (localCache.size > MAX_LOCAL_SIZE) {
+    const keysToDelete = Array.from(localCache.keys()).slice(
       0,
-      cache.size - MAX_CACHE_SIZE,
+      localCache.size - MAX_LOCAL_SIZE,
     );
     for (const k of keysToDelete) {
-      cache.delete(k);
+      localCache.delete(k);
     }
   }
 }
 
+/**
+ * Wraps a fetcher with a two-tier caching strategy.
+ */
 export async function withCache<T>(
   key: string,
   ttlMs: number,
@@ -40,27 +67,64 @@ export async function withCache<T>(
   options?: { skipCache?: boolean },
 ): Promise<T> {
   const now = Date.now();
-  const entry = cache.get(key);
 
-  if (!options?.skipCache && entry && entry.expiry > now) {
-    return entry.data as T;
+  if (!options?.skipCache) {
+    // TIER 1: Local Memory (fastest, instance-specific)
+    const local = localCache.get(key);
+    if (local && local.expiry > now) {
+      return local.data as T;
+    }
+
+    // TIER 2: Redis (persistent, shared across lambda instances)
+    if (redis) {
+      try {
+        const cached = await redis.get(key);
+        if (cached) {
+          const data = JSON.parse(cached);
+          // Back-fill local cache for faster subsequent hits in this instance
+          localCache.set(key, { data, expiry: now + Math.min(ttlMs, 60000) });
+          return data as T;
+        }
+      } catch (e) {
+        // Silently fail to Notion fetcher if Redis is down
+      }
+    }
   }
 
+  // CACHE MISS: Execute the actual fetcher
   const data = await fetcher();
 
-  // Probabilistic pruning (5% chance) to avoid overhead on every write
-  if (Math.random() < 0.05) {
-    pruneCache();
+  // Populate local cache
+  localCache.set(key, { data, expiry: now + ttlMs });
+
+  // Populate Redis (if available)
+  if (redis && !options?.skipCache) {
+    try {
+      // "PX" sets expiry in milliseconds
+      await redis.set(key, JSON.stringify(data), "PX", ttlMs);
+    } catch (e) {
+      // Silently fail
+    }
   }
 
-  cache.set(key, {
-    data,
-    expiry: now + ttlMs,
-  });
+  // Periodic maintenance
+  if (Math.random() < 0.05) {
+    pruneLocalCache();
+  }
 
   return data;
 }
 
-export function invalidateCache(key: string) {
-  cache.delete(key);
+/**
+ * Invalidates a specific key in both cache tiers.
+ */
+export async function invalidateCache(key: string) {
+  localCache.delete(key);
+  if (redis) {
+    try {
+      await redis.del(key);
+    } catch (e) {
+      // Silently fail
+    }
+  }
 }
