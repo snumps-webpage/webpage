@@ -102,6 +102,10 @@ export const load: LayoutServerLoad = async (event) => {
 
     application: userApplication,
 
-    executives,
+    /**
+     * Executives are often requested in the footer.
+     * We return this as a promise so SvelteKit can stream the shell immediately.
+     */
+    executives: getLatestExecutives(),
   };
 };

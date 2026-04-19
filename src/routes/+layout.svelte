@@ -161,7 +161,11 @@
 	<div class="footer-content">
 		<div class="footer-info">
 			<p>
-				<span class="footer-chip"><span class="no-sel">회장:</span> {page.data.executives?.president?.name || "공석"}</span>
+				{#await page.data.executives}
+					<span class="footer-chip"><span class="no-sel">회장:</span> ...</span>
+				{:then execs}
+					<span class="footer-chip"><span class="no-sel">회장:</span> {execs?.president?.name || "공석"}</span>
+				{/await}
 				<span class="footer-sep" aria-hidden="true">|</span>
 				<a href="mailto:snumps0@gmail.com" class="footer-chip">snumps0@gmail.com</a>
 				<span class="footer-sep" aria-hidden="true">|</span>
