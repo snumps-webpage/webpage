@@ -5,6 +5,7 @@ import { env } from "$env/dynamic/private";
 import { dev } from "$app/environment";
 import {
   getApplicationsFromNotion,
+  getApplicationByEmail as getApplicationByEmailFromNotion,
   createApplicationInNotion,
   removeApplicationInNotion,
   getAllMembers,
@@ -74,6 +75,18 @@ export async function resolveActualName(
   }
 
   return parseGoogleName(session.user.name).name;
+}
+
+export async function getApplicationByEmail(
+  email: string,
+  skipCache = false,
+): Promise<Application | null> {
+  try {
+    return await getApplicationByEmailFromNotion(email, skipCache);
+  } catch (e) {
+    console.error(`Failed to fetch application for ${email} from Notion:`, e);
+    return null;
+  }
 }
 
 export async function getApplications(

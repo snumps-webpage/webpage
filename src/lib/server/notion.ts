@@ -37,11 +37,23 @@ function getHeaders() {
 
 /**
  * Generic database query with automatic pagination.
+ * Supports property filtering via options.filter_properties.
  */
 export async function notionQuery(
   databaseId: string,
   options: any = {},
 ): Promise<any[]> {
+  const { filter_properties, ...queryOptions } = options;
+  const url = new URL(
+    `https://api.notion.com/v1/databases/${databaseId}/query`,
+  );
+
+  if (filter_properties && Array.isArray(filter_properties)) {
+    filter_properties.forEach((prop: string) =>
+      url.searchParams.append("filter_properties", prop),
+    );
+  }
+
   console.log(`>>> [Notion Service] notionQuery START [DB: ${databaseId}]`);
   let allResults: any[] = [];
   let hasMore = true;
@@ -49,17 +61,14 @@ export async function notionQuery(
 
   try {
     while (hasMore) {
-      const fetchRes = await fetch(
-        `https://api.notion.com/v1/databases/${databaseId}/query`,
-        {
-          method: "POST",
-          headers: getHeaders(),
-          body: JSON.stringify({
-            start_cursor: nextCursor,
-            ...options,
-          }),
-        },
-      );
+      const fetchRes = await fetch(url.toString(), {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({
+          start_cursor: nextCursor,
+          ...queryOptions,
+        }),
+      });
 
       const data: any = await fetchRes.json();
 
@@ -75,6 +84,15 @@ export async function notionQuery(
 
       hasMore = data.has_more;
       nextCursor = data.next_cursor ?? undefined;
+
+      // Limit results if page_size is provided and we have enough
+      if (
+        queryOptions.page_size &&
+        allResults.length >= queryOptions.page_size
+      ) {
+        allResults = allResults.slice(0, queryOptions.page_size);
+        break;
+      }
     }
     console.log(
       `>>> [Notion Service] Query success. Count: ${allResults.length}`,
@@ -84,6 +102,20 @@ export async function notionQuery(
     console.error(`>>> [Notion Service] Error in notionQuery:`, error);
     throw error;
   }
+}
+
+/**
+ * Optimized query for when only the first result is needed.
+ */
+export async function notionQueryFirst(
+  databaseId: string,
+  options: any = {},
+): Promise<any | null> {
+  const results = await notionQuery(databaseId, {
+    ...options,
+    page_size: 1,
+  });
+  return results.length > 0 ? results[0] : null;
 }
 
 export const queryDatabase = notionQuery;
@@ -330,13 +362,13 @@ export async function getMemberByEmail(email: string, skipCache = false) {
       const dbId = env.NOTION_DB_PRIVATE_INFO;
       if (!dbId) throw new Error("NOTION_DB_PRIVATE_INFO missing");
 
-      const results = await notionQuery(dbId, {
+      const page = await notionQueryFirst(dbId, {
         filter: { property: NOTION_PROPS.EMAIL, email: { equals: email } },
+        filter_properties: [NOTION_PROPS.PRIVATE_TO_MEMBER],
       });
 
-      if (results.length === 0) return null;
+      if (!page) return null;
 
-      const page = results[0];
       const relationProp: any = page.properties[NOTION_PROPS.PRIVATE_TO_MEMBER];
       if (
         !relationProp ||
@@ -377,6 +409,11 @@ export async function getAllMembers(skipCache = false) {
       const results = await notionQuery(dbId, {
         filter: { property: NOTION_PROPS.NAME, title: { is_not_empty: true } },
         sorts: [{ property: NOTION_PROPS.NAME, direction: "ascending" }],
+        filter_properties: [
+          NOTION_PROPS.NAME,
+          NOTION_PROPS.DEPT,
+          NOTION_PROPS.JOIN_DATE,
+        ],
       });
 
       return results.map((page) => ({
@@ -418,6 +455,12 @@ export async function getActivities(
         sorts: [
           { property: NOTION_PROPS.ACTIVITY_DATE, direction: "descending" },
         ],
+        filter_properties: [
+          NOTION_PROPS.ACTIVITY_NAME,
+          NOTION_PROPS.ACTIVITY_DATE,
+          NOTION_PROPS.ACTIVITY_TYPE,
+          NOTION_PROPS.ATTENDANCE,
+        ],
       });
 
       return results.map((page) => ({
@@ -441,6 +484,11 @@ export async function getAllActivities() {
     const results = await notionQuery(dbId, {
       sorts: [
         { property: NOTION_PROPS.ACTIVITY_DATE, direction: "descending" },
+      ],
+      filter_properties: [
+        NOTION_PROPS.ACTIVITY_NAME,
+        NOTION_PROPS.ACTIVITY_DATE,
+        NOTION_PROPS.ACTIVITY_TYPE,
       ],
     });
 
@@ -469,6 +517,11 @@ export async function getUserActivities(memberId: string, skipCache = false) {
         },
         sorts: [
           { property: NOTION_PROPS.ACTIVITY_DATE, direction: "descending" },
+        ],
+        filter_properties: [
+          NOTION_PROPS.ACTIVITY_NAME,
+          NOTION_PROPS.ACTIVITY_DATE,
+          NOTION_PROPS.ACTIVITY_TYPE,
         ],
       });
 
@@ -538,6 +591,35 @@ export async function createSeminarInNotion(data: {
   }
 
   return await notionCreate(dbId, properties);
+}
+
+export async function getApplicationByEmail(email: string, skipCache = false) {
+  return withCache(
+    `application_${email}`,
+    60000,
+    async () => {
+      const dbId = env.NOTION_DB_APPLICATIONS;
+      if (!dbId) return null;
+
+      const page = await notionQueryFirst(dbId, {
+        filter: { property: NOTION_PROPS.EMAIL, email: { equals: email } },
+      });
+
+      if (!page) return null;
+
+      return {
+        id: page.id,
+        email: getPropertyValue(page.properties[NOTION_PROPS.EMAIL]),
+        name: getPropertyValue(page.properties[NOTION_PROPS.NAME]),
+        phone: getPropertyValue(page.properties[NOTION_PROPS.PHONE_APP]),
+        department: getPropertyValue(page.properties[NOTION_PROPS.DEPT]),
+        background: getPropertyValue(page.properties[NOTION_PROPS.BACKGROUND]),
+        accepted: getPropertyValue(page.properties[NOTION_PROPS.APP_ACCEPTED]),
+        submittedAt: (page as any).created_time,
+      };
+    },
+    { skipCache },
+  );
 }
 
 export async function getApplicationsFromNotion(skipCache = false) {
@@ -627,7 +709,17 @@ export async function getSeminarRequestsFromNotion(skipCache = false) {
       const dbId = env.NOTION_DB_SEMINAR_REQUESTS;
       if (!dbId) return [];
 
-      const results = await notionQuery(dbId);
+      const results = await notionQuery(dbId, {
+        filter_properties: [
+          NOTION_PROPS.SEMINAR_REQ_TITLE,
+          NOTION_PROPS.SEMINAR_REQ_DESC,
+          NOTION_PROPS.SEMINAR_REQ_PREREQ,
+          NOTION_PROPS.SEMINAR_REQ_DURATION,
+          NOTION_PROPS.SEMINAR_REQ_SPEAKERS,
+          NOTION_PROPS.SEMINAR_FILES,
+          NOTION_PROPS.SEMINAR_REQ_APPROVED,
+        ],
+      });
 
       return results.map((page) => ({
         id: page.id,
@@ -825,7 +917,13 @@ export async function getAllPrivateInfo() {
   const dbId = env.NOTION_DB_PRIVATE_INFO;
   if (!dbId) throw new Error("NOTION_DB_PRIVATE_INFO missing");
 
-  const results = await notionQuery(dbId);
+  const results = await notionQuery(dbId, {
+    filter_properties: [
+      NOTION_PROPS.NAME,
+      NOTION_PROPS.EMAIL,
+      NOTION_PROPS.PRIVATE_TO_MEMBER,
+    ],
+  });
 
   return results.map((page) => ({
     id: page.id,
@@ -861,6 +959,11 @@ export async function getLatestExecutives(): Promise<LatestExecutives> {
         property: NOTION_PROPS.EXECUTIVES,
         multi_select: { is_not_empty: true },
       },
+      filter_properties: [
+        NOTION_PROPS.NAME,
+        NOTION_PROPS.EXECUTIVES,
+        NOTION_PROPS.MEMBER_TO_PRIVATE,
+      ],
     });
 
     if (results.length === 0) return defaultExecs;
@@ -1018,7 +1121,17 @@ export async function getEventsFromNotion() {
   const dbId = env.NOTION_DB_EVENTS;
   if (!dbId) return [];
 
-  const results = await notionQuery(dbId);
+  const results = await notionQuery(dbId, {
+    filter_properties: [
+      NOTION_PROPS.EVENT_TITLE,
+      NOTION_PROPS.EVENT_DATE,
+      NOTION_PROPS.EVENT_TYPE,
+      NOTION_PROPS.EVENT_STATUS,
+      NOTION_PROPS.EVENT_PATH_ID,
+      NOTION_PROPS.EVENT_ATTEND_CODE,
+      NOTION_PROPS.EVENT_NOTION_PAGE_ID,
+    ],
+  });
   return results.map((page) => ({
     id: page.id,
     title: getPropertyValue(page.properties[NOTION_PROPS.EVENT_TITLE]),

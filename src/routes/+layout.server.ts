@@ -1,7 +1,7 @@
 import { redirect } from "@sveltejs/kit";
 import { dev } from "$app/environment";
 import { getMemberByEmail, getLatestExecutives } from "$lib/server/notion";
-import { isAdmin, getApplications, type Application } from "$lib/server/admin";
+import { isAdmin } from "$lib/server/admin";
 import { resolveDevPreviewRole } from "$lib/server/dev-preview";
 import type { LayoutServerLoad } from "./$types";
 
@@ -46,27 +46,26 @@ export const load: LayoutServerLoad = async (event) => {
     const path = event.url.pathname;
 
     const isSignupPage = path.startsWith("/signup");
-
     const isWaitPage = path === "/wait";
-
     const isApi = path.startsWith("/api");
-
     const isAuth = path.startsWith("/auth");
-
     const isSignOut = path.includes("signout");
 
     try {
-      const [member, apps] = await Promise.all([
+      // OPTIMIZATION: Use getApplicationByEmail instead of getApplications to avoid fetching ALL applications.
+      // Memoize results in locals for other load functions in the same request.
+      const [member, app] = await Promise.all([
         getMemberByEmail(session.user.email),
-
-        getApplications(),
+        import("$lib/server/admin").then((m) =>
+          m.getApplicationByEmail(session.user!.email!),
+        ),
       ]);
 
-      userMember = member;
+      event.locals.member = member;
+      event.locals.userApplication = app;
 
-      userApplication = apps.find(
-        (a: Application) => a.email === session.user?.email,
-      );
+      userMember = member;
+      userApplication = app;
 
       const isAllowedPath =
         isSignupPage || isWaitPage || isApi || isAuth || isSignOut;

@@ -8,7 +8,6 @@ import {
   updateSeminar,
 } from "$lib/server/notion";
 import { getSeminarRequests } from "$lib/server/seminars";
-import { getApplications, type Application } from "$lib/server/admin";
 import { handleUserAction } from "$lib/server/auth-guards";
 import {
   getSemesterInfo,
@@ -140,13 +139,18 @@ export const load: PageServerLoad = async (event) => {
   }
 
   try {
-    const member = await getMemberByEmail(session.user.email, skipCache);
+    const member =
+      event.locals.member !== undefined
+        ? event.locals.member
+        : await getMemberByEmail(session.user.email, skipCache);
     let userApplication = null;
     if (!member) {
-      const apps = await getApplications(skipCache);
-      userApplication = apps.find(
-        (a: Application) => a.email === session.user?.email,
-      );
+      userApplication =
+        event.locals.userApplication !== undefined
+          ? event.locals.userApplication
+          : await import("$lib/server/admin").then((m) =>
+              m.getApplicationByEmail(session.user!.email!, skipCache),
+            );
     }
 
     const dashboardPromise = async () => {
