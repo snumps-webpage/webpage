@@ -106,21 +106,26 @@ export async function updateSeminarRequestStatus(
  * Fetches all pending seminar requests and resolves speaker names.
  */
 export async function getPendingSeminarRequests(skipCache = false) {
-  const { getAllMembers } = await import("./notion");
-  const [requests, members] = await Promise.all([
-    getSeminarRequests(skipCache),
-    getAllMembers(skipCache),
-  ]);
+  try {
+    const { getAllMembers } = await import("./notion");
+    const [requests, members] = await Promise.all([
+      getSeminarRequests(skipCache),
+      getAllMembers(skipCache),
+    ]);
 
-  return requests
-    .filter((r) => r.status === "pending")
-    .map((r) => ({
-      ...r,
-      speakerNames: Array.isArray(r.speakerIds)
-        ? r.speakerIds.map((id) => {
-            const m = members.find((member) => member.id === id);
-            return m ? m.name : "Unknown";
-          })
-        : [],
-    }));
+    return requests
+      .filter((r) => r.status === "pending")
+      .map((r) => ({
+        ...r,
+        speakerNames: Array.isArray(r.speakerIds)
+          ? r.speakerIds.map((id) => {
+              const m = members.find((member) => member.id === id);
+              return m ? m.name : "Unknown";
+            })
+          : [],
+      }));
+  } catch (e) {
+    console.error("Failed to fetch pending seminar requests:", e);
+    return [];
+  }
 }

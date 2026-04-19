@@ -274,12 +274,14 @@
 		background: var(--latex-bg);
 		background-image: none;
 		scroll-snap-type: y mandatory;
+		scroll-padding-top: var(--nav-height);
 	}
 
 	:global(html.guest-landing body) {
 		background: var(--latex-bg);
 		color: var(--latex-text);
 		scroll-snap-type: y mandatory;
+		scroll-padding-top: var(--nav-height);
 	}
 
 			:global(body) {

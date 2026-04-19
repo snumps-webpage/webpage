@@ -82,17 +82,32 @@
         data.streamed.applications.then(val => {
             applications = (val as Application[]).map((app) => ({ ...app, processing: false }));
             loadingApps = false;
+        }).catch(err => {
+            console.error("Failed to load applications:", err);
+            loadingApps = false;
         });
+
         data.streamed.seminarRequests.then(val => {
             seminarRequests = val as SeminarRequest[];
             loadingSeminars = false;
+        }).catch(err => {
+            console.error("Failed to load seminar requests:", err);
+            loadingSeminars = false;
         });
+
         data.streamed.events.then(val => {
             events = val as Event[];
             loadingEvents = false;
+        }).catch(err => {
+            console.error("Failed to load events:", err);
+            loadingEvents = false;
         });
+
         data.streamed.attendanceQueue.then(val => {
             attendanceQueue = val.map(r => ({ ...r, processing: false }));
+            loadingQueue = false;
+        }).catch(err => {
+            console.error("Failed to load attendance queue:", err);
             loadingQueue = false;
         });
     });
