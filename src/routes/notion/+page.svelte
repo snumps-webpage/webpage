@@ -204,14 +204,6 @@
 		margin-bottom: 0.72rem;
 	}
 
-	.empty {
-		color: var(--text-secondary);
-		text-align: center;
-		padding: 2rem 1rem;
-		background: var(--bg-primary);
-		border: 1px dashed var(--border-color);
-	}
-
 	.search-bar {
 		display: flex;
 		gap: 0.55rem;

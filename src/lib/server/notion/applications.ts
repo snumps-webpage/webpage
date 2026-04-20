@@ -1,5 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * Membership Application Domain Logic.
  */
 import { env } from "$env/dynamic/private";
 import { withCache } from "../cache";

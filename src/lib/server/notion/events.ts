@@ -1,5 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * Event and Attendance Record Domain Logic.
  */
 import { env } from "$env/dynamic/private";
 import { withCache } from "../cache";

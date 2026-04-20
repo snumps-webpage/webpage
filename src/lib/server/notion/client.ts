@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Core Notion API client.
  * Handles generic CRUD operations with automatic pagination and property filtering.

@@ -779,34 +779,6 @@
         color: var(--latex-bg);
     }
 
-    .btn {
-        border: 1px solid var(--latex-rule);
-        border-radius: 0;
-        background: transparent;
-        color: var(--latex-text);
-        font-family: var(--font-mono);
-        text-transform: uppercase;
-        letter-spacing: 0.07em;
-        font-weight: 620;
-        cursor: pointer;
-        transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
-    }
-
-    .btn:hover:not(:disabled) {
-        background: var(--latex-text);
-        color: var(--latex-bg);
-        border-color: var(--latex-text);
-    }
-
-    .btn {
-		padding: 0.35rem 0.65rem;
-        font-size: 0.68rem;
-	}
-
-    .btn.small {
-        min-width: 3.1rem;
-    }
-
     .approve,
     .activate,
     .submit {
@@ -864,16 +836,6 @@
         display: grid;
         gap: 0.62rem;
     }
-
-	.empty {
-		color: var(--latex-muted);
-		text-align: center;
-		padding: 1.8rem 1rem;
-		background: var(--latex-bg);
-		border: 1px dashed var(--latex-rule);
-		font-family: var(--font-body);
-        line-height: 1.55;
-	}
 
 	.table-container {
         width: 100%;
@@ -1007,8 +969,7 @@
     }
 
     .edit-dialog input:focus-visible,
-    .admin-action-btn:focus-visible,
-    .btn:focus-visible {
+    .admin-action-btn:focus-visible {
         outline: 2px solid var(--latex-accent);
         outline-offset: 2px;
     }
@@ -1118,11 +1079,6 @@
     @media (max-width: 620px) {
         .section-header {
             align-items: flex-start;
-        }
-
-        .empty {
-            padding: 1.2rem 0.8rem;
-            font-size: 0.9rem;
         }
     }
 

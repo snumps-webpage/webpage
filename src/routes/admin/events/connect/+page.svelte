@@ -197,21 +197,6 @@
         border-top: 1px solid var(--latex-rule);
     }
 
-    .btn {
-        padding: 0.55rem 0.88rem;
-        font-weight: 640;
-        font-size: 0.68rem;
-        cursor: pointer;
-        border: 1px solid var(--latex-text);
-        text-decoration: none;
-        user-select: none;
-        font-family: var(--font-mono);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        background: transparent;
-        color: var(--latex-text);
-    }
-
     .abort {
         border-color: var(--latex-rule);
         color: var(--latex-muted);
@@ -235,13 +220,6 @@
     .publish:disabled {
         opacity: 0.45;
         cursor: not-allowed;
-    }
-
-    .empty {
-        text-align: center;
-        color: var(--latex-muted);
-        padding: 2.4rem 1rem;
-        border: 1px dashed var(--latex-rule);
     }
 
     @media (max-width: 768px) {

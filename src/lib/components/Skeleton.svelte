@@ -16,28 +16,29 @@
 
 <style>
 	.skeleton {
-		background-color: color-mix(in srgb, var(--border-color) 80%, var(--bg-primary));
+		background-color: transparent;
+		border: 1px dashed var(--latex-rule, var(--border-color));
 		background-image: linear-gradient(
 			90deg, 
 			rgba(255, 255, 255, 0) 0, 
-			rgba(255, 255, 255, 0.12) 24%, 
-			rgba(255, 255, 255, 0.3) 58%, 
+			rgba(255, 255, 255, 0.03) 24%, 
+			rgba(255, 255, 255, 0.08) 58%, 
 			rgba(255, 255, 255, 0)
 		);
 		background-size: 200% 100%;
 		background-repeat: no-repeat;
-		animation: shimmer 2s infinite linear;
+		animation: shimmer 3s infinite linear;
 		display: inline-block;
+		opacity: 0.65;
 	}
 
 	:global(.dark) .skeleton {
-		background-color: color-mix(in srgb, var(--border-color) 75%, var(--bg-primary));
 		background-image: linear-gradient(
 			90deg, 
-			rgba(255, 255, 255, 0) 0, 
-			rgba(255, 255, 255, 0.05) 20%, 
-			rgba(255, 255, 255, 0.1) 60%, 
-			rgba(255, 255, 255, 0)
+			rgba(0, 0, 0, 0) 0, 
+			rgba(255, 255, 255, 0.01) 20%, 
+			rgba(255, 255, 255, 0.03) 60%, 
+			rgba(0, 0, 0, 0)
 		);
 	}
 
