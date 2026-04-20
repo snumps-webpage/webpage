@@ -32,6 +32,9 @@
         transition: background-color 0.16s, color 0.16s, border-color 0.16s;
         color: var(--text-secondary);
         vertical-align: middle;
+        /* MOBILE OPTIMIZATION: Ensure touch target is at least 44px */
+        min-width: 44px;
+        min-height: 44px;
     }
 
     .copy-btn-component:hover {

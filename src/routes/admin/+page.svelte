@@ -181,9 +181,10 @@
     			<h2 class="no-sel">이벤트 관리</h2>
     			{#if loadingEvents}
     	            <div class="skeleton-list">
-    	                <Skeleton height="3rem" className="mb-2" />
-    	                <Skeleton height="3rem" className="mb-2" />
-    	                <Skeleton height="3rem" />
+    	                <!-- Optimized height to match mobile cards/table rows -->
+    	                <Skeleton height="8rem" className="mb-2" />
+    	                <Skeleton height="8rem" className="mb-2" />
+    	                <Skeleton height="8rem" />
     	            </div>
     	        {:else if events.length === 0}
     				<p class="empty">생성된 이벤트가 없습니다.</p>
@@ -306,8 +307,8 @@
     	    			<h2 class="no-sel">출석 승인 대기 ({attendanceQueue.length})</h2>
     	    			{#if loadingQueue}
     	    	            <div class="skeleton-list">
-    	    	                <Skeleton height="3rem" className="mb-2" />
-    	    	                <Skeleton height="3rem" />
+    	    	                <Skeleton height="7rem" className="mb-2" />
+    	    	                <Skeleton height="7rem" />
     	    	            </div>
     	    	        {:else if attendanceQueue.length === 0}
     	    				<p class="empty">대기 중인 출석 요청이 없습니다.</p>
@@ -451,9 +452,9 @@
     
     					{#if loadingSeminars}
     			            <div class="skeleton-list">
-    			                <Skeleton height="3rem" className="mb-2" />
-    			                <Skeleton height="3rem" className="mb-2" />
-    			                <Skeleton height="3rem" />
+    			                <Skeleton height="6rem" className="mb-2" />
+    			                <Skeleton height="6rem" className="mb-2" />
+    			                <Skeleton height="6rem" />
     			            </div>
     			        {:else if seminarRequests.length === 0}
     						<p class="empty">대기 중인 세미나 신청이 없습니다.</p>
