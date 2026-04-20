@@ -9,6 +9,10 @@ import { env } from "$env/dynamic/private";
 const REDIS_URL = env.REDIS_URL;
 let redis: Redis | null = null;
 
+interface RedisError extends Error {
+  code?: string;
+}
+
 if (REDIS_URL) {
   try {
     redis = new Redis(REDIS_URL, {
@@ -16,14 +20,14 @@ if (REDIS_URL) {
       connectTimeout: 5000,
       lazyConnect: true, // Only connect on first command
     });
-    redis.on("error", (err) => {
+    redis.on("error", (err: RedisError) => {
       // Don't crash the app if Redis fails, just log it.
-      if ((err as any).code !== "ECONNREFUSED") {
+      if (err.code !== "ECONNREFUSED") {
         console.warn(">>> [Cache] Redis Error:", err);
       }
     });
-  } catch (e) {
-    console.warn(">>> [Cache] Failed to initialize Redis:", e);
+  } catch {
+    console.warn(">>> [Cache] Failed to initialize Redis");
   }
 }
 
@@ -85,7 +89,7 @@ export async function withCache<T>(
           localCache.set(key, { data, expiry: now + Math.min(ttlMs, 60000) });
           return data as T;
         }
-      } catch (e) {
+      } catch {
         // Silently fail to Notion fetcher if Redis is down
       }
     }
@@ -102,7 +106,7 @@ export async function withCache<T>(
     try {
       // "PX" sets expiry in milliseconds
       await redis.set(key, JSON.stringify(data), "PX", ttlMs);
-    } catch (e) {
+    } catch {
       // Silently fail
     }
   }
@@ -123,7 +127,7 @@ export async function invalidateCache(key: string) {
   if (redis) {
     try {
       await redis.del(key);
-    } catch (e) {
+    } catch {
       // Silently fail
     }
   }

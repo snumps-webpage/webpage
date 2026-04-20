@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 export * from "./client";
 export * from "./utils";
 export * from "./members";
