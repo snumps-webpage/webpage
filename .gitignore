@@ -6,10 +6,12 @@ node_modules
 .wrangler
 /.svelte-kit
 /build
+.vercel
 
 # OS
 .DS_Store
 Thumbs.db
+*.swp
 
 # Env
 .env
@@ -23,10 +25,31 @@ vite.config.ts.timestamp-*
 
 # OAuth
 .oauth_client.json
+*-oauthclient.json
+
+# Lockfiles
+package-lock.json
+pnpm-lock.yaml
+
+# Tools & Local Scripts
+tools/
+query-db.js
+inspect-db.js
+test_date_logic.js
+diag-mail.js
+logs.txt
+template.txt
+preview_account_change.log
+quick-vercel
+analyze.ts
+
+# Internal/Codex
+.codex/
 
 # Extra
 .extra/
-.env*.local
-.vercel
+
+# Backups
+*.backup*
 
 static/posters/exports
