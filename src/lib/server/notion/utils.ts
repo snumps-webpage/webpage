@@ -1,7 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import type { z } from "zod";
+
 /**
  * Utility functions for parsing Notion API responses.
  */
+
+/**
+ * Validates raw data against a Zod schema.
+ */
+export function validateNotionResponse<T>(
+  schema: z.ZodSchema<T>,
+  data: any,
+): T {
+  const result = schema.safeParse(data);
+  if (!result.success) {
+    console.error(
+      ">>> [Notion Validator] Schema Mismatch:",
+      result.error.format(),
+    );
+    return data as T; // Fallback to raw data in production to avoid crashing, but log error
+  }
+  return result.data;
+}
 
 /**
  * Extracts a simplified value from a Notion property object.

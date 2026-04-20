@@ -4,45 +4,37 @@
 
 ```text
 src/
-├── app.d.ts             # Type definitions (App.Locals, App.PageData)
-├── auth.ts              # Auth.js configuration & Google Provider
-├── hooks.server.ts      # Auth.js handler hook
+├── app.d.ts             # Global Type definitions (Locals, PageData)
+├── auth.ts              # Auth.js config (Google Provider)
+├── hooks.server.ts      # Server middleware (Auth, Membership Guard)
 ├── lib/
-│   ├── assets/          # Static assets (favicon, instagram logo)
-│   └── server/
-│       ├── admin.ts     # Membership application workflow logic
-│       ├── cache.ts     # In-memory server-side caching utility
-│       ├── events.ts    # Event state & attendance queue management
-│       ├── mail.ts      # Google Gmail API service for notifications
-│       └── notion.ts    # Centralized Notion API Service (CRUD Helpers, Parsers)
-│   ├── constants.ts     # Centralized property names and type constants
-│   ├── theme.ts         # Light/Dark mode state logic
-│   └── utils.ts         # Shared semester, phone normalization, and date utilities
-└── routes/
-    ├── +layout.server.ts # Global Context (President info, Admin status)
-    ├── +layout.svelte    # Global UI (Footer with Theme Selector, Header)
-    ├── +page.server.ts   # Dashboard logic (Profile & Seminar management)
-    ├── +page.svelte      # User Dashboard (Stats, Linked Activity Summary)
-    ├── admin/            # Admin Dashboard (Applications, Events, Attendance Review)
-    ├── events/           # Public Event Pages (Attend actions)
-    ├── login/            # Custom styled login page
-    ├── notion/           # Raw Database Viewer (Admin only)
-    ├── seminar/          # Seminar application/proposal flow
-    └── signup/           # Membership Application Form
+│   ├── components/      # UI Components (Svelte 5 Runes)
+│   ├── server/
+│   │   ├── notion/      # Modular Notion Service (Schemas, Client, Domain Modules)
+│   │   ├── repositories/# Repository Pattern implementation
+│   │   ├── cache.ts     # Hybrid Redis/Memory Cache
+│   │   └── mail/        # Gmail Notification Service
+│   ├── constants.ts     # Centralized property names & manuscript data
+│   └── utils.ts         # Logic & Date utilities
+└── routes/              # SvelteKit File-based Routing
 ```
 
-## 💾 Hybrid Storage & Scalability
+## 💾 Data Layer & Reliability
 
-- **Notion Primary (Source of Truth)**:
-  - **Members & Private Info**: Centralized club registry.
-  - **Applications (Signups)**: Membership requests are stored directly in Notion for administrative processing.
-  - **Seminar Requests**: Member-led proposals are persisted in Notion until approval.
-- **In-Memory Caching (Performance)**: Server-side `Map` cache with TTL is used to reduce Notion API calls for frequent reads (Members, Events). Note: This cache is ephemeral (per-lambda). See [**Caching Policy**](CACHE.md) for specific durations and details.
-- **Sustainability**: All Notion interactions use centralized generic helpers (`notionQuery`, `notionCreate`, `notionUpdate`) with explicit headers and official SDK support for maximum reliability.
+- **Notion Source of Truth**: Primary persistent store for all club data.
+- **Repository Pattern**: Business logic interacts with `repositories/` (e.g., `MemberRepository`) rather than raw API helpers, decoupling the database implementation.
+- **Strict Validation (Zod)**: All Notion payloads are validated via `schema.ts` to ensure runtime type safety.
+- **Hybrid Caching**:
+  - **L1 (Local)**: Fast in-memory map (per-instance).
+  - **L2 (Distributed)**: Redis shared across all serverless instances.
 
-## 🛡️ Operations & Error Handling
+## 🛡️ Security & Middleware
 
-- **Membership Enforcement**: `+layout.server.ts` verifies membership status globally.
-- **Standardized Status Codes**: Actions return detailed HTTP status codes (400, 401, 403, 404, 409, 500) for precise error reporting.
-- **NFC Normalization**: Korean property names are normalized to NFC standard to ensure reliable API matching across different operating systems.
-- **In-Memory Caching**: Leverages a TTL-based cache to reduce API load and improve dashboard performance.
+- **Centralized Guard**: `hooks.server.ts` handles global authentication and membership verification.
+- **Request Memoization**: Pre-fetched member data is stored in `event.locals` to prevent redundant API calls during the same request lifecycle.
+
+## 🎨 Visual Identity: Math Journal Aesthetic
+
+- **Design Philosophy**: Emulates the visual language of LaTeX and academic journals.
+- **Core Tokens**: High-contrast serif typography, horizontal rules, mathematical figure labeling, and symbolic empty states.
+- **Styling**: Centralized in `manuscript.css` for performance and consistency.

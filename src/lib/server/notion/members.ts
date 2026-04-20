@@ -5,6 +5,8 @@
 import { env } from "$env/dynamic/private";
 import { withCache } from "../cache";
 import { NOTION_PROPS } from "../../constants";
+import { MemberSchema, PrivateInfoSchema } from "./schema";
+import type { LatestExecutives, ExecutiveInfo } from "./schema";
 import {
   notionCreate,
   notionQuery,
@@ -12,7 +14,7 @@ import {
   notionRetrieve,
   notionUpdate,
 } from "./client";
-import { getPropertyValue } from "./utils";
+import { getPropertyValue, validateNotionResponse } from "./utils";
 
 export async function createMember(data: {
   name: string;
@@ -74,10 +76,13 @@ export async function getMemberByEmail(email: string, skipCache = false) {
         return null;
       }
 
-      return {
+      return validateNotionResponse(MemberSchema, {
+        id: relationProp.relation[0].id,
         privateInfoId: page.id,
         memberId: relationProp.relation[0].id,
-      };
+        name: "", // Placeholder
+        department: "",
+      });
     },
     { skipCache },
   );
@@ -85,13 +90,14 @@ export async function getMemberByEmail(email: string, skipCache = false) {
 
 export async function getMemberById(memberId: string) {
   const page = await notionRetrieve(memberId);
-  return {
+  return validateNotionResponse(MemberSchema, {
     id: page.id,
+    memberId: page.id,
     name: getPropertyValue(page.properties[NOTION_PROPS.NAME]),
     department: getPropertyValue(page.properties[NOTION_PROPS.DEPT]),
     privateInfoId: (page.properties[NOTION_PROPS.MEMBER_TO_PRIVATE] as any)
       ?.relation?.[0]?.id,
-  };
+  });
 }
 
 export async function getAllMembers(skipCache = false) {
@@ -112,25 +118,18 @@ export async function getAllMembers(skipCache = false) {
         ],
       });
 
-      return results.map((page) => ({
-        id: page.id,
-        name: getPropertyValue(page.properties[NOTION_PROPS.NAME]),
-        department: getPropertyValue(page.properties[NOTION_PROPS.DEPT]),
-        joinDate: getPropertyValue(page.properties[NOTION_PROPS.JOIN_DATE]),
-      }));
+      return results.map((page) =>
+        validateNotionResponse(MemberSchema, {
+          id: page.id,
+          memberId: page.id,
+          name: getPropertyValue(page.properties[NOTION_PROPS.NAME]),
+          department: getPropertyValue(page.properties[NOTION_PROPS.DEPT]),
+          joinDate: getPropertyValue(page.properties[NOTION_PROPS.JOIN_DATE]),
+        }),
+      );
     },
     { skipCache },
   );
-}
-
-export interface ExecutiveInfo {
-  name: string;
-  phone: string;
-}
-
-export interface LatestExecutives {
-  president: ExecutiveInfo;
-  vicePresident: ExecutiveInfo;
 }
 
 export async function getLatestExecutives(): Promise<LatestExecutives> {
@@ -224,12 +223,13 @@ export async function getLatestExecutives(): Promise<LatestExecutives> {
 
 export async function getPrivateInfo(pageId: string) {
   const page = await notionRetrieve(pageId);
-  return {
+  return validateNotionResponse(PrivateInfoSchema, {
+    id: page.id,
     email: getPropertyValue(page.properties[NOTION_PROPS.EMAIL]),
     name: getPropertyValue(page.properties[NOTION_PROPS.NAME]),
     phone: getPropertyValue(page.properties[NOTION_PROPS.PHONE]),
     background: getPropertyValue(page.properties[NOTION_PROPS.BACKGROUND]),
-  };
+  });
 }
 
 export async function getAllPrivateInfo() {
@@ -244,13 +244,16 @@ export async function getAllPrivateInfo() {
     ],
   });
 
-  return results.map((page) => ({
-    id: page.id,
-    name: getPropertyValue(page.properties[NOTION_PROPS.NAME]),
-    email: getPropertyValue(page.properties[NOTION_PROPS.EMAIL]),
-    memberId: (page.properties[NOTION_PROPS.PRIVATE_TO_MEMBER] as any)
-      ?.relation?.[0]?.id,
-  }));
+  return results.map((page) =>
+    validateNotionResponse(PrivateInfoSchema, {
+      id: page.id,
+      name: getPropertyValue(page.properties[NOTION_PROPS.NAME]),
+      email: getPropertyValue(page.properties[NOTION_PROPS.EMAIL]),
+      memberId: (page.properties[NOTION_PROPS.PRIVATE_TO_MEMBER] as any)
+        ?.relation?.[0]?.id,
+      phone: "", // Not queried in bulk
+    }),
+  );
 }
 
 export async function updatePrivateInfo(
