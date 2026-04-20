@@ -418,6 +418,15 @@ textarea:focus-visible {
   box-shadow: none;
 }
 
+body.mobile-menu-open .global-nav {
+  position: fixed;
+  width: 100%;
+}
+
+body.mobile-menu-open main {
+  margin-top: var(--nav-height);
+}
+
 .dark .global-nav {
   background: var(--latex-bg);
   border-bottom: 1px solid
