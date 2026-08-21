@@ -9,6 +9,7 @@
     		import ManuscriptHeader from '$lib/components/ManuscriptHeader.svelte';
     		import StatusBadge from '$lib/components/StatusBadge.svelte';
     		import { MANUSCRIPT } from '$lib/constants';
+    		import { PHONE_FORMAT_MESSAGE, PHONE_HTML_PATTERN } from '$lib/utils';
     		import type { DashboardData, Activity } from '$lib/types';    	import type { PageData } from './$types';
     
     	let { data }: { data: PageData } = $props();
@@ -278,8 +279,8 @@
 													name="phone"
 													value={dashboardData.profile.phone}
 													placeholder="010-1234-5678"
-													pattern="[0-9]{3}-[0-9]{4}-[0-9]{4}"
-													title="XXX-XXXX-XXXX 형식으로 입력해주세요."
+													pattern={PHONE_HTML_PATTERN}
+													title={PHONE_FORMAT_MESSAGE}
 												/>
 											</div>
 											<div class="paper-field">

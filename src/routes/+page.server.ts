@@ -10,8 +10,10 @@ import {
 import { getSeminarRequests } from "$lib/server/seminars";
 import { handleUserAction } from "$lib/server/auth-guards";
 import {
+  PHONE_FORMAT_MESSAGE,
   getSemesterInfo,
   getSemesterKeyFromDate,
+  isValidPhoneNumber,
   normalizePhoneNumber,
 } from "$lib/utils";
 import { dev } from "$app/environment";
@@ -263,12 +265,17 @@ export const actions = {
     if (dev && devPreviewRole) return { success: true, preview: true };
 
     const data = await request.formData();
-    const phone = normalizePhoneNumber(data.get("phone") as string);
+    const rawPhone = ((data.get("phone") as string | null) ?? "").trim();
     const background = data.get("background") as string;
 
     return handleUserAction(
       locals,
       async (session) => {
+        if (rawPhone && !isValidPhoneNumber(rawPhone))
+          throw new Error(PHONE_FORMAT_MESSAGE);
+
+        const phone = rawPhone ? normalizePhoneNumber(rawPhone) : "";
+
         const member = await getMemberByEmail(session.user.email);
         if (!member) throw new Error("회원 정보를 찾을 수 없습니다.");
 

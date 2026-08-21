@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { PHONE_FORMAT_MESSAGE, PHONE_HTML_PATTERN } from '$lib/utils';
+
 	let { title = 'Submission', phone = '', background = '' } = $props();
 </script>
 
@@ -13,8 +15,8 @@
 			value={phone}
 			required
 			placeholder="010-0000-0000"
-			pattern="(\d&#123;11&#125;)|(\d&#123;3&#125;-\d&#123;4&#125;-\d&#123;4&#125;)"
-			title="11자리 숫자 또는 XXX-XXXX-XXXX 형식으로 입력해주세요."
+			pattern={PHONE_HTML_PATTERN}
+			title={PHONE_FORMAT_MESSAGE}
 			inputmode="tel"
 			autocomplete="tel"
 		/>

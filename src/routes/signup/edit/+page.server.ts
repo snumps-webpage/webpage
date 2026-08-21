@@ -7,7 +7,12 @@ import {
   type Application,
 } from "$lib/server/admin";
 import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
-import { normalizePhoneNumber, parseGoogleName } from "$lib/utils";
+import {
+  PHONE_FORMAT_MESSAGE,
+  isValidPhoneNumber,
+  normalizePhoneNumber,
+  parseGoogleName,
+} from "$lib/utils";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
@@ -54,12 +59,16 @@ export const actions = {
         }
 
         const data = await request.formData();
-        const phone = normalizePhoneNumber(data.get("phone") as string);
+        const rawPhone = ((data.get("phone") as string | null) ?? "").trim();
         const background = data.get("background") as string;
         const appId = data.get("id") as string;
 
         if (!appId) throw new Error("수정할 신청 내역을 찾을 수 없습니다.");
-        if (!phone) throw new Error("전화번호를 입력해주세요.");
+        if (!rawPhone) throw new Error("전화번호를 입력해주세요.");
+        if (!isValidPhoneNumber(rawPhone))
+          throw new Error(PHONE_FORMAT_MESSAGE);
+
+        const phone = normalizePhoneNumber(rawPhone);
 
         await updateApplication(appId, {
           name: immutableName,

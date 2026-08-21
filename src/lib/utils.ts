@@ -116,12 +116,30 @@ export function getSemesterKeyFromDate(dateStr: string): string {
 }
 
 /**
+ * HTML `pattern` attribute source for phone inputs.
+ * Kept here so forms and server-side validation share one definition.
+ */
+export const PHONE_HTML_PATTERN =
+  "0[0-9]{9,10}|0[0-9]{2}-[0-9]{3,4}-[0-9]{4}";
+
+/**
+ * Human-readable description of PHONE_HTML_PATTERN.
+ * Shared by the form `title` attribute and the server-side error message.
+ */
+export const PHONE_FORMAT_MESSAGE =
+  "10~11자리 숫자 또는 XXX-XXX(X)-XXXX 형식으로 입력해주세요.";
+
+function extractPhoneDigits(phone: string): string {
+  return phone.replace(/\D/g, "");
+}
+
+/**
  * Normalizes phone numbers to 010-XXXX-XXXX format.
  * Accepts: 010XXXXXXXX, 010-XXXX-XXXX, 010 XXXX XXXX, etc.
  */
 export function normalizePhoneNumber(phone: string): string {
   // Remove all non-digit characters
-  const digits = phone.replace(/\D/g, "");
+  const digits = extractPhoneDigits(phone);
 
   if (digits.length === 11) {
     return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
@@ -130,4 +148,21 @@ export function normalizePhoneNumber(phone: string): string {
   }
 
   return phone; // Return as-is if it doesn't match expected length
+}
+
+/**
+ * Validates phone numbers accepted by forms.
+ * Accepts:
+ * - 10~11 digits (e.g., 01012345678)
+ * - dashed format (e.g., 010-1234-5678 or 031-123-4567)
+ */
+export function isValidPhoneNumber(phone: string): boolean {
+  const value = phone.trim();
+  if (!value) return false;
+
+  // Reject anything that is not digits, dashes or spaces before counting.
+  if (!/^[0-9-\s]+$/.test(value)) return false;
+
+  const digits = extractPhoneDigits(value);
+  return /^0\d{9,10}$/.test(digits);
 }

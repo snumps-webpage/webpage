@@ -64,3 +64,15 @@ This document explains the reusable components and utility functions implemented
 - **Purpose**: Standardizes contact information.
 - **Functionality**: Converts various raw inputs (e.g., `01012345678`, `010 1234 5678`) into the official `010-XXXX-XXXX` format.
 - **When to use**: Formatting phone numbers before saving to the database.
+- **Constraint**: Formatting only. It never rejects input — pair it with `isValidPhoneNumber`.
+
+### `isValidPhoneNumber` / `PHONE_HTML_PATTERN` / `PHONE_FORMAT_MESSAGE`
+
+- **Purpose**: One definition of "a phone number we accept", shared by the browser and the server.
+- **Functionality**: Accepts 10~11 digits starting with `0`, with or without dashes, so both mobile
+  numbers (`010-1234-5678`) and area codes (`031-123-4567`) pass.
+- **When to use**: `PHONE_HTML_PATTERN` and `PHONE_FORMAT_MESSAGE` feed the `pattern`/`title`
+  attributes of every phone `<input>`; `isValidPhoneNumber` guards the matching server action.
+  Validate first, then `normalizePhoneNumber` the value you store.
+- **Constraint**: Do **not** validate values read back out of Notion — legacy rows may predate this
+  rule, and rejecting them would break the admin views.
