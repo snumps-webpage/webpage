@@ -8,6 +8,7 @@ A secure SvelteKit web application designed to manage membership, activity track
 - **[Setup & Installation](./docs/SETUP.md)**: Instructions for local development and Gmail API configuration.
 - **[System Architecture](./docs/ARCHITECTURE.md)**: Detailed breakdown of the project structure and hybrid storage model.
 - **[Design Blueprint](./docs/DESIGN_BLUEPRINT.md)**: Guest landing LaTeX/arXiv design rules and implementation constraints.
+- **[Contributing](./CONTRIBUTING.md)**: Workflow, coding standards, and git conventions.
 
 ## 🌟 Key Highlights
 
@@ -35,3 +36,6 @@ A secure SvelteKit web application designed to manage membership, activity track
 - [**Design Blueprint**](docs/DESIGN_BLUEPRINT.md) - Pre-login landing design principles and guardrails.
 - [**Caching Policy**](docs/CACHE.md) - Cache durations and management strategy.
 - [**Database Schema**](docs/schema.md) - Notion database structures and property mappings.
+- [**Internal API**](docs/API.md) - Endpoints under `src/routes/api/`, their guards and responses.
+- [**Deployment**](docs/DEPLOYMENT.md) - Vercel deploy, cron schedule, and production checklist.
+- [**Commenting Rules**](docs/COMMENTING_RULES.md) - Standards for comments in the codebase.

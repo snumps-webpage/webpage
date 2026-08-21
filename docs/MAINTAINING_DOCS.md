@@ -15,6 +15,10 @@ This document explains the purpose of each documentation file in this project, h
 | `CACHE.md`            | Performance  | Backend Devs    | Caching strategy, TTL values, and cache key patterns.      |
 | `schema.md`           | Database     | Backend Devs    | Notion database properties and relation mappings.          |
 | `DESIGN_BLUEPRINT.md` | UI/UX        | Designers/Devs  | Authoritative rules for LaTeX/Academic visual style.       |
+| `CONTRIBUTING.md`     | Process      | All Developers  | Workflow, coding standards, and git conventions.           |
+| `COMMENTING_RULES.md` | Process      | All Developers  | What a comment must earn before it stays in the codebase.  |
+| `API.md`              | Interface    | Engineers       | Contract of every endpoint under `src/routes/api/`.        |
+| `DEPLOYMENT.md`       | Operations   | Admins/Devs     | Vercel deploy, cron schedule, and production checklist.    |
 
 ---
 
@@ -58,3 +62,18 @@ This document explains the purpose of each documentation file in this project, h
 
 - **When to update**: When introducing a new global UI pattern (e.g., a new type of list or input style).
 - **How to extend**: Define strict implementation rules (fonts, colors, alignment) to ensure future consistency.
+
+### `CONTRIBUTING.md` & `COMMENTING_RULES.md`
+
+- **When to update**: When a workflow command changes (package manager, test runner, quality gate), or when a review repeatedly has to repeat the same correction — that correction belongs in the standard.
+- **How to extend**: State the rule and the reason. `CONTRIBUTING.md` must not restate setup steps; link to `SETUP.md` instead.
+
+### `API.md`
+
+- **When to update**: In the same change as any edit under `src/routes/api/` — new endpoint, changed method, changed auth, changed response shape, or retirement.
+- **How to extend**: Record the **Purpose**, **Access** (exact guard and env var), and the full status-code table. Verify against the handler; do not describe intent.
+
+### `DEPLOYMENT.md`
+
+- **When to update**: When `vercel.json`, `Dockerfile`, `docker-compose.yml`, the adapter in `svelte.config.js`, or any production-only environment variable changes.
+- **How to extend**: Keep the cron expression and its KST interpretation in sync with `vercel.json`, and keep the security checklist aligned with the guards actually implemented.
