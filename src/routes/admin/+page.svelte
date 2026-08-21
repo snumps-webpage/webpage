@@ -156,6 +156,19 @@
             editDialog.close();
             editingRecord = null;
         }
+
+    // State for viewing an application's details
+    let selectedApp = $state<Application | null>(null);
+    let appDetailsDialog: HTMLDialogElement;
+
+    function openAppDetails(app: Application) {
+        selectedApp = app;
+        appDetailsDialog.showModal();
+    }
+
+    function closeAppDetails() {
+        appDetailsDialog.close();
+    }
         
         /**
          * Converts an ISO string to a format compatible with <input type="datetime-local">.
@@ -440,6 +453,28 @@
                 </form>
             {/if}
         </dialog>
+
+        <!-- Application Details Dialog -->
+        <dialog
+            bind:this={appDetailsDialog}
+            class="edit-dialog"
+            onclose={() => (selectedApp = null)}
+        >
+            {#if selectedApp}
+                <h3>신청 상세 정보</h3>
+                <p><strong>{selectedApp.name}</strong> ({selectedApp.department})</p>
+
+                <ApplicationDetails
+                    email={selectedApp.email}
+                    phone={selectedApp.phone}
+                    background={selectedApp.background}
+                />
+
+                <div class="dialog-actions">
+                    <button type="button" class="btn cancel" onclick={closeAppDetails}>닫기</button>
+                </div>
+            {/if}
+        </dialog>
     
     				<section class="mt-4">
     					<SectionHeader 
@@ -593,14 +628,7 @@
                                         <td><span class="tag">{app.department}</span></td>
                                         <td>{new Date(app.submittedAt).toLocaleDateString()}</td>
                                         <td>
-                                            <details>
-                                                <summary>보기</summary>
-                                                <ApplicationDetails 
-                                                    email={app.email} 
-                                                    phone={app.phone} 
-                                                    background={app.background} 
-                                                />
-                                            </details>
+                                            <button type="button" class="btn edit small" onclick={() => openAppDetails(app)}>보기</button>
                                         </td>
                                         <td class="actions-cell">
                                             {#if app.accepted}
@@ -646,14 +674,7 @@
                                 </div>
                                 <div class="card-body">
                                     <p><strong>신청일:</strong> {new Date(app.submittedAt).toLocaleDateString()}</p>
-                                    <details>
-                                        <summary>상세 정보 보기</summary>
-                                        <ApplicationDetails 
-                                            email={app.email} 
-                                            phone={app.phone} 
-                                            background={app.background} 
-                                        />
-                                    </details>
+                                    <button type="button" class="btn edit small" onclick={() => openAppDetails(app)}>상세 정보 보기</button>
                                 </div>
                                 <div class="card-actions">
                                     {#if app.accepted}
@@ -902,20 +923,6 @@
         background: transparent;
         color: var(--latex-muted);
 	}
-
-    summary {
-        cursor: pointer;
-        color: var(--latex-muted);
-        font-family: var(--font-mono);
-        font-size: 0.68rem;
-        font-weight: 680;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-    }
-
-    details[open] summary {
-        margin-bottom: 0.45rem;
-    }
 
     .edit-dialog {
         width: min(96vw, 520px);
