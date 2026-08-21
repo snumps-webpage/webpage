@@ -11,6 +11,8 @@
     "prepare": "svelte-kit sync || echo ''",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --output=machine-verbose",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "prettier --check . && eslint .",
     "format": "prettier --write .",
     "deploy": "vercel build --prod && vercel deploy --prebuilt --prod",
