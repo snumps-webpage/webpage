@@ -6,7 +6,7 @@
 대상 인벤토리: [`notion-site-inventory.md`](./notion-site-inventory.md)
 페이지 이주: [`notion-pages-to-web.md`](./notion-pages-to-web.md) (별도 프로세스, §7에 순서 의존)
 
-범위: **공개** DB **5개 / 351행**과 첨부 **확인 86개 + 미해결 2개**.
+범위: **공개** DB **5개 / 351행**과 첨부 **90개**.
 
 > ⚠️ 앱이 실제로 읽고 쓰는 DB는 **9개**다 (인벤토리 §6 표). 공개된 5개는 부분집합이며,
 > `회원.개인 정보` → `PRIVATE_INFO` 같은 relation이 공개/비공개 경계를 넘나든다.
@@ -27,17 +27,20 @@
 ### 1-2. 앱은 Notion에 읽기만 하지 않는다 — 쓴다
 
 ```
-notionCreate / notionUpdate / notionArchive 등장 지점: 43곳
-  (import 문과 client.ts의 정의 9곳 포함 — 순수 호출부는 약 30곳)
-쓰기 서비스 함수: 17개
-쓰기를 수행하는 라우트: 7개
-  signup/           가입 신청 생성·수정
-  signup/edit/      신청 수정
-  +page.server.ts   프로필·세미나 정보 수정
-  events/[id]/[type] 출석 기록
-  admin/            승인, 회원 생성, 활동 페이지 생성, 출석자 추가, 세미나 등록
-  admin/events/new  이벤트 발행
-  seminar/edit/[id] 세미나 신청 수정
+notionCreate / notionUpdate / notionArchive 실제 호출부: 17곳
+  (raw grep 43줄은 import 13 + client.ts 정의 9 + 별칭 재노출 4를 포함한 수치다)
+쓰기 가능 서비스 export: 20개
+쓰기를 수행하는 라우트: 10개
+  +page.server.ts             프로필·세미나 정보 수정
+  signup/                     가입 신청 생성
+  signup/edit/                신청 수정
+  seminar/apply/              세미나 개설 신청 생성
+  seminar/edit/[id]           세미나 신청 수정
+  events/[id]/[type]          출석 기록
+  admin/                      승인, 회원 생성, 활동 페이지 생성, 출석자 추가, 세미나 등록
+  admin/events/new            이벤트 발행
+  admin/events/connect        기존 활동 연결
+  api/cron/sync-events        이벤트 상태 동기화 ← 유일하게 isPublic 안에 있는 쓰기 경로
 ```
 
 **S3는 객체 스토리지지 데이터베이스가 아니다.** 다만 그 한계를 정확히 짚어야 한다.
@@ -77,7 +80,7 @@ notionCreate / notionUpdate / notionArchive 등장 지점: 43곳
 
 | 데이터 | 목적지 | 근거 |
 |---|---|---|
-| **첨부 86개** (이미지·PDF) | **S3** ✅ | 정확히 S3가 할 일. URL 만료·핫링크 문제도 해결 |
+| **첨부 90개** (이미지·PDF) | **S3** ✅ | 정확히 S3가 할 일. URL 만료·핫링크 문제도 해결 |
 | **레코드** | **Notion 유지** (원본), S3는 읽기 전용 파생 스냅샷 | 아래 |
 
 근거: 공개 레코드 351행 규모, 실질 동시 편집자 1명, 이미 Redis 캐시 계층 보유, DBA 없음.
@@ -100,7 +103,7 @@ notionCreate / notionUpdate / notionArchive 등장 지점: 43곳
 
 ---
 
-## 2. 트랙 A — 자산 이주 (확인 86 + 미해결 2)
+## 2. 트랙 A — 자산 이주 (90개)
 
 ### 2-1. 원본의 성질
 
@@ -109,10 +112,13 @@ prod-files-secure.s3.us-west-2.amazonaws.com/<spaceId>/<uuid>/<filename>
   ?X-Amz-Expires=300&X-Amz-Signature=...
 ```
 
-- **300초 만료 presigned URL** — 단 이건 이번 조사에 쓴 **미인증 v3 엔드포인트**의 값이다(실측).
-  앱이 실제로 쓰는 **공식 API**(`Notion-Version: 2022-06-28`, `notion/client.ts:8`)의
-  파일 URL은 **1시간** 유효하다. **익스포터는 공식 API를 쓸 것** — 그러면 다운로드 단계가
-  촉박하지 않다. 어느 쪽이든 결론은 같다: **URL을 저장하거나 핫링크하지 말 것**
+- **서명 URL은 접근 경로마다 형태와 수명이 다르다** (인벤토리 §4 표).
+  v3 `getSignedFileUrls`는 `file.notion.so/...?expirationTimestamp=`로 **수 시간**,
+  렌더 경로는 S3 presigned로 **300초**. 초판은 후자만 보고 "5분 안에 소비"를 설계 제약으로
+  넣었는데 불필요했다. **다운로드 단계를 촉박하게 설계하지 말 것.**
+- 블록 `source` 23개 중 10개는 **서명 없는 S3 URL이고 그대로 받으면 HTTP 403**이다.
+  전부 서명 URL을 다시 발급받아야 한다
+- 어느 쪽이든 결론은 같다: **URL을 저장하거나 핫링크하지 말 것**
 - 블록 응답의 `source`는 `attachment:<uuid>:<filename>` 내부 참조라 그 자체로 못 씀
 - 실제 URL을 얻으려면 매번 Notion API를 다시 호출해야 함
 - 파일명에 한글·공백 포함 (`수문연_The_3rd_Executive_...`, `2025-2_홍보_포스터.png`) →
@@ -127,13 +133,13 @@ prod-files-secure.s3.us-west-2.amazonaws.com/<spaceId>/<uuid>/<filename>
 | 세미나 기록 · 강의 자료 | 14 | PDF 등 |
 | 문제 창작 활동 (블록) | 15 | PDF |
 | 회식 갤러리 · 사진 | 5 | 이미지 |
+| 동아리 로고 (`image` 블록) | 4 | 로고 2 · 스티커 · 아이콘 |
 | 채팅방 논의 모음 (블록) | 3 | PDF |
 | 선거 공약 (블록) | 3 | PDF |
-| 자연대 Integration Bee (블록) | 2 | 미확인 |
-| 홍보 포스터 (**인라인 이미지**) | 1 | PNG |
-| 동아리 로고 (토글, **미해결**) | 2 | 이미지 추정 |
+| 자연대 Integration Bee (블록) | 2 | 적분 문제 + 답 PDF |
+| 홍보 포스터 (`image` 블록) | 1 | PNG |
 
-확인 **86개** + 미해결 2개. 총 용량은 미측정 — 실행 시 `Content-Length`로 집계할 것. 포스터·스캔 이미지가
+총 **90개, 미해결 0.** 총 용량은 미측정 — 실행 시 `Content-Length`로 집계할 것. 포스터·스캔 이미지가
 많아 수백 MB 규모로 추정하나 **추정치를 계획 근거로 삼지 말 것.**
 
 ### 2-3. 버킷·키 설계
@@ -190,10 +196,11 @@ s3://snumps-assets/
 
 ```
 1. 열거    loadPageChunk + queryCollection 으로 첨부 참조 전량 수집
-           ⚠️ `file`/`image` 블록 타입만 훑으면 안 된다. 홍보 포스터처럼
-              본문 인라인 마크다운 이미지로 들어간 자산이 있다. 토글 내부는
-              lazy 로딩이라 하위 페이지 id로 재조회해야 한다 (동아리 로고 2건 미해결)
-2. 해석    **공식 API**로 다운로드 URL 획득 (1시간 유효)
+           ⚠️ **토글 재귀가 핵심이다.** loadPageChunk는 토글 자식을 안 내려준다.
+              이번 조사에서만 두 번 놓쳤다(기타 활동 자료 3페이지, 회칙 이력 2페이지,
+              그리고 이미지 5개 전부가 토글 안에 있었다).
+              마크다운 파서는 필요 없다 — 전부 정상 `file`/`image` 블록이다
+2. 해석    서명 URL 재발급 (블록 source 그대로는 403). 수명은 경로에 따라 5분~수 시간
 3. 다운로드 Content-Type / Content-Length 기록, sha256 계산
 4. 정규화   슬러그화, 확장자 판정, 중복 제거(sha256 동일 = 동일 파일)
 5. 업로드   S3 PUT + 메타데이터(원본 파일명·출처 페이지)
@@ -202,7 +209,7 @@ s3://snumps-assets/
 ```
 
 **멱등성**: 4단계 sha256 기준으로 이미 올라간 파일은 건너뛴다. 중단·재실행이 안전해야 한다.
-**레이트 리밋**: Notion API는 평균 3req/s. 86개면 문제없지만 재시도까지 고려해 직렬 + 백오프.
+**레이트 리밋**: Notion API는 평균 3req/s. 90개면 문제없지만 재시도까지 고려해 직렬 + 백오프.
 
 ---
 
@@ -308,8 +315,11 @@ Repository 계층(`src/lib/server/repositories/`)이 이미 있으므로 여기�
 
 ### 4-2. 없는 모듈
 
-스터디 기록·회식 갤러리 DB에 대한 접근 코드가 앱에 **전혀 없다**. env 변수도 없다
-(`SETUP.md`에 `NOTION_DB_STUDIES` 부재). 트랙 B를 하든 안 하든 신설 대상이다.
+스터디 기록·회식 갤러리 DB를 **읽는 코드가 없다**. 단 `NOTION_DB_STUDIES`는 `.env`에
+이미 있고 값이 스터디 기록 페이지 id와 정확히 일치한다 — 설정만 돼 있고
+`src/` 어디서도 참조하지 않는다(`grep -rc NOTION_DB_STUDIES src/` → 0).
+`docs/SETUP.md`에 이 변수가 빠져 있어 "없다"고 오판하기 쉽다.
+회식 갤러리는 env조차 없다. 신설 대상은 env가 아니라 **모듈·타입**이다.
 
 ### 4-4. 🔴 전환 이후 누가 무엇으로 편집하는가
 
@@ -358,11 +368,11 @@ Repository 계층(`src/lib/server/repositories/`)이 이미 있으므로 여기�
 | 항목 | 방법 |
 |---|---|
 | 행 수 | 스냅샷 `count` == Notion `queryCollection` total (회원 231 / 활동 76 / 세미나 25 / 스터디 17 / 회식 2) |
-| 자산 개수 | S3 객체 수 == 열거 단계 실측치 (조사 시점 확인 86 + 미해결 2). 중복 제거로 줄면 매니페스트에 기록 |
+| 자산 개수 | S3 객체 수 == **90** (중복 제거로 줄면 매니페스트에 기록) |
 | 자산 무결성 | sha256 대조, HEAD로 Content-Length 일치 |
 | relation 정합 | 스냅샷의 모든 참조 id가 대상 스냅샷에 실재하는지 (dangling 0) |
 | 렌더 확인 | 세미나·스터디·갤러리 페이지에서 이미지 깨짐 0 |
-| 회귀 | Notion 쓰기 경로 7개 라우트가 그대로 동작 (트랙 B는 읽기만 바꾼다) |
+| 회귀 | Notion 쓰기 경로 **10개** 라우트가 그대로 동작 (트랙 B는 읽기만 바꾼다).<br>초판은 7개로 적어 `seminar/apply`, `admin/events/connect`, `api/cron/sync-events`를 빠뜨렸다 |
 
 ---
 
