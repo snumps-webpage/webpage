@@ -109,8 +109,13 @@ column 11 · collection_view 7 · column_list 5 · collection_view_page 4 · tog
 활동명 title · 일정 date · 활동 종류 select [세미나, 스터디, 회의, 회식, 기타, Seminar]
 출석 relation → 회원 · 출석 (기타) text · 캘린더 표시 여부 formula
 ```
-> `활동 종류`에 `세미나`와 `Seminar`가 **동시에** 존재한다. 앱 코드의
-> `SEMINAR_TYPES = new Set(["Seminar", "세미나"])`가 이 이중화를 흡수하고 있다.
+> `활동 종류`에 `세미나`와 `Seminar`가 **동시에** 존재한다.
+> **앱에는 이 이중화를 흡수하는 코드가 없다.** `grep -rn 'SEMINAR_TYPES' src/` → 없음.
+> 존재하는 것은 `src/lib/constants.ts:49`의 `ACTIVITY_TYPES`인데 여기엔 `세미나`만 있고
+> `Seminar`는 없으며, 반대로 실제 select에 없는 `문제 창작`/`문제 풀이`가 들어있다.
+> 대시보드 필터는 라이브 데이터에서 옵션을 만들므로(`+page.svelte:89`)
+> **현재 `세미나`와 `Seminar`가 별개 칩으로 나뉘어 보인다.**
+> (`SEMINAR_TYPES`는 미머지 `seminar` 브랜치 `fd7e482`가 도입하려는 코드다. 현행 아님.)
 
 **세미나 기록** (7속성)
 ```
@@ -132,7 +137,7 @@ column 11 · collection_view 7 · column_list 5 · collection_view_page 4 · tog
 
 ---
 
-## 4. 첨부 파일 인벤토리 (85개)
+## 4. 첨부 파일 인벤토리 (확인 86 + 미해결 2)
 
 ### 블록 첨부 (확인 24 + 미확인 2)
 
@@ -187,13 +192,30 @@ Notion 첨부는 `prod-files-secure.s3.us-west-2.amazonaws.com/<spaceId>/<uuid>/
 | 홍보 자료 | 전 회장 **휴대전화 번호 1건** (2025-2 홍보문 본문) |
 | 세미나/스터디 기록 | 진행자·주최자 실명 (relation), 진행자(비회원) 실명 |
 
-`개인 정보` DB(이메일·전화번호·배경지식)는 공개 범위 밖이다 — 이것만은 잘 분리돼 있다.
+`개인 정보` DB(이메일·전화번호·배경지식)는 Notion 공개 범위 밖이다.
+
+> 🔴 **그러나 앱이 그것을 비로그인 방문자에게 흘리고 있다.**
+> `src/routes/+layout.server.ts:28`이 **모든 라우트**에서 `getLatestExecutives()`를 호출하고,
+> 그 함수(`members.ts:135`)는 `getPrivateInfo()`를 거쳐 `{ name, phone }`을 반환한다.
+> `src/routes/+page.svelte:458`이 그 전화번호를 **게스트 표지**에 렌더한다.
+> 즉 Notion에서 분리해 둔 개인정보가 앱 경로로 이미 새고 있다.
+> 공개 라우트를 20개 추가하면 노출면과 Notion 호출량이 함께 20배가 된다.
+> **이주와 무관하게 선행 수정 대상.**
 
 ---
 
 ## 6. 🔴 이 DB들은 현재 프로덕션 DB다
 
-공개 사이트의 DB 속성명을 앱의 `src/lib/constants.ts` `NOTION_PROPS`와 대조한 결과:
+**결정적 근거 — page id가 그대로 일치한다.** `.env`의 값과 인벤토리 §1의 페이지 id 대조:
+
+| env 변수 | 가리키는 페이지 | 확인 |
+|---|---|---|
+| `NOTION_DB_MEMBERS` | 회원 `3042f5f5b3ac81dd97c4d3042464a4c6` | ✅ |
+| `NOTION_DB_ACTIVITIES` | 활동 기록 `3042f5f5b3ac81f0b9ace74f33386d43` | ✅ |
+| `NOTION_DB_SEMINARS` | 세미나 기록 `3042f5f5b3ac81939f96f32c81b7dbad` | ✅ |
+| `NOTION_DB_STUDIES` | 스터디 기록 `3042f5f5b3ac81d0b7cbe5f47b12b4c6` | ✅ |
+
+속성명 대조도 같은 결론이다 (보조 근거):
 
 | DB | 앱이 요구하는 속성 | 결과 |
 |---|---|---|
@@ -202,7 +224,25 @@ Notion 첨부는 `prod-files-secure.s3.us-west-2.amazonaws.com/<spaceId>/<uuid>/
 | 세미나 기록 | 제목, 진행자, 학기, 비고, 강의 자료, 활동 사진 | **6/6 일치** |
 
 **snumps.notion.site에 공개된 데이터베이스 = Vercel 앱이 런타임에 읽고 쓰는 바로 그 DB.**
-`NOTION_DB_MEMBERS` / `NOTION_DB_ACTIVITIES` / `NOTION_DB_SEMINARS`가 이들을 가리킨다.
+
+단 **앱이 쓰는 DB는 공개된 5개가 전부가 아니다.** 코드가 참조하는 것은 9개다:
+
+| env 변수 | 공개? | `.env` 존재? |
+|---|---|---|
+| `NOTION_DB_MEMBERS` | 공개 | ✅ |
+| `NOTION_DB_ACTIVITIES` | 공개 | ✅ |
+| `NOTION_DB_SEMINARS` | 공개 | ✅ |
+| `NOTION_DB_STUDIES` | 공개 | ✅ (코드에서 **미사용**) |
+| 회식 갤러리 | 공개 | ❌ env 없음 |
+| `NOTION_DB_PRIVATE_INFO` | **비공개** | ✅ |
+| `NOTION_DB_APPLICATIONS` | **비공개** | ✅ |
+| `NOTION_DB_SEMINAR_REQUESTS` | **비공개** | ✅ |
+| `NOTION_DB_EVENTS` | **비공개** | ❌ env 없음 |
+| `NOTION_DB_ATTENDANCE_QUEUE` | **비공개** | ❌ env 없음 |
+
+`회원.개인 정보`가 `PRIVATE_INFO`로 들어가는 relation이므로, 레코드를 옮기면
+공개 5개만 떼어낼 수 없다 — 남는 relation이 전부 dangling이 된다.
+`CRON_SECRET`, `REDIS_URL`도 `.env`에 없다.
 
 따라서 "데이터베이스 이주"는 콘텐츠 백업이 아니라 **가동 중인 시스템의 데이터 레이어 교체**다.
 [`notion-db-to-s3.md`](./notion-db-to-s3.md) §1에서 이 전제를 다룬다.
