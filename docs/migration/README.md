@@ -23,6 +23,6 @@ A stale file in this directory is a bug. If the work described here is already d
 | File | Describes | Status |
 | :--- | :--- | :--- |
 | [`seminar-events.md`](./seminar-events.md) | Porting event sign-up, presenter-side attendance management, and seminar announcement mail from the `seminar` branch (`fd7e482`) | Not started |
-| [`notion-site-inventory.md`](./notion-site-inventory.md) | What is publicly published at snumps.notion.site: 22 nodes, 5 public databases / 351 rows, 90 attachments. Shared input to the two plans below | Survey complete |
+| [`notion-site-inventory.md`](./notion-site-inventory.md) | What is publicly published at snumps.notion.site: 22 public nodes, 5 public databases / 351 rows (9 databases / 605 rows in total), 90 attachments. Shared input to the two plans below | Survey complete |
 | [`notion-pages-to-web.md`](./notion-pages-to-web.md) | Moving the public Notion pages into this app as real routes | Not started |
-| [`notion-db-to-s3.md`](./notion-db-to-s3.md) | Moving attachments to S3, and what can and cannot follow them | Not started |
+| [`notion-db-to-s3.md`](./notion-db-to-s3.md) | Replacing Notion outright — 9 databases / 605 rows and 90 attachments to S3, plus the editing UI and upload path that have to be built to make that possible | Not started |
