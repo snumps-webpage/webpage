@@ -174,6 +174,7 @@ pnpm approve-builds     # esbuild 선택 후 승인
 | 3 | [`notion-db-to-s3.md`](./notion-db-to-s3.md) | 데이터·자산·편집 이주 설계 (S3 레코드 저장소 설계 포함) |
 | 4 | [`notion-pages-to-web.md`](./notion-pages-to-web.md) | 공개 페이지 22개 라우트 매핑 |
 | 5 | [`design-concept.html`](./design-concept.html) | 시각 컨셉 — 브라우저로 열 것 |
+| 6 | [`REFERENCES.md`](./REFERENCES.md) | 참조할 AWS 문서·코드 지점·스킬 |
 | — | [`seminar-events.md`](./seminar-events.md) | **별개 주제.** 이 프로젝트 아님 |
 
 읽기 전에 알아둘 것:

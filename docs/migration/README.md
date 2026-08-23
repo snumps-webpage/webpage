@@ -24,6 +24,7 @@ A stale file in this directory is a bug. If the work described here is already d
 
 | File | Describes | Status |
 | :--- | :--- | :--- |
+| [`REFERENCES.md`](./REFERENCES.md) | What to consult: repo files, AWS documentation by title, the Notion endpoints used for the survey, and which skills are worth reaching for | Current |
 | [`HANDOFF.md`](./HANDOFF.md) | Onboarding for anyone picking this branch up: branch stack, environment gaps, toolchain traps, what is startable today and what is blocked on whom | Current |
 | [`seminar-events.md`](./seminar-events.md) | Porting event sign-up, presenter-side attendance management, and seminar announcement mail from the `seminar` branch (`fd7e482`) | Not started |
 | [`design-concept.html`](./design-concept.html) | Visual concept for the public zone — presented as a paper, one figure per new route. Explicitly not a port of Notion's look | Draft |

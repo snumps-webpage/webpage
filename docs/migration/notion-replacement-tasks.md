@@ -60,7 +60,9 @@ applications   9 = 전부 accepted=true, 그러나 8건만 회원으로 연결�
 |---|---|---|---|
 | A0 | 안정 id 체계 확정 + `id-map.json` 커밋 | — | 자산 키가 여기 의존한다. 이걸 빼면 A3가 B1을 기다리는 순환이 생긴다 |
 | A1 | 자산 전량 열거 + 용량 실측 | A0 | ⚠️ **토글 재귀 필수** — 조사 중 세 번 놓쳤고 이미지 5개가 전부 토글 안에 있었다 |
-| A2 | 버킷 2개 생성 — `snumps-assets`(공개, CloudFront+OAC) / `snumps-data-private`(비공개, SSE-KMS) | — | A1과 병렬 |
+| A2 | **AWS 인프라 구축** — 버킷 2개, CloudFront+OAC, IAM 역할 2개, 수명 주기 규칙 2개, 알람, Budgets. Terraform `infra/` 권장 | — | A1과 병렬. 상세는 [`notion-db-to-s3.md`](./notion-db-to-s3.md) **§4-6** |
+| A2-a | Vercel→AWS 인증 (OIDC 권장) + SDK 의존성 추가 | A2 | `@aws-sdk/client-s3`, `s3-request-presigner`. 현재 AWS SDK 0개 |
+| A3-a | 이미지 파생본 생성 (thumb 400w / display 1200w) | A3 | 갤러리 48장을 원본으로 내면 페이지가 수십 MB |
 | A3 | 다운로드 → 정규화 → 업로드 (멱등, sha256 중복 제거) | A0 A1 A2 | 서명 URL 재발급 필요 (source 23개 중 10개는 서명 없어 403) |
 | A4 | 검증 + `assets-manifest.json` 커밋 | A3 | 개수 90 일치, HEAD 200, 샘플 열람 |
 
