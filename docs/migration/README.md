@@ -18,10 +18,13 @@ work that has not happened yet, so it does not belong there.
 
 A stale file in this directory is a bug. If the work described here is already done, delete it.
 
+> **처음 이 디렉터리를 보는 사람은 [`HANDOFF.md`](./HANDOFF.md)부터 읽을 것.**
+
 ## Current
 
 | File | Describes | Status |
 | :--- | :--- | :--- |
+| [`HANDOFF.md`](./HANDOFF.md) | Onboarding for anyone picking this branch up: branch stack, environment gaps, toolchain traps, what is startable today and what is blocked on whom | Current |
 | [`seminar-events.md`](./seminar-events.md) | Porting event sign-up, presenter-side attendance management, and seminar announcement mail from the `seminar` branch (`fd7e482`) | Not started |
 | [`design-concept.html`](./design-concept.html) | Visual concept for the public zone — presented as a paper, one figure per new route. Explicitly not a port of Notion's look | Draft |
 | [`notion-site-inventory.md`](./notion-site-inventory.md) | What is publicly published at snumps.notion.site: 22 public nodes, 5 public databases / 351 rows (9 databases / 605 rows in total), 90 attachments. Shared input to the two plans below | Survey complete |
