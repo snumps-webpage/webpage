@@ -29,9 +29,20 @@ main (899f971)
 | `seminar` | 이벤트 신청/출석관리 원본 (`fd7e482`) | 푸시됨. **삭제 금지** — main에 없는 810줄 기능 |
 | `dev` | 구 라인. `main`과 **공통 조상 0개** | 푸시됨 |
 
-> `main`과 `dev`는 히스토리가 완전히 끊겨 있다(package-lock 제거 목적의 재작성 때문).
-> `git cherry-pick`이 두 라인 사이에서 작동하지 않는다. 배경은 `migrate/dev-carryover` 브랜치의
-> 작업 노트에 있다.
+### ⚠️ `main`과 `dev`는 공통 조상이 0개다
+
+```
+git merge-base origin/main origin/dev   →  (빈 출력)
+루트 커밋 두 개:  af0fe8d (dev 계열, 279커밋)  vs  ded066b (main 계열, 318커밋)
+```
+
+메시지·날짜·작성자가 같고 SHA만 다르다. `package-lock.json`과 잡파일을 지우려고 히스토리를
+재작성하면서 라인이 갈렸다. 앞 274(dev)↔272(main) 커밋이 제목 기준 동일하고,
+논리적 분기점은 `daa108e` ↔ `02c6e7b`("fix: parse speaker name…", 2026-02-19)다.
+
+**결과: 두 라인 사이에서 `git cherry-pick`이 작동하지 않는다.**
+`git show <sha> | git apply`도 컨텍스트 불일치로 대부분 실패한다. 구 라인의 작업을 가져오려면
+수동 재작성이 기본이다 — `migrate/dev-carryover`가 그 방식으로 만들어졌다.
 
 ---
 
@@ -247,7 +258,76 @@ feat(events): ...    fix(forms): ...    docs: ...    refactor: ...
 
 ---
 
-## 10. 연락
+## 10. PR과 머지
+
+### 머지 순서
+
+두 문서 브랜치가 `docs/migration/README.md`를 **둘 다** 수정한다. 순서를 정해야 충돌이 없다.
+
+```
+1) docs/seminar-migration-spec  →  main     (먼저)
+2) docs/notion-migration-plan   →  main     (그 다음. 1번을 이미 포함하고 있다)
+```
+
+`docs/notion-migration-plan`은 `docs/seminar-migration-spec` 위에 쌓여 있으므로,
+**1번을 머지한 뒤 2번을 올리면 충돌이 없다.** 순서를 뒤집거나 둘을 동시에 열면
+README에서 충돌한다.
+
+1번을 머지하지 않고 2번만 가져가고 싶다면, `main` 기준으로 리베이스하고
+seminar 커밋(`6369e2c`)을 빼야 한다 — 다만 그러면 README의 seminar 행이 끊긴 링크가 된다.
+권장하지 않는다.
+
+### PR 만들기
+
+```bash
+gh pr create --base main --head docs/seminar-migration-spec   --title "docs: seminar migration spec"
+gh pr create --base main --head docs/notion-migration-plan   --title "docs: Notion replacement plan"
+```
+
+두 브랜치 모두 **문서만** 담고 있어 빌드·런타임에 영향이 없다. 코드 리뷰보다는
+**사실 검증**이 리뷰의 초점이어야 한다 — §11 참조.
+
+### 완료 기준
+
+| 트랙 | 완료로 볼 조건 |
+|---|---|
+| P0 | 5개 항목 전부. 특히 P0-1 없이는 범위가 안 닫힌다 |
+| A | S3 객체 수 90, sha256 일치, `assets-manifest.json` 커밋 |
+| B | 행 수 일치(9개 DB 전부), dangling relation 0, 쓰기 라우트 10개 회귀 없음 |
+| P | 페이지별 원문 대조 + `svelte-check` ≤ 40 + 가드 테스트 통과 |
+| C | 임원진이 Notion 없이 데이터를 고칠 수 있음 — **이게 D의 전제다** |
+| D | Notion 읽기 전용 → 최종 델타 → 아카이브. 삭제 아님 |
+
+---
+
+## 11. 이 문서들이 어떻게 검증됐나
+
+숫자를 그냥 믿지 말라는 뜻이 아니라, **어디까지 확인됐고 언제 다시 확인해야 하는지** 알라는 뜻이다.
+
+| 항목 | 출처 | 재확인 필요 시점 |
+|---|---|---|
+| 페이지 트리 22노드, 블록 구조 | 미인증 공개 API 전수 크롤 (인벤토리 §7에 재현 명령) | Notion 콘텐츠가 바뀔 때마다 |
+| 공개 DB 5개 행 수 (351) | 공개 `queryCollection` | 상시 변동. 착수 시 재측정 |
+| 전체 DB 9개 행 수 (605) | **공식 API + 프로덕션 키** | 상시 변동 |
+| 정합성 이상 (고아 PII 11건 등) | 공식 API로 relation 직접 추적 | P0-5 착수 시 재확인 |
+| 코드 관련 주장 전부 | 이 레포 직접 확인 | `main`이 움직이면 |
+| EVENTS / ATTENDANCE_QUEUE | ❌ **미측정** | P0-1 |
+
+작성 과정에서 **독립 검증을 두 차례** 거쳤고, 그때 잡힌 오류가 적지 않다. 대표적인 것:
+
+- Notion 토글 안의 페이지를 **세 번** 놓쳤다 (회칙 개정본 2건 포함 → 노드 20→22)
+- 첨부 개수를 85→86→**90**으로 두 번 정정했다
+- 존재하지 않는 코드(`SEMINAR_TYPES`)를 현행이라고 단정했다 — 미머지 브랜치 코드였다
+- `NOTION_DB_STUDIES`가 없다고 판단했으나 `.env`에 있었다 (`SETUP.md`만 보고 판단)
+- 쓰기 경로를 raw grep 43줄로 세어 "43곳"이라 적었다 — 실제 호출부는 17곳, 라우트는 10개
+- "S3는 동시 쓰기를 잃는다"는 논거가 틀렸다 — Notion이 오히려 `If-Match`가 없어 더 취약하다
+
+**공통 원인은 하나다: 코드·실제 데이터 대신 문서를 읽은 것.**
+이 프로젝트에서 무언가를 주장하기 전에 반드시 원본을 확인하라.
+
+---
+
+## 12. 연락
 
 | 역할 | |
 |---|---|
