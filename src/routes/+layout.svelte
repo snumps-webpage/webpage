@@ -107,7 +107,6 @@
 				<div class="desktop-only nav-actions">
 					{#if page.data.isAdmin}
 						<a href="/admin" class="circle-btn">Admin</a>
-						<a href="/notion" class="circle-btn">DB</a>
 					{/if}
 					<button class="logout-btn" onclick={() => signOut()}>로그아웃</button>
 				</div>
@@ -140,7 +139,6 @@
 					<div class="mobile-group">
 						<span class="group-label">Admin</span>
 						<a href="/admin" class="mobile-link">관리자 대시보드</a>
-						<a href="/notion" class="mobile-link">Notion 데이터베이스</a>
 					</div>
 				{/if}
 				<div class="mobile-group">

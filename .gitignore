@@ -49,6 +49,10 @@ analyze.ts
 # Extra
 .extra/
 
+# Test artifacts
+test-results/
+playwright-report/
+
 # Backups
 *.backup*
 

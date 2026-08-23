@@ -13,8 +13,9 @@
 | **B. 검토 제외** | **24** | — |
 | **C. 사용자 확인 필요** | **21** | **3,256** |
 
-> C를 먼저 처리해야 A의 실제 분량이 확정된다. C에서 삭제 결정이 나면
-> **약 3,000줄이 검토 대상에서 빠진다** — 리뷰할 가치가 없는 코드를 리뷰하는 게 가장 비싼 낭비다.
+> **C 처리 완료 (2026-08-23).** C-1·C-2·C-4·C-5·C-7 삭제 — 13개 파일, 약 2,000줄.
+> C-3·C-6은 유지(조사 결과 §C-조사 참조). 파일 130 → 119.
+> A 78개는 애초에 C를 제외한 수치라 변동 없다.
 
 ---
 
@@ -250,6 +251,49 @@
 | `src/routes/diag/+server.ts` | 50 |
 | `src/routes/api/posters/seminar/png/+server.ts` | 12 |
 ### 확인 질문
+
+### 처리 결과
+
+| # | 대상 | 결정 | 결과 |
+|---|---|---|---|
+| C-1 | 실험 코드 6개 | **삭제** | `src/routes/experiment/**`, `ExperimentReplica.svelte` |
+| C-2 | Notion DB 브라우저 | **삭제** | `src/routes/notion/**` + `+layout.svelte`의 링크 2건 |
+| C-3 | 정적 포스터 HTML | **유지** | 아래 조사 참조 |
+| C-4 | Docker 3종 | **삭제** | `Dockerfile`, `docker-compose.yml`, `.dockerignore` |
+| C-5 | `diag/+server.ts` | **삭제** | — |
+| C-6 | png 410 스텁 | **유지** | 아래 조사 참조 |
+| C-7 | `test-results/` | **삭제** | `.gitignore`에 `test-results/`·`playwright-report/` 추가 |
+| C-8~11 | env/robots/vercel/GEMINI | **유지** | 별도 판단 |
+
+### C-조사 — C-3·C-6에 "쓰는 코드가 없는" 것이 정상인가
+
+**결론: 둘 다 정상이다. 빠진 배선이 아니다.**
+
+포스터 기능은 완성돼 있고 전부 배선돼 있다:
+
+```
+seminar/apply/+page.svelte:98      ─┐
+seminar/edit/[id]/+page.svelte:99  ─┴→ SeminarPosterSection
+                                        └→ SeminarPosterDownloadPanel  (html-to-image toPng)
+                                             └→ SeminarPoster          (실제 포스터, 1080×1350)
+```
+
+- **C-3 `static/posters/*.html`**: 하드코딩된 내용을 담은 **디자인 프로토타입**이다
+  (예: 3x4 파일에 `수체와 타원곡선을 잇는`이라는 특정 세미나 제목이 박혀 있다).
+  `SeminarPoster.svelte`가 이걸 제품화한 것이고 규격도 일치한다 — 둘 다 **1080×1350**.
+  즉 프로토타입 → 구현 순서이지, 구현이 프로토타입을 참조해야 하는 관계가 아니다.
+  **아무것도 이걸 쓰지 않는 게 맞다.**
+  - ⚠️ 다만 파일명이 `snumps-seminar-poster-3x4.html`인데 실제 `aspect-ratio: 4/5`다. 이름이 틀렸다
+  - ⚠️ 유지하기로 했으므로 **디자인 명세가 두 곳(정적 HTML + Svelte)에 존재**하게 된다.
+    드리프트 가능성을 감수하는 선택임을 기록해 둔다
+
+- **C-6 `api/posters/seminar/png`**: 410 응답 메시지가
+  `"Use the seminar form preview download button instead"`인데,
+  그 버튼이 정확히 `SeminarPosterDownloadPanel`이다.
+  **서버 렌더링을 클라이언트 경로로 의도적으로 대체한 것**이고, 대체 경로가 실재하며 동작한다.
+  스텁은 구 클라이언트에 404 대신 명확한 답을 주려는 것이다. **설계가 맞다.**
+
+### 확인 질문 (처리 전 원본)
 
 | # | 대상 | 확인해야 할 것 | 근거 |
 |---|---|---|---|
