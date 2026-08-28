@@ -4,9 +4,12 @@ import { syncEventStatuses } from "$lib/server/events";
 import type { RequestHandler } from "./$types";
 
 export const GET: RequestHandler = async ({ request }) => {
-  // Basic security check for Vercel Cron
+  // Fail-closed (BE-04): without a configured secret this endpoint must not run.
+  if (!env.CRON_SECRET) {
+    return json({ error: "CRON_SECRET is not configured" }, { status: 501 });
+  }
   const authHeader = request.headers.get("authorization");
-  if (env.CRON_SECRET && authHeader !== `Bearer ${env.CRON_SECRET}`) {
+  if (authHeader !== `Bearer ${env.CRON_SECRET}`) {
     return json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -43,7 +43,22 @@ NOTION_DB_SEMINARS=id_of_seminars_db
 NOTION_DB_APPLICATIONS=id_of_applications_db
 NOTION_DB_SEMINAR_REQUESTS=id_of_seminar_proposals_db
 NOTION_DB_SETTINGS=id_of_site_settings_db # optional
+NOTION_DB_EVENTS=id_of_events_db
+NOTION_DB_ATTENDANCE_QUEUE=id_of_attendance_queue_db
+
+# AWS S3 data layer (see docs/spec/IMPLEMENTATION-SPEC.md, Phase 0)
+AWS_REGION=ap-northeast-2
+S3_DATA_BUCKET=snumps-data-private
+S3_ASSETS_BUCKET=snumps-assets
+ASSETS_CDN_URL=https://xxxx.cloudfront.net
+AWS_ROLE_ARN=            # OIDC (recommended); or AWS_ACCESS_KEY_ID/SECRET as fallback
+
+CRON_SECRET=             # required — /api/cron/* returns 501 when unset
+REDIS_URL=               # optional — memory-only cache without it
 ```
+
+> The Gmail sender must be a **Google Workspace** account: consumer Gmail's
+> 500-recipients/day cap is nearly exhausted by two full-member announcements.
 
 ## 🔍 Utilities
 
