@@ -1,4 +1,48 @@
-# 명세 검토 기록 (2026-08-25)
+# 명세 검토 기록
+
+## 2차 검토 (2026-08-28) — 구현 계층
+
+대상: API-SPEC v0.4 · BACKEND-TASKS v1 · IMPLEMENTATION-SPEC v1
+방법: 독립 검토 2회 병렬 — ① 플랫폼 실현성(AWS·Vercel·SvelteKit 제약을 공식 문서로 실검증) ② 문서 간 정합·의존 그래프
+결과: 30건 → **API v0.5 / TASKS v1.1 / IMPL v1.1 반영**
+
+### Confirmed-broken (수정 완료)
+
+| 발견 | 조치 |
+|---|---|
+| **IAM 권한 3종 누락** — `s3:ListBucket`(없으면 미존재 키 GET이 403이라 mutate 부트스트랩까지 깨짐), assets `uploads/pending/*` Delete, SSE-KMS 버킷용 `kms:Decrypt/GenerateDataKey` | BE-02에 런타임 권한 인벤토리 표 신설 — 코드 호출 전수 대응 |
+| **presigned PUT은 크기 상한을 강제 못함** (`content-length-range`는 POST policy 전용) | 등록(승격) 시 `HeadObject` 실측 검증으로 강제 지점 이동 |
+| **Vercel Hobby 크론은 일 1회 상한** — 시간당 스케줄 불가 | `effectiveStatus` lazy 판정을 1차 방어로 승격(크론은 표시 정리), Hobby 일1회 + GitHub Actions 대안 명기 |
+| **승인→공지 메일 의존 역전** — BE-33(M3)이 BE-45(M4) 호출 | M3는 no-op 스텁, BE-45가 구현 채움 |
+| **크론 의존 역전** — BE-35(M3)가 BE-41·49(M4·5) 함수 호출 | 크론을 단계 레지스트리로 — BE-35는 골격+expire만, 후속 태스크가 단계 등록 |
+| **`members`/`private-info`에 `sourceRequestId` 부재** — 가입 승인 멱등 불성립 | 두 스키마에 필드 추가 |
+| **`/api/*`가 어느 zone에도 없음** — fail-closed 스위치가 전부 500 | zone `"api"` 신설, 핸들러별 자체 인증 명시 |
+| **`/`·`(applicant)`에서 withdrawn 리디렉트 구멍** — 유예 중 `/signup` 재신청 가능 | `/` 하이브리드 처리 + applicant 존 리디렉트 추가 |
+| **M3 "Notion 읽기 전용" vs MIG-4 충돌 + BE-36 조기 삭제** | 컷오버 원칙 정리: M3는 코드 전환, 읽기 전용화·최종 델타·BE-36은 M8. M6을 M3 직후 우선 |
+
+### Risky (수정 완료)
+
+- `mutate` 재시도가 412만 처리 — S3는 동시 조건부 PUT에 **409**도 반환 → 409·404 재시도 편입, 큐는 10회
+- `route.id === null`(미매칭 404)이 500으로 오염 → null이면 resolve 위임
+- `adapter-vercel` <6.3.2 ISR 캐시 기만 취약점(SvelteSpill) → ≥6.3.2 잠금을 Phase 0 완료 조건化
+- 로컬 캐시 크로스 인스턴스 스테일 최대 300s → `table_*` 로컬 TTL 15s 캡
+- 소비자 Gmail 일 500 수신자 한도 → Workspace 계정 전제 명기
+- 큐 액션 입력에 `eventId` 부재(이벤트당 객체라 필수) → 4종 전부 `(eventId, queueId)`
+- `/members` 공개 페이지 withdrawn 미제외 → 제외 + 스냅샷 테스트 추가
+- `/admin`에 탈퇴 유예 목록 부재(§4-7 약속 미이행) → §7-1 확장 + BE-53 편입
+- `sourceRequestId` "ULID" 타입 vs 복합 키 → `string | null` + 형식 2종 문서화
+- 익명화 keep/null 목록 모순 → 명시 목록으로 재작성 (`withdrawal` 객체는 파기 근거로 보존)
+- 기타: previousStatus 기록 누락, §5-5 세미나 타입 필터, BE-48/49 액션 열거 누락, M4~M6 교차 엣지 3건, 버전 참조 정정
+
+### 검증 통과 (문제 없음 확인)
+
+S3 If-Match/If-None-Match(SSE-KMS 포함) · Vercel OIDC 전 플랜 GA(`awsCredentialsProvider`) ·
+adapter-vercel ISR 문법과 `/` ISR 미적용 결정 · sharp Vercel 동작 · `route.id` 훅 가용성 ·
+Bcc 배치 수치 · 큐 비-TableName 처리 일관성 · 재가입=신규 경로 · deleteEvent↔IAM 예외 정합.
+
+---
+
+## 1차 검토 (2026-08-25)
 
 대상: `FUNCTIONAL-SPEC.md` v0.5 / `API-SPEC.md` v0.1
 방법: 독립 검토 2회 병렬 — ① 완전성 (기능↔API 커버리지, 흐름 추적, 수명주기) ② 일관성·확장성 (스키마 규약, 정책 모순, 미래 변경 비용)

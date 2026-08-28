@@ -1,4 +1,4 @@
-# 백엔드 구현 스펙 (v1)
+# 백엔드 구현 스펙 (v1.1)
 
 > 기반: [`API-SPEC.md`](./API-SPEC.md) v0.4 · [`BACKEND-TASKS.md`](./BACKEND-TASKS.md) v1.
 > 이 문서는 각 Phase의 **구현 계층 디테일** — 파일 배치, 시그니처, 알고리즘, 설정, 테스트 설계 — 를 규정한다.
@@ -38,20 +38,33 @@ infra/
 | 리소스 | 이름 | 핵심 설정 |
 |---|---|---|
 | `aws_s3_bucket` | `snumps-assets` | 퍼블릭 차단, 버전 관리 on, SSE-S3 |
-| `aws_s3_bucket` | `snumps-data-private` | 퍼블릭 차단, 버전 관리 on, **SSE-KMS**(전용 키) |
+| `aws_s3_bucket` | `snumps-data-private` | 퍼블릭 차단, 버전 관리 on, **SSE-KMS**(전용 키, **Bucket Keys on** — KMS 요청 비용 절감) |
 | lifecycle (공통) | | 비현재 버전 90일 삭제 · 미완료 멀티파트 7일 중단 |
 | lifecycle (assets) | | `uploads/pending/` 프리픽스 7일 삭제 (§8-2 고아 정리) |
 | `aws_cloudfront_distribution` | | 오리진 `snumps-assets` + OAC, PriceClass_200, 자동 압축 on |
-| `aws_iam_role` | `snumps-runtime` | Vercel OIDC federation trust. `s3:GetObject/PutObject` — `snumps-data-private/tables/*`, `snumps-data-private/audit/*`(Put만), `snumps-assets/*`. **DeleteObject 없음** — 예외: `snumps-data-private/tables/attendance-queue/*` 및 applications 행 제거는 객체 재작성이므로 Delete 불요 |
+| `aws_iam_role` | `snumps-runtime` | Vercel OIDC federation trust. 권한은 아래 **런타임 권한 인벤토리** 전체 |
 | `aws_iam_role` | `snumps-migration` | 사람 실행용. 두 버킷 전권 + `backups/*`. 이주 후 비활성화 |
 | `aws_budgets_budget` | | 월 한도 + 이메일 알림 |
 
-> deleteEvent(§7-2)가 큐 객체를 지우므로 runtime 역할에
-> `s3:DeleteObject` on `snumps-data-private/tables/attendance-queue/*` **만** 예외 허용.
+**`snumps-runtime` 권한 인벤토리** — 코드가 부르는 S3/KMS API 전수 대응 (누락 시 런타임 403):
+
+| 권한 | 리소스 | 근거 호출 |
+|---|---|---|
+| `s3:GetObject`, `s3:PutObject` | `snumps-data-private/tables/*` | getTable · mutate (If-Match는 양쪽 다 요구) |
+| `s3:PutObject` | `snumps-data-private/audit/*` | audit() — Put만, Get/Delete 없음 |
+| `s3:DeleteObject` | `snumps-data-private/tables/attendance-queue/*` | deleteQueue (deleteEvent) |
+| **`s3:ListBucket`** | `snumps-data-private` (prefix 조건 `tables/*`) | listPendingQueues의 listKeys. **부수 효과 — 이게 없으면 미존재 키 GetObject가 404 대신 403을 반환**해 mutate의 "404 → 신규 봉투 생성" 부트스트랩이 깨진다 |
+| `s3:GetObject`, `s3:PutObject` | `snumps-assets/*` | presign · CopyObject(src/dst) · 파생본 Put · HeadObject 크기 검증 |
+| **`s3:DeleteObject`** | `snumps-assets/uploads/pending/*` | 업로드 승격의 Copy+Delete (BE-52) |
+| **`kms:Decrypt`, `kms:GenerateDataKey`** | data 버킷 전용 KMS 키 | SSE-KMS 버킷의 모든 Get/Put이 요구 |
+
+위 표 밖의 Delete·정책 변경 권한은 일절 부여하지 않는다.
 
 ### BE-03 SDK·환경변수
 
-의존성: `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`, (`@aws-sdk/credential-providers` — OIDC 시).
+의존성: `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`, `@vercel/functions`(OIDC — `awsCredentialsProvider`).
+🔴 **`@sveltejs/adapter-vercel` ≥ 6.3.2로 잠금** — 이전 버전에 ISR 캐시 기만 취약점(SvelteSpill).
+lockfile 실제 해석 버전 확인이 Phase 0 완료 조건.
 
 ```bash
 # .env.example 추가분
@@ -186,7 +199,8 @@ export async function listPendingQueues(): Promise<{ eventId: string; rows: Atte
 **`mutate` 알고리즘** (getQueue/mutateQueue 동일):
 
 ```
-for attempt in 0..4:
+maxAttempts = 테이블 5 | 출석 큐 10                 # 큐는 동시 체크인 버스트 대상
+for attempt in 0..maxAttempts-1:
   {body, etag} = getObjectWithEtag(key)          # 404면 { schemaVersion:1, rows:[] } + ifNoneMatch:"*" 생성 경로
   env = envelope.parse(gunzip(body))              # schemaVersion 분기 지점
   next = await fn(structuredClone(env.rows))
@@ -195,12 +209,17 @@ for attempt in 0..4:
     putObjectIfMatch(key, gzip({schemaVersion:1, rows:next}), {ifMatch: etag})
     invalidateCache(`table_${name}`)              # BE-12: 자체 키 자동 무효화
     return next
-  except PreconditionFailed:
+  except PreconditionFailed(412)
+       | ConditionalRequestConflict(409)          # S3는 동시 조건부 PUT에 409도 반환한다
+       | NotFound(404, If-Match 경합 중 삭제):
     sleep(50ms * 2^attempt + jitter(0~50ms))      # 지수 백오프
 throw new AppError("WRITE_CONFLICT", 503)
 ```
 
-- **읽기 캐시**: `getTable` = `withCache("table_" + name, TTL_TABLE, fetcher)`. `TTL_TABLE = 300s`.
+- **읽기 캐시**: `getTable` = `withCache("table_" + name, TTL_TABLE, fetcher)`. `TTL_TABLE = 300s`(Redis).
+  **단 `table_*` 키의 로컬 메모리 TTL은 15s로 캡** — `invalidateCache`는 자기 인스턴스의 로컬 캐시만 비우므로,
+  다른 warm 인스턴스가 최대 5분 옛 상태를 보여주는 것(승인 직후 목록 미갱신)을 15초로 줄인다.
+  정확성은 무관 — mutate는 캐시 우회 + If-Match라 중복 승인은 `CONFLICT`로 막힌다
   페처는 로컬 ETag 보관 시 `ifNoneMatch` 조건부 GET → 304면 캐시 유지
 - `mutate`는 **캐시를 우회**하고 항상 S3에서 직접 읽는다 (ETag 일관성)
 - gzip: Node `zlib` (`gzipSync`/`gunzipSync`). `Content-Encoding: gzip`, `Content-Type: application/json`
@@ -268,18 +287,31 @@ src/routes/
 
 ```ts
 // hooks.server.ts — membershipGuard 대체
-const zone = event.route.id?.split("/")[1];   // "(public)" | "(applicant)" | "(member)" | "(admin)"
+if (event.route.id === null) return resolve(event);  // 미매칭 URL — SvelteKit 404에 위임 (500 오염 금지)
+const zone = event.route.id.split("/")[1];   // "(public)" | "(applicant)" | "(member)" | "(admin)" | "api"
 switch (zone) {
-  case "(public)": return resolve(event);      // 세션 해석도 생략 (BE-23)
-  case "(applicant)": ensureSession 수준;
+  case "(public)":
+    // 예외: "/"는 하이브리드 — 세션 있으면 member 해석 + withdrawn 리디렉트 후 대시보드 분기.
+    // 그 외 공개 라우트는 세션 해석 생략 (BE-23, prerender 보장)
+    return resolve(event);
+  case "(applicant)":
+    ensureSession 수준;
+    if (locals.member?.status === "withdrawn") → 303 /withdraw/pending;   // 유예 중 /signup 재신청 차단
+    if (locals.member && status !== "withdrawn") → 303 /;                  // 기존 회원의 /signup 진입
   case "(member)":
     locals.member 주입 (BE-21);
     if (!member) → 신청 유무 따라 /signup | /wait;
     if (member.status === "withdrawn") → route.id가 withdraw/pending이 아니면 303 /withdraw/pending;
   case "(admin)": member?.isAdmin || throw error(404);
-  default: throw error(500, "route without zone");   // 그룹 밖 라우트 = 실수. fail-closed
+  case "api": return resolve(event);   // 인증은 엔드포인트별 — cron: Bearer, uploads·admin: 핸들러 내 ensureAdmin
+  default: throw error(500, "route without zone");   // id는 있는데 그룹이 없는 라우트 = 실수. fail-closed
 }
 ```
+
+- `/api/*`는 라우트 그룹에 넣지 않는다 (URL에 그룹이 안 남아 무의미) — zone `"api"`로 훅 통과,
+  **각 핸들러가 첫 줄에서 자체 인증** (`ensureAdmin` / Bearer 검사). 가드 매트릭스에 `/api/*`도 포함
+- withdrawn 익명화 이후에는 `resolveMember`가 null (private-info 삭제) → 자연히 게스트/신청자 취급 —
+  "재가입은 신규 회원" 경로와 일치
 
 - `/` 이중 모드: `(public)/+page.server.ts`가 세션 존재 시 `(member)` 대시보드 데이터로 분기 —
   구현은 **동일 라우트 내 조건 분기가 아니라** `(public)/+page` = 게스트 전용, 세션 있으면 303 `/dashboard`…는
@@ -369,7 +401,9 @@ handleAdminAction(locals, async () => {
     pathId: randomToken(8), attendCode: randomToken(8), sourceRequestId: req.id }));
   await ensureCreated("seminars", req.id, () => ({ ..., activityId: activity.id }));
   await mutate("seminar-requests", rows => setStatus(rows, id, "approved"));
-  const mailFailed = !(await sendSeminarAnnouncement(...));   // BE-45. 실패 비전파
+  const mailFailed = !(await sendSeminarAnnouncement(...));
+  // ^ Phase 3(BE-33) 시점에는 no-op 스텁(항상 true 반환·로그만). 실제 발송은 BE-45(M4)가 구현을 채운다 —
+  //   M3가 M4 코드에 의존하지 않기 위한 명시적 순서 결정. 실패는 어차피 비전파
   return { mailFailed };
 }, { invalidate: ["all_events"] });
 ```
@@ -392,18 +426,30 @@ export function invalidateAttendanceCaches(activityDate: DateRange, memberIds: s
 
 ### BE-35 크론
 
+**BE-35의 범위는 크론 골격 + expire 단계 + lazy 판정 유틸까지다.** 회차 생성(2)은 BE-49가,
+익명화(3)는 BE-41이 각각 크론에 **단계를 추가**한다 — Phase 3의 BE-35가 Phase 4 코드를 참조하지 않는다
+(단계 레지스트리: `cronSteps: Array<() => Promise<Record<string, number>>>`에 각 태스크가 등록).
+
 ```ts
-// syncEvents() — §8-1 3단계. 각 단계 독립 try/catch, 결과 카운트 수집
-1. expire:  mutate(events, rows => rows.map(e =>
+// syncEvents() — 각 단계 독립 try/catch, 결과 카운트 수집
+1. expire (BE-35):  mutate(events, rows => rows.map(e =>
      e.status === "active" && expiryOf(e) < now ? { ...e, status: "expired" } : e))
    // expiryOf(e) = e.date.end ?? endOfDayKST(e.date.start)
-2. generate: studies.schedule 중 date <= now && !generatedEventId
-   → createStudySession(study, entry.date, { autoGenerated: true })   // BE-49와 동일 함수
+2. generate (BE-49가 등록): studies.schedule 중 date <= now && !generatedEventId
+   → createStudySession(study, entry.date, { autoGenerated: true })
    → mutate(studies)로 generatedEventId 기록 (events 먼저, schedule 나중 — §2)
-3. anonymize: BE-41의 anonymizeExpiredWithdrawals()
+3. anonymize (BE-41이 등록): anonymizeExpiredWithdrawals()
 ```
 
-`vercel.json` 크론 주기 상향: `"schedule": "0 * * * *"` (시간당 — 만료·익명화 지연 상한 1h).
+🔴 **lazy 판정이 1차 방어** (API-SPEC §8-1): 신청·출석 검증은 `event.status` 저장값이 아니라
+`expiryOf(e) < now` 계산을 쓴다 — `EventRepository`가 `effectiveStatus(e)`를 제공하고 가드·액션은 그것만 참조.
+크론의 expire는 표시용 상태 정리다.
+
+**크론 주기 — 플랜 제약**: Vercel Hobby는 **일 1회**가 상한(시간당은 Pro 전용).
+- Hobby: 현행 `0 15 */2 * *` → `"0 15 * * *"`(일 1회)로. lazy 판정 덕에 정확성 문제 없음.
+  회차 자동 생성 최대 1일 지연이 수용 불가하면 GitHub Actions cron이 `Bearer CRON_SECRET`으로
+  `/api/cron/sync-events`를 시간당 호출 (엔드포인트 인증 모델이 이미 이를 지원)
+- Pro: `"0 * * * *"` 직접 설정
 
 ---
 
@@ -467,6 +513,8 @@ export async function sendSeminarAnnouncement(seminar): Promise<boolean> {
     .filter(i => i.email && i.mailPrefs.announcements !== false).map(i => i.email))];
   for (const batch of chunk(recips, 80))            // Gmail 수신자 한도 여유값
     await dispatchEmail(batch, subject, bodyWithOptoutLink, { bcc: true });
+  // ⚠️ 발신 계정 전제: Google Workspace(일 2,000 수신자). 소비자 gmail.com은 일 500 —
+  //   230명 공지 2회로 소진 + 대량 Bcc가 정지 트리거. 계정 유형을 SETUP.md에 명기
   // 배치 실패: 로그 + false 반환 (부분 실패도 false). 재시도 없음 — 승인 재실행이 재발송하지 않도록
   //   ensureCreated 이후 단계이므로 재실행 시 메일 단계 도달 전 CONFLICT
 }
@@ -511,9 +559,13 @@ const PURPOSES = {
 ```
 
 등록(`?/addFile` 등) 시:
-1. `uploads/pending/...` → 정식 키 `${prefix}/${recordId}/${hash8}-${slug}.${ext}`로 **CopyObject + Delete**
-2. 이미지면 파생본 생성: `sharp`로 thumb(400w)/display(1200w) webp — Vercel 함수 내 처리 (10MB 이하 보장됨)
-3. `mutate`로 레코드 file 배열에 정식 키 추가
+1. 🔴 **`HeadObject`로 실측 검증** — Content-Length가 purpose 상한 초과 또는 Content-Type 불일치 →
+   `VALIDATION_FAILED`, 승격 중단 (pending 객체는 수명주기 7일 정리).
+   presigned PUT은 크기를 서버측 강제하지 못하므로 **이 단계가 실제 상한 강제 지점**이다
+2. `uploads/pending/...` → 정식 키 `${prefix}/${recordId}/${hash8}-${slug}.${ext}`로 **CopyObject + Delete**
+   (pending Delete 권한은 BE-02 인벤토리에 포함)
+3. 이미지면 파생본 생성: `sharp`로 thumb(400w)/display(1200w) webp — Vercel 함수 내 처리 (1에서 상한 검증됨)
+4. `mutate`로 레코드 file 배열에 정식 키 추가
 
 ### BE-53~55 관리자 편집
 

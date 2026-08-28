@@ -1,4 +1,4 @@
-# 백엔드 구현 작업 목록 (v1)
+# 백엔드 구현 작업 목록 (v1.1)
 
 > 기반: [`FUNCTIONAL-SPEC.md`](./FUNCTIONAL-SPEC.md) v0.8 / [`API-SPEC.md`](./API-SPEC.md) v0.4.
 > 구현 브랜치는 `docs/feature-api-spec`에서 분기.
@@ -19,7 +19,7 @@
 |---|---|---|---|
 | BE-01 | 테스트 스크립트 정비 | `package.json`에 `test: vitest run` 추가, CI 기본 체계 | — |
 | BE-02 | AWS 인프라 (Terraform `infra/`) | 버킷 2개(assets 공개/data 비공개), CloudFront+OAC, IAM 역할 2개(runtime/migration), 수명주기 규칙(비현재 버전 90일·미완료 멀티파트 7일·미등록 업로드 7일), SSE-KMS(비공개), CloudTrail 데이터 이벤트, Budgets | — |
-| BE-03 | AWS SDK·인증 연결 | `@aws-sdk/client-s3` + presigner, Vercel↔AWS OIDC (권장) 또는 키. env 정리 | BE-02 |
+| BE-03 | AWS SDK·인증 연결 | `@aws-sdk/client-s3` + presigner, Vercel↔AWS OIDC (권장) 또는 키. env 정리. **`adapter-vercel` ≥6.3.2 잠금 확인** (ISR 캐시 기만 취약점) | BE-02 |
 | BE-04 | `CRON_SECRET` 설정 + fail-closed | §8-1. 미설정 시 501 | — |
 | BE-05 | 공통 모듈 | 에러 코드 상수(§1-2), id 유틸(ULID/UUIDv7), **학기 파생 유틸 단일 정의**(§2), 전화번호 정규화 재사용 확인 | — |
 
@@ -53,10 +53,10 @@
 | BE-30 | 읽기 경로 전환 | 회원·활동·세미나·이벤트·큐 조회 전부 `getTable` 기반 Repository로. 기존 `notion/*` 모듈 대체 | BE-11, MIG-2 |
 | BE-31 | 쓰기 경로 전환 | 기존 10개 라우트의 17개 쓰기 호출부 → `mutate` 경유 | BE-30, BE-14 |
 | BE-32 | 가입 흐름 전환 | §4-1~4-3, §7-2 — **전환 방식**(신청 행 제거) + `/wait` 철회 액션 신설 | BE-31 |
-| BE-33 | 세미나 승인 흐름 전환 | §7-2 `approveSeminar` — activities+events+seminars 생성, `presenterIds`·`activityId` 기록, `sourceRequestId` | BE-31 |
+| BE-33 | 세미나 승인 흐름 전환 | §7-2 `approveSeminar` — activities+events+seminars 생성, `presenterIds`·`activityId` 기록, `sourceRequestId`. **공지 메일 단계는 no-op 스텁** — 실 발송은 BE-45가 채움 (M3가 M4에 의존하지 않도록) | BE-31 |
 | BE-34 | 출석 흐름 전환 | §5-4 공용 체크인(이벤트당 큐 객체), §7-2 큐 승인·**역반영** 규칙 | BE-31 |
-| BE-35 | 크론 전환 | §8-1 — 만료 판정 규칙(`end ?? 당일 24:00`) 신규 구현 | BE-31 |
-| BE-36 | Notion 코드 제거 | `notion/*`, `/notion`, `/diag`, 포스터 410 엔드포인트 삭제 (§8-4) | BE-30~35 완료 후 |
+| BE-35 | 크론 전환 | §8-1 — 크론 골격(단계 레지스트리) + **expire 단계만** + `effectiveStatus` **lazy 판정 유틸**(신청·출석 검증의 1차 방어 — Hobby 플랜 일1회 크론 제약 대응). 회차 생성·익명화 단계는 BE-49·BE-41이 등록 | BE-31 |
+| BE-36 | Notion 코드 제거 | `notion/*`, `/notion`, `/diag`, 포스터 410 엔드포인트 삭제 (§8-4). **프로덕션 컷오버(MIG-4 읽기 전용화+최종 델타) 이후 실행** — 컷오버 전 롤백 경로 보존 | MIG-4 |
 
 ## Phase 4 — 신규 기능 백엔드
 
@@ -65,7 +65,7 @@
 | ID | 작업 | 내용 | 선행 |
 |---|---|---|---|
 | BE-40 | 메일 수신 설정 | §4-6 `mailPrefs` + `/settings/notifications` | BE-31 |
-| BE-41 | 탈퇴 수명주기 | §4-7 — 삼중 확인 서버 검증, 회장단 통지, `/withdraw/pending` 철회, **크론 익명화**(private-info 삭제 + members 이름·학과·roles 잔존), 감사 로그 | BE-31, BE-13, BE-35 |
+| BE-41 | 탈퇴 수명주기 | §4-7 — 삼중 확인 서버 검증, 회장단 통지(메일 템플릿 자체 포함 — BE-45 무관), `/withdraw/pending` 철회, **익명화 단계를 크론에 등록**(private-info 삭제 + members keep/null 목록), 감사 로그 | BE-31, BE-13, BE-35 |
 | BE-42 | 회원 지위 로직 | status 축 + `isAlumni`/`alumniRevoked` sticky 규칙 (§7-3). 경과 조치: status는 권한 미개입 | BE-30 |
 
 ### 4b. 세미나·이벤트 (F1/F2/F3 — seminar-events.md 함정 A~E 반영)
@@ -82,8 +82,8 @@
 | ID | 작업 | 내용 | 선행 |
 |---|---|---|---|
 | BE-47 | 개설 신청·승인 | §6-2, §7-2 `approveStudy` — `organizerIds` 지정 | BE-31 |
-| BE-48 | 참여·상태 전이 | §6-3 join/leave(`STUDY_NOT_RECRUITING`), §6-4 `setStudyStatus` | BE-47 |
-| BE-49 | 회차 관리 | §6-4 수동 생성(활동+이벤트 쌍, sessionNo) + 일정 등록, §8-1 크론 자동 생성(`generatedEventId` 멱등, **events 먼저 schedule 나중**) | BE-47, BE-35 |
+| BE-48 | 참여·인원·상태 전이 | §6-1 `/study` 목록 로드, §6-3 join/leave(`STUDY_NOT_RECRUITING`), §6-4 `acceptParticipant`/`removeParticipant`/`setStudyStatus`, 대시보드 `myStudies` | BE-47 |
+| BE-49 | 회차 관리 | §6-4 수동 생성(활동+이벤트 쌍, sessionNo)·`updateSession`/`cancelSession` + 일정 등록, **크론에 자동 생성 단계 등록**(`generatedEventId` 멱등, **events 먼저 schedule 나중**) | BE-47, BE-35 |
 | BE-50 | 주최자 전달 | §6-4·6-5 — 2단계 합의, 자기 전달 차단, 철회, `previousStatus`류 복원 규칙 | BE-47 |
 | BE-51 | 스터디 출결 관리 | §6-6 — 회차 검증 + 병합 규칙 (BE-44 공용 함수 재사용) | BE-49, BE-44 |
 
@@ -92,7 +92,7 @@
 | ID | 작업 | 내용 | 선행 |
 |---|---|---|---|
 | BE-52 | 업로드 파이프라인 | §8-2 presign(purpose별 제한) + s3Key 등록 + 이미지 파생본(thumb/display) + 고아 정리 | BE-03 |
-| BE-53 | 회원 편집 | §7-3 전 액션 — status·roles·admin·publicContact·개인정보, **감사 로그 전면**, 열람 로그 | BE-42, BE-13 |
+| BE-53 | 회원 편집 | §7-3 전 액션 — status·roles·admin·publicContact·개인정보 + **탈퇴 보존 집행(`holdWithdrawal`/`releaseWithdrawalHold`) + `/admin` 탈퇴 유예 목록**, **감사 로그 전면**, 열람 로그 | BE-42, BE-13, **BE-41** |
 | BE-54 | 레코드 편집 4종 | §7-4 activities/seminars/studies/gallery — CRUD + 파일 등록 + 참조 무결성 `CONFLICT` + `setAttendees` 예외(확인 다이얼로그) + `setOrganizer` 직권 전달 | BE-52 |
 | BE-55 | 이벤트 편집 | §7-2 `updateEvent`, `deleteEvent` pending 큐 검증, §7-5 connect 필드 복사 규칙 | BE-34 |
 | BE-56 | 관리자 폴링 3종 | §8-3 `/api/admin/*` (study-requests 신설 포함) | BE-47 |
@@ -136,12 +136,17 @@
 ```
 M1  Phase 0 + 1          "S3 데이터 계층"          — BE-15 통과가 게이트
 M2  Phase 2              "가드 재설계"             — BE-24 통과가 게이트
-M3  MIG-0~3 + Phase 3    "저장소 전환"             — 이 시점부터 Notion은 읽기 전용
+M3  MIG-0~3 + Phase 3    "저장소 전환(코드)"        — 코드가 S3 경로로 전환, 스냅샷 데이터로 검증.
+                                                    프로덕션 컷오버는 아직 아님 (아래 M8)
 M4  Phase 4a+4b          "회원·세미나 신기능"
 M5  Phase 4c             "스터디"
-M6  Phase 4d             "관리자 편집·업로드"
+M6  Phase 4d             "관리자 편집·업로드"       — 🔴 컷오버의 전제. M3 직후 우선 권장
 M7  Phase 5              "공개 영역"
-M8  Phase 7 + MIG-4      "검증·전환"               — robots 개방, Notion 아카이브
+M8  Phase 7 + MIG-4      "검증·컷오버"             — Notion 읽기 전용화 → 최종 델타 → 전환 →
+                                                    BE-36(Notion 코드 제거) → robots 개방 → 아카이브
 ```
 
-병렬 여지: M4·M5·M6은 상호 독립(공용 함수 BE-44→BE-51만 주의), M7은 M3 이후 언제든.
+- **컷오버 시점 원칙**: Notion 읽기 전용화(운영상 편집 중단)는 편집 UI(M6) 완성 후에만 —
+  그 전에 닫으면 임원진이 아무것도 못 고친다. 권장 순서: M1→M2→M3→**M6**→(M4·M5·M7 병렬)→M8
+- 병렬 여지: M4·M5·M7 상호 독립. **교차 엣지 3건 주의**: BE-44(M4)→BE-51(M5),
+  BE-47(M5)→BE-56(M6), BE-41(M4)→BE-53(M6)
