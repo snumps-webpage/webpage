@@ -1,3 +1,4 @@
+import { building } from "$app/environment";
 import { getLatestExecutives } from "$lib/server/notion";
 import type { LayoutServerLoad } from "./$types";
 
@@ -9,6 +10,8 @@ import type { LayoutServerLoad } from "./$types";
  */
 export const load: LayoutServerLoad = async () => {
   return {
-    executives: getLatestExecutives(),
+    // Never let this fetch break a render or a prerender pass — the footer
+    // degrades to no-contact instead. Prerender builds skip it entirely.
+    executives: building ? null : getLatestExecutives().catch(() => null),
   };
 };
