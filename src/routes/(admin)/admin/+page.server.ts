@@ -19,11 +19,15 @@ import {
   setEventStatus,
   updateAttendanceTime,
 } from "$lib/server/services/events";
+import { getWithdrawnPending } from "$lib/server/services/members-admin";
 import {
   sendSeminarStatusNotification,
   sendWelcomeEmail,
 } from "$lib/server/mail";
+import { AppError } from "$lib/server/core/errors";
 import { kstInputToIso } from "$lib/server/core/time";
+import { ACTIVITY_TYPES, type Event } from "$lib/server/data/schemas";
+import { mutate } from "$lib/server/data/tables";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
@@ -52,6 +56,7 @@ export const load: PageServerLoad = async (event) => {
           .reverse();
       })(),
       attendanceQueue: getPendingAttendance(),
+      withdrawnPending: getWithdrawnPending(),
       seminarRequests: (async () => {
         const requests = await getTable("seminar-requests");
         return requests
@@ -115,6 +120,35 @@ export const actions = {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
       await deleteEventChecked(id);
+      return {};
+    });
+  },
+
+  /** BE-55: correct a mistyped event without touching its lifecycle. */
+  updateEvent: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const data = await request.formData();
+    return handleAdminAction(locals, async () => {
+      const id = data.get("id") as string;
+      const title = (data.get("title") as string)?.trim();
+      const start = data.get("start") as string;
+      const end = data.get("end") as string;
+      const typeRaw = data.get("type") as string | null;
+      if (typeRaw && !(ACTIVITY_TYPES as readonly string[]).includes(typeRaw)) {
+        throw new AppError("VALIDATION_FAILED");
+      }
+      await mutate("events", (rows) => {
+        const idx = rows.findIndex((e) => e.id === id);
+        if (idx === -1) throw new AppError("NOT_FOUND");
+        rows[idx] = {
+          ...rows[idx],
+          title: title || rows[idx].title,
+          type: (typeRaw as Event["type"]) || rows[idx].type,
+          date: start
+            ? { start: kstInputToIso(start), end: end ? kstInputToIso(end) : null }
+            : rows[idx].date,
+        };
+        return rows;
+      });
       return {};
     });
   },

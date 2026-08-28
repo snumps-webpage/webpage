@@ -1,6 +1,8 @@
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
@@ -37,6 +39,12 @@ async function getClient(): Promise<S3Client> {
 export function dataBucket(): string {
   const bucket = env.S3_DATA_BUCKET;
   if (!bucket) throw new Error("S3_DATA_BUCKET is not set");
+  return bucket;
+}
+
+export function assetsBucket(): string {
+  const bucket = env.S3_ASSETS_BUCKET;
+  if (!bucket) throw new Error("S3_ASSETS_BUCKET is not set");
   return bucket;
 }
 
@@ -137,6 +145,54 @@ export async function listKeys(bucket: string, prefix: string): Promise<string[]
     token = res.IsTruncated ? res.NextContinuationToken : undefined;
   } while (token);
   return keys;
+}
+
+export async function headObject(
+  bucket: string,
+  key: string,
+): Promise<{ contentLength: number; contentType: string } | null> {
+  const s3 = await getClient();
+  try {
+    const res = await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+    return {
+      contentLength: res.ContentLength ?? 0,
+      contentType: res.ContentType ?? "application/octet-stream",
+    };
+  } catch (e) {
+    if (statusOf(e) === 404) return null;
+    throw e;
+  }
+}
+
+export async function copyObject(
+  bucket: string,
+  fromKey: string,
+  toKey: string,
+): Promise<void> {
+  const s3 = await getClient();
+  await s3.send(
+    new CopyObjectCommand({
+      Bucket: bucket,
+      CopySource: `${bucket}/${encodeURIComponent(fromKey)}`,
+      Key: toKey,
+    }),
+  );
+}
+
+/** Presigned PUT for browser-direct uploads (SYS-03). Content-Type is signed. */
+export async function presignPut(
+  bucket: string,
+  key: string,
+  contentType: string,
+  expiresInSeconds = 600,
+): Promise<string> {
+  const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
+  const s3 = await getClient();
+  return getSignedUrl(
+    s3,
+    new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType }),
+    { expiresIn: expiresInSeconds },
+  );
 }
 
 /** For fire-and-forget single-object writes (audit log): no conditions, unique keys. */

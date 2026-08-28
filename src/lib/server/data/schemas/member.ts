@@ -8,6 +8,7 @@ export const MemberRole = z.object({
   term: Term,
   title: z.string().min(1),
 });
+export type MemberRole = z.infer<typeof MemberRole>;
 
 /** MEM-07 lifecycle state. previousStatus restores on self-cancellation. */
 export const Withdrawal = z.object({
