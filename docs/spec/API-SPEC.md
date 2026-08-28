@@ -222,6 +222,7 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용. `activities`/
   "id": "ULID", "title": "string", "description": "string",
   "prerequisites": "string", "duration": "string",
   "presenterIds": ["ULID"],             // 'speakerIds' 아님 — 발표자 명칭 전 테이블 통일
+  "attachment": "string",               // 자료 외부 링크 (현행 기능 보존 — 업로드 경로는 SYS-03에서)
   "requesterId": "ULID",
   "status": "pending | approved | rejected | withdrawn",
   "createdAt": "datetime"
