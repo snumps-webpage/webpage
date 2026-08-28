@@ -119,8 +119,13 @@ export async function approveSeminar(
     rows.map((r) => (r.id === id ? { ...r, status: "approved" as const } : r)),
   );
 
-  // BE-45 stub: the all-member announcement lands with the mail milestone.
-  const mailFailed = true;
+  // BE-45: all-member announcement (Bcc, opted-in only). Failure never
+  // propagates — and a re-run stops at CONFLICT above, so no double-send.
+  const { sendSeminarAnnouncement } = await import("$lib/server/mail/announcements");
+  const mailFailed = !(await sendSeminarAnnouncement({
+    title: request.title,
+    description: request.description,
+  }));
   return { request, mailFailed };
 }
 

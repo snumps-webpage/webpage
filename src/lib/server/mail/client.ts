@@ -55,9 +55,15 @@ export async function dispatchEmail(
   recipients: string[],
   subject: string,
   body: string,
+  opts?: { bcc?: boolean },
 ) {
+  // Bcc mode is MANDATORY for any all-member send (API-SPEC §5-7): a To:
+  // list would expose every member's address to every other member.
+  const recipientHeader = opts?.bcc
+    ? `Bcc: ${recipients.join(", ")}`
+    : `To: ${recipients.join(", ")}`;
   const message = [
-    `To: ${recipients.join(", ")}`,
+    recipientHeader,
     `Subject: =?utf-8?B?${Buffer.from(subject).toString("base64")}?=`,
     'Content-Type: text/plain; charset="utf-8"',
     "",

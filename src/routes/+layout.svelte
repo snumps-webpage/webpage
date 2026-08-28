@@ -100,6 +100,9 @@
 			</a>
 			{#if session?.user}
 				<a href="/seminar/apply" class="paper-nav-link desktop-only">Seminar</a>
+				{#if page.data.isPresenter}
+					<a href="/events/manage" class="paper-nav-link desktop-only">Manage</a>
+				{/if}
 			{/if}
 		</div>
 		<div class="nav-right">
@@ -135,6 +138,9 @@
 				<div class="mobile-group">
 					<span class="group-label">Seminar</span>
 					<a href="/seminar/apply" class="mobile-link">세미나 개설</a>
+					{#if page.data.isPresenter}
+						<a href="/events/manage" class="mobile-link">세미나 출석 관리</a>
+					{/if}
 				</div>
 				{#if page.data.isAdmin}
 					<div class="mobile-group">

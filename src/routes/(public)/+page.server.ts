@@ -113,14 +113,17 @@ export const load: PageServerLoad = async (event) => {
 
     try {
       const range = termRange(currentTerm());
-      const [currentRaw, attendedRaw, allRequests, privateInfo, allSeminars] =
+      const [currentRaw, attendedRaw, allRequests, privateInfo, allSeminars, allEvents] =
         await Promise.all([
           getActivitiesBetween(range.start, range.end),
           getActivitiesOf(member.memberId),
           getTable("seminar-requests"),
           getPrivateInfoOf(member.memberId),
           getTable("seminars"),
+          getTable("events"),
         ]);
+      const eventByActivityId = new Map(allEvents.map((e) => [e.activityId, e]));
+      const now = new Date();
 
       const requests = allRequests
         .filter(
@@ -130,15 +133,26 @@ export const load: PageServerLoad = async (event) => {
         )
         .map((r) => ({ ...r, speakerIds: r.presenterIds, submittedAt: r.createdAt }));
 
-      const currentActivities = currentRaw.map((a) => ({
-        id: a.id,
-        name: a.title,
-        date: a.date.start,
-        type: a.type,
-        attended: a.attendeeIds.includes(member.memberId),
-        url: "",
-        semester: semester.key,
-      }));
+      const currentActivities = currentRaw.map((a) => {
+        const event = eventByActivityId.get(a.id);
+        const attended = a.attendeeIds.includes(member.memberId);
+        const isApplied = event?.applicantIds.includes(member.memberId) ?? false;
+        const started = event ? new Date(event.date.start) <= now : true;
+        return {
+          id: a.id,
+          name: a.title,
+          date: a.date.start,
+          type: a.type,
+          attended,
+          url: "",
+          semester: semester.key,
+          // EVT-02·03: participation state for the activity table
+          eventId: event?.id ?? null,
+          isApplied,
+          canApply: !!event && event.status === "active" && !started,
+          pendingAttendance: isApplied && started && !attended && a.type === "세미나",
+        };
+      });
 
       const semesters = Array.from(
         new Set(attendedRaw.map((a) => getSemesterKeyFromDate(a.date.start))),
@@ -192,6 +206,41 @@ export const load: PageServerLoad = async (event) => {
 };
 
 export const actions = {
+  /** EVT-02: apply to a not-yet-started seminar from the activity table. */
+  applyActivity: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
+    const eventId = (await request.formData()).get("eventId") as string;
+    return handleUserAction(locals, async () => {
+      const member = locals.member;
+      if (!member) throw new AppError("FORBIDDEN");
+      const { applyToEvent } = await import("$lib/server/services/events");
+      await applyToEvent(eventId, member.memberId);
+      return {};
+    });
+  },
+
+  cancelActivity: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
+    const eventId = (await request.formData()).get("eventId") as string;
+    return handleUserAction(locals, async () => {
+      const member = locals.member;
+      if (!member) throw new AppError("FORBIDDEN");
+      const { cancelEventApplication } = await import("$lib/server/services/events");
+      await cancelEventApplication(eventId, member.memberId);
+      return {};
+    });
+  },
+
   updateProfile: async ({
     request,
     locals,

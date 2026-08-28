@@ -142,6 +142,113 @@ export async function checkIn(event: Event, memberId: string): Promise<Attendanc
   return created!;
 }
 
+// ---- participation (EVT-02 / BE-43) -----------------------------------------
+
+const SEMINAR_TYPES: readonly Event["type"][] = ["세미나"];
+
+export function isSeminarType(type: Event["type"]): boolean {
+  return SEMINAR_TYPES.includes(type);
+}
+
+function assertOpenForApplication(event: Event, now = new Date()): void {
+  if (effectiveStatus(event, now) !== "active") throw new AppError("EVENT_NOT_OPEN");
+  if (new Date(event.date.start) <= now) throw new AppError("EVENT_NOT_OPEN");
+}
+
+export async function applyToEvent(eventId: string, memberId: string): Promise<void> {
+  await mutate("events", (rows) => {
+    const idx = rows.findIndex((e) => e.id === eventId);
+    if (idx === -1) throw new AppError("NOT_FOUND");
+    assertOpenForApplication(rows[idx]);
+    if (rows[idx].applicantIds.includes(memberId)) return rows; // idempotent no-op
+    rows[idx] = { ...rows[idx], applicantIds: [...rows[idx].applicantIds, memberId] };
+    return rows;
+  });
+}
+
+export async function cancelEventApplication(
+  eventId: string,
+  memberId: string,
+): Promise<void> {
+  await mutate("events", (rows) => {
+    const idx = rows.findIndex((e) => e.id === eventId);
+    if (idx === -1) throw new AppError("NOT_FOUND");
+    assertOpenForApplication(rows[idx]);
+    rows[idx] = {
+      ...rows[idx],
+      applicantIds: rows[idx].applicantIds.filter((id) => id !== memberId),
+    };
+    return rows;
+  });
+}
+
+// ---- presenter attendance management (PRES-01~04 / BE-44) -------------------
+
+/** Seminars the member presents, with resolved applicants and current checks. */
+export async function getManagedSeminars(memberId: string) {
+  const [events, activities, members] = await Promise.all([
+    getTable("events"),
+    getTable("activities"),
+    getTable("members"),
+  ]);
+  const activityById = new Map(activities.map((a) => [a.id, a]));
+  const memberById = new Map(members.map((m) => [m.id, m]));
+
+  return events
+    .filter((e) => isSeminarType(e.type) && e.presenterIds.includes(memberId))
+    .sort((a, b) => a.date.start.localeCompare(b.date.start))
+    .map((e) => {
+      const attendees = activityById.get(e.activityId)?.attendeeIds ?? [];
+      return {
+        id: e.id,
+        title: e.title,
+        date: e.date.start,
+        status: effectiveStatus(e),
+        attendPath: `/events/${e.pathId}/${e.attendCode}`, // PRES-04 share link
+        applicants: e.applicantIds.map((id) => ({
+          id,
+          name: memberById.get(id)?.name ?? "Unknown",
+          department: memberById.get(id)?.department ?? "",
+          checked: attendees.includes(id),
+        })),
+      };
+    });
+}
+
+/**
+ * BE-44 save: merge rule via mergeAttendees — attendees who arrived through
+ * check-in (outside the applicant pool) always survive; selections outside
+ * the pool are refused. Presenter authority is re-verified against the event.
+ */
+export async function savePresenterAttendance(
+  eventId: string,
+  presenterId: string,
+  selectedApplicantIds: string[],
+): Promise<void> {
+  const event = (await getTable("events")).find((e) => e.id === eventId);
+  if (!event) throw new AppError("NOT_FOUND");
+  if (!event.presenterIds.includes(presenterId)) throw new AppError("FORBIDDEN");
+  if (!isSeminarType(event.type)) throw new AppError("VALIDATION_FAILED");
+
+  const { mergeAttendees, invalidateAttendanceCaches } = await import(
+    "$lib/server/attendance"
+  );
+  let touched: string[] = [];
+  await mutate("activities", (rows) => {
+    const idx = rows.findIndex((a) => a.id === event.activityId);
+    if (idx === -1) throw new AppError("NOT_FOUND");
+    const next = mergeAttendees(
+      rows[idx].attendeeIds,
+      event.applicantIds,
+      selectedApplicantIds,
+    );
+    touched = [...new Set([...rows[idx].attendeeIds, ...next])];
+    rows[idx] = { ...rows[idx], attendeeIds: next };
+    return rows;
+  });
+  await invalidateAttendanceCaches(touched);
+}
+
 // ---- queue administration (ADM-03) ------------------------------------------
 
 async function findQueueRow(eventId: string, queueId: string): Promise<AttendanceRecord> {
