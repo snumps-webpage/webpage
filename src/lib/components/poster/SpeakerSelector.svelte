@@ -1,16 +1,18 @@
 <script lang="ts">
-    import type { SeminarSpeaker } from '$lib/types';
+    import type { MemberPickerItem } from '$lib/domain/seminars';
     
     let { 
         selectedSpeakers = $bindable([]), 
         members = [], 
         memberDirectoryUnavailable = false,
-        showSearch = $bindable(false)
+        showSearch = $bindable(false),
+        error
     }: {
-        selectedSpeakers: SeminarSpeaker[];
-        members: SeminarSpeaker[];
+        selectedSpeakers: MemberPickerItem[];
+        members: MemberPickerItem[];
         memberDirectoryUnavailable: boolean;
         showSearch: boolean;
+        error?: string;
     } = $props();
 
     let searchQuery = $state('');
@@ -19,15 +21,14 @@
     let searchResults = $derived(
         searchQuery.trim() === '' 
             ? [] 
-            : members.filter((m: SeminarSpeaker) => 
+            : members.filter((m: MemberPickerItem) =>
                 !selectedSpeakerIds.has(m.id) &&
                 (m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                 m.department.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                 m.email.toLowerCase().includes(searchQuery.toLowerCase()))
+                 m.department.toLowerCase().includes(searchQuery.toLowerCase()))
             ).slice(0, 5)
     );
 
-    function addSpeaker(member: SeminarSpeaker) {
+    function addSpeaker(member: MemberPickerItem) {
         selectedSpeakers = [...selectedSpeakers, member];
         searchQuery = '';
         showSearch = false;
@@ -42,21 +43,37 @@
     <div class="label-row">
         <span class="paper-label">발표자 (Speakers)</span>
         {#if !memberDirectoryUnavailable}
-            <button type="button" class="paper-btn small" onclick={() => showSearch = !showSearch}>
+            <button
+                type="button"
+                class="paper-btn small add-speaker-btn"
+                class:invalid={!!error}
+                aria-describedby={error ? 'presenter-error' : undefined}
+                onclick={() => showSearch = !showSearch}
+            >
                 {showSearch ? '검색 닫기' : '추가 (Add)'}
             </button>
         {/if}
     </div>
 
-    <div class="selected-speakers">
+    <div
+        class="selected-speakers"
+        class:invalid={!!error}
+        aria-invalid={!!error}
+        aria-describedby={error ? 'presenter-error' : undefined}
+    >
         {#each selectedSpeakers as speaker (speaker.id)}
             <div class="speaker-tag">
                 <span class="s-name">{speaker.name}</span>
                 <span class="s-dept">{speaker.department}</span>
-                <button type="button" class="remove-btn" onclick={() => removeSpeaker(speaker.id)} aria-label="Remove speaker">×</button>
+                <button
+                    type="button"
+                    class="remove-btn"
+                    onclick={() => removeSpeaker(speaker.id)}
+                    aria-label={`${speaker.name} 발표자 제거`}
+                >×</button>
             </div>
         {:else}
-            <p class="paper-hint">발표자를 추가해주세요. (본인 포함 가능)</p>
+            <p class="paper-hint">발표자를 추가해 주세요. 본인을 선택할 수도 있습니다.</p>
         {/each}
     </div>
 
@@ -65,7 +82,8 @@
             <input 
                 type="text" 
                 class="search-input" 
-                placeholder="이름, 학과, 또는 이메일로 검색..." 
+                placeholder="이름 또는 학과로 검색..."
+                aria-label="발표자 검색"
                 bind:value={searchQuery}
             />
             {#if searchResults.length > 0}
@@ -76,12 +94,15 @@
                                 <span class="r-name">{member.name}</span>
                                 <span class="r-dept">{member.department}</span>
                             </div>
-                            <span class="r-email">{member.email}</span>
                         </button>
                     {/each}
                 </div>
             {/if}
         </div>
+    {/if}
+
+    {#if error}
+        <p class="field-error" id="presenter-error" role="alert">{error}</p>
     {/if}
 </div>
 
@@ -104,6 +125,10 @@
         min-height: 2.2rem;
         padding: 0.45rem;
         border: 1px dashed var(--latex-rule);
+    }
+
+    .selected-speakers.invalid {
+        border-left: 4px solid var(--latex-accent);
     }
 
     .speaker-tag {
@@ -193,8 +218,10 @@
         opacity: 0.8;
     }
 
-    .r-email {
-        font-size: 0.73rem;
-        opacity: 0.7;
+    .field-error {
+        margin: 0;
+        color: var(--latex-accent);
+        font-size: 0.8rem;
+        font-weight: 600;
     }
 </style>

@@ -1,13 +1,12 @@
 <script lang="ts">
     import SeminarPosterDownloadPanel from './SeminarPosterDownloadPanel.svelte';
-    import type { SeminarSpeaker } from '$lib/types';
+    import type { MemberPickerItem } from '$lib/domain/seminars';
 
     let { 
         seminarTitle = '', 
         seminarDescription = '', 
         seminarPrerequisites = '', 
-        selectedSpeakers = [] as SeminarSpeaker[],
-        actualName = ''
+        selectedSpeakers = [] as MemberPickerItem[]
     } = $props();
 
     let posterDateInput = $state('');
@@ -24,7 +23,7 @@
     let posterSpeaker = $derived(
         selectedSpeakers.length > 0
             ? `발표: ${selectedSpeakers[0].name}${selectedSpeakers.length > 1 ? ` 외 ${selectedSpeakers.length - 1}명` : ''}`
-            : `발표: ${actualName || '미정'}`
+            : '발표: 미정'
     );
 </script>
 

@@ -1,39 +1,51 @@
-import { redirect, error } from "@sveltejs/kit";
-import { getAllActivities } from "$lib/server/notion";
-import { createEvent } from "$lib/server/events";
+import { dev } from "$app/environment";
+import { error, fail, redirect } from "@sveltejs/kit";
+import { adminDashboardIdSchema } from "$lib/domain/admin-dashboard";
+import { ensureAdmin } from "$lib/server/auth-guards";
+import {
+  connectDevActivity,
+  getDevConnectableActivities,
+} from "$lib/server/dev-admin-dashboard-fixtures";
+import { resolveDevPreviewRole } from "$lib/server/dev-preview";
 import { getSemesterKeyFromDate } from "$lib/utils";
-import { isAdmin } from "$lib/server/admin";
-import type { PageServerLoad } from "./$types";
+import type { Actions, PageServerLoad } from "./$types";
 
-export const load: PageServerLoad = async ({ locals }) => {
-  const session = await locals.auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
-    throw error(404, "Not Found");
+function requirePreview(
+  url: URL,
+  cookies: Parameters<typeof resolveDevPreviewRole>[1],
+) {
+  if (!dev || resolveDevPreviewRole(url, cookies) !== "admin") {
+    throw error(503, "새 활동 연결 API 연결이 필요합니다.");
   }
+}
 
-  const activities = await getAllActivities();
-
-  // Extract unique semesters using shared utility
-  const semesters = Array.from(
-    new Set(activities.map((a) => getSemesterKeyFromDate(a.date))),
-  )
-    .sort()
-    .reverse();
-
-  return { activities, semesters };
+export const load: PageServerLoad = async ({ locals, url, cookies }) => {
+  await ensureAdmin(locals, { silent: true });
+  requirePreview(url, cookies);
+  const activities = getDevConnectableActivities();
+  return {
+    activities,
+    semesters: [
+      ...new Set(
+        activities.map((activity) => getSemesterKeyFromDate(activity.date)),
+      ),
+    ]
+      .sort()
+      .reverse(),
+  };
 };
 
-export const actions = {
-  publish: async ({ request }) => {
-    const data = await request.formData();
-    const notionPageId = data.get("notionPageId") as string;
-    const title = data.get("title") as string;
-    const date = data.get("date") as string;
-    const type = data.get("type") as string;
-
-    if (!notionPageId) return { error: "이벤트를 선택해주세요." };
-
-    await createEvent({ title, date, type, notionPageId });
-    throw redirect(302, "/admin");
+export const actions: Actions = {
+  publish: async ({ request, locals, url, cookies }) => {
+    await ensureAdmin(locals, { silent: true });
+    requirePreview(url, cookies);
+    const formData = await request.formData();
+    const parsed = adminDashboardIdSchema.safeParse(formData.get("activityId"));
+    if (!parsed.success)
+      return fail(400, { error: "연결할 활동을 선택해 주세요." });
+    if (!connectDevActivity(parsed.data)) {
+      return fail(409, { error: "이미 연결됐거나 찾을 수 없는 활동입니다." });
+    }
+    throw redirect(303, "/admin?dev_preview=admin");
   },
 };

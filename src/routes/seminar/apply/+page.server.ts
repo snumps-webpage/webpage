@@ -1,85 +1,82 @@
-import { createSeminarRequest, parseSpeakerIds } from "$lib/server/seminars";
-import {
-  getSearchableMembers,
-  resolveActualName,
-  type SearchableMember,
-} from "$lib/server/admin";
-import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
-import { getMemberByEmail } from "$lib/server/notion";
-import { parseGoogleName } from "$lib/utils";
+import { error, fail } from "@sveltejs/kit";
+import { validateSeminarRequestForm } from "$lib/domain/seminars";
+import { ensureSession } from "$lib/server/auth-guards";
+import { dev } from "$app/environment";
+import { resolveDevPreviewRole } from "$lib/server/dev-preview";
+import { createDevSeminarRequest } from "$lib/server/dev-admin-seminar-fixtures";
+import { getDevAdminMembers } from "$lib/server/dev-member-fixtures";
 import type { PageServerLoad, Actions } from "./$types";
 
-export const load: PageServerLoad = async ({ locals, url }) => {
-  const session = await ensureSession(locals, url);
+function activeMembers() {
+  return getDevAdminMembers().filter((member) => member.status !== "withdrawn");
+}
 
-  let memberDirectoryUnavailable = false;
-  let searchableMembers: SearchableMember[] = [];
-  let actualName = "";
+function previewMember(role: "member" | "admin") {
+  const id = role === "admin" ? "dev-admin" : "dev-member";
+  return activeMembers().find((member) => member.id === id) ?? null;
+}
 
-  try {
-    [searchableMembers, actualName] = await Promise.all([
-      getSearchableMembers(),
-      resolveActualName(session),
-    ]);
-  } catch (error) {
-    memberDirectoryUnavailable = true;
-    console.error(
-      "[Seminar Apply] Failed to load member data. Falling back.",
-      error,
-    );
-    actualName = parseGoogleName(session.user.name).name;
+async function requireMemberPreview(
+  locals: App.Locals,
+  url: URL,
+  cookies: Parameters<typeof resolveDevPreviewRole>[1],
+) {
+  await ensureSession(locals, url);
+  const role = resolveDevPreviewRole(url, cookies);
+  if (!dev || !role) {
+    throw error(503, "새 세미나 신청 API 연결이 필요합니다.");
   }
+  return role;
+}
 
+export const load: PageServerLoad = async ({ locals, url, cookies }) => {
+  const role = await requireMemberPreview(locals, url, cookies);
+  const member = previewMember(role);
+  if (!member) throw error(404, "회원 정보를 찾을 수 없습니다.");
   return {
-    user: session.user,
-    actualName,
-    members: searchableMembers,
-    memberDirectoryUnavailable,
+    user: member,
+    members: activeMembers().map(({ id, name, department }) => ({
+      id,
+      name,
+      department,
+    })),
+    memberDirectoryUnavailable: false,
   };
 };
 
 export const actions: Actions = {
-  default: async ({ request, locals }) => {
-    return handleUserAction(
-      locals,
-      async (session) => {
-        const data = await request.formData();
-        const title = data.get("title") as string;
-        const description = data.get("description") as string;
-        const prerequisites = data.get("prerequisites") as string;
-        const duration = data.get("duration") as string;
-        const speakerIdsRaw = data.get("speakerIds") as string;
-        const attachment = data.get("attachment") as string;
+  default: async ({ request, locals, url, cookies }) => {
+    const role = await requireMemberPreview(locals, url, cookies);
 
-        const member = await getMemberByEmail(session.user.email);
-        if (!member)
-          throw new Error(
-            "회원 정보를 찾을 수 없습니다. 가입 상태를 확인해 주세요.",
-          );
-
-        let speakerIds = parseSpeakerIds(speakerIdsRaw);
-        if (speakerIds.length === 0) {
-          speakerIds = [member.memberId];
-        }
-
-        if (!title || !description)
-          throw new Error("세미나 제목과 설명은 필수 입력 항목입니다.");
-
-        await createSeminarRequest({
-          title,
-          description,
-          prerequisites: prerequisites || "",
-          duration,
-          speakerIds,
-          attachment,
-        });
-
-        const displayName = parseGoogleName(session.user.name).name;
-        const { sendSeminarApplicationNotification } =
-          await import("$lib/server/mail");
-        await sendSeminarApplicationNotification(displayName, title);
+    const result = validateSeminarRequestForm(await request.formData());
+    if (!result.success) return fail(400, result.failure);
+    const members = activeMembers();
+    const memberById = new Map(members.map((member) => [member.id, member]));
+    const requester = previewMember(role);
+    const presenters = result.data.presenterIds
+      .map((id) => memberById.get(id))
+      .filter((member): member is NonNullable<typeof member> => !!member)
+      .map(({ id, name, department }) => ({ id, name, department }));
+    if (!requester || presenters.length !== result.data.presenterIds.length) {
+      return fail(400, {
+        error: "VALIDATION_FAILED",
+        issues: { presenterIds: "현재 회원 중 발표자를 선택해 주세요." },
+        values: result.data,
+      });
+    }
+    const seminarRequest = createDevSeminarRequest({
+      values: result.data,
+      requester: {
+        id: requester.id,
+        name: requester.name,
+        department: requester.department,
       },
-      { invalidate: "all_seminar_requests" },
-    );
+      presenters,
+    });
+    return {
+      success: true,
+      operation: "requestSubmitted" as const,
+      request: seminarRequest,
+    };
   },
 };

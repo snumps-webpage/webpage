@@ -1,18 +1,19 @@
+import { dev } from "$app/environment";
 import { json } from "@sveltejs/kit";
-import { getApplications, isAdmin } from "$lib/server/admin";
+import { ensureAdmin } from "$lib/server/auth-guards";
+import { getDevAdminDashboard } from "$lib/server/dev-admin-dashboard-fixtures";
+import { resolveDevPreviewRole } from "$lib/server/dev-preview";
 import type { RequestHandler } from "./$types";
 
-export const GET: RequestHandler = async ({ locals }) => {
-  const session = await locals.auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
-    return json({ error: "Unauthorized" }, { status: 401 });
+export const GET: RequestHandler = async ({ locals, url, cookies }) => {
+  await ensureAdmin(locals, { silent: true });
+  if (!dev || resolveDevPreviewRole(url, cookies) !== "admin") {
+    return json({ error: "SERVICE_UNAVAILABLE" }, { status: 503 });
   }
-
-  const apps = await getApplications();
-  const sortedApps = apps.sort(
-    (a, b) =>
-      new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime(),
-  );
-
-  return json(sortedApps);
+  const dashboard = getDevAdminDashboard();
+  return json({
+    success: true,
+    items: dashboard.applications,
+    generatedAt: dashboard.generatedAt,
+  });
 };

@@ -9,6 +9,12 @@
 
 	let { data, form } = $props();
     let submitting = $state(false);
+    function getIssues(value: typeof form): Record<string, string> {
+        return value && 'issues' in value && value.issues && typeof value.issues === 'object'
+            ? value.issues as Record<string, string>
+            : {};
+    }
+    let issues = $derived(getIssues(form));
 </script>
 
 <article class="paper-document">
@@ -20,7 +26,7 @@
 
 	{#if data.preview}
 		<p class="paper-status-note muted">
-			미리보기 모드입니다. 이 화면에서는 실제 가입 신청이 제출되지 않습니다.
+			개발 프리뷰입니다. 제출한 신청은 관리자 프리뷰 대기열에 반영됩니다.
 		</p>
 	{/if}
 
@@ -30,7 +36,9 @@
 				<h2 class="paper-section-title">Application Status</h2>
 				<p class="paper-hint">가입 신청이 이미 접수되었습니다. 관리자 승인 결과를 기다려 주세요.</p>
 				<div class="paper-actions">
-					<a href="/wait" class="paper-btn primary">대기 페이지로 이동</a>
+					<a href={data.preview ? '/wait?preview=1' : '/wait'} class="paper-btn primary">
+						대기 페이지로 이동
+					</a>
 				</div>
 			</li>
 		</ol>
@@ -43,7 +51,8 @@
                 <SuccessScreen 
                     title="가입 신청이 완료되었습니다!" 
                     description="승인 여부는 메일로 안내됩니다." 
-                    buttonLabel="메인으로 이동"
+                    buttonLabel="승인 대기 화면"
+                    buttonLink={data.preview ? '/wait?preview=1' : '/wait'}
                 />
 		{:else}
 				<form
@@ -63,9 +72,9 @@
 								email={data.user?.email ?? ''} 
 							/>
 
-							<SignupContactFields title="Submission" />
+							<SignupContactFields title="Submission" {issues} />
 
-							<SignupConsentField />
+							<SignupConsentField error={issues.agreement ?? ''} />
 				</ol>
 
 				<div class="paper-actions">

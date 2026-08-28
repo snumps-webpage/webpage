@@ -814,7 +814,8 @@ footer.guest-latex-footer {
   color: var(--text-secondary);
 }
 
-.footer-info p {
+.footer-info p,
+.footer-info .footer-line {
   margin: 0;
   font-family: var(--font-body);
   font-size: 0.9rem;
@@ -1011,7 +1012,8 @@ footer.guest-latex-footer .theme-btn.active {
     padding: 0 0.88rem;
   }
 
-  footer.guest-latex-footer .footer-info p {
+  footer.guest-latex-footer .footer-info p,
+  footer.guest-latex-footer .footer-info .footer-line {
     font-size: 0.72rem;
   }
 

@@ -10,6 +10,11 @@
     let success = $state(false);
 </script>
 
+<svelte:head>
+	<title>{data.event.title} 출석 · SNUMPS</title>
+	<meta name="robots" content="noindex" />
+</svelte:head>
+
 <article class="paper-document event-paper">
     <ManuscriptHeader 
         title={data.event.title} 
@@ -19,8 +24,8 @@
 
 	{#if success}
         <SuccessScreen 
-            title="출석이 완료되었습니다!" 
-            description="성공적으로 처리되었습니다. 창을 닫으셔도 됩니다." 
+            title="출석 승인 요청을 접수했습니다."
+            description="운영진 승인 후 활동 이력에 반영됩니다. 창을 닫으셔도 됩니다."
             buttonLabel="홈으로 이동"
         />
 	{:else}
@@ -31,6 +36,12 @@
 					<span class="type">{data.event.type}</span>
 					<span class="date">{new Date(data.event.date).toLocaleString()}</span>
 				</div>
+				{#if data.context}
+					<dl class="event-context">
+						<div><dt>{data.context.primaryLabel}</dt><dd>{data.context.primaryValue}</dd></div>
+						<div><dt>{data.context.secondaryLabel}</dt><dd>{data.context.secondaryValue}</dd></div>
+					</dl>
+				{/if}
 				<p class="paper-status-note muted">
 					참가자: <strong>{data.user?.name}</strong> ({data.user?.email})
 				</p>
@@ -58,7 +69,7 @@
 					{#if processing}
 						<span class="spinner"></span> 처리 중...
 					{:else}
-						출석 체크 (Check In)
+						출석 승인 요청 (Check In)
 					{/if}
 				</button>
 			</div>
@@ -99,6 +110,32 @@
 		font-size: 0.68rem;
 	}
 
+	.event-context {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		margin: 0.8rem 0;
+		border: 1px solid var(--latex-rule);
+	}
+
+	.event-context div {
+		padding: 0.55rem 0.65rem;
+	}
+
+	.event-context div + div {
+		border-left: 1px solid var(--latex-rule);
+	}
+
+	.event-context dt {
+		color: var(--latex-muted);
+		font: 700 0.55rem/1.2 var(--font-mono);
+		text-transform: uppercase;
+	}
+
+	.event-context dd {
+		margin: 0.2rem 0 0;
+		font-size: 0.75rem;
+	}
+
     .spinner {
         width: 0.9rem;
         height: 0.9rem;
@@ -112,5 +149,16 @@
     @keyframes spin {
         to { transform: rotate(360deg); }
     }
+
+	@media (max-width: 480px) {
+		.event-context {
+			grid-template-columns: 1fr;
+		}
+
+		.event-context div + div {
+			border-left: 0;
+			border-top: 1px solid var(--latex-rule);
+		}
+	}
 
 </style>

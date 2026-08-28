@@ -8,9 +8,16 @@ declare global {
     interface Locals {
       auth: () => Promise<Session | null>;
       /** Request-level cache for member info */
-      member?: { privateInfoId: string; memberId: string } | null;
+      member?: {
+        privateInfoId: string;
+        memberId: string;
+        status?: import("./lib/domain/members").MemberStatus;
+        isAdmin: boolean;
+      } | null;
       /** Request-level cache for application info */
-      userApplication?: import("./lib/server/admin").Application | null;
+      userApplication?:
+        | import("./lib/domain/admin-dashboard").AdminMembershipApplicationItem
+        | null;
     }
     interface PageData {
       session: Session | null;

@@ -1,106 +1,84 @@
-import { redirect, fail } from "@sveltejs/kit";
 import { dev } from "$app/environment";
-import { getMemberByEmail } from "$lib/server/notion";
-import { getApplications, isAdmin, type Application } from "$lib/server/admin";
-import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
+import { error, fail } from "@sveltejs/kit";
+import {
+  membershipApplicationInputSchema,
+  membershipApplicationIssues,
+} from "$lib/domain/membership-applications";
+import { ensureSession } from "$lib/server/auth-guards";
+import {
+  getDevApplicationByEmail,
+  submitDevApplication,
+} from "$lib/server/dev-admin-dashboard-fixtures";
+import {
+  DEV_PREVIEW_APPLICANT_EMAIL,
+  DEV_PREVIEW_APPLICANT_NAME,
+} from "$lib/server/dev-preview";
 import { normalizePhoneNumber, parseGoogleName } from "$lib/utils";
-import type { PageServerLoad } from "./$types";
+import type { Actions, PageServerLoad } from "./$types";
 
-export const load: PageServerLoad = async (event) => {
-  const isPreview = dev && event.url.searchParams.get("preview") === "1";
-  const session = await (isPreview
-    ? event.locals.auth()
-    : ensureSession(event.locals, event.url));
+const PREVIEW_USER = {
+  email: DEV_PREVIEW_APPLICANT_EMAIL,
+  name: DEV_PREVIEW_APPLICANT_NAME,
+};
 
-  if (isPreview) {
-    const previewName = session?.user?.name || "홍길동 / 학부생 / 수리과학부";
-    const parsedInfo = parseGoogleName(previewName);
+function isPreview(url: URL) {
+  return dev && url.searchParams.get("preview") === "1";
+}
 
+function formValue(formData: FormData, name: string) {
+  const entry = formData.get(name);
+  return typeof entry === "string" ? entry : "";
+}
+
+export const load: PageServerLoad = async ({ locals, url }) => {
+  if (isPreview(url)) {
     return {
-      user: session?.user || {
-        email: "preview@snu.ac.kr",
-        name: previewName,
-      },
-      parsedInfo,
-      pending: false,
+      user: PREVIEW_USER,
+      parsedInfo: parseGoogleName(PREVIEW_USER.name),
+      pending: Boolean(getDevApplicationByEmail(PREVIEW_USER.email)),
       preview: true,
     };
   }
 
-  // At this point, session is guaranteed by ensureSession
-  const user = session!.user!;
-  if (!user.email) throw redirect(302, "/");
-
-  const [member, apps] = await Promise.all([
-    getMemberByEmail(user.email),
-    getApplications(),
-  ]);
-
-  const isUserAdmin = isAdmin(user.email);
-
-  if (member && !isUserAdmin) {
-    throw redirect(302, "/");
-  }
-
-  const pending = apps.find((a: Application) => a.email === user.email);
-
-  if (pending && !isUserAdmin) {
-    throw redirect(302, "/signup/edit");
-  }
-
-  // Parse user info from name field: "Name / Status / Dept"
-  const parsedInfo = parseGoogleName(user.name);
-
-  return {
-    user,
-    parsedInfo,
-    pending: !!pending,
-    preview: false,
-  };
+  await ensureSession(locals, url);
+  throw error(503, "새 가입 신청 API 연결이 필요합니다.");
 };
 
-export const actions = {
+export const actions: Actions = {
   default: async ({ request, locals, url }) => {
-    if (dev && url.searchParams.get("preview") === "1") {
+    if (!isPreview(url)) {
+      await ensureSession(locals, url);
+      return fail(503, { error: "새 가입 신청 API 연결이 필요합니다." });
+    }
+
+    const formData = await request.formData();
+    const parsed = membershipApplicationInputSchema.safeParse({
+      phone: normalizePhoneNumber(formValue(formData, "phone")),
+      background: formValue(formData, "background"),
+      agreement: formValue(formData, "agreement"),
+    });
+    if (!parsed.success) {
       return fail(400, {
-        error: "미리보기 모드에서는 신청을 제출할 수 없습니다.",
+        error: "입력값을 확인해 주세요.",
+        issues: membershipApplicationIssues(parsed.error),
       });
     }
 
-    return handleUserAction(
-      locals,
-      async (session) => {
-        const user = session.user;
-        const { name: immutableName, department: immutableDept } =
-          parseGoogleName(user.name);
-
-        if (!immutableName || !immutableDept) {
-          throw new Error("계정 정보에서 이름 또는 학과를 찾을 수 없습니다.");
-        }
-
-        const data = await request.formData();
-        const phone = normalizePhoneNumber(data.get("phone") as string);
-        const background = data.get("background") as string;
-        const agreement = data.get("agreement");
-
-        if (!agreement)
-          throw new Error("개인정보 수집 및 이용에 동의해야 합니다.");
-        if (!phone) throw new Error("전화번호를 입력해주세요.");
-
-        const { addApplication } = await import("$lib/server/admin");
-        const { sendSignupNotification } = await import("$lib/server/mail");
-
-        await addApplication({
-          email: user.email,
-          name: immutableName,
-          department: immutableDept,
-          phone,
-          background,
-        });
-
-        await sendSignupNotification(immutableName);
-      },
-      { invalidate: "all_applications" },
-    );
+    const profile = parseGoogleName(PREVIEW_USER.name);
+    const application = submitDevApplication({
+      name: profile.name,
+      email: PREVIEW_USER.email,
+      department: profile.department,
+      phone: parsed.data.phone,
+      background: parsed.data.background,
+    });
+    if (!application)
+      return fail(409, { error: "이미 접수된 가입 신청이 있습니다." });
+    return {
+      success: true,
+      operation: "applicationSubmitted" as const,
+      applicationId: application.id,
+      mailFailed: false,
+    };
   },
 };

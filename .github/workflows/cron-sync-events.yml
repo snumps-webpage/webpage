@@ -1,0 +1,23 @@
+# Primary scheduler for /api/cron/sync-events.
+# Vercel's daily cron remains as a backup because public repositories can have
+# inactive scheduled workflows disabled. The endpoint must stay idempotent.
+name: cron-sync-events
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call sync-events
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -fsS --max-time 60 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "https://snumps.vercel.app/api/cron/sync-events"

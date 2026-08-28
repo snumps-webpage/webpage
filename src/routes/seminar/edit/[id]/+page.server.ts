@@ -1,112 +1,126 @@
-import { redirect } from "@sveltejs/kit";
+import { error, fail } from "@sveltejs/kit";
 import {
-  getSeminarRequests,
-  updateSeminarRequest,
-  parseSpeakerIds,
-} from "$lib/server/seminars";
+  validateSeminarRequestForm,
+  type MemberPickerItem,
+} from "$lib/domain/seminars";
+import { ensureSession } from "$lib/server/auth-guards";
+import { dev } from "$app/environment";
+import { resolveDevPreviewRole } from "$lib/server/dev-preview";
 import {
-  getSearchableMembers,
-  resolveActualName,
-  type SearchableMember,
-} from "$lib/server/admin";
-import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
-import { getMemberByEmail } from "$lib/server/notion";
-import { parseGoogleName } from "$lib/utils";
+  getDevSeminarRequest,
+  updateDevSeminarRequest,
+  withdrawDevSeminarRequest,
+} from "$lib/server/dev-admin-seminar-fixtures";
+import { getDevAdminMembers } from "$lib/server/dev-member-fixtures";
 import type { PageServerLoad, Actions } from "./$types";
 
-export const load: PageServerLoad = async ({ locals, params, url }) => {
-  const session = await ensureSession(locals, url);
+function activeMembers() {
+  return getDevAdminMembers().filter((member) => member.status !== "withdrawn");
+}
 
-  const requestId = params.id;
-  let requests = [];
-  try {
-    requests = await getSeminarRequests();
-  } catch (error) {
-    console.error(
-      "[Seminar Edit] Failed to load seminar requests. Redirecting to home.",
-      error,
-    );
-    throw redirect(302, "/");
+async function requireMemberPreview(
+  locals: App.Locals,
+  url: URL,
+  cookies: Parameters<typeof resolveDevPreviewRole>[1],
+) {
+  await ensureSession(locals, url);
+  const role = resolveDevPreviewRole(url, cookies);
+  if (!dev || !role) {
+    throw error(503, "새 세미나 신청 수정 API 연결이 필요합니다.");
   }
-  const request = requests.find((r) => r.id === requestId);
+  return role;
+}
 
-  if (!request) {
-    throw redirect(302, "/");
+function canAccess(requesterId: string, role: "member" | "admin") {
+  return role === "admin" || requesterId === "dev-member";
+}
+
+export const load: PageServerLoad = async ({
+  locals,
+  params,
+  url,
+  cookies,
+}) => {
+  const role = await requireMemberPreview(locals, url, cookies);
+  const seminarRequest = getDevSeminarRequest(params.id);
+  if (!seminarRequest) throw error(404, "세미나 신청을 찾을 수 없습니다.");
+  if (!canAccess(seminarRequest.requesterId, role)) {
+    throw error(403, "이 신청을 수정할 권한이 없습니다.");
   }
-
-  // Check if pending. Only pending requests should be editable.
-  if (request.status !== "pending") {
-    throw redirect(302, "/");
+  if (seminarRequest.status !== "pending") {
+    throw error(409, "승인 대기 중인 신청만 수정할 수 있습니다.");
   }
-
-  let memberDirectoryUnavailable = false;
-  let searchableMembers: SearchableMember[] = [];
-  let actualName = "";
-
-  try {
-    [searchableMembers, actualName] = await Promise.all([
-      getSearchableMembers(),
-      resolveActualName(session),
-    ]);
-  } catch (error) {
-    memberDirectoryUnavailable = true;
-    console.error(
-      "[Seminar Edit] Failed to load member data. Falling back.",
-      error,
-    );
-    actualName = parseGoogleName(session.user.name).name;
-  }
-
-  // Reconstruct the initial speakers list for the UI
-  const initialSpeakers = request.speakerIds
-    .map((id) => searchableMembers.find((m) => m.id === id))
-    .filter((m) => !!m);
-
+  const members: MemberPickerItem[] = activeMembers().map(
+    ({ id, name, department }) => ({ id, name, department }),
+  );
+  const presenterIds = new Set(seminarRequest.presenterIds);
   return {
-    user: session.user,
-    actualName,
-    members: searchableMembers,
-    memberDirectoryUnavailable,
+    members,
+    memberDirectoryUnavailable: false,
     request: {
-      ...request,
-      initialSpeakers,
+      ...seminarRequest,
+      initialPresenters: members.filter((member) =>
+        presenterIds.has(member.id),
+      ),
     },
   };
 };
 
 export const actions: Actions = {
-  default: async ({ request, locals, params }) => {
-    return handleUserAction(
-      locals,
-      async (session) => {
-        const data = await request.formData();
-        const title = data.get("title") as string;
-        const description = data.get("description") as string;
-        const prerequisites = data.get("prerequisites") as string;
-        const duration = data.get("duration") as string;
-        const speakerIdsRaw = data.get("speakerIds") as string;
-        const attachment = data.get("attachment") as string;
+  update: async ({ request, locals, params, url, cookies }) => {
+    const role = await requireMemberPreview(locals, url, cookies);
+    const existing = getDevSeminarRequest(params.id);
+    if (!existing) return fail(404, { error: "NOT_FOUND" });
+    if (!canAccess(existing.requesterId, role)) {
+      return fail(403, { error: "FORBIDDEN" });
+    }
+    if (existing.status !== "pending") {
+      return fail(409, { error: "CONFLICT" });
+    }
 
-        const requestId = params.id;
-        if (!title || !description)
-          throw new Error("필수 항목을 입력해주세요.");
-
-        let speakerIds = parseSpeakerIds(speakerIdsRaw);
-        if (speakerIds.length === 0) {
-          const member = await getMemberByEmail(session.user.email);
-          if (member) speakerIds = [member.memberId];
-        }
-
-        await updateSeminarRequest(requestId, {
-          title,
-          description,
-          prerequisites,
-          duration,
-          speakerIds,
-          attachment,
-        });
-      },
-      { invalidate: "all_seminar_requests" },
+    const result = validateSeminarRequestForm(await request.formData());
+    if (!result.success) return fail(400, result.failure);
+    const memberById = new Map(
+      activeMembers().map((member) => [member.id, member]),
     );
+    const presenters = result.data.presenterIds
+      .map((id) => memberById.get(id))
+      .filter((member): member is NonNullable<typeof member> => !!member)
+      .map(({ id, name, department }) => ({ id, name, department }));
+    if (presenters.length !== result.data.presenterIds.length) {
+      return fail(400, {
+        error: "VALIDATION_FAILED",
+        issues: { presenterIds: "현재 회원 중 발표자를 선택해 주세요." },
+        values: result.data,
+      });
+    }
+    const seminarRequest = updateDevSeminarRequest(
+      params.id,
+      result.data,
+      presenters,
+    );
+    if (!seminarRequest) return fail(409, { error: "CONFLICT" });
+    return {
+      success: true,
+      operation: "requestUpdated" as const,
+      request: seminarRequest,
+    };
+  },
+
+  withdraw: async ({ locals, params, url, cookies }) => {
+    const role = await requireMemberPreview(locals, url, cookies);
+    const existing = getDevSeminarRequest(params.id);
+    if (!existing) return fail(404, { error: "NOT_FOUND" });
+    if (!canAccess(existing.requesterId, role)) {
+      return fail(403, { error: "FORBIDDEN" });
+    }
+    if (!withdrawDevSeminarRequest(params.id)) {
+      return fail(409, { error: "CONFLICT" });
+    }
+    return {
+      success: true,
+      operation: "requestWithdrawn" as const,
+      requestId: params.id,
+    };
   },
 };

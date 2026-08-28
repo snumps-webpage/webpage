@@ -1,88 +1,101 @@
-import { error } from "@sveltejs/kit";
+import { dev } from "$app/environment";
+import { error, fail } from "@sveltejs/kit";
+import { ensureSession } from "$lib/server/auth-guards";
 import {
-  getEventByPathId,
-  recordAttendance,
-  deleteEvent,
-} from "$lib/server/events";
+  getDevAccountSettings,
+  getDevDashboardProfile,
+} from "$lib/server/dev-member-fixtures";
 import {
-  getMemberByEmail,
-  getMemberById,
-  checkPageExists,
-} from "$lib/server/notion";
-import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
-import { parseGoogleName } from "$lib/utils";
-import type { PageServerLoad } from "./$types";
+  getDevCheckInEvent,
+  recordDevCheckIn,
+} from "$lib/server/dev-presenter-event-fixtures";
+import {
+  getDevStudyCheckInEvent,
+  recordDevStudyCheckIn,
+} from "$lib/server/dev-study-fixtures";
+import { resolveDevPreviewRole } from "$lib/server/dev-preview";
+import type { Actions, PageServerLoad } from "./$types";
 
-export const load: PageServerLoad = async ({ params, locals, url }) => {
-  const session = await ensureSession(locals, url);
-
-  const event = await getEventByPathId(params.id);
-  if (!event) throw error(404, "Event not found");
-
-  // Robustness: Verify Notion Page Existence
-  if (event.notionPageId) {
-    const exists = await checkPageExists(event.notionPageId);
-    if (!exists) {
-      console.warn(
-        `Event '${event.title}' accessed but Notion page is missing. Deleting local record.`,
-      );
-      await deleteEvent(event.id);
-      throw error(404, "Event not found (Source Removed)");
-    }
+function resolveCheckIn(pathId: string, attendCode: string) {
+  const seminar = getDevCheckInEvent(pathId, attendCode);
+  if (seminar) {
+    return {
+      source: "seminar" as const,
+      event: seminar.event,
+      context: {
+        primaryLabel: "발표자",
+        primaryValue: seminar.context.presenterNames.join(", "),
+        secondaryLabel: "장소",
+        secondaryValue: seminar.context.location,
+      },
+    };
   }
-
-  if (event.status !== "active") throw error(403, "Event is not active");
-
-  // Validate code
-  if (params.type !== event.attendCode) {
-    throw error(404, "Invalid event page code");
-  }
-
+  const study = getDevStudyCheckInEvent(pathId, attendCode);
+  if (!study) return null;
   return {
-    event,
+    source: "study" as const,
+    event: study.event,
+    context: {
+      primaryLabel: "스터디",
+      primaryValue: study.context.studyTitle,
+      secondaryLabel: "회차",
+      secondaryValue: `${study.context.sessionTitle} · ${study.context.semester}`,
+    },
+  };
+}
+
+export const load: PageServerLoad = async ({
+  params,
+  locals,
+  url,
+  cookies,
+}) => {
+  const session = await ensureSession(locals, url);
+  const previewRole = resolveDevPreviewRole(url, cookies);
+  if (!dev || !previewRole) {
+    throw error(503, "새 출석 API 연결이 필요합니다.");
+  }
+
+  const preview = resolveCheckIn(params.id, params.type);
+  if (!preview) throw error(404, "Event not found");
+  if (preview.event.status !== "active") {
+    throw error(403, "Event is not active");
+  }
+  return {
+    event: preview.event,
+    context: preview.context,
     user: session.user,
     actionType: "attend",
   };
 };
 
-export const actions = {
-  attend: async ({ params, locals }) => {
-    return handleUserAction(locals, async (session) => {
-      const event = await getEventByPathId(params.id);
-      if (!event || event.status !== "active")
-        throw new Error("Event not found or is not currently active.");
-      if (params.type !== event.attendCode)
-        throw new Error("Invalid attendance link or code.");
+export const actions: Actions = {
+  attend: async ({ params, locals, url, cookies }) => {
+    const previewRole = resolveDevPreviewRole(url, cookies);
+    if (!dev || !previewRole) {
+      await ensureSession(locals, url);
+      return fail(503, { error: "새 출석 API 연결이 필요합니다." });
+    }
 
-      const { name: parsedName, department: parsedDept } = parseGoogleName(
-        session.user.name,
-      );
-
-      let dept = parsedDept || "Unknown";
-      try {
-        const memberLink = await getMemberByEmail(session.user.email);
-        if (memberLink) {
-          const member = await getMemberById(memberLink.memberId);
-          if (member) dept = member.department;
-        }
-      } catch (e) {
-        console.error("[Attendance] Failed to fetch department:", e);
-      }
-
-      const result = await recordAttendance(event.id, {
-        email: session.user.email,
-        name: session.user.name,
-        dept,
-      });
-
-      if (!result.isNew) {
-        const { fail } = await import("@sveltejs/kit");
-        return fail(409, { error: "이미 출석하셨습니다." });
-      }
-
-      const { sendAttendanceNotification } = await import("$lib/server/mail");
-      await sendAttendanceNotification(parsedName, event.title);
-      return {};
-    });
+    await ensureSession(locals, url);
+    const account = getDevAccountSettings(previewRole);
+    const preview = resolveCheckIn(params.id, params.type);
+    if (!account || !preview || preview.event.status !== "active") {
+      return fail(404, { error: "NOT_FOUND" });
+    }
+    const profile = getDevDashboardProfile(previewRole);
+    const member = {
+      id: account.memberId,
+      name: profile?.name ?? account.name,
+      department: profile?.department ?? "소속 미입력",
+      email: account.email,
+    };
+    const result =
+      preview.source === "seminar"
+        ? recordDevCheckIn(preview.event.id, member)
+        : recordDevStudyCheckIn(preview.event.id, member);
+    if (!result) return fail(409, { error: "EVENT_NOT_OPEN" });
+    if (!result.isNew) return fail(409, { error: "이미 출석을 요청했습니다." });
+    return { success: true, operation: "attendanceRequested" as const };
   },
 };

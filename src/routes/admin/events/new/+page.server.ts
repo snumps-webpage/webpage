@@ -1,76 +1,63 @@
-import { fail, redirect, error } from "@sveltejs/kit";
-import { env } from "$env/dynamic/private";
-import { createEvent } from "$lib/server/events";
-import {
-  createActivityPage,
-  getDatabaseSchema,
-  type DatabasePropertySchema,
-} from "$lib/server/notion";
-import { isAdmin } from "$lib/server/admin";
+import { dev } from "$app/environment";
+import { error, fail, redirect } from "@sveltejs/kit";
 import { ACTIVITY_TYPES } from "$lib/constants";
-import type { PageServerLoad } from "./$types";
+import {
+  adminEventInputSchema,
+  adminFormIssues,
+  localAdminDateTimeToIso,
+} from "$lib/domain/admin-dashboard";
+import { ensureAdmin } from "$lib/server/auth-guards";
+import { createDevEvent } from "$lib/server/dev-admin-dashboard-fixtures";
+import { resolveDevPreviewRole } from "$lib/server/dev-preview";
+import type { Actions, PageServerLoad } from "./$types";
 
-export const load: PageServerLoad = async ({ locals }) => {
-  const session = await locals.auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
-    throw error(404, "Not Found");
+function formValue(formData: FormData, name: string) {
+  const entry = formData.get(name);
+  return typeof entry === "string" ? entry : "";
+}
+
+function requirePreview(
+  url: URL,
+  cookies: Parameters<typeof resolveDevPreviewRole>[1],
+) {
+  if (!dev || resolveDevPreviewRole(url, cookies) !== "admin") {
+    throw error(503, "새 이벤트 생성 API 연결이 필요합니다.");
   }
+}
 
-  const dbId = env.NOTION_DB_ACTIVITIES;
-  let activityTypes: string[] = [...ACTIVITY_TYPES];
-
-  if (dbId) {
-    try {
-      const schema = await getDatabaseSchema(dbId);
-      const typeProp = schema["활동 종류"] as DatabasePropertySchema;
-      if (typeProp?.options) {
-        activityTypes = typeProp.options;
-      }
-    } catch (e) {
-      console.error("Failed to fetch activity types from Notion:", e);
-    }
-  }
-
-  return { activityTypes };
+export const load: PageServerLoad = async ({ locals, url, cookies }) => {
+  await ensureAdmin(locals, { silent: true });
+  requirePreview(url, cookies);
+  return { activityTypes: ACTIVITY_TYPES };
 };
 
-export const actions = {
-  default: async ({ request, locals }) => {
-    const session = await locals.auth();
-    if (!session?.user?.email || !isAdmin(session.user.email))
-      return fail(401, { error: "Unauthorized" });
-
-    const data = await request.formData();
-    const title = data.get("title") as string;
-    const dateRaw = data.get("date") as string; // YYYY-MM-DDTHH:mm
-    const type = data.get("type") as string;
-
-    if (!title || !dateRaw || !type) {
-      return fail(400, { error: "Missing required fields" });
-    }
-
-    try {
-      // 1. Create Notion Page
-      const page = await createActivityPage({
-        title,
-        date: dateRaw,
-        type,
+export const actions: Actions = {
+  default: async ({ request, locals, url, cookies }) => {
+    await ensureAdmin(locals, { silent: true });
+    requirePreview(url, cookies);
+    const formData = await request.formData();
+    const parsed = adminEventInputSchema.safeParse({
+      title: formValue(formData, "title"),
+      type: formValue(formData, "type"),
+      startsAtLocal: formValue(formData, "date"),
+      endsAtLocal: "",
+    });
+    if (!parsed.success) {
+      const issues = adminFormIssues(parsed.error);
+      return fail(400, {
+        error: "입력값을 확인해 주세요.",
+        issues: {
+          title: issues.title,
+          type: issues.type,
+          date: issues.startsAtLocal,
+        },
       });
-
-      // 2. Create Local Event
-      await createEvent({
-        title,
-        date: dateRaw,
-        type,
-        notionPageId: page.id,
-      });
-
-      throw redirect(302, "/admin");
-    } catch (e) {
-      if (e && typeof e === "object" && "status" in e && e.status === 302)
-        throw e;
-      console.error(e);
-      return fail(500, { error: "Creation failed" });
     }
+    createDevEvent({
+      title: parsed.data.title,
+      type: parsed.data.type,
+      startsAt: localAdminDateTimeToIso(parsed.data.startsAtLocal),
+    });
+    throw redirect(303, "/admin?dev_preview=admin");
   },
 };
