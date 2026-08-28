@@ -9,6 +9,7 @@ import {
   approveSeminar,
   rejectSeminar,
 } from "$lib/server/services/seminar-requests";
+import { approveStudy, rejectStudy } from "$lib/server/services/studies";
 import {
   approveAttendance,
   deleteAttendanceRecord,
@@ -62,6 +63,12 @@ export const load: PageServerLoad = async (event) => {
         return requests
           .filter((r) => r.status === "pending")
           .map((r) => ({ ...r, speakerIds: r.presenterIds, submittedAt: r.createdAt }));
+      })(),
+      studyRequests: (async () => {
+        const requests = await getTable("study-requests");
+        return requests
+          .filter((r) => r.status === "pending")
+          .map((r) => ({ ...r, submittedAt: r.createdAt }));
       })(),
     },
   };
@@ -238,4 +245,36 @@ export const actions = {
       return {};
     });
   },
+
+  /** ADM-16: study proposal approval — the requester becomes the organizer. */
+  approveStudy: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const id = (await request.formData()).get("id") as string;
+    return handleAdminAction(locals, async () => {
+      const req = await approveStudy(id);
+      await notifyRequester(req.requesterId, req.title, "approved");
+      return {};
+    });
+  },
+
+  rejectStudy: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const id = (await request.formData()).get("id") as string;
+    return handleAdminAction(locals, async () => {
+      const req = await rejectStudy(id);
+      await notifyRequester(req.requesterId, req.title, "rejected");
+      return {};
+    });
+  },
 };
+
+async function notifyRequester(
+  requesterId: string,
+  title: string,
+  status: "approved" | "rejected",
+) {
+  const member = await getMemberById(requesterId);
+  if (!member) return;
+  const info = await getPrivateInfoOf(member.id);
+  if (info?.email) {
+    await sendSeminarStatusNotification(info.email, member.name, title, status);
+  }
+}

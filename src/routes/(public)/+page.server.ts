@@ -113,15 +113,23 @@ export const load: PageServerLoad = async (event) => {
 
     try {
       const range = termRange(currentTerm());
-      const [currentRaw, attendedRaw, allRequests, privateInfo, allSeminars, allEvents] =
-        await Promise.all([
-          getActivitiesBetween(range.start, range.end),
-          getActivitiesOf(member.memberId),
-          getTable("seminar-requests"),
-          getPrivateInfoOf(member.memberId),
-          getTable("seminars"),
-          getTable("events"),
-        ]);
+      const [
+        currentRaw,
+        attendedRaw,
+        allRequests,
+        privateInfo,
+        allSeminars,
+        allEvents,
+        allStudies,
+      ] = await Promise.all([
+        getActivitiesBetween(range.start, range.end),
+        getActivitiesOf(member.memberId),
+        getTable("seminar-requests"),
+        getPrivateInfoOf(member.memberId),
+        getTable("seminars"),
+        getTable("events"),
+        getTable("studies"),
+      ]);
       const eventByActivityId = new Map(allEvents.map((e) => [e.activityId, e]));
       const now = new Date();
 
@@ -175,6 +183,28 @@ export const load: PageServerLoad = async (event) => {
       return {
         activities: [...currentActivities, ...pastAttended],
         seminarRequests: requests,
+        myStudies: allStudies
+          .filter(
+            (s) =>
+              s.organizerIds.includes(member.memberId) ||
+              s.participantIds.includes(member.memberId) ||
+              s.pendingParticipantIds.includes(member.memberId),
+          )
+          .map((s) => ({
+            id: s.id,
+            title: s.title,
+            semester: s.semester,
+            status: s.status,
+            role: s.organizerIds.includes(member.memberId)
+              ? "organizer"
+              : s.participantIds.includes(member.memberId)
+                ? "participant"
+                : "pending",
+          })),
+        // STU-07: transfer proposals addressed to me — the acceptance entry point
+        pendingTransfers: allStudies
+          .filter((s) => s.pendingTransfer?.toMemberId === member.memberId)
+          .map((s) => ({ studyId: s.id, title: s.title })),
         approvedSeminars: allSeminars
           .filter((s) => s.presenterIds.includes(member.memberId))
           .map((s) => ({ id: s.id, title: s.title, semester: s.semester, remarks: s.note })),
@@ -237,6 +267,41 @@ export const actions = {
       if (!member) throw new AppError("FORBIDDEN");
       const { cancelEventApplication } = await import("$lib/server/services/events");
       await cancelEventApplication(eventId, member.memberId);
+      return {};
+    });
+  },
+
+  /** STU-07: the transfer target accepts/declines from the dashboard. */
+  acceptTransfer: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
+    const studyId = (await request.formData()).get("studyId") as string;
+    return handleUserAction(locals, async () => {
+      const member = locals.member;
+      if (!member) throw new AppError("FORBIDDEN");
+      const { acceptTransfer } = await import("$lib/server/services/studies");
+      await acceptTransfer(studyId, member.memberId);
+      return {};
+    });
+  },
+
+  declineTransfer: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
+    const studyId = (await request.formData()).get("studyId") as string;
+    return handleUserAction(locals, async () => {
+      const member = locals.member;
+      if (!member) throw new AppError("FORBIDDEN");
+      const { declineTransfer } = await import("$lib/server/services/studies");
+      await declineTransfer(studyId, member.memberId);
       return {};
     });
   },

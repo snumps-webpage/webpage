@@ -1,7 +1,11 @@
 import { json } from "@sveltejs/kit";
 import { env } from "$env/dynamic/private";
-import { runCron } from "$lib/server/services/events";
+import { registerCronStep, runCron } from "$lib/server/services/events";
+import { studySessionCronStep } from "$lib/server/services/studies";
 import type { RequestHandler } from "./$types";
+
+// BE-49: session auto-generation joins the cron here, not inside BE-35 code.
+registerCronStep(studySessionCronStep);
 
 export const GET: RequestHandler = async ({ request }) => {
   // Fail-closed (BE-04): without a configured secret this endpoint must not run.

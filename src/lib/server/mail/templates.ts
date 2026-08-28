@@ -120,6 +120,33 @@ ${applicantName}님으로부터 새로운 세미나 개설 신청이 접수되�
 }
 
 /**
+ * Notifies admins of a new study proposal (STU-01).
+ */
+export async function sendStudyApplicationNotification(
+  applicantName: string,
+  studyTitle: string,
+) {
+  try {
+    const accessToken = await getAdminAccessToken();
+    const adminEmails = getAdminEmails();
+    if (adminEmails.length === 0) return;
+
+    const subject = `[SNUMPS] 새 스터디 개설 신청: ${studyTitle}`;
+    const body = `안녕하세요, 관리자님.
+
+${applicantName}님으로부터 새로운 스터디 개설 신청이 접수되었습니다.
+
+분야: ${studyTitle}
+
+관리자 페이지에서 확인 후 승인 또는 반려해주세요.`;
+
+    await dispatchEmail(accessToken, adminEmails, subject, body);
+  } catch (e) {
+    console.error("Study application notification error:", e);
+  }
+}
+
+/**
  * Sends a welcome email to a new member upon acceptance.
  */
 export async function sendWelcomeEmail(
