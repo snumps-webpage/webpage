@@ -55,6 +55,7 @@ AWS_ROLE_ARN=            # OIDC (recommended); or AWS_ACCESS_KEY_ID/SECRET as fa
 
 CRON_SECRET=             # required — /api/cron/* returns 501 when unset
 REDIS_URL=               # optional — memory-only cache without it
+PUBLIC_SITE_ORIGIN=https://snumps.vercel.app   # links inside outgoing mail
 ```
 
 > The Gmail sender must be a **Google Workspace** account: consumer Gmail's
