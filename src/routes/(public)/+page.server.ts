@@ -118,6 +118,8 @@ export const load: PageServerLoad = async (event) => {
 
   if (dev && devPreviewRole) {
     return {
+      session,
+      isAdmin: devPreviewRole === "admin",
       semester: semester.name,
       currentSemesterKey: semester.key,
       isMember: true,
@@ -130,6 +132,8 @@ export const load: PageServerLoad = async (event) => {
 
   if (!session?.user?.email) {
     return {
+      session: null,
+      isAdmin: false,
       semester: semester.name,
       currentSemesterKey: semester.key,
       streamed: {
@@ -169,7 +173,7 @@ export const load: PageServerLoad = async (event) => {
           getActivities(semester.startDate, semester.endDate, skipCache),
           getUserActivities(member.memberId, skipCache),
           getSeminarRequests(skipCache),
-          getPrivateInfo(member.privateInfoId),
+          getPrivateInfo(member.privateInfoId ?? ""),
           getUserSeminars(member.memberId),
         ]);
 
@@ -234,6 +238,8 @@ export const load: PageServerLoad = async (event) => {
     };
 
     return {
+      session,
+      isAdmin: event.locals.member?.isAdmin ?? false,
       semester: semester.name,
       currentSemesterKey: semester.key,
       isMember: !!member,
@@ -246,6 +252,8 @@ export const load: PageServerLoad = async (event) => {
     console.error("[Dashboard Load] Member Lookup Error:", e);
     // Return basic info so the page doesn't 500
     return {
+      session,
+      isAdmin: false,
       semester: semester.name,
       currentSemesterKey: semester.key,
       streamed: {
@@ -272,7 +280,7 @@ export const actions = {
         const member = await getMemberByEmail(session.user.email);
         if (!member) throw new Error("회원 정보를 찾을 수 없습니다.");
 
-        await updatePrivateInfo(member.privateInfoId, { phone, background });
+        await updatePrivateInfo(member.privateInfoId ?? "", { phone, background });
         return {};
       },
       { invalidate: `member_${locals.auth().then((s) => s?.user?.email)}` },

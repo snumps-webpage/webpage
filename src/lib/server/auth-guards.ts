@@ -1,5 +1,20 @@
 import { redirect, error, type ActionFailure } from "@sveltejs/kit";
-import { isAdmin as checkIsAdmin } from "./admin";
+import { AppError } from "./core/errors";
+import { resolveMember } from "./guards/resolve-member";
+import type { MemberContext } from "./guards/zone";
+
+/** Admin truth is the member record (D4). Resolves lazily for /api handlers. */
+async function resolveAdminContext(
+  locals: App.Locals,
+): Promise<{ session: AuthenticatedSession; member: MemberContext } | null> {
+  const session = await locals.auth();
+  if (!session?.user?.email) return null;
+  const member =
+    locals.member !== undefined ? locals.member : await resolveMember(session.user.email);
+  locals.member = member;
+  if (!member?.isAdmin) return null;
+  return { session: session as AuthenticatedSession, member };
+}
 
 export interface AuthenticatedSession {
   user: {
@@ -35,23 +50,20 @@ export async function ensureAdmin(
   locals: App.Locals,
   options: { silent?: boolean } = {},
 ): Promise<AuthenticatedSession> {
-  const session = await locals.auth();
-  const isAdmin = checkIsAdmin(session?.user?.email);
-
-  if (!session?.user?.email || !isAdmin) {
+  const ctx = await resolveAdminContext(locals);
+  if (!ctx) {
     if (options.silent) throw error(404, "Not Found");
     throw redirect(302, "/");
   }
-
-  return session as AuthenticatedSession;
+  return ctx.session;
 }
 
 /**
- * Helper for form actions to verify admin status.
+ * Helper for form actions and /api handlers to verify admin status.
  */
 export async function requireAdminAction(locals: App.Locals) {
-  const session = await locals.auth();
-  if (!session?.user?.email || !checkIsAdmin(session.user.email)) {
+  const ctx = await resolveAdminContext(locals);
+  if (!ctx) {
     const { fail } = await import("@sveltejs/kit");
     return {
       allowed: false,
@@ -60,7 +72,7 @@ export async function requireAdminAction(locals: App.Locals) {
       }),
     };
   }
-  return { allowed: true, session: session as AuthenticatedSession };
+  return { allowed: true, session: ctx.session };
 }
 
 /**
@@ -123,6 +135,10 @@ export async function handleUserAction<T extends Record<string, unknown>>(
       (e as { status: number }).status < 400
     )
       throw e;
+    if (e instanceof AppError) {
+      const { fail } = await import("@sveltejs/kit");
+      return fail(e.status, { error: e.code });
+    }
     console.error(`[Action Error]`, e);
     const { fail } = await import("@sveltejs/kit");
     return fail(500, { error: (e as Error).message || "Action failed" });
@@ -181,10 +197,34 @@ export async function handleAdminAction<T extends Record<string, unknown>>(
       (e as { status: number }).status < 400
     )
       throw e;
+    if (e instanceof AppError) {
+      const { fail } = await import("@sveltejs/kit");
+      return fail(e.status, { error: e.code });
+    }
     console.error(`[Action Error]`, e);
     const { fail } = await import("@sveltejs/kit");
     return fail(500, {
       error: (e as Error).message || "Internal server error",
     });
   }
+}
+
+/**
+ * Action-level guards (API-SPEC §1-1): both re-fetch the record instead of
+ * trusting anything client-supplied or cached on locals.
+ */
+export async function ensurePresenter(eventId: string, memberId: string) {
+  const { getTable } = await import("./data/tables");
+  const event = (await getTable("events")).find((e) => e.id === eventId);
+  if (!event) throw new AppError("NOT_FOUND");
+  if (!event.presenterIds.includes(memberId)) throw new AppError("FORBIDDEN");
+  return event;
+}
+
+export async function ensureOrganizer(studyId: string, memberId: string) {
+  const { getTable } = await import("./data/tables");
+  const study = (await getTable("studies")).find((s) => s.id === studyId);
+  if (!study) throw new AppError("NOT_FOUND");
+  if (!study.organizerIds.includes(memberId)) throw new AppError("FORBIDDEN");
+  return study;
 }

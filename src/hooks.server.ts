@@ -1,15 +1,14 @@
 import { env } from "$env/dynamic/private";
 import { building } from "$app/environment";
 import { sequence } from "@sveltejs/kit/hooks";
-import type { Handle } from "@sveltejs/kit";
+import { error, redirect, type Handle } from "@sveltejs/kit";
 import { handle as authHandle } from "./auth";
 import {
   buildDevPreviewSession,
   resolveDevPreviewRole,
 } from "$lib/server/dev-preview";
-import { memberRepo } from "$lib/server/repositories/MemberRepository";
-import { getApplicationByEmail } from "$lib/server/notion";
-import { redirect } from "@sveltejs/kit";
+import { decide, needsMemberResolution, zoneOf } from "$lib/server/guards/zone";
+import { hasApplication, resolveMember } from "$lib/server/guards/resolve-member";
 
 if (!building && !env.AUTH_SECRET) {
   console.error("FATAL: AUTH_SECRET is not set. Authentication will fail.");
@@ -20,54 +19,67 @@ const devPreviewHandle: Handle = async ({ event, resolve }) => {
 
   if (devPreviewRole) {
     event.locals.auth = async () => buildDevPreviewSession(devPreviewRole);
+    // Preview roles bypass data-layer resolution entirely.
+    event.locals.member = {
+      memberId: "dev-preview",
+      privateInfoId: "dev-preview",
+      name: "Dev Preview",
+      status: "regular",
+      isAdmin: devPreviewRole === "admin",
+    };
   }
 
   return resolve(event);
 };
 
 /**
- * Centralized guard for membership and application status.
- * Prevents redundant checks in every server load function.
+ * Zone guard (IMPLEMENTATION-SPEC BE-20): the route group IS the access zone.
+ * Pure decisions live in guards/zone.ts; this handle only gathers context.
  */
-const membershipGuard: Handle = async ({ event, resolve }) => {
-  const session = await event.locals.auth();
-  const path = event.url.pathname;
+const zoneGuard: Handle = async ({ event, resolve }) => {
+  const routeId = event.route.id;
 
-  // Paths that are ALWAYS allowed (no session needed)
-  const isPublic =
-    path === "/" || path.startsWith("/auth") || path.startsWith("/api/cron");
-  if (isPublic) return resolve(event);
+  // Unmatched URL — let SvelteKit render its 404, never a 500.
+  if (routeId === null) return resolve(event);
 
-  // AUTHENTICATION GUARD
-  if (!session?.user?.email) {
-    throw redirect(303, "/");
+  const zone = zoneOf(routeId);
+
+  // Public fast path: no session work at all (prerender/ISR safety), except
+  // the hybrid landing page which branches on membership.
+  if ((zone === "(public)" && !needsMemberResolution(routeId)) || zone === "api") {
+    return resolve(event);
   }
 
-  // Paths that are allowed for any AUTHENTICATED user
-  const isAuthAllowed =
-    path.startsWith("/signup") || path === "/wait" || path === "/signout";
-  if (isAuthAllowed) return resolve(event);
+  const session = event.locals.member === undefined ? await event.locals.auth() : null;
+  const email = session?.user?.email ?? null;
 
-  // MEMBERSHIP GUARD: Fetch from cache/DB
-  const member = await memberRepo.findByEmail(session.user.email);
-  event.locals.member = member;
-
-  if (!member) {
-    // Check if they have an application
-    const app = await getApplicationByEmail(session.user.email);
-    event.locals.userApplication = app;
-
-    if (!app && path !== "/signup") {
-      throw redirect(303, "/signup");
-    }
-    if (app && !app.accepted && path !== "/wait") {
-      throw redirect(303, "/wait");
-    }
+  if (event.locals.member === undefined) {
+    event.locals.member = email ? await resolveMember(email) : null;
   }
 
-  return resolve(event);
+  const member = event.locals.member;
+  const hasSession = member !== null || !!email;
+  const application =
+    !member && email && zone !== "(public)" ? await hasApplication(email) : false;
+
+  const decision = decide(routeId, {
+    hasSession,
+    member,
+    hasApplication: application,
+    pathname: event.url.pathname,
+  });
+
+  switch (decision.type) {
+    case "allow":
+      return resolve(event);
+    case "redirect":
+      throw redirect(303, decision.location);
+    case "notFound":
+      throw error(404, "Not Found");
+    case "misconfigured":
+      // A page outside every zone means the guard cannot protect it — fail closed.
+      throw error(500, "route without zone");
+  }
 };
 
-export const handle = sequence(authHandle, devPreviewHandle, membershipGuard);
-
-// NOTE: Event status sync is now handled by Vercel Cron via /api/cron/sync-events
+export const handle = sequence(authHandle, devPreviewHandle, zoneGuard);

@@ -1,0 +1,209 @@
+import { readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { decide, zoneOf, type GuardContext, type MemberContext, type Zone } from "./zone";
+
+/**
+ * BE-24: the guard matrix. Every route in src/routes must be registered here
+ * with its zone — an unregistered route fails the suite, so nothing ships
+ * outside the guard's knowledge. Role expectations are then asserted per zone.
+ */
+
+// ---- route discovery -------------------------------------------------------
+
+const ROUTES_DIR = join(__dirname, "../../../routes");
+
+function discoverRouteIds(dir = ROUTES_DIR, prefix = ""): string[] {
+  const ids: string[] = [];
+  const entries = readdirSync(dir);
+  const hasPage = entries.some(
+    (e) => e === "+page.svelte" || e === "+server.ts" || e === "+server.js",
+  );
+  if (hasPage) ids.push(prefix === "" ? "/" : prefix);
+  for (const entry of entries) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) {
+      ids.push(...discoverRouteIds(full, `${prefix}/${entry}`));
+    }
+  }
+  return ids;
+}
+
+// ---- the registry ----------------------------------------------------------
+
+const REGISTERED: Record<string, Zone> = {
+  "/(public)": "(public)",
+  "/(public)/login": "(public)",
+  "/(applicant)/signup": "(applicant)",
+  "/(applicant)/signup/edit": "(applicant)",
+  "/(applicant)/wait": "(applicant)",
+  "/(member)/seminar/apply": "(member)",
+  "/(member)/seminar/edit/[id]": "(member)",
+  "/(member)/events/[id]/[type]": "(member)",
+  "/(member)/experiment/index": "(member)",
+  "/(member)/experiment/1": "(member)",
+  "/(member)/experiment/2": "(member)",
+  "/(member)/experiment/3": "(member)",
+  "/(member)/experiment/4": "(member)",
+  "/(admin)/admin": "(admin)",
+  "/(admin)/admin/events/new": "(admin)",
+  "/(admin)/admin/events/connect": "(admin)",
+  "/(admin)/notion": "(admin)",
+  "/(admin)/diag": "(admin)",
+  "/api/admin/applications": "api",
+  "/api/admin/seminar-requests": "api",
+  "/api/cron/sync-events": "api",
+  "/api/posters/seminar/png": "api",
+};
+
+describe("route registry", () => {
+  it("covers every route on disk — add new routes to REGISTERED with a zone", () => {
+    const discovered = discoverRouteIds();
+    const unregistered = discovered.filter((id) => !(id in REGISTERED));
+    expect(unregistered).toEqual([]);
+  });
+
+  it("agrees with zoneOf for every registered route", () => {
+    for (const [routeId, zone] of Object.entries(REGISTERED)) {
+      expect(zoneOf(routeId), routeId).toBe(zone);
+    }
+  });
+
+  it("treats an ungrouped page as misconfigured (fail closed)", () => {
+    expect(zoneOf("/rogue-page")).toBeNull();
+    expect(decide("/rogue-page", ROLES.guest).type).toBe("misconfigured");
+  });
+});
+
+// ---- role fixtures ---------------------------------------------------------
+
+const memberCtx = (over: Partial<MemberContext> = {}): MemberContext => ({
+  memberId: "m1",
+  privateInfoId: "p1",
+  name: "회원",
+  status: "regular",
+  isAdmin: false,
+  ...over,
+});
+
+const ROLES: Record<string, GuardContext> = {
+  guest: { hasSession: false, member: null, hasApplication: false, pathname: "/x" },
+  newcomer: { hasSession: true, member: null, hasApplication: false, pathname: "/x" },
+  applicant: { hasSession: true, member: null, hasApplication: true, pathname: "/x" },
+  member: { hasSession: true, member: memberCtx(), hasApplication: false, pathname: "/x" },
+  withdrawn: {
+    hasSession: true,
+    member: memberCtx({ status: "withdrawn" }),
+    hasApplication: false,
+    pathname: "/x",
+  },
+  admin: {
+    hasSession: true,
+    member: memberCtx({ isAdmin: true }),
+    hasApplication: false,
+    pathname: "/x",
+  },
+};
+
+// ---- the matrix ------------------------------------------------------------
+
+type Expect = "allow" | `redirect:${string}` | "404";
+
+const MATRIX: Array<[routeId: string, expectations: Record<string, Expect>]> = [
+  [
+    "/(public)/login",
+    {
+      guest: "allow",
+      newcomer: "allow",
+      applicant: "allow",
+      member: "allow",
+      withdrawn: "allow",
+      admin: "allow",
+    },
+  ],
+  [
+    "/(public)", // hybrid landing/dashboard
+    {
+      guest: "allow",
+      member: "allow",
+      admin: "allow",
+      withdrawn: "redirect:/withdraw/pending",
+    },
+  ],
+  [
+    "/(applicant)/signup",
+    {
+      guest: "redirect:/login",
+      newcomer: "allow",
+      applicant: "allow",
+      member: "redirect:/",
+      withdrawn: "redirect:/withdraw/pending",
+      admin: "redirect:/",
+    },
+  ],
+  [
+    "/(member)/seminar/apply",
+    {
+      guest: "redirect:/login?redirect=%2Fx",
+      newcomer: "redirect:/signup",
+      applicant: "redirect:/wait",
+      member: "allow",
+      withdrawn: "redirect:/withdraw/pending",
+      admin: "allow",
+    },
+  ],
+  [
+    "/(member)/events/[id]/[type]",
+    {
+      guest: "redirect:/login?redirect=%2Fx",
+      applicant: "redirect:/wait",
+      member: "allow",
+      withdrawn: "redirect:/withdraw/pending",
+    },
+  ],
+  [
+    "/(admin)/admin",
+    {
+      guest: "404",
+      newcomer: "404",
+      applicant: "404",
+      member: "404",
+      withdrawn: "404",
+      admin: "allow",
+    },
+  ],
+  [
+    "/(admin)/notion",
+    { guest: "404", member: "404", admin: "allow" },
+  ],
+  [
+    "/api/cron/sync-events", // endpoint-level auth — the zone allows through
+    { guest: "allow", member: "allow", admin: "allow" },
+  ],
+];
+
+describe("guard matrix", () => {
+  for (const [routeId, expectations] of MATRIX) {
+    for (const [role, expected] of Object.entries(expectations)) {
+      it(`${routeId} × ${role} → ${expected}`, () => {
+        const decision = decide(routeId, ROLES[role]);
+        if (expected === "allow") {
+          expect(decision).toEqual({ type: "allow" });
+        } else if (expected === "404") {
+          expect(decision).toEqual({ type: "notFound" });
+        } else {
+          expect(decision).toEqual({
+            type: "redirect",
+            location: expected.slice("redirect:".length),
+          });
+        }
+      });
+    }
+  }
+
+  it("lets a withdrawn member reach the pending page itself", () => {
+    expect(decide("/(member)/withdraw/pending", ROLES.withdrawn)).toEqual({
+      type: "allow",
+    });
+  });
+});
