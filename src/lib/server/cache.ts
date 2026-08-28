@@ -39,6 +39,19 @@ interface CacheEntry<T> {
 const localCache = new Map<string, CacheEntry<unknown>>();
 const MAX_LOCAL_SIZE = 1000;
 
+// invalidateCache only clears the local map of the instance that wrote, so
+// other warm instances would serve stale data for the full TTL. Capping the
+// LOCAL tier for table_ keys bounds that staleness to 15s; Redis keeps the
+// full TTL and stays consistent because every mutation deletes the Redis key.
+const LOCAL_TTL_CAPS: Array<{ prefix: string; capMs: number }> = [
+  { prefix: "table_", capMs: 15_000 },
+];
+
+function localTtl(key: string, ttlMs: number): number {
+  const cap = LOCAL_TTL_CAPS.find((c) => key.startsWith(c.prefix));
+  return cap ? Math.min(ttlMs, cap.capMs) : ttlMs;
+}
+
 /**
  * Prunes expired and excessive entries from local memory.
  */
@@ -86,7 +99,7 @@ export async function withCache<T>(
         if (cached) {
           const data = JSON.parse(cached);
           // Back-fill local cache for faster subsequent hits in this instance
-          localCache.set(key, { data, expiry: now + Math.min(ttlMs, 60000) });
+          localCache.set(key, { data, expiry: now + localTtl(key, Math.min(ttlMs, 60000)) });
           return data as T;
         }
       } catch {
@@ -99,7 +112,7 @@ export async function withCache<T>(
   const data = await fetcher();
 
   // Populate local cache
-  localCache.set(key, { data, expiry: now + ttlMs });
+  localCache.set(key, { data, expiry: now + localTtl(key, ttlMs) });
 
   // Populate Redis (if available)
   if (redis && !options?.skipCache) {
