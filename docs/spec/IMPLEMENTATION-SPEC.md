@@ -445,11 +445,16 @@ export function invalidateAttendanceCaches(activityDate: DateRange, memberIds: s
 `expiryOf(e) < now` 계산을 쓴다 — `EventRepository`가 `effectiveStatus(e)`를 제공하고 가드·액션은 그것만 참조.
 크론의 expire는 표시용 상태 정리다.
 
-**크론 주기 — 플랜 제약**: Vercel Hobby는 **일 1회**가 상한(시간당은 Pro 전용).
-- Hobby: 현행 `0 15 */2 * *` → `"0 15 * * *"`(일 1회)로. lazy 판정 덕에 정확성 문제 없음.
-  회차 자동 생성 최대 1일 지연이 수용 불가하면 GitHub Actions cron이 `Bearer CRON_SECRET`으로
-  `/api/cron/sync-events`를 시간당 호출 (엔드포인트 인증 모델이 이미 이를 지원)
-- Pro: `"0 * * * *"` 직접 설정
+**크론 스케줄러 — 확정 (2026-08-28)**: **GitHub Actions 시간당(주) + Vercel 일 1회(백업)** 이중 구성.
+
+| 스케줄러 | 설정 | 역할 |
+|---|---|---|
+| GitHub Actions | `.github/workflows/cron-sync-events.yml` — `17 * * * *` (정각 혼잡 회피), `https://snumps.vercel.app/api/cron/sync-events`에 `Bearer CRON_SECRET` | **주 스케줄러.** Vercel Hobby의 일 1회 상한 우회 |
+| Vercel cron | `vercel.json` `"0 15 * * *"` (일 1회로 조정) | **백업.** public 레포는 60일 무활동 시 Actions 스케줄이 자동 비활성화되므로, 유지보수 정지기에도 일 1회는 보장 |
+
+- 이중 실행은 무해 — 크론 전 단계가 멱등 (§8-1)
+- `CRON_SECRET`은 GitHub Secrets + Vercel env 양쪽 등록. **헤더로만 전달** (URL 쿼리 금지 — 로그 노출)
+- Actions 스케줄 지연(수 분~수십 분)은 lazy 판정이 흡수
 
 ---
 

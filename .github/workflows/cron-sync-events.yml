@@ -1,0 +1,24 @@
+# Primary scheduler for /api/cron/sync-events.
+# Vercel's daily cron (vercel.json) stays as a backup: GitHub disables scheduled
+# workflows in public repos after 60 days without repository activity, and the
+# endpoint is idempotent, so double firing is harmless.
+name: cron-sync-events
+
+on:
+  schedule:
+    - cron: "17 * * * *" # hourly at :17 — avoids the congested top of the hour
+  workflow_dispatch: # manual trigger for debugging
+
+permissions: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call sync-events
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -fsS --max-time 60 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "https://snumps.vercel.app/api/cron/sync-events"
