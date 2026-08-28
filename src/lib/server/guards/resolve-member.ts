@@ -53,14 +53,13 @@ async function resolveLegacy(email: string): Promise<MemberContext | null> {
 }
 
 export async function hasApplication(email: string): Promise<boolean> {
+  // S3-only on purpose: all outstanding applications live in the new table
+  // (the legacy store held no pending rows at migration time).
   const normalized = email.trim().toLowerCase();
   try {
     const apps = await getTable("applications");
-    if (apps.some((a) => a.email.toLowerCase() === normalized)) return true;
+    return apps.some((a) => a.email.toLowerCase() === normalized);
   } catch {
-    // fall through to legacy
+    return false;
   }
-  const { getApplicationByEmail } = await import("$lib/server/admin");
-  const app = await getApplicationByEmail(email);
-  return !!app;
 }

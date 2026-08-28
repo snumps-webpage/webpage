@@ -1,18 +1,17 @@
 import { json } from "@sveltejs/kit";
-import { getApplications, isAdmin } from "$lib/server/admin";
+import { requireAdminAction } from "$lib/server/auth-guards";
+import { getTable } from "$lib/server/data/tables";
 import type { RequestHandler } from "./$types";
 
+/** Admin polling: pending membership applications (§8-3). */
 export const GET: RequestHandler = async ({ locals }) => {
-  const session = await locals.auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
-    return json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { allowed } = await requireAdminAction(locals);
+  if (!allowed) return json({ error: "Forbidden" }, { status: 403 });
 
-  const apps = await getApplications();
-  const sortedApps = apps.sort(
-    (a, b) =>
-      new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime(),
-  );
-
-  return json(sortedApps);
+  const apps = await getTable("applications");
+  return json({
+    applications: apps
+      .map((a) => ({ ...a, accepted: false, submittedAt: a.createdAt }))
+      .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime()),
+  });
 };

@@ -1,87 +1,54 @@
 import { error } from "@sveltejs/kit";
-import {
-  getEventByPathId,
-  recordAttendance,
-  deleteEvent,
-} from "$lib/server/events";
-import {
-  getMemberByEmail,
-  getMemberById,
-  checkPageExists,
-} from "$lib/server/notion";
 import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
+import { AppError } from "$lib/server/core/errors";
+import { getTable } from "$lib/server/data/tables";
+import { checkIn, effectiveStatus } from "$lib/server/services/events";
 import { parseGoogleName } from "$lib/utils";
 import type { PageServerLoad } from "./$types";
+
+/** EVT-01 / SEM-05: the shared check-in page behind the obfuscated link. */
+
+async function findByPathId(pathId: string) {
+  return (await getTable("events")).find((e) => e.pathId === pathId) ?? null;
+}
 
 export const load: PageServerLoad = async ({ params, locals, url }) => {
   const session = await ensureSession(locals, url);
 
-  const event = await getEventByPathId(params.id);
+  const event = await findByPathId(params.id);
   if (!event) throw error(404, "Event not found");
-
-  // Robustness: Verify Notion Page Existence
-  if (event.notionPageId) {
-    const exists = await checkPageExists(event.notionPageId);
-    if (!exists) {
-      console.warn(
-        `Event '${event.title}' accessed but Notion page is missing. Deleting local record.`,
-      );
-      await deleteEvent(event.id);
-      throw error(404, "Event not found (Source Removed)");
-    }
-  }
-
-  if (event.status !== "active") throw error(403, "Event is not active");
-
-  // Validate code
-  if (params.type !== event.attendCode) {
-    throw error(404, "Invalid event page code");
-  }
+  if (effectiveStatus(event) !== "active") throw error(403, "Event is not active");
+  if (params.type !== event.attendCode) throw error(404, "Invalid event page code");
 
   return {
-    event,
+    event: { ...event, date: event.date.start },
     user: session.user,
     actionType: "attend",
   };
 };
 
 export const actions = {
-  attend: async ({ params, locals }) => {
+  attend: async ({ params, locals }: { params: { id: string; type: string }; locals: App.Locals }) => {
     return handleUserAction(locals, async (session) => {
-      const event = await getEventByPathId(params.id);
-      if (!event || event.status !== "active")
-        throw new Error("Event not found or is not currently active.");
-      if (params.type !== event.attendCode)
-        throw new Error("Invalid attendance link or code.");
+      const event = await findByPathId(params.id);
+      if (!event || params.type !== event.attendCode) throw new AppError("NOT_FOUND");
 
-      const { name: parsedName, department: parsedDept } = parseGoogleName(
-        session.user.name,
-      );
+      const member = locals.member;
+      if (!member) throw new AppError("FORBIDDEN");
 
-      let dept = parsedDept || "Unknown";
       try {
-        const memberLink = await getMemberByEmail(session.user.email);
-        if (memberLink) {
-          const member = await getMemberById(memberLink.memberId);
-          if (member) dept = member.department;
-        }
+        await checkIn(event, member.memberId);
       } catch (e) {
-        console.error("[Attendance] Failed to fetch department:", e);
-      }
-
-      const result = await recordAttendance(event.id, {
-        email: session.user.email,
-        name: session.user.name,
-        dept,
-      });
-
-      if (!result.isNew) {
-        const { fail } = await import("@sveltejs/kit");
-        return fail(409, { error: "이미 출석하셨습니다." });
+        if (e instanceof AppError && e.code === "CONFLICT") {
+          const { fail } = await import("@sveltejs/kit");
+          return fail(409, { error: "이미 출석하셨습니다." });
+        }
+        throw e;
       }
 
       const { sendAttendanceNotification } = await import("$lib/server/mail");
-      await sendAttendanceNotification(parsedName, event.title);
+      const { name } = parseGoogleName(session.user.name);
+      await sendAttendanceNotification(name || member.name, event.title);
       return {};
     });
   },

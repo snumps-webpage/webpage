@@ -1,21 +1,22 @@
-import { redirect, error } from "@sveltejs/kit";
-import { getAllActivities } from "$lib/server/notion";
-import { createEvent } from "$lib/server/events";
-import { getSemesterKeyFromDate } from "$lib/utils";
-import { isAdmin } from "$lib/server/admin";
+import { redirect } from "@sveltejs/kit";
+import { ensureAdmin, handleAdminAction } from "$lib/server/auth-guards";
+import { getTable } from "$lib/server/data/tables";
+import { connectActivity } from "$lib/server/services/events";
+import { termOf } from "$lib/server/core/semester";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
-  const session = await locals.auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
-    throw error(404, "Not Found");
-  }
+  await ensureAdmin(locals, { silent: true });
 
-  const activities = await getAllActivities();
+  const activities = (await getTable("activities")).map((a) => ({
+    id: a.id,
+    name: a.title,
+    date: a.date.start,
+    type: a.type,
+  }));
 
-  // Extract unique semesters using shared utility
   const semesters = Array.from(
-    new Set(activities.map((a) => getSemesterKeyFromDate(a.date))),
+    new Set(activities.map((a) => termOf(new Date(a.date)))),
   )
     .sort()
     .reverse();
@@ -24,16 +25,18 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions = {
-  publish: async ({ request }) => {
+  publish: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
     const data = await request.formData();
-    const notionPageId = data.get("notionPageId") as string;
-    const title = data.get("title") as string;
-    const date = data.get("date") as string;
-    const type = data.get("type") as string;
+    // §7-5: the session copies title/date/type from the activity — the id is
+    // the only client input we trust.
+    const activityId = (data.get("activityId") ?? data.get("notionPageId")) as string;
+    if (!activityId) return { error: "이벤트를 선택해주세요." };
 
-    if (!notionPageId) return { error: "이벤트를 선택해주세요." };
-
-    await createEvent({ title, date, type, notionPageId });
-    throw redirect(302, "/admin");
+    const result = await handleAdminAction(locals, async () => {
+      await connectActivity(activityId);
+      return {};
+    });
+    if ("success" in result && result.success) throw redirect(302, "/admin");
+    return result;
   },
 };

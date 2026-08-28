@@ -1,74 +1,53 @@
 import { redirect } from "@sveltejs/kit";
-import {
-  getSeminarRequests,
-  updateSeminarRequest,
-  parseSpeakerIds,
-} from "$lib/server/seminars";
-import {
-  getSearchableMembers,
-  resolveActualName,
-  type SearchableMember,
-} from "$lib/server/admin";
 import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
-import { getMemberByEmail } from "$lib/server/notion";
+import { getTable } from "$lib/server/data/tables";
+import { memberPickers } from "$lib/server/data/repos";
+import {
+  updateSeminarRequest,
+  withdrawSeminarRequest,
+} from "$lib/server/services/seminar-requests";
+import { AppError } from "$lib/server/core/errors";
 import { parseGoogleName } from "$lib/utils";
 import type { PageServerLoad, Actions } from "./$types";
+
+function parsePresenterIds(raw: string | null): string[] {
+  if (!raw) return [];
+  return [...new Set(raw.split(",").map((s) => s.trim()).filter(Boolean))];
+}
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
   const session = await ensureSession(locals, url);
 
-  const requestId = params.id;
-  let requests = [];
-  try {
-    requests = await getSeminarRequests();
-  } catch (error) {
-    console.error(
-      "[Seminar Edit] Failed to load seminar requests. Redirecting to home.",
-      error,
-    );
-    throw redirect(302, "/");
-  }
-  const request = requests.find((r) => r.id === requestId);
+  const request = (await getTable("seminar-requests")).find((r) => r.id === params.id);
+  if (!request || request.status !== "pending") throw redirect(302, "/");
 
-  if (!request) {
-    throw redirect(302, "/");
-  }
-
-  // Check if pending. Only pending requests should be editable.
-  if (request.status !== "pending") {
+  // Own requests only (admins may inspect).
+  if (request.requesterId !== locals.member?.memberId && !locals.member?.isAdmin) {
     throw redirect(302, "/");
   }
 
   let memberDirectoryUnavailable = false;
-  let searchableMembers: SearchableMember[] = [];
-  let actualName = "";
-
+  let searchableMembers: { id: string; name: string; department: string }[] = [];
   try {
-    [searchableMembers, actualName] = await Promise.all([
-      getSearchableMembers(),
-      resolveActualName(session),
-    ]);
+    searchableMembers = await memberPickers();
   } catch (error) {
     memberDirectoryUnavailable = true;
-    console.error(
-      "[Seminar Edit] Failed to load member data. Falling back.",
-      error,
-    );
-    actualName = parseGoogleName(session.user.name).name;
+    console.error("[Seminar Edit] Failed to load member pickers.", error);
   }
 
-  // Reconstruct the initial speakers list for the UI
-  const initialSpeakers = request.speakerIds
+  const initialSpeakers = request.presenterIds
     .map((id) => searchableMembers.find((m) => m.id === id))
     .filter((m) => !!m);
 
   return {
     user: session.user,
-    actualName,
+    actualName: locals.member?.name || parseGoogleName(session.user.name).name,
     members: searchableMembers,
     memberDirectoryUnavailable,
     request: {
       ...request,
+      speakerIds: request.presenterIds, // legacy UI field name
+      submittedAt: request.createdAt,
       initialSpeakers,
     },
   };
@@ -76,37 +55,40 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 
 export const actions: Actions = {
   default: async ({ request, locals, params }) => {
-    return handleUserAction(
-      locals,
-      async (session) => {
-        const data = await request.formData();
-        const title = data.get("title") as string;
-        const description = data.get("description") as string;
-        const prerequisites = data.get("prerequisites") as string;
-        const duration = data.get("duration") as string;
-        const speakerIdsRaw = data.get("speakerIds") as string;
-        const attachment = data.get("attachment") as string;
+    return handleUserAction(locals, async () => {
+      const member = locals.member;
+      if (!member) throw new AppError("FORBIDDEN");
 
-        const requestId = params.id;
-        if (!title || !description)
-          throw new Error("필수 항목을 입력해주세요.");
+      const data = await request.formData();
+      const title = data.get("title") as string;
+      const description = data.get("description") as string;
+      if (!title || !description) throw new Error("필수 항목을 입력해주세요.");
 
-        let speakerIds = parseSpeakerIds(speakerIdsRaw);
-        if (speakerIds.length === 0) {
-          const member = await getMemberByEmail(session.user.email);
-          if (member) speakerIds = [member.memberId];
-        }
+      let presenterIds = parsePresenterIds(data.get("speakerIds") as string);
+      if (presenterIds.length === 0) presenterIds = [member.memberId];
 
-        await updateSeminarRequest(requestId, {
+      await updateSeminarRequest(
+        params.id,
+        { memberId: member.memberId, isAdmin: member.isAdmin },
+        {
           title,
           description,
-          prerequisites,
-          duration,
-          speakerIds,
-          attachment,
-        });
-      },
-      { invalidate: "all_seminar_requests" },
-    );
+          prerequisites: (data.get("prerequisites") as string) || "",
+          duration: (data.get("duration") as string) || "",
+          presenterIds,
+          attachment: (data.get("attachment") as string) || "",
+        },
+      );
+    });
+  },
+
+  /** §5-2 ?/withdraw — the requester retracts a pending proposal. */
+  withdraw: async ({ locals, params }) => {
+    return handleUserAction(locals, async () => {
+      const member = locals.member;
+      if (!member) throw new AppError("FORBIDDEN");
+      await withdrawSeminarRequest(params.id, member.memberId);
+      throw redirect(303, "/");
+    });
   },
 };

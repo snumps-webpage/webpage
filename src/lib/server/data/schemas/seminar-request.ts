@@ -11,6 +11,7 @@ export const SeminarRequestSchema = z.object({
   prerequisites: z.string(),
   duration: z.string(),
   presenterIds: z.array(Id),
+  attachment: z.string(), // external material link (upload path arrives with SYS-03)
   requesterId: Id,
   status: RequestStatus,
   createdAt: DateTime,

@@ -1,306 +1,207 @@
-import { getApplications, removeApplication } from "$lib/server/admin";
 import { ensureAdmin, handleAdminAction } from "$lib/server/auth-guards";
+import { getTable } from "$lib/server/data/tables";
+import { getMemberById, getPrivateInfoOf } from "$lib/server/data/repos";
 import {
-  createMember,
-  getMemberByEmail,
-  createActivityPage,
-  addAttendeeToActivity,
-  markApplicationAsAccepted,
-  createSeminarInNotion,
-  getMemberById,
-  getPrivateInfo,
-} from "$lib/server/notion";
+  approveApplication,
+  rejectApplication,
+} from "$lib/server/services/membership";
 import {
-  getEvents,
-  updateEventStatus,
-  deleteEvent,
-  getAttendanceQueue,
-  updateAttendanceStatus,
-  getEvent,
-  removeAttendanceRecord,
-  updateAttendanceRecord,
-  publishEvent,
-} from "$lib/server/events";
+  approveSeminar,
+  rejectSeminar,
+} from "$lib/server/services/seminar-requests";
 import {
-  getPendingSeminarRequests,
-  getSeminarRequests,
-  deleteSeminarRequest,
-  updateSeminarRequestStatus,
-} from "$lib/server/seminars";
+  approveAttendance,
+  deleteAttendanceRecord,
+  deleteEventChecked,
+  effectiveStatus,
+  getPendingAttendance,
+  rejectAttendance,
+  setEventStatus,
+  updateAttendanceTime,
+} from "$lib/server/services/events";
 import {
   sendSeminarStatusNotification,
   sendWelcomeEmail,
 } from "$lib/server/mail";
-import { normalizePhoneNumber, getKSTDate } from "$lib/utils";
+import { kstInputToIso } from "$lib/server/core/time";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
   await ensureAdmin(event.locals, { silent: true });
-  const skipCache = event.url.searchParams.has("refresh");
 
   return {
     streamed: {
       applications: (async () => {
-        const apps = await getApplications(skipCache);
-        return apps.sort(
-          (a, b) =>
-            new Date(a.submittedAt).getTime() -
-            new Date(b.submittedAt).getTime(),
-        );
+        const apps = await getTable("applications");
+        return apps
+          .map((a) => ({ ...a, accepted: false, submittedAt: a.createdAt }))
+          .sort(
+            (a, b) =>
+              new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime(),
+          );
       })(),
       events: (async () => {
-        const events = await getEvents(skipCache);
-        return [...events].reverse();
+        const events = await getTable("events");
+        return [...events]
+          .map((e) => ({
+            ...e,
+            date: e.date.start,
+            status: effectiveStatus(e),
+            notionPageId: e.activityId, // legacy UI field name
+          }))
+          .reverse();
       })(),
-      attendanceQueue: (async () => {
-        const queue = await getAttendanceQueue(skipCache);
-        return queue.filter((r) => r.status === "pending");
+      attendanceQueue: getPendingAttendance(),
+      seminarRequests: (async () => {
+        const requests = await getTable("seminar-requests");
+        return requests
+          .filter((r) => r.status === "pending")
+          .map((r) => ({ ...r, speakerIds: r.presenterIds, submittedAt: r.createdAt }));
       })(),
-      seminarRequests: getPendingSeminarRequests(skipCache),
     },
   };
 };
 
+/** Legacy per-presenter status mail — the first presenter gets notified. */
+async function notifyFirstPresenter(
+  presenterIds: string[],
+  title: string,
+  status: "approved" | "rejected",
+) {
+  if (presenterIds.length === 0) return;
+  const member = await getMemberById(presenterIds[0]);
+  if (!member) return;
+  const info = await getPrivateInfoOf(member.id);
+  if (info?.email) {
+    await sendSeminarStatusNotification(info.email, member.name, title, status);
+  }
+}
+
 export const actions = {
-  approve: async ({ request, locals }) => {
-    const data = await request.formData();
-    const id = data.get("id") as string;
-
-    return handleAdminAction(
-      locals,
-      async () => {
-        const apps = await getApplications();
-        const app = apps.find((a) => a.id === id);
-
-        if (!app) throw new Error("Membership application not found");
-        if (app.accepted) throw new Error("Application already accepted");
-
-        console.log(
-          `[Admin] Processing approval for ${app.name} (${app.email})`,
-        );
-
-        // 1. Create Member record in Notion (Critical)
-        await createMember({
-          name: app.name,
-          email: app.email,
-          phone: normalizePhoneNumber(app.phone),
-          department: app.department,
-          background: app.background,
-        });
-
-        // Verify member was created
-        const member = await getMemberByEmail(app.email, true);
-        if (!member)
-          throw new Error("Member record creation verification failed");
-
-        // 2. Mark as accepted & Send email
-        await markApplicationAsAccepted(id);
-        await sendWelcomeEmail(app.email, app.name);
-
-        return { success: true };
-      },
-      { invalidate: [`member_${id}`, "all_applications", "all_members"] },
-    );
-  },
-
-  reject: async ({ request, locals }) => {
-    const data = await request.formData();
-    const id = data.get("id") as string;
-    return handleAdminAction(
-      locals,
-      async () => {
-        await removeApplication(id);
-        return {};
-      },
-      { invalidate: "all_applications" },
-    );
-  },
-
-  activateEvent: async ({ request, locals }) => {
-    const data = await request.formData();
-    const id = data.get("id") as string;
-
-    return handleAdminAction(
-      locals,
-      async () => {
-        const event = await getEvent(id);
-        if (!event) throw new Error("Event not found");
-
-        if (!event.notionPageId) {
-          const page = await createActivityPage({
-            title: event.title,
-            date: event.date,
-            type: event.type,
-          });
-          await updateEventStatus(id, "active", page.id);
-        } else {
-          await updateEventStatus(id, "active");
-        }
-        return {};
-      },
-      { invalidate: "all_events" },
-    );
-  },
-
-  expireEvent: async ({ request, locals }) => {
-    const data = await request.formData();
-    return handleAdminAction(
-      locals,
-      async () => {
-        await updateEventStatus(data.get("id") as string, "expired");
-        return {};
-      },
-      { invalidate: "all_events" },
-    );
-  },
-
-  deleteEvent: async ({ request, locals }) => {
-    const data = await request.formData();
-    return handleAdminAction(
-      locals,
-      async () => {
-        await deleteEvent(data.get("id") as string);
-        return {};
-      },
-      { invalidate: "all_events" },
-    );
-  },
-
-  approveAttendance: async ({ request, locals }) => {
-    const data = await request.formData();
-    const recordId = data.get("id") as string;
-    const eventId = data.get("eventId") as string;
-    const userEmail = data.get("userEmail") as string;
-
-    return handleAdminAction(
-      locals,
-      async () => {
-        const event = await getEvent(eventId);
-        if (!event || !event.notionPageId)
-          throw new Error("Event or Notion Page not found");
-
-        const memberLink = await getMemberByEmail(userEmail);
-        if (!memberLink) throw new Error("Member not found in database");
-
-        await Promise.all([
-          addAttendeeToActivity(event.notionPageId, memberLink.memberId),
-          updateAttendanceStatus(recordId, "approved"),
-        ]);
-        return {};
-      },
-      { invalidate: `user_activities_${userEmail}` },
-    );
-  },
-
-  rejectAttendance: async ({ request, locals }) => {
-    const data = await request.formData();
+  approve: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
-      await updateAttendanceStatus(data.get("id") as string, "rejected");
+      const { name, email } = await approveApplication(id);
+      await sendWelcomeEmail(email, name);
       return {};
     });
   },
 
-  updateAttendanceTime: async ({ request, locals }) => {
-    const data = await request.formData();
-    const id = data.get("id") as string;
-    const startTime = data.get("startTime") as string;
-    const endTime = data.get("endTime") as string;
-
+  reject: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
-      const updates: { startTime?: string; endTime?: string } = {};
-      if (startTime) updates.startTime = getKSTDate(new Date(startTime));
-      if (endTime) updates.endTime = getKSTDate(new Date(endTime));
-      await updateAttendanceRecord(id, updates);
+      await rejectApplication(id);
       return {};
     });
   },
 
-  deleteAttendanceRecord: async ({ request, locals }) => {
-    const data = await request.formData();
+  activateEvent: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
-      await removeAttendanceRecord(data.get("id") as string);
+      await setEventStatus(id, "active");
       return {};
     });
   },
 
-  approveSeminar: async ({ request, locals }) => {
-    const data = await request.formData();
-    const id = data.get("id") as string;
-
-    return handleAdminAction(
-      locals,
-      async () => {
-        const requests = await getSeminarRequests();
-        const seminar = requests.find((r) => r.id === id);
-        if (!seminar) throw new Error("Seminar request not found");
-
-        const todayKST = getKSTDate(undefined, true);
-
-        await publishEvent({
-          title: seminar.title,
-          date: todayKST,
-          type: "Seminar",
-          attendeeIds: seminar.speakerIds,
-        });
-
-        await createSeminarInNotion({
-          title: seminar.title,
-          speakerIds: seminar.speakerIds,
-          remarks: seminar.description,
-        });
-
-        if (seminar.speakerIds.length > 0) {
-          const member = await getMemberById(seminar.speakerIds[0]);
-          if (member?.privateInfoId) {
-            const info = await getPrivateInfo(member.privateInfoId);
-            if (info?.email) {
-              await sendSeminarStatusNotification(
-                info.email,
-                member.name,
-                seminar.title,
-                "approved",
-              );
-            }
-          }
-        }
-
-        await updateSeminarRequestStatus(id, "approved");
-        return {};
-      },
-      { invalidate: ["all_seminar_requests", "all_events"] },
-    );
+  expireEvent: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const id = (await request.formData()).get("id") as string;
+    return handleAdminAction(locals, async () => {
+      await setEventStatus(id, "expired");
+      return {};
+    });
   },
 
-  rejectSeminar: async ({ request, locals }) => {
+  deleteEvent: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const id = (await request.formData()).get("id") as string;
+    return handleAdminAction(locals, async () => {
+      await deleteEventChecked(id);
+      return {};
+    });
+  },
+
+  approveAttendance: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
-    const id = data.get("id") as string;
+    return handleAdminAction(locals, async () => {
+      await approveAttendance(data.get("eventId") as string, data.get("id") as string);
+      return {};
+    });
+  },
 
-    return handleAdminAction(
-      locals,
-      async () => {
-        const requests = await getSeminarRequests();
-        const seminar = requests.find((r) => r.id === id);
-        if (!seminar) throw new Error("Seminar request not found");
+  rejectAttendance: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
+    const data = await request.formData();
+    return handleAdminAction(locals, async () => {
+      await rejectAttendance(data.get("eventId") as string, data.get("id") as string);
+      return {};
+    });
+  },
 
-        if (seminar.speakerIds.length > 0) {
-          const member = await getMemberById(seminar.speakerIds[0]);
-          if (member?.privateInfoId) {
-            const info = await getPrivateInfo(member.privateInfoId);
-            if (info?.email) {
-              await sendSeminarStatusNotification(
-                info.email,
-                member.name,
-                seminar.title,
-                "rejected",
-              );
-            }
-          }
-        }
+  updateAttendanceTime: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
+    const data = await request.formData();
+    const patch: { startTime?: string; endTime?: string } = {};
+    const start = data.get("startTime") as string;
+    const end = data.get("endTime") as string;
+    if (start) patch.startTime = kstInputToIso(start);
+    if (end) patch.endTime = kstInputToIso(end);
+    return handleAdminAction(locals, async () => {
+      await updateAttendanceTime(
+        data.get("eventId") as string,
+        data.get("id") as string,
+        patch,
+      );
+      return {};
+    });
+  },
 
-        await deleteSeminarRequest(id);
-        return {};
-      },
-      { invalidate: "all_seminar_requests" },
-    );
+  deleteAttendanceRecord: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
+    const data = await request.formData();
+    return handleAdminAction(locals, async () => {
+      await deleteAttendanceRecord(
+        data.get("eventId") as string,
+        data.get("id") as string,
+      );
+      return {};
+    });
+  },
+
+  approveSeminar: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const id = (await request.formData()).get("id") as string;
+    return handleAdminAction(locals, async () => {
+      const { request: req, mailFailed } = await approveSeminar(id);
+      await notifyFirstPresenter(req.presenterIds, req.title, "approved");
+      return { mailFailed };
+    });
+  },
+
+  rejectSeminar: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const id = (await request.formData()).get("id") as string;
+    return handleAdminAction(locals, async () => {
+      const req = await rejectSeminar(id);
+      await notifyFirstPresenter(req.presenterIds, req.title, "rejected");
+      return {};
+    });
   },
 };

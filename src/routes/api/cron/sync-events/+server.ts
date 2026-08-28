@@ -1,6 +1,6 @@
 import { json } from "@sveltejs/kit";
 import { env } from "$env/dynamic/private";
-import { syncEventStatuses } from "$lib/server/events";
+import { runCron } from "$lib/server/services/events";
 import type { RequestHandler } from "./$types";
 
 export const GET: RequestHandler = async ({ request }) => {
@@ -14,9 +14,8 @@ export const GET: RequestHandler = async ({ request }) => {
   }
 
   try {
-    console.log("[Cron] Syncing event statuses...");
-    await syncEventStatuses();
-    return json({ success: true });
+    const results = await runCron();
+    return json({ success: true, ...results });
   } catch (e) {
     console.error("[Cron] Sync failed:", e);
     return json({ error: "Sync failed" }, { status: 500 });

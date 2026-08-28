@@ -1,24 +1,24 @@
 import { redirect } from "@sveltejs/kit";
+import { handleUserAction } from "$lib/server/auth-guards";
+import { withdrawOwnApplication } from "$lib/server/services/membership";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
   const { session, isMember, application, isAdmin } = await event.parent();
 
-  if (!session?.user) {
-    throw redirect(302, "/");
-  }
+  if (!session?.user) throw redirect(302, "/");
+  if (isMember && !isAdmin) throw redirect(302, "/");
+  if (!application && !isAdmin) throw redirect(302, "/signup");
 
-  // If already a member, no need to be on the wait page (Admins can stay for preview)
-  if (isMember && !isAdmin) {
-    throw redirect(302, "/");
-  }
+  return { user: session.user, application };
+};
 
-  // If no application at all, go to signup (Admins can skip this)
-  if (!application && !isAdmin) {
-    throw redirect(302, "/signup");
-  }
-
-  return {
-    user: session.user,
-  };
+export const actions = {
+  /** MEM-03: the applicant withdraws their own pending application. */
+  withdrawApplication: async ({ locals }: { locals: App.Locals }) => {
+    return handleUserAction(locals, async (session) => {
+      await withdrawOwnApplication(session.user.email);
+      throw redirect(303, "/");
+    });
+  },
 };

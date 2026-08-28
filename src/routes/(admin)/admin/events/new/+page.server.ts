@@ -1,76 +1,38 @@
-import { fail, redirect, error } from "@sveltejs/kit";
-import { env } from "$env/dynamic/private";
-import { createEvent } from "$lib/server/events";
-import {
-  createActivityPage,
-  getDatabaseSchema,
-  type DatabasePropertySchema,
-} from "$lib/server/notion";
-import { isAdmin } from "$lib/server/admin";
-import { ACTIVITY_TYPES } from "$lib/constants";
+import { fail, redirect } from "@sveltejs/kit";
+import { ensureAdmin } from "$lib/server/auth-guards";
+import { ACTIVITY_TYPES } from "$lib/server/data/schemas";
+import { kstInputToIso } from "$lib/server/core/time";
+import { createEventWithActivity } from "$lib/server/services/events";
+import type { Activity } from "$lib/server/data/schemas";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
-  const session = await locals.auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
-    throw error(404, "Not Found");
-  }
-
-  const dbId = env.NOTION_DB_ACTIVITIES;
-  let activityTypes: string[] = [...ACTIVITY_TYPES];
-
-  if (dbId) {
-    try {
-      const schema = await getDatabaseSchema(dbId);
-      const typeProp = schema["활동 종류"] as DatabasePropertySchema;
-      if (typeProp?.options) {
-        activityTypes = typeProp.options;
-      }
-    } catch (e) {
-      console.error("Failed to fetch activity types from Notion:", e);
-    }
-  }
-
-  return { activityTypes };
+  await ensureAdmin(locals, { silent: true });
+  return { activityTypes: [...ACTIVITY_TYPES] };
 };
 
 export const actions = {
-  default: async ({ request, locals }) => {
-    const session = await locals.auth();
-    if (!session?.user?.email || !isAdmin(session.user.email))
-      return fail(401, { error: "Unauthorized" });
+  default: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    await ensureAdmin(locals, { silent: true });
 
     const data = await request.formData();
     const title = data.get("title") as string;
-    const dateRaw = data.get("date") as string; // YYYY-MM-DDTHH:mm
+    const dateRaw = data.get("date") as string; // YYYY-MM-DDTHH:mm (KST)
     const type = data.get("type") as string;
 
     if (!title || !dateRaw || !type) {
       return fail(400, { error: "Missing required fields" });
     }
-
-    try {
-      // 1. Create Notion Page
-      const page = await createActivityPage({
-        title,
-        date: dateRaw,
-        type,
-      });
-
-      // 2. Create Local Event
-      await createEvent({
-        title,
-        date: dateRaw,
-        type,
-        notionPageId: page.id,
-      });
-
-      throw redirect(302, "/admin");
-    } catch (e) {
-      if (e && typeof e === "object" && "status" in e && e.status === 302)
-        throw e;
-      console.error(e);
-      return fail(500, { error: "Creation failed" });
+    if (!(ACTIVITY_TYPES as readonly string[]).includes(type)) {
+      return fail(400, { error: "VALIDATION_FAILED" });
     }
+
+    await createEventWithActivity({
+      title,
+      startIso: kstInputToIso(dateRaw),
+      type: type as Activity["type"],
+    });
+
+    throw redirect(302, "/admin");
   },
 };

@@ -1,35 +1,17 @@
 import { json } from "@sveltejs/kit";
-import { isAdmin } from "$lib/server/admin";
-import { getSeminarRequests } from "$lib/server/seminars";
-import { getAllMembers } from "$lib/server/notion";
+import { requireAdminAction } from "$lib/server/auth-guards";
+import { getTable } from "$lib/server/data/tables";
 import type { RequestHandler } from "./$types";
 
+/** Admin polling: pending seminar proposals (§8-3). */
 export const GET: RequestHandler = async ({ locals }) => {
-  const session = await locals.auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
-    return json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { allowed } = await requireAdminAction(locals);
+  if (!allowed) return json({ error: "Forbidden" }, { status: 403 });
 
-  const [seminarRequests, members] = await Promise.all([
-    getSeminarRequests(),
-    getAllMembers(),
-  ]);
-
-  const requestWithSpeakers = seminarRequests
-    .filter((r) => r.status === "pending")
-    .sort(
-      (a, b) =>
-        new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime(),
-    )
-    .map((r) => ({
-      ...r,
-      speakerNames: Array.isArray(r.speakerIds)
-        ? r.speakerIds.map((id) => {
-            const m = members.find((member) => member.id === id);
-            return m ? m.name : "Unknown";
-          })
-        : [],
-    }));
-
-  return json(requestWithSpeakers);
+  const requests = await getTable("seminar-requests");
+  return json({
+    seminarRequests: requests
+      .filter((r) => r.status === "pending")
+      .map((r) => ({ ...r, speakerIds: r.presenterIds, submittedAt: r.createdAt })),
+  });
 };
