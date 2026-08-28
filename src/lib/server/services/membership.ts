@@ -1,4 +1,4 @@
-import { AppError } from "$lib/server/core/errors";
+import { AppError, definedOnly } from "$lib/server/core/errors";
 import { newId } from "$lib/server/core/id";
 import { nowKstIso } from "$lib/server/core/time";
 import { getTable, mutate } from "$lib/server/data/tables";
@@ -48,7 +48,7 @@ export async function updateOwnApplication(
   await mutate("applications", (rows) => {
     const idx = rows.findIndex((a) => norm(a.email) === norm(email));
     if (idx === -1) throw new AppError("NOT_FOUND");
-    rows[idx] = { ...rows[idx], ...patch };
+    rows[idx] = { ...rows[idx], ...definedOnly(patch) };
     return rows;
   });
 }
@@ -103,16 +103,23 @@ export async function approveApplication(
     sourceRequestId: id,
   }));
 
-  await mutate("applications", (rows) => rows.filter((a) => a.id !== id));
+  // CAS: the row must still exist when THIS call removes it — a concurrent
+  // duplicate approval loses here instead of double-sending the welcome mail.
+  await mutate("applications", (rows) => {
+    if (!rows.some((a) => a.id === id)) throw new AppError("CONFLICT");
+    return rows.filter((a) => a.id !== id);
+  });
   return { name: app.name, email: app.email };
 }
 
-export async function rejectApplication(id: string): Promise<{ email: string } | null> {
+export async function rejectApplication(
+  id: string,
+): Promise<{ email: string; name: string }> {
   let removed: Application | undefined;
   await mutate("applications", (rows) => {
     removed = rows.find((a) => a.id === id);
     if (!removed) throw new AppError("NOT_FOUND");
     return rows.filter((a) => a.id !== id);
   });
-  return removed ? { email: removed.email } : null;
+  return { email: removed!.email, name: removed!.name };
 }

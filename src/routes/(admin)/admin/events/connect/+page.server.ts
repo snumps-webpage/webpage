@@ -30,7 +30,10 @@ export const actions = {
     // §7-5: the session copies title/date/type from the activity — the id is
     // the only client input we trust.
     const activityId = (data.get("activityId") ?? data.get("notionPageId")) as string;
-    if (!activityId) return { error: "이벤트를 선택해주세요." };
+    if (!activityId) {
+      const { fail } = await import("@sveltejs/kit");
+      return fail(400, { error: "VALIDATION_FAILED", message: "이벤트를 선택해주세요." });
+    }
 
     const result = await handleAdminAction(locals, async () => {
       await connectActivity(activityId);

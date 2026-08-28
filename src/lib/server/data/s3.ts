@@ -159,7 +159,10 @@ export async function headObject(
       contentType: res.ContentType ?? "application/octet-stream",
     };
   } catch (e) {
-    if (statusOf(e) === 404) return null;
+    // 403 defensively treated as absent: without ListBucket, S3 masks a
+    // missing key as AccessDenied (review C3) — never surface that as a 500.
+    const status = statusOf(e);
+    if (status === 404 || status === 403) return null;
     throw e;
   }
 }

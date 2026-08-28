@@ -7,7 +7,7 @@ import type { RequestHandler } from "./$types";
 /** SYS-03: presigned PUT issuance. Admin-only — uploads exist only in editors. */
 export const POST: RequestHandler = async ({ request, locals }) => {
   const { allowed } = await requireAdminAction(locals);
-  if (!allowed) return json({ error: "Forbidden" }, { status: 403 });
+  if (!allowed) return json({ error: "FORBIDDEN" }, { status: 403 });
 
   let body: { purpose?: string; filename?: string; contentType?: string; size?: number };
   try {

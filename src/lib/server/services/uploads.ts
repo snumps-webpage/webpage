@@ -35,7 +35,7 @@ export function isUploadPurpose(v: string): v is UploadPurpose {
 export function slugifyFilename(filename: string): { slug: string; ext: string } {
   const dot = filename.lastIndexOf(".");
   const base = dot > 0 ? filename.slice(0, dot) : filename;
-  const ext = dot > 0 ? filename.slice(dot + 1).toLowerCase() : "bin";
+  const ext = (dot > 0 ? filename.slice(dot + 1).toLowerCase() : "") || "bin";
   const slug =
     base
       .toLowerCase()

@@ -45,6 +45,20 @@ resource "aws_s3_bucket_policy" "trail" {
   policy = data.aws_iam_policy_document.trail_bucket.json
 }
 
+# Data events accumulate forever without this — against a $10/month budget
+# the trail must expire its own logs (review M13).
+resource "aws_s3_bucket_lifecycle_configuration" "trail" {
+  bucket = aws_s3_bucket.trail.id
+
+  rule {
+    id     = "expire-trail-logs-180d"
+    status = "Enabled"
+    expiration {
+      days = 180
+    }
+  }
+}
+
 resource "aws_cloudtrail" "data_events" {
   name           = "snumps-data-access"
   s3_bucket_name = aws_s3_bucket.trail.id

@@ -29,11 +29,22 @@ const DEFAULT_STATUS: Record<ErrCode, number> = {
 export class AppError extends Error {
   readonly code: ErrCode;
   readonly status: number;
+  /** Optional human-facing Korean detail; the CODE stays the contract (§1-2). */
+  readonly userMessage?: string;
 
-  constructor(code: ErrCode, status?: number) {
+  constructor(code: ErrCode, opts?: { status?: number; userMessage?: string }) {
     super(code);
     this.name = "AppError";
     this.code = code;
-    this.status = status ?? DEFAULT_STATUS[code];
+    this.status = opts?.status ?? DEFAULT_STATUS[code];
+    this.userMessage = opts?.userMessage;
   }
+}
+
+/** Strips explicitly-undefined keys so `{...row, ...patch}` can never delete
+ *  a stored field through JSON serialization (review C1). */
+export function definedOnly<T extends Record<string, unknown>>(patch: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(patch).filter(([, v]) => v !== undefined),
+  ) as Partial<T>;
 }

@@ -1,4 +1,4 @@
-import { AppError } from "$lib/server/core/errors";
+import { AppError, definedOnly } from "$lib/server/core/errors";
 import { newId } from "$lib/server/core/id";
 import { nowKstIso } from "$lib/server/core/time";
 import { getTable, mutate } from "$lib/server/data/tables";
@@ -35,7 +35,7 @@ export async function updateActivity(
   await mutate("activities", (rows) => {
     const idx = rows.findIndex((a) => a.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
-    rows[idx] = { ...rows[idx], ...patch };
+    rows[idx] = { ...rows[idx], ...definedOnly(patch) };
     return rows;
   });
 }
@@ -97,7 +97,7 @@ export async function updateSeminar(
   await mutate("seminars", (rows) => {
     const idx = rows.findIndex((s) => s.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
-    rows[idx] = { ...rows[idx], ...patch };
+    rows[idx] = { ...rows[idx], ...definedOnly(patch) };
     return rows;
   });
 }
@@ -109,20 +109,31 @@ export async function deleteSeminar(id: string): Promise<void> {
   });
 }
 
-export async function setSeminarFiles(
+/** One file-array editor for all three photo/material fields (review M11). */
+async function setFileArray(
+  table: "seminars" | "studies" | "gallery-dinner",
   id: string,
-  field: "materials" | "photos",
+  field: string,
   op: { add?: string; remove?: string },
 ): Promise<void> {
-  await mutate("seminars", (rows) => {
-    const idx = rows.findIndex((s) => s.id === id);
+  await mutate(table, (rows) => {
+    const idx = rows.findIndex((r) => r.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
-    let files = rows[idx][field];
+    const row = rows[idx] as Record<string, unknown>;
+    let files = row[field] as string[];
     if (op.add) files = [...new Set([...files, op.add])];
     if (op.remove) files = files.filter((f) => f !== op.remove);
     rows[idx] = { ...rows[idx], [field]: files };
     return rows;
   });
+}
+
+export function setSeminarFiles(
+  id: string,
+  field: "materials" | "photos",
+  op: { add?: string; remove?: string },
+): Promise<void> {
+  return setFileArray("seminars", id, field, op);
 }
 
 // ---- studies ----------------------------------------------------------------
@@ -154,7 +165,7 @@ export async function updateStudy(
   await mutate("studies", (rows) => {
     const idx = rows.findIndex((s) => s.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
-    rows[idx] = { ...rows[idx], ...patch };
+    rows[idx] = { ...rows[idx], ...definedOnly(patch) };
     return rows;
   });
 }
@@ -178,6 +189,11 @@ export async function setOrganizer(
   newOrganizerId: string,
   actorId: string,
 ): Promise<void> {
+  // Same target validation as the two-phase proposal (review M6): a ghost or
+  // grace-period member as sole organizer leaves the study unmanageable.
+  const target = (await getTable("members")).find((m) => m.id === newOrganizerId);
+  if (!target || target.status === "withdrawn") throw new AppError("VALIDATION_FAILED");
+
   await mutate("studies", (rows) => {
     const idx = rows.findIndex((s) => s.id === studyId);
     if (idx === -1) throw new AppError("NOT_FOUND");
@@ -206,19 +222,11 @@ export async function setOrganizer(
   });
 }
 
-export async function setStudyPhotos(
+export function setStudyPhotos(
   id: string,
   op: { add?: string; remove?: string },
 ): Promise<void> {
-  await mutate("studies", (rows) => {
-    const idx = rows.findIndex((s) => s.id === id);
-    if (idx === -1) throw new AppError("NOT_FOUND");
-    let photos = rows[idx].photos;
-    if (op.add) photos = [...new Set([...photos, op.add])];
-    if (op.remove) photos = photos.filter((p) => p !== op.remove);
-    rows[idx] = { ...rows[idx], photos };
-    return rows;
-  });
+  return setFileArray("studies", id, "photos", op);
 }
 
 // ---- dinner gallery ---------------------------------------------------------
@@ -238,7 +246,7 @@ export async function updateGalleryEntry(
   await mutate("gallery-dinner", (rows) => {
     const idx = rows.findIndex((g) => g.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
-    rows[idx] = { ...rows[idx], ...patch };
+    rows[idx] = { ...rows[idx], ...definedOnly(patch) };
     return rows;
   });
 }
@@ -250,17 +258,9 @@ export async function deleteGalleryEntry(id: string): Promise<void> {
   });
 }
 
-export async function setGalleryPhotos(
+export function setGalleryPhotos(
   id: string,
   op: { add?: string; remove?: string },
 ): Promise<void> {
-  await mutate("gallery-dinner", (rows) => {
-    const idx = rows.findIndex((g) => g.id === id);
-    if (idx === -1) throw new AppError("NOT_FOUND");
-    let photos = rows[idx].photos;
-    if (op.add) photos = [...new Set([...photos, op.add])];
-    if (op.remove) photos = photos.filter((p) => p !== op.remove);
-    rows[idx] = { ...rows[idx], photos };
-    return rows;
-  });
+  return setFileArray("gallery-dinner", id, "photos", op);
 }

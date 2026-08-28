@@ -1,14 +1,14 @@
 import { json } from "@sveltejs/kit";
 import { env } from "$env/dynamic/private";
 import { Client } from "@notionhq/client";
-import { isAdmin } from "$lib/server/admin";
+import { requireAdminAction } from "$lib/server/auth-guards";
 import type { RequestHandler } from "./$types";
 
+// Legacy Notion diagnostics — slated for removal at M8 cutover (§8-4).
 export const GET: RequestHandler = async ({ locals }) => {
-  const session = await locals.auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
-    return json({ error: "Unauthorized" }, { status: 401 });
-  }
+  // D4: one source of admin truth (the member record), not the env list.
+  const { allowed } = await requireAdminAction(locals);
+  if (!allowed) return json({ error: "FORBIDDEN" }, { status: 403 });
 
   interface DiagInfo {
     env: {

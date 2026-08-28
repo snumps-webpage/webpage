@@ -115,12 +115,20 @@ export async function approveSeminar(
     sourceRequestId: id,
   }));
 
+  // The pending→approved flip is a compare-and-set INSIDE the mutate: the
+  // entry check above reads a cache that can be 15s stale, so two concurrent
+  // approvals could both pass it — but only one wins this CAS, and only the
+  // winner sends the all-member announcement (review M3).
   await mutate("seminar-requests", (rows) =>
-    rows.map((r) => (r.id === id ? { ...r, status: "approved" as const } : r)),
+    rows.map((r) => {
+      if (r.id !== id) return r;
+      if (r.status !== "pending") throw new AppError("CONFLICT");
+      return { ...r, status: "approved" as const };
+    }),
   );
 
   // BE-45: all-member announcement (Bcc, opted-in only). Failure never
-  // propagates — and a re-run stops at CONFLICT above, so no double-send.
+  // propagates — the CAS above guarantees exactly one sender.
   const { sendSeminarAnnouncement } = await import("$lib/server/mail/announcements");
   const mailFailed = !(await sendSeminarAnnouncement({
     title: request.title,
@@ -132,9 +140,12 @@ export async function approveSeminar(
 export async function rejectSeminar(id: string): Promise<SeminarRequest> {
   const request = (await getTable("seminar-requests")).find((r) => r.id === id);
   if (!request) throw new AppError("NOT_FOUND");
-  if (request.status !== "pending") throw new AppError("CONFLICT");
   await mutate("seminar-requests", (rows) =>
-    rows.map((r) => (r.id === id ? { ...r, status: "rejected" as const } : r)),
+    rows.map((r) => {
+      if (r.id !== id) return r;
+      if (r.status !== "pending") throw new AppError("CONFLICT"); // CAS
+      return { ...r, status: "rejected" as const };
+    }),
   );
   return request;
 }

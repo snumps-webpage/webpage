@@ -22,7 +22,15 @@ import {
 } from "$lib/server/services/events";
 import { getWithdrawnPending } from "$lib/server/services/members-admin";
 import {
+  adminEventView,
+  applicationView,
+  seminarRequestView,
+  studyRequestView,
+} from "$lib/server/data/views";
+import {
+  sendApplicationRejectedEmail,
   sendSeminarStatusNotification,
+  sendStudyStatusNotification,
   sendWelcomeEmail,
 } from "$lib/server/mail";
 import { AppError } from "$lib/server/core/errors";
@@ -39,7 +47,7 @@ export const load: PageServerLoad = async (event) => {
       applications: (async () => {
         const apps = await getTable("applications");
         return apps
-          .map((a) => ({ ...a, accepted: false, submittedAt: a.createdAt }))
+          .map(applicationView)
           .sort(
             (a, b) =>
               new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime(),
@@ -47,46 +55,37 @@ export const load: PageServerLoad = async (event) => {
       })(),
       events: (async () => {
         const events = await getTable("events");
-        return [...events]
-          .map((e) => ({
-            ...e,
-            date: e.date.start,
-            status: effectiveStatus(e),
-            notionPageId: e.activityId, // legacy UI field name
-          }))
-          .reverse();
+        return [...events].map((e) => adminEventView(e, effectiveStatus(e))).reverse();
       })(),
       attendanceQueue: getPendingAttendance(),
       withdrawnPending: getWithdrawnPending(),
       seminarRequests: (async () => {
         const requests = await getTable("seminar-requests");
-        return requests
-          .filter((r) => r.status === "pending")
-          .map((r) => ({ ...r, speakerIds: r.presenterIds, submittedAt: r.createdAt }));
+        return requests.filter((r) => r.status === "pending").map(seminarRequestView);
       })(),
       studyRequests: (async () => {
         const requests = await getTable("study-requests");
-        return requests
-          .filter((r) => r.status === "pending")
-          .map((r) => ({ ...r, submittedAt: r.createdAt }));
+        return requests.filter((r) => r.status === "pending").map(studyRequestView);
       })(),
     },
   };
 };
 
-/** Legacy per-presenter status mail — the first presenter gets notified. */
-async function notifyFirstPresenter(
-  presenterIds: string[],
+/** One notifier for both request kinds — the right letter each time (review C2). */
+async function notifyMember(
+  memberId: string | undefined,
+  kind: "seminar" | "study",
   title: string,
   status: "approved" | "rejected",
 ) {
-  if (presenterIds.length === 0) return;
-  const member = await getMemberById(presenterIds[0]);
+  if (!memberId) return;
+  const member = await getMemberById(memberId);
   if (!member) return;
   const info = await getPrivateInfoOf(member.id);
-  if (info?.email) {
-    await sendSeminarStatusNotification(info.email, member.name, title, status);
-  }
+  if (!info?.email) return;
+  const send =
+    kind === "seminar" ? sendSeminarStatusNotification : sendStudyStatusNotification;
+  await send(info.email, member.name, title, status);
 }
 
 export const actions = {
@@ -102,7 +101,10 @@ export const actions = {
   reject: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
-      await rejectApplication(id);
+      // The removed row is the only copy of the address — mail with the return
+      // value or never (review M4).
+      const { email, name } = await rejectApplication(id);
+      await sendApplicationRejectedEmail(email, name);
       return {};
     });
   },
@@ -232,7 +234,7 @@ export const actions = {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
       const { request: req, mailFailed } = await approveSeminar(id);
-      await notifyFirstPresenter(req.presenterIds, req.title, "approved");
+      await notifyMember(req.presenterIds[0], "seminar", req.title, "approved");
       return { mailFailed };
     });
   },
@@ -241,7 +243,7 @@ export const actions = {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
       const req = await rejectSeminar(id);
-      await notifyFirstPresenter(req.presenterIds, req.title, "rejected");
+      await notifyMember(req.presenterIds[0], "seminar", req.title, "rejected");
       return {};
     });
   },
@@ -251,7 +253,7 @@ export const actions = {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
       const req = await approveStudy(id);
-      await notifyRequester(req.requesterId, req.title, "approved");
+      await notifyMember(req.requesterId, "study", req.title, "approved");
       return {};
     });
   },
@@ -260,21 +262,8 @@ export const actions = {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
       const req = await rejectStudy(id);
-      await notifyRequester(req.requesterId, req.title, "rejected");
+      await notifyMember(req.requesterId, "study", req.title, "rejected");
       return {};
     });
   },
 };
-
-async function notifyRequester(
-  requesterId: string,
-  title: string,
-  status: "approved" | "rejected",
-) {
-  const member = await getMemberById(requesterId);
-  if (!member) return;
-  const info = await getPrivateInfoOf(member.id);
-  if (info?.email) {
-    await sendSeminarStatusNotification(info.email, member.name, title, status);
-  }
-}

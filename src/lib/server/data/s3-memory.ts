@@ -34,6 +34,51 @@ export function dataBucket(): string {
   return "test-bucket";
 }
 
+export function assetsBucket(): string {
+  return "test-assets";
+}
+
+const contentTypes = new Map<string, string>();
+
+export async function headObject(
+  _bucket: string,
+  key: string,
+): Promise<{ contentLength: number; contentType: string } | null> {
+  const obj = store.get(key);
+  if (!obj) return null;
+  return {
+    contentLength: obj.body.length,
+    contentType: contentTypes.get(key) ?? "application/octet-stream",
+  };
+}
+
+export async function copyObject(
+  _bucket: string,
+  fromKey: string,
+  toKey: string,
+): Promise<void> {
+  const obj = store.get(fromKey);
+  if (!obj) throw new Error("NoSuchKey");
+  store.set(toKey, obj);
+  const ct = contentTypes.get(fromKey);
+  if (ct) contentTypes.set(toKey, ct);
+}
+
+export async function presignPut(
+  _bucket: string,
+  key: string,
+  contentType: string,
+): Promise<string> {
+  contentTypes.set(key, contentType); // remember what the upload will claim
+  return `https://example.test/presigned/${encodeURIComponent(key)}`;
+}
+
+/** Simulates the browser's PUT to the presigned URL. */
+export function __uploadPending(key: string, bytes: number, contentType?: string): void {
+  store.set(key, { body: new Uint8Array(bytes), etag: `"up-${bytes}"` });
+  if (contentType) contentTypes.set(key, contentType);
+}
+
 export async function getObjectWithEtag(
   _bucket: string,
   key: string,
@@ -84,6 +129,7 @@ export async function putObject(
 // ---- test controls ----
 export function __reset(): void {
   store.clear();
+  contentTypes.clear();
   alwaysConflict = false;
   maxJitterMs = 3;
 }

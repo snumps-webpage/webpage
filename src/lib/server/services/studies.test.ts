@@ -189,7 +189,7 @@ describe("organizer handover (STU-07 / BE-50)", () => {
     await proposeTransfer(s.id, "org", "m-new");
 
     await expect(acceptTransfer(s.id, "someone-else")).rejects.toSatisfy(
-      (e) => e instanceof AppError && e.code === "NOT_FOUND",
+      (e) => e instanceof AppError && e.code === "FORBIDDEN", // §6-5
     );
     await declineTransfer(s.id, "m-new");
     expect((await getTable("studies"))[0].pendingTransfer).toBeNull();

@@ -40,8 +40,11 @@ export const actions: Actions = {
       const data = await request.formData();
       const title = data.get("title") as string;
       const description = data.get("description") as string;
-      if (!title || !description)
-        throw new Error("세미나 제목과 설명은 필수 입력 항목입니다.");
+      if (!title || !description) {
+        throw new AppError("VALIDATION_FAILED", {
+          userMessage: "세미나 제목과 설명은 필수 입력 항목입니다.",
+        });
+      }
 
       let presenterIds = parsePresenterIds(data.get("speakerIds") as string);
       if (presenterIds.length === 0) presenterIds = [member.memberId];

@@ -92,6 +92,9 @@ describe("mutate — conditional writes", () => {
 
 describe("attendance queue — per-event objects", () => {
   it("survives a 20-writer check-in burst with zero losses", async () => {
+    // Larger backoff base than the other tests: under full-suite CPU load the
+    // 1ms base can exhaust the 10 retries before the writers serialize.
+    _resetDataLayerForTests({ backoffBaseMs: 8 });
     const eventId = newId();
     const records = Array.from({ length: 20 }, () => record(eventId));
     await Promise.all(

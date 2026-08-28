@@ -1,5 +1,5 @@
 import { AppError } from "$lib/server/core/errors";
-import { nowKstIso } from "$lib/server/core/time";
+import { nowKstIso, WITHDRAWAL_GRACE_MS } from "$lib/server/core/time";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { audit } from "$lib/server/data/audit";
 
@@ -97,7 +97,7 @@ export async function getWithdrawalState(memberId: string) {
   return {
     requestedAt: member.withdrawal.requestedAt,
     deleteAfter: new Date(
-      new Date(member.withdrawal.requestedAt).getTime() + 30 * 24 * 60 * 60 * 1000,
+      new Date(member.withdrawal.requestedAt).getTime() + WITHDRAWAL_GRACE_MS,
     ).toISOString(),
     held: !!member.withdrawal.holdBy,
   };

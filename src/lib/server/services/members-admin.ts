@@ -1,5 +1,5 @@
-import { AppError } from "$lib/server/core/errors";
-import { nowKstIso } from "$lib/server/core/time";
+import { AppError, definedOnly } from "$lib/server/core/errors";
+import { nowKstIso, WITHDRAWAL_GRACE_MS } from "$lib/server/core/time";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { audit } from "$lib/server/data/audit";
 import type { Member, MemberRole } from "$lib/server/data/schemas";
@@ -26,7 +26,7 @@ export async function updateMember(
   id: string,
   patch: Partial<Pick<Member, "name" | "department" | "joinedAt" | "project" | "publicContact">>,
 ): Promise<void> {
-  await patchMember(id, (m) => ({ ...m, ...patch }));
+  await patchMember(id, (m) => ({ ...m, ...definedOnly(patch) }));
 }
 
 /** associate↔regular. Promotion grants alumni — unless a revocation sticks. */
@@ -110,7 +110,7 @@ export async function updatePrivateInfo(
   await mutate("private-info", (rows) => {
     const idx = rows.findIndex((p) => p.memberId === targetMemberId);
     if (idx === -1) throw new AppError("NOT_FOUND");
-    rows[idx] = { ...rows[idx], ...patch };
+    rows[idx] = { ...rows[idx], ...definedOnly(patch) };
     return rows;
   });
   await audit({
@@ -171,7 +171,7 @@ export async function getWithdrawnPending() {
       department: m.department,
       requestedAt: m.withdrawal!.requestedAt,
       deleteAfter: new Date(
-        new Date(m.withdrawal!.requestedAt).getTime() + 30 * 24 * 60 * 60 * 1000,
+        new Date(m.withdrawal!.requestedAt).getTime() + WITHDRAWAL_GRACE_MS,
       ).toISOString(),
       held: !!m.withdrawal!.holdBy,
     }));

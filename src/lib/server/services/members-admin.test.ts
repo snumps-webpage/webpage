@@ -139,6 +139,7 @@ describe("withdrawal hold (ADM-17)", () => {
 
 describe("admin plenary organizer transfer (§7-4)", () => {
   it("replaces the organizer, clears a pending proposal, records byAdmin history", async () => {
+    await seedMember({ id: "m-new" }); // setOrganizer validates the target (review M6)
     const study = {
       id: newId(), title: "해석학", semester: "26-2", textbook: "", description: "",
       note: "", organizerIds: ["m-old"], participantIds: ["m-old"],

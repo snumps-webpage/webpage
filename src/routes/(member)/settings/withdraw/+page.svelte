@@ -13,7 +13,7 @@
 
 <section class="withdraw-page">
 	<h1>회원 탈퇴</h1>
-	{#if form && 'error' in form}<p class="error">처리 실패: {form.error}</p>{/if}
+	{#if form && 'error' in form}<p class="error">처리 실패: {('message' in form && form.message) || form.error}</p>{/if}
 
 	<form method="POST" action="?/requestWithdrawal" use:enhance>
 		<fieldset disabled={step < 1}>

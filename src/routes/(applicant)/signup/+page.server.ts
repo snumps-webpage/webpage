@@ -58,15 +58,24 @@ export const actions = {
     return handleUserAction(locals, async (session) => {
       const { name, department } = parseGoogleName(session.user.name);
       if (!name || !department) {
-        throw new Error("계정 정보에서 이름 또는 학과를 찾을 수 없습니다.");
+        throw new AppError("VALIDATION_FAILED", {
+          userMessage: "계정 정보에서 이름 또는 학과를 찾을 수 없습니다.",
+        });
       }
 
       const data = await request.formData();
       const phone = normalizePhoneNumber(data.get("phone") as string);
       const background = (data.get("background") as string) ?? "";
-      if (!data.get("agreement"))
-        throw new Error("개인정보 수집 및 이용에 동의해야 합니다.");
-      if (!phone) throw new Error("전화번호를 입력해주세요.");
+      if (!data.get("agreement")) {
+        throw new AppError("VALIDATION_FAILED", {
+          userMessage: "개인정보 수집 및 이용에 동의해야 합니다.",
+        });
+      }
+      if (!phone) {
+        throw new AppError("VALIDATION_FAILED", {
+          userMessage: "전화번호를 입력해주세요.",
+        });
+      }
 
       try {
         await submitApplication({
@@ -78,7 +87,9 @@ export const actions = {
         });
       } catch (e) {
         if (e instanceof AppError && e.code === "CONFLICT") {
-          throw new Error("이미 제출된 신청이 있습니다. 수정 화면을 이용해 주세요.");
+          throw new AppError("CONFLICT", {
+            userMessage: "이미 제출된 신청이 있습니다. 수정 화면을 이용해 주세요.",
+          });
         }
         throw e;
       }

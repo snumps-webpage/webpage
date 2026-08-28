@@ -70,3 +70,23 @@ mutate/mutateQueue 재시도 전체(409/412/404·부트스트랩·no-op 스킵) 
 1. **즉시**: C1(mutate 쓰기 검증 — 한 줄 방어선 + 라우트 undefined 정리) · C2 · C3 · C4
 2. **정리 패스 (1~2일, M7 전 권장)**: M1~M13 — 특히 오류 계약 스윕과 뷰 매핑 단일화는 **이후 라우트가 복제할 관용구를 바로잡는 것**이라 빠를수록 이득
 3. 낮음 그룹은 해당 파일 다음 접촉 시
+
+---
+
+## 처리 현황 (2026-08-31 수정 패스)
+
+**해소 완료:**
+
+- **치명 C1~C4 전부** — `mutate` 쓰기 전 봉투 스키마 게이트(불량 쓰기는 `VALIDATION_FAILED`로 거부, 브릭 불가), `kstInputToIso` 형식 검증(NaN 배출 차단), `definedOnly()`로 전 patch-스프레드의 필드 삭제 차단(+ 회귀 테스트) / 스터디 상태 전용 템플릿 신설 + 통지 헬퍼 단일화 / assets `ListBucket` + `headObject` 403→null 이중 방어 / 레거시 events/new 레이아웃 삭제
+- **중요 M1~M13 중 12건** — finished 전이 가드 · cancelled 회차 키 CONFLICT(+크론 스킵) · 승인 4종 CAS 플립(공지 이중 발송 차단, 가입 승인 웰컴 메일 포함) · 거절 통지 메일(행 제거 전 확보) · updateSession의 activity 동기화 · setOrganizer 대상 검증(+테스트) · 오류 계약 스윕(`AppError` code+`userMessage` 이원화, 한국어 throw 전면 교체, connect fail(), events/new 래퍼화, API FORBIDDEN 코드화, UI 5곳 message 우선 표시) · `views.ts` 신설로 원시 row 유출 8곳 봉인 · `ensurePresenter` 중복 장기 제거(권한 소유자 규약 주석화) · `runAction` 추출로 쌍둥이 래퍼 통합 · 파일 필드 삼중 코드 단일화 + 유예 상수 `WITHDRAWAL_GRACE_MS` + `/diag` D4 전환 + 동적 import 노이즈 정리 · `records-admin`/`uploads` 테스트 신설(14건) · `outputs.tf` + trail 수명주기
+- **낮음 중 4건** — 체크인 404 선반환 · cron 카운트 사전 계수 · `canApply` effectiveStatus · `acceptTransfer` FORBIDDEN · Bcc `To:` 빈 그룹 헤더
+
+**의도적 잔여 (파일 접촉 시 처리):**
+
+- `satisfies Actions` 일괄 전환 (수기 주석은 타입 안전 — 관용구 통일만 남음)
+- `?semester=` 대시보드 쿼리 (§4-5 — M7에서 대시보드 접촉 시)
+- 템플릿 메일 실패의 `mailFailed` 표면화 (공지·회장단 통지는 이미 구현)
+- 2단계 체크인 분기 (§5-4 — UI가 요구할 때)
+- Terraform state 버킷 결정 (운영자 — OPERATOR-TODO)
+
+검증: 테스트 132/132 (신규 17), tsc 0, lint 클린, 빌드 성공.

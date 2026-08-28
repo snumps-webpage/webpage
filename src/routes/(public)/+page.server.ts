@@ -4,6 +4,8 @@ import { handleUserAction } from "$lib/server/auth-guards";
 import { resolveDevPreviewRole } from "$lib/server/dev-preview";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { getActivitiesBetween, getActivitiesOf, getPrivateInfoOf } from "$lib/server/data/repos";
+import { effectiveStatus } from "$lib/server/services/events";
+import { seminarRequestView } from "$lib/server/data/views";
 import { currentTerm, termRange } from "$lib/server/core/semester";
 import { AppError } from "$lib/server/core/errors";
 import { getSemesterInfo, getSemesterKeyFromDate, normalizePhoneNumber } from "$lib/utils";
@@ -139,7 +141,7 @@ export const load: PageServerLoad = async (event) => {
             r.presenterIds.includes(member.memberId) ||
             r.requesterId === member.memberId,
         )
-        .map((r) => ({ ...r, speakerIds: r.presenterIds, submittedAt: r.createdAt }));
+        .map(seminarRequestView);
 
       const currentActivities = currentRaw.map((a) => {
         const event = eventByActivityId.get(a.id);
@@ -157,7 +159,9 @@ export const load: PageServerLoad = async (event) => {
           // EVT-02·03: participation state for the activity table
           eventId: event?.id ?? null,
           isApplied,
-          canApply: !!event && event.status === "active" && !started,
+          // effectiveStatus, not the stored value — a lazily-expired event must
+          // not advertise an apply button it will reject (review low-16).
+          canApply: !!event && effectiveStatus(event, now) === "active" && !started,
           pendingAttendance: isApplied && started && !attended && a.type === "세미나",
         };
       });

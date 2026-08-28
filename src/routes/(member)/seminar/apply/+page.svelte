@@ -51,7 +51,7 @@
             };
         }}>
             {#if form?.error}
-                <p class="paper-status-note error">{form.error}</p>
+                <p class="paper-status-note error">{form.message ?? form.error}</p>
             {/if}
 
             <ol class="paper-sections">

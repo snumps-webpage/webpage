@@ -6,12 +6,11 @@ import type { RequestHandler } from "./$types";
 /** Admin polling: pending study proposals (§8-3 / BE-56). */
 export const GET: RequestHandler = async ({ locals }) => {
   const { allowed } = await requireAdminAction(locals);
-  if (!allowed) return json({ error: "Forbidden" }, { status: 403 });
+  if (!allowed) return json({ error: "FORBIDDEN" }, { status: 403 });
 
   const requests = await getTable("study-requests");
+  const { studyRequestView } = await import("$lib/server/data/views");
   return json({
-    studyRequests: requests
-      .filter((r) => r.status === "pending")
-      .map((r) => ({ ...r, submittedAt: r.createdAt })),
+    studyRequests: requests.filter((r) => r.status === "pending").map(studyRequestView),
   });
 };

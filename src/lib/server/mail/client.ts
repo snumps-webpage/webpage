@@ -59,8 +59,10 @@ export async function dispatchEmail(
 ) {
   // Bcc mode is MANDATORY for any all-member send (API-SPEC §5-7): a To:
   // list would expose every member's address to every other member.
+  // Bcc-only messages get an empty-group To: — some filters score a missing
+  // To: header as spam (review low-15).
   const recipientHeader = opts?.bcc
-    ? `Bcc: ${recipients.join(", ")}`
+    ? `To: undisclosed-recipients:;\r\nBcc: ${recipients.join(", ")}`
     : `To: ${recipients.join(", ")}`;
   const message = [
     recipientHeader,

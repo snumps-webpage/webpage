@@ -1,5 +1,6 @@
-import { fail, redirect } from "@sveltejs/kit";
-import { ensureAdmin } from "$lib/server/auth-guards";
+import { redirect } from "@sveltejs/kit";
+import { ensureAdmin, handleAdminAction } from "$lib/server/auth-guards";
+import { AppError } from "$lib/server/core/errors";
 import { ACTIVITY_TYPES } from "$lib/server/data/schemas";
 import { kstInputToIso } from "$lib/server/core/time";
 import { createEventWithActivity } from "$lib/server/services/events";
@@ -13,26 +14,29 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions = {
   default: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
-    await ensureAdmin(locals, { silent: true });
-
     const data = await request.formData();
-    const title = data.get("title") as string;
-    const dateRaw = data.get("date") as string; // YYYY-MM-DDTHH:mm (KST)
-    const type = data.get("type") as string;
+    const result = await handleAdminAction(locals, async () => {
+      const title = (data.get("title") as string)?.trim();
+      const dateRaw = data.get("date") as string; // YYYY-MM-DDTHH:mm (KST)
+      const type = data.get("type") as string;
 
-    if (!title || !dateRaw || !type) {
-      return fail(400, { error: "Missing required fields" });
-    }
-    if (!(ACTIVITY_TYPES as readonly string[]).includes(type)) {
-      return fail(400, { error: "VALIDATION_FAILED" });
-    }
+      if (!title || !dateRaw || !type) {
+        throw new AppError("VALIDATION_FAILED", {
+          userMessage: "제목·일시·종류는 필수 입력 항목입니다.",
+        });
+      }
+      if (!(ACTIVITY_TYPES as readonly string[]).includes(type)) {
+        throw new AppError("VALIDATION_FAILED");
+      }
 
-    await createEventWithActivity({
-      title,
-      startIso: kstInputToIso(dateRaw),
-      type: type as Activity["type"],
+      await createEventWithActivity({
+        title,
+        startIso: kstInputToIso(dateRaw),
+        type: type as Activity["type"],
+      });
+      return {};
     });
-
-    throw redirect(302, "/admin");
+    if ("success" in result && result.success) throw redirect(302, "/admin");
+    return result;
   },
 };

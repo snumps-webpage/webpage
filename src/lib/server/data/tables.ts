@@ -80,6 +80,17 @@ async function mutateObject<S extends z.ZodTypeAny>(
     const next = await fn(structuredClone(rows));
     if (JSON.stringify(next) === JSON.stringify(rows)) return next; // no-op: skip the write
 
+    // Write-side schema gate (review C1): reads validate strictly, so an
+    // invalid write would BRICK the table for every future read AND repair
+    // attempt. Refuse it here instead — the caller gets VALIDATION_FAILED.
+    const checked = envelope(schema).safeParse(
+      JSON.parse(JSON.stringify({ schemaVersion: SCHEMA_VERSION, rows: next })),
+    );
+    if (!checked.success) {
+      console.error(`[data] refusing invalid write to ${key}:`, checked.error.message);
+      throw new AppError("VALIDATION_FAILED");
+    }
+
     try {
       const put = await putObjectConditional(bucket, key, encode(next), {
         ...(exists ? { ifMatch: res.etag } : { ifNoneMatch: "*" as const }),

@@ -1,4 +1,4 @@
-import { AppError } from "$lib/server/core/errors";
+import { AppError, definedOnly } from "$lib/server/core/errors";
 import { newId, randomToken } from "$lib/server/core/id";
 import { endOfKstDay, nowKstIso } from "$lib/server/core/time";
 import {
@@ -10,7 +10,7 @@ import {
   mutateQueue,
 } from "$lib/server/data/tables";
 import type { Activity, AttendanceRecord, Event } from "$lib/server/data/schemas";
-import { invalidateAttendanceCaches } from "$lib/server/attendance";
+import { invalidateAttendanceCaches, mergeAttendees } from "$lib/server/attendance";
 
 /**
  * Event lifecycle + attendance queue (API-SPEC §5-4, §7-2, §8-1).
@@ -230,9 +230,6 @@ export async function savePresenterAttendance(
   if (!event.presenterIds.includes(presenterId)) throw new AppError("FORBIDDEN");
   if (!isSeminarType(event.type)) throw new AppError("VALIDATION_FAILED");
 
-  const { mergeAttendees, invalidateAttendanceCaches } = await import(
-    "$lib/server/attendance"
-  );
   let touched: string[] = [];
   await mutate("activities", (rows) => {
     const idx = rows.findIndex((a) => a.id === event.activityId);
@@ -313,7 +310,7 @@ export async function updateAttendanceTime(
   await mutateQueue(eventId, (rows) => {
     const idx = rows.findIndex((r) => r.id === queueId);
     if (idx === -1) throw new AppError("NOT_FOUND");
-    rows[idx] = { ...rows[idx], ...patch };
+    rows[idx] = { ...rows[idx], ...definedOnly(patch) };
     return rows;
   });
 }
@@ -348,16 +345,18 @@ const cronSteps: CronStep[] = [
   {
     name: "expire",
     run: async () => {
-      let expired = 0;
       const now = new Date();
+      // Count candidates BEFORE the mutation — counting inside the fn would
+      // double on conditional-write retries (review low-11).
+      const expired = (await getTable("events")).filter(
+        (e) => e.status === "active" && expiryOf(e) < now,
+      ).length;
       await mutate("events", (rows) =>
-        rows.map((e) => {
-          if (e.status === "active" && expiryOf(e) < now) {
-            expired++;
-            return { ...e, status: "expired" as const };
-          }
-          return e;
-        }),
+        rows.map((e) =>
+          e.status === "active" && expiryOf(e) < now
+            ? { ...e, status: "expired" as const }
+            : e,
+        ),
       );
       return { expired };
     },

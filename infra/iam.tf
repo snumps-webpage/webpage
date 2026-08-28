@@ -44,6 +44,20 @@ data "aws_iam_policy_document" "runtime" {
     resources = ["${aws_s3_bucket.assets.arn}/uploads/pending/*"]
   }
 
+  # Same 403-vs-404 trap as the data bucket: without ListBucket, HeadObject on
+  # a lifecycle-reaped pending key returns 403 and promotion 500s instead of
+  # cleanly reporting NOT_FOUND (review C3).
+  statement {
+    sid       = "ListPendingUploads"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.assets.arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["uploads/pending/*"]
+    }
+  }
+
   statement {
     sid       = "DataKms"
     actions   = ["kms:Decrypt", "kms:GenerateDataKey"]

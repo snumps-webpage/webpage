@@ -5,6 +5,7 @@ import {
   updateOwnApplication,
 } from "$lib/server/services/membership";
 import { normalizePhoneNumber, parseGoogleName } from "$lib/utils";
+import { AppError } from "$lib/server/core/errors";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
@@ -25,12 +26,18 @@ export const actions = {
     return handleUserAction(locals, async (session) => {
       const { name, department } = parseGoogleName(session.user.name);
       if (!name || !department) {
-        throw new Error("계정 정보에서 이름 또는 학과를 찾을 수 없습니다.");
+        throw new AppError("VALIDATION_FAILED", {
+          userMessage: "계정 정보에서 이름 또는 학과를 찾을 수 없습니다.",
+        });
       }
 
       const data = await request.formData();
       const phone = normalizePhoneNumber(data.get("phone") as string);
-      if (!phone) throw new Error("전화번호를 입력해주세요.");
+      if (!phone) {
+        throw new AppError("VALIDATION_FAILED", {
+          userMessage: "전화번호를 입력해주세요.",
+        });
+      }
 
       // Own row only — resolved by session email, never by a client-supplied id.
       await updateOwnApplication(session.user.email, {

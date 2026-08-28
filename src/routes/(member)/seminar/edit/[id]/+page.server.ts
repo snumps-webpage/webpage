@@ -7,6 +7,7 @@ import {
   withdrawSeminarRequest,
 } from "$lib/server/services/seminar-requests";
 import { AppError } from "$lib/server/core/errors";
+import { seminarRequestView } from "$lib/server/data/views";
 import { parseGoogleName } from "$lib/utils";
 import type { PageServerLoad, Actions } from "./$types";
 
@@ -45,9 +46,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     members: searchableMembers,
     memberDirectoryUnavailable,
     request: {
-      ...request,
-      speakerIds: request.presenterIds, // legacy UI field name
-      submittedAt: request.createdAt,
+      ...seminarRequestView(request),
       initialSpeakers,
     },
   };
@@ -62,7 +61,11 @@ export const actions: Actions = {
       const data = await request.formData();
       const title = data.get("title") as string;
       const description = data.get("description") as string;
-      if (!title || !description) throw new Error("필수 항목을 입력해주세요.");
+      if (!title || !description) {
+        throw new AppError("VALIDATION_FAILED", {
+          userMessage: "필수 항목을 입력해주세요.",
+        });
+      }
 
       let presenterIds = parsePresenterIds(data.get("speakerIds") as string);
       if (presenterIds.length === 0) presenterIds = [member.memberId];

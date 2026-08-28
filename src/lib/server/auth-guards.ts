@@ -1,7 +1,16 @@
-import { redirect, error, type ActionFailure } from "@sveltejs/kit";
+import { redirect, error, fail, type ActionFailure } from "@sveltejs/kit";
 import { AppError } from "./core/errors";
 import { resolveMember } from "./guards/resolve-member";
 import type { MemberContext } from "./guards/zone";
+
+export interface AuthenticatedSession {
+  user: {
+    name: string;
+    email: string;
+    image?: string;
+  };
+  expires: string;
+}
 
 /** Admin truth is the member record (D4). Resolves lazily for /api handlers. */
 async function resolveAdminContext(
@@ -14,15 +23,6 @@ async function resolveAdminContext(
   locals.member = member;
   if (!member?.isAdmin) return null;
   return { session: session as AuthenticatedSession, member };
-}
-
-export interface AuthenticatedSession {
-  user: {
-    name: string;
-    email: string;
-    image?: string;
-  };
-  expires: string;
 }
 
 /**
@@ -64,15 +64,72 @@ export async function ensureAdmin(
 export async function requireAdminAction(locals: App.Locals) {
   const ctx = await resolveAdminContext(locals);
   if (!ctx) {
-    const { fail } = await import("@sveltejs/kit");
     return {
-      allowed: false,
-      response: fail(403, {
-        error: "Access denied. Admin privileges required.",
-      }),
+      allowed: false as const,
+      response: fail(403, { error: "FORBIDDEN" }),
     };
   }
-  return { allowed: true, session: ctx.session };
+  return { allowed: true as const, session: ctx.session };
+}
+
+type ActionResult<T> =
+  | ActionFailure<Record<string, unknown>>
+  | (T & { success: true })
+  | { success: true };
+
+/**
+ * The one action body shared by user and admin wrappers (§1-2):
+ * ActionFailure pass-through, cache invalidation, redirect rethrow,
+ * AppError → fail(status, { error: CODE, message?: 한국어 }). The CODE is the
+ * contract; `message` is an optional human-facing detail for direct display.
+ */
+async function runAction<T extends Record<string, unknown>>(
+  session: AuthenticatedSession,
+  logic: (
+    session: AuthenticatedSession,
+  ) => Promise<T | void | ActionFailure<Record<string, unknown>>>,
+  options: { invalidate?: string | string[] } = {},
+): Promise<ActionResult<T>> {
+  try {
+    const result = await logic(session);
+
+    if (
+      result &&
+      typeof result === "object" &&
+      "status" in result &&
+      typeof result.status === "number" &&
+      result.status >= 400
+    ) {
+      return result as ActionFailure<Record<string, unknown>>;
+    }
+
+    if (options.invalidate) {
+      const { invalidateCache } = await import("./cache");
+      const keys = Array.isArray(options.invalidate)
+        ? options.invalidate
+        : [options.invalidate];
+      keys.forEach((key) => invalidateCache(key));
+    }
+
+    if (result && typeof result === "object") {
+      return { success: true, ...(result as T) };
+    }
+    return { success: true };
+  } catch (e) {
+    if (
+      e &&
+      typeof e === "object" &&
+      "status" in e &&
+      (e as { status: number }).status >= 300 &&
+      (e as { status: number }).status < 400
+    )
+      throw e;
+    if (e instanceof AppError) {
+      return fail(e.status, { error: e.code, message: e.userMessage });
+    }
+    console.error(`[Action Error]`, e);
+    return fail(500, { error: (e as Error).message || "Action failed" });
+  }
 }
 
 /**
@@ -84,65 +141,14 @@ export async function handleUserAction<T extends Record<string, unknown>>(
     session: AuthenticatedSession,
   ) => Promise<T | void | ActionFailure<Record<string, unknown>>>,
   options: { invalidate?: string | string[] } = {},
-): Promise<
-  | ActionFailure<{ error: string }>
-  | ActionFailure<Record<string, unknown>>
-  | (T & { success: true })
-  | { success: true }
-> {
+): Promise<ActionResult<T> | ActionFailure<{ error: string }>> {
   let session;
   try {
     session = await ensureSession(locals);
-  } catch (e) {
-    const { fail } = await import("@sveltejs/kit");
-    return fail(401, {
-      error: (e as Error).message || "Authentication required",
-    });
+  } catch {
+    return fail(401, { error: "FORBIDDEN" });
   }
-
-  try {
-    const result = await logic(session);
-
-    if (
-      result &&
-      typeof result === "object" &&
-      "status" in result &&
-      typeof result.status === "number" &&
-      result.status >= 400
-    ) {
-      return result as ActionFailure<Record<string, unknown>>;
-    }
-
-    if (options.invalidate) {
-      const { invalidateCache } = await import("./cache");
-      const keys = Array.isArray(options.invalidate)
-        ? options.invalidate
-        : [options.invalidate];
-      keys.forEach((key) => invalidateCache(key));
-    }
-
-    if (result && typeof result === "object") {
-      return { success: true, ...(result as T) };
-    }
-
-    return { success: true };
-  } catch (e) {
-    if (
-      e &&
-      typeof e === "object" &&
-      "status" in e &&
-      (e as { status: number }).status >= 300 &&
-      (e as { status: number }).status < 400
-    )
-      throw e;
-    if (e instanceof AppError) {
-      const { fail } = await import("@sveltejs/kit");
-      return fail(e.status, { error: e.code });
-    }
-    console.error(`[Action Error]`, e);
-    const { fail } = await import("@sveltejs/kit");
-    return fail(500, { error: (e as Error).message || "Action failed" });
-  }
+  return runAction(session, logic, options);
 }
 
 /**
@@ -154,73 +160,18 @@ export async function handleAdminAction<T extends Record<string, unknown>>(
     session: AuthenticatedSession,
   ) => Promise<T | void | ActionFailure<Record<string, unknown>>>,
   options: { successMessage?: string; invalidate?: string | string[] } = {},
-): Promise<
-  | ActionFailure<{ error: string }>
-  | ActionFailure<Record<string, unknown>>
-  | (T & { success: true })
-  | { success: true }
-> {
+): Promise<ActionResult<T> | ActionFailure<{ error: string }>> {
   const { allowed, response, session } = await requireAdminAction(locals);
   if (!allowed || !session) return response!;
-
-  try {
-    const result = await logic(session);
-
-    if (
-      result &&
-      typeof result === "object" &&
-      "status" in result &&
-      typeof result.status === "number" &&
-      result.status >= 400
-    ) {
-      return result as ActionFailure<Record<string, unknown>>;
-    }
-
-    if (options.invalidate) {
-      const { invalidateCache } = await import("./cache");
-      const keys = Array.isArray(options.invalidate)
-        ? options.invalidate
-        : [options.invalidate];
-      keys.forEach((key) => invalidateCache(key));
-    }
-
-    if (result && typeof result === "object") {
-      return { success: true, ...(result as T) };
-    }
-    return { success: true };
-  } catch (e) {
-    if (
-      e &&
-      typeof e === "object" &&
-      "status" in e &&
-      (e as { status: number }).status >= 300 &&
-      (e as { status: number }).status < 400
-    )
-      throw e;
-    if (e instanceof AppError) {
-      const { fail } = await import("@sveltejs/kit");
-      return fail(e.status, { error: e.code });
-    }
-    console.error(`[Action Error]`, e);
-    const { fail } = await import("@sveltejs/kit");
-    return fail(500, {
-      error: (e as Error).message || "Internal server error",
-    });
-  }
+  return runAction(session, logic, options);
 }
 
 /**
- * Action-level guards (API-SPEC §1-1): both re-fetch the record instead of
+ * Action-level guards (API-SPEC §1-1): re-fetches the record instead of
  * trusting anything client-supplied or cached on locals.
+ * NOTE: presenter authority deliberately has NO counterpart here — it lives
+ * in services/events.ts (savePresenterAttendance), one owner per authority.
  */
-export async function ensurePresenter(eventId: string, memberId: string) {
-  const { getTable } = await import("./data/tables");
-  const event = (await getTable("events")).find((e) => e.id === eventId);
-  if (!event) throw new AppError("NOT_FOUND");
-  if (!event.presenterIds.includes(memberId)) throw new AppError("FORBIDDEN");
-  return event;
-}
-
 export async function ensureOrganizer(studyId: string, memberId: string) {
   const { getTable } = await import("./data/tables");
   const study = (await getTable("studies")).find((s) => s.id === studyId);

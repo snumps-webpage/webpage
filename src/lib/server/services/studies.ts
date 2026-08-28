@@ -3,6 +3,7 @@ import { newId, randomToken } from "$lib/server/core/id";
 import { nowKstIso } from "$lib/server/core/time";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { ensureCreated } from "$lib/server/data/idempotency";
+import { invalidateAttendanceCaches, mergeAttendees } from "$lib/server/attendance";
 import type { Event, Study, StudyRequest } from "$lib/server/data/schemas";
 import { effectiveStatus, type CronStep } from "./events";
 
@@ -68,7 +69,11 @@ export async function approveStudy(id: string): Promise<StudyRequest> {
   }));
 
   await mutate("study-requests", (rows) =>
-    rows.map((r) => (r.id === id ? { ...r, status: "approved" as const } : r)),
+    rows.map((r) => {
+      if (r.id !== id) return r;
+      if (r.status !== "pending") throw new AppError("CONFLICT"); // CAS
+      return { ...r, status: "approved" as const };
+    }),
   );
   return request;
 }
@@ -76,9 +81,12 @@ export async function approveStudy(id: string): Promise<StudyRequest> {
 export async function rejectStudy(id: string): Promise<StudyRequest> {
   const request = (await getTable("study-requests")).find((r) => r.id === id);
   if (!request) throw new AppError("NOT_FOUND");
-  if (request.status !== "pending") throw new AppError("CONFLICT");
   await mutate("study-requests", (rows) =>
-    rows.map((r) => (r.id === id ? { ...r, status: "rejected" as const } : r)),
+    rows.map((r) => {
+      if (r.id !== id) return r;
+      if (r.status !== "pending") throw new AppError("CONFLICT"); // CAS
+      return { ...r, status: "rejected" as const };
+    }),
   );
   return request;
 }
@@ -143,7 +151,15 @@ export async function setStudyStatus(
   studyId: string,
   status: Study["status"],
 ): Promise<void> {
-  await patchStudy(studyId, (s) => ({ ...s, status }));
+  await patchStudy(studyId, (s) => {
+    // §6-4: recruiting ↔ ongoing → finished. Finished is terminal — an
+    // organizer must not resurrect a study whose sessions/cron treat it as
+    // closed (review M1). Admin plenary updateStudy stays unrestricted.
+    if (s.status === "finished" && status !== "finished") {
+      throw new AppError("CONFLICT");
+    }
+    return { ...s, status };
+  });
 }
 
 // ---- sessions (STU-03 / STU-06 / BE-49) -------------------------------------
@@ -162,10 +178,19 @@ export async function createStudySession(
   if (study.status === "finished") throw new AppError("CONFLICT");
   const key = sessionKey(study.id, dateIso);
 
-  const existingNos = (await getTable("events"))
-    .filter((e) => e.studyId === study.id)
-    .map((e) => e.sessionNo ?? 0);
-  const sessionNo = Math.max(0, ...existingNos) + 1;
+  const studyEvents = (await getTable("events")).filter((e) => e.studyId === study.id);
+  // A cancelled session holds the composite key forever; silently returning it
+  // as "created" would make this slot look successful while nothing exists
+  // (review M2). Fail visibly — pick a different datetime.
+  const cancelled = studyEvents.find(
+    (e) => e.sourceRequestId === key && e.status === "cancelled",
+  );
+  if (cancelled) {
+    throw new AppError("CONFLICT", {
+      userMessage: "취소된 회차와 같은 일시입니다. 다른 일시를 선택해 주세요.",
+    });
+  }
+  const sessionNo = Math.max(0, ...studyEvents.map((e) => e.sessionNo ?? 0)) + 1;
   const title = opts.title || `${study.title} ${sessionNo}회차`;
 
   const activity = await ensureCreated("activities", key, () => ({
@@ -200,9 +225,11 @@ export async function updateSession(
   eventId: string,
   patch: { title?: string; dateIso?: string },
 ): Promise<void> {
+  let activityId: string | null = null;
   await mutate("events", (rows) => {
     const idx = rows.findIndex((e) => e.id === eventId && e.studyId === studyId);
     if (idx === -1) throw new AppError("NOT_FOUND");
+    activityId = rows[idx].activityId;
     rows[idx] = {
       ...rows[idx],
       title: patch.title || rows[idx].title,
@@ -210,6 +237,23 @@ export async function updateSession(
     };
     return rows;
   });
+  // Keep the paired activity in step — archives and term grouping key off the
+  // ACTIVITY's date, so a moved session must move its record too (review M5).
+  // The composite key keeps the ORIGINAL date on purpose: the old slot stays
+  // consumed, a session at the new datetime is a different slot.
+  if (activityId) {
+    await mutate("activities", (rows) =>
+      rows.map((a) =>
+        a.id === activityId
+          ? {
+              ...a,
+              title: patch.title || a.title,
+              date: patch.dateIso ? { start: patch.dateIso, end: null } : a.date,
+            }
+          : a,
+      ),
+    );
+  }
 }
 
 /** Cancelled is terminal — distinct from expired, never re-activatable. */
@@ -266,7 +310,15 @@ export const studySessionCronStep: CronStep = {
         if (entry.generatedEventId || new Date(entry.date) > now) continue;
         // events first, schedule second (§2): a crash between the two re-runs
         // safely — ensureCreated dedupes on the composite key.
-        const event = await createStudySession(study, entry.date, { autoGenerated: true });
+        let event;
+        try {
+          event = await createStudySession(study, entry.date, { autoGenerated: true });
+        } catch (e) {
+          // e.g. the slot's session was cancelled before the cron reached it —
+          // skip this entry, keep generating the rest.
+          console.error(`[Cron] session generation skipped (${study.id} ${entry.date}):`, e);
+          continue;
+        }
         await mutate("studies", (rows) =>
           rows.map((s) =>
             s.id === study.id
@@ -310,7 +362,8 @@ export async function cancelTransfer(studyId: string): Promise<void> {
 /** The target's acceptance completes the handover atomically in one mutate. */
 export async function acceptTransfer(studyId: string, memberId: string): Promise<void> {
   await patchStudy(studyId, (s) => {
-    if (s.pendingTransfer?.toMemberId !== memberId) throw new AppError("NOT_FOUND");
+    if (!s.pendingTransfer) throw new AppError("NOT_FOUND"); // withdrawn/expired proposal
+    if (s.pendingTransfer.toMemberId !== memberId) throw new AppError("FORBIDDEN"); // §6-5
     const from = s.organizerIds[0] ?? "";
     return {
       ...s,
@@ -329,7 +382,8 @@ export async function acceptTransfer(studyId: string, memberId: string): Promise
 
 export async function declineTransfer(studyId: string, memberId: string): Promise<void> {
   await patchStudy(studyId, (s) => {
-    if (s.pendingTransfer?.toMemberId !== memberId) throw new AppError("NOT_FOUND");
+    if (!s.pendingTransfer) throw new AppError("NOT_FOUND");
+    if (s.pendingTransfer.toMemberId !== memberId) throw new AppError("FORBIDDEN");
     return { ...s, pendingTransfer: null };
   });
 }
@@ -377,9 +431,6 @@ export async function saveStudyAttendance(
   const event = (await getTable("events")).find((e) => e.id === eventId);
   if (!event || event.studyId !== study.id) throw new AppError("NOT_FOUND");
 
-  const { mergeAttendees, invalidateAttendanceCaches } = await import(
-    "$lib/server/attendance"
-  );
   let touched: string[] = [];
   await mutate("activities", (rows) => {
     const idx = rows.findIndex((a) => a.id === event.activityId);

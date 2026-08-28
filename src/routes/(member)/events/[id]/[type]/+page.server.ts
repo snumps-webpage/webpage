@@ -17,8 +17,9 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 
   const event = await findByPathId(params.id);
   if (!event) throw error(404, "Event not found");
+  // Code mismatch 404s BEFORE any state is revealed (§5-4, review low-10).
+  if (params.type !== event.attendCode) throw error(404, "Event not found");
   if (effectiveStatus(event) !== "active") throw error(403, "Event is not active");
-  if (params.type !== event.attendCode) throw error(404, "Invalid event page code");
 
   return {
     event: { ...event, date: event.date.start },
@@ -40,8 +41,7 @@ export const actions = {
         await checkIn(event, member.memberId);
       } catch (e) {
         if (e instanceof AppError && e.code === "CONFLICT") {
-          const { fail } = await import("@sveltejs/kit");
-          return fail(409, { error: "이미 출석하셨습니다." });
+          throw new AppError("CONFLICT", { userMessage: "이미 출석하셨습니다." });
         }
         throw e;
       }
