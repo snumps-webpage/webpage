@@ -73,6 +73,30 @@ export async function listStaged(
   return out;
 }
 
+export async function uploadToBackups(path: string, body: string): Promise<void> {
+  objects.set(keyOf(BACKUPS, path), {
+    bytes: body.length,
+    contentType: "application/json",
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function listBackups(
+  prefix: string,
+): Promise<{ name: string; createdAt: string }[]> {
+  const out: { name: string; createdAt: string }[] = [];
+  for (const [key, obj] of objects) {
+    if (!key.startsWith(`${BACKUPS}/`)) continue;
+    const path = key.slice(BACKUPS.length + 1);
+    if (path.startsWith(prefix)) out.push({ name: path, createdAt: obj.createdAt });
+  }
+  return out;
+}
+
+export async function removeBackups(paths: string[]): Promise<void> {
+  for (const path of paths) objects.delete(keyOf(BACKUPS, path));
+}
+
 // ---- test controls ----
 export function __reset(): void {
   objects.clear();
@@ -91,6 +115,12 @@ export function __stage(
 
 export function __exists(bucket: string, path: string): boolean {
   return objects.has(keyOf(bucket, path));
+}
+
+/** Backdates an object (e.g. a seeded dump) for retention tests. */
+export function __setCreatedAt(bucket: string, path: string, iso: string): void {
+  const obj = objects.get(keyOf(bucket, path));
+  if (obj) obj.createdAt = iso;
 }
 
 export function __list(bucket: string): string[] {

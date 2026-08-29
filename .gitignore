@@ -54,8 +54,5 @@ analyze.ts
 
 static/posters/exports
 
-# Terraform local state (never commit — contains resource ids and potentially secrets)
-infra/.terraform/
-infra/*.tfstate
-infra/*.tfstate.backup
-infra/.terraform.lock.hcl
+# Migration script output (PII-laden Notion dumps and manifests — never commit)
+scripts/migration/out/

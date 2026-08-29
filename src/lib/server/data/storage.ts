@@ -133,3 +133,34 @@ export async function listStaged(
   // created_at is null on folder placeholder rows — surface those as "".
   return (data ?? []).map((f) => ({ name: f.name, createdAt: f.created_at ?? "" }));
 }
+
+// ---- backups bucket (B1 weekly dumps, spec §7 — used by services/maintenance) --
+
+/** B1 dump writer: upload a JSON body into the private backups bucket. */
+export async function uploadToBackups(path: string, body: string): Promise<void> {
+  if (isMemoryBackend()) return memory.uploadToBackups(path, body);
+  const { error } = await getSupabase()
+    .storage.from(backupsBucket())
+    .upload(path, body, { contentType: "application/json", upsert: true });
+  if (error) throw new Error(`uploadToBackups(${path}) failed: ${error.message}`);
+}
+
+/** List the backups bucket under a prefix — same shape/caveats as listStaged. */
+export async function listBackups(
+  prefix: string,
+): Promise<{ name: string; createdAt: string }[]> {
+  if (isMemoryBackend()) return memory.listBackups(prefix);
+  const { data, error } = await getSupabase()
+    .storage.from(backupsBucket())
+    .list(prefix, { limit: 1000 });
+  if (error) throw new Error(`listBackups(${prefix}) failed: ${error.message}`);
+  return (data ?? []).map((f) => ({ name: f.name, createdAt: f.created_at ?? "" }));
+}
+
+/** B1 8-week rotation: remove old dump objects from the backups bucket. */
+export async function removeBackups(paths: string[]): Promise<void> {
+  if (isMemoryBackend()) return memory.removeBackups(paths);
+  if (paths.length === 0) return;
+  const { error } = await getSupabase().storage.from(backupsBucket()).remove(paths);
+  if (error) throw new Error(`removeBackups(${paths.length} paths) failed: ${error.message}`);
+}

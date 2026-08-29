@@ -86,7 +86,9 @@ const REGISTERED: Record<string, Zone> = {
   "/api/admin/applications": "api",
   "/api/admin/seminar-requests": "api",
   "/api/admin/study-requests": "api",
+  "/api/cron/maintenance": "api",
   "/api/cron/sync-events": "api",
+  "/api/health": "api",
   "/api/uploads/presign": "api",
   "/api/posters/seminar/png": "api",
 };
