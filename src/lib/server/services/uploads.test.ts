@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("$lib/server/data/s3", () => import("$lib/server/data/s3-memory"));
+vi.mock("$lib/server/data/storage", () => import("$lib/server/data/storage-memory"));
 
-import { __keys, __reset, __uploadPending } from "$lib/server/data/s3-memory";
+import { __exists, __reset, __stage } from "$lib/server/data/storage-memory";
 import { AppError } from "$lib/server/core/errors";
 import {
   createPresignedUpload,
@@ -29,26 +29,28 @@ describe("presign validation (§8-2)", () => {
     }
   });
 
-  it("issues a pending-prefixed key and a URL", async () => {
+  it("issues a pending-prefixed staging path and a URL", async () => {
     const { uploadUrl, s3Key } = await createPresignedUpload({
       purpose: "seminar-photo", filename: "발표 사진.PNG", contentType: "image/png", size: 500,
     });
-    expect(s3Key).toMatch(/^uploads\/pending\/seminar-photo\/.+\.png$/);
-    expect(uploadUrl).toContain("presigned");
+    expect(s3Key).toMatch(/^pending\/seminar-photo\/.+\.png$/);
+    expect(uploadUrl).toContain("memory.test/upload/");
   });
 });
 
 describe("promotion — the real enforcement point (review §8-2)", () => {
-  it("promotes a valid pending object to a final hashed key and deletes the pending one", async () => {
+  it("promotes a valid staged object to a final hashed key, mirrors it, and clears staging", async () => {
     const { s3Key } = await createPresignedUpload({
       purpose: "seminar-photo", filename: "p.png", contentType: "image/png", size: 500,
     });
-    __uploadPending(s3Key, 500);
+    __stage(s3Key, 500, "image/png");
 
     const finalKey = await promotePendingUpload(s3Key, "seminar-photo", "rec-1");
     expect(finalKey).toMatch(/^seminars\/rec-1\/[a-z0-9]{8}-.+\.png$/);
-    expect(__keys()).toContain(finalKey);
-    expect(__keys()).not.toContain(s3Key); // pending removed
+    expect(__exists("assets", finalKey)).toBe(true);
+    expect(__exists("staging", s3Key)).toBe(false); // pending removed
+    // B3 mirror (spec §7): the backups bucket holds a copy after promotion.
+    expect(__exists("backups", `assets-mirror/${finalKey}`)).toBe(true);
   });
 
   it("refuses keys outside the purpose prefix", async () => {
@@ -57,11 +59,11 @@ describe("promotion — the real enforcement point (review §8-2)", () => {
     ).rejects.toSatisfy((e) => e instanceof AppError && e.code === "VALIDATION_FAILED");
   });
 
-  it("reports NOT_FOUND for a never-uploaded or lifecycle-reaped key", async () => {
+  it("reports NOT_FOUND for a never-uploaded or cleanup-reaped key", async () => {
     const { s3Key } = await createPresignedUpload({
       purpose: "study-photo", filename: "p.png", contentType: "image/png", size: 500,
     });
-    // no __uploadPending — the object never landed (or was reaped)
+    // no __stage — the object never landed (or was reaped)
     await expect(promotePendingUpload(s3Key, "study-photo", "rec")).rejects.toSatisfy(
       (e) => e instanceof AppError && e.code === "NOT_FOUND",
     );
@@ -71,7 +73,7 @@ describe("promotion — the real enforcement point (review §8-2)", () => {
     const { s3Key } = await createPresignedUpload({
       purpose: "gallery-photo", filename: "p.png", contentType: "image/png", size: 500,
     });
-    __uploadPending(s3Key, 11_000_000); // lied about the size
+    __stage(s3Key, 11_000_000, "image/png"); // lied about the size
     await expect(promotePendingUpload(s3Key, "gallery-photo", "rec")).rejects.toSatisfy(
       (e) => e instanceof AppError && e.code === "VALIDATION_FAILED",
     );
@@ -79,7 +81,7 @@ describe("promotion — the real enforcement point (review §8-2)", () => {
     const second = await createPresignedUpload({
       purpose: "gallery-photo", filename: "q.png", contentType: "image/png", size: 500,
     });
-    __uploadPending(second.s3Key, 500, "application/x-executable"); // spoofed type
+    __stage(second.s3Key, 500, "application/x-executable"); // spoofed type
     await expect(
       promotePendingUpload(second.s3Key, "gallery-photo", "rec"),
     ).rejects.toSatisfy((e) => e instanceof AppError && e.code === "VALIDATION_FAILED");

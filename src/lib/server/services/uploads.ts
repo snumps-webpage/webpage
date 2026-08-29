@@ -1,20 +1,21 @@
 import { AppError } from "$lib/server/core/errors";
 import { newId, randomToken } from "$lib/server/core/id";
 import {
-  assetsBucket,
-  copyObject,
-  deleteObject,
-  headObject,
-  presignPut,
-} from "$lib/server/data/s3";
+  copyToBackups,
+  createUploadUrl,
+  promoteToAssets,
+  stagedInfo,
+} from "$lib/server/data/storage";
 
 /**
- * Upload pipeline (API-SPEC §8-2 / BE-52).
- * presign → browser PUTs to uploads/pending/ → an editor action PROMOTES:
- * HeadObject enforces the size/type caps (a presigned PUT cannot), then
- * Copy+Delete moves the object to its final hashed key. Unpromoted pending
- * objects die by the 7-day lifecycle rule.
- * TODO(BE-52/AWS): image derivatives (thumb/display) at promotion time.
+ * Upload pipeline (API-SPEC §8-2 / SUPABASE-MIGRATION-SPEC §4-2).
+ * signed upload URL → browser PUTs to the private staging bucket under
+ * pending/ → an editor action PROMOTES: stagedInfo() enforces the size/type
+ * caps (a signed upload URL cannot — Supabase does not sign Content-Type),
+ * then a cross-bucket move lands the object at its final hashed key in the
+ * public assets bucket, plus a B3 mirror copy into backups (§7). Unpromoted
+ * staged objects die by the maintenance job's 7-day cleanup.
+ * TODO(BE-52): image derivatives (thumb/display) at promotion time.
  */
 
 const IMG = ["image/jpeg", "image/png", "image/webp"];
@@ -61,9 +62,12 @@ export async function createPresignedUpload(input: {
   }
 
   const { slug, ext } = slugifyFilename(input.filename);
-  const s3Key = `uploads/pending/${input.purpose}/${newId()}-${slug}.${ext}`;
-  const uploadUrl = await presignPut(assetsBucket(), s3Key, input.contentType);
-  return { uploadUrl, s3Key };
+  // Staging-bucket path: the bucket IS the staging area, so no uploads/
+  // prefix; pending/ stays as the cleanup job's listing prefix.
+  const path = `pending/${input.purpose}/${newId()}-${slug}.${ext}`;
+  const uploadUrl = await createUploadUrl(path);
+  // Field name s3Key is the frozen API surface (SYS-03), path semantics only.
+  return { uploadUrl, s3Key: path };
 }
 
 /**
@@ -75,19 +79,15 @@ export async function promotePendingUpload(
   purpose: UploadPurpose,
   recordId: string,
 ): Promise<string> {
-  if (!pendingKey.startsWith(`uploads/pending/${purpose}/`)) {
+  if (!pendingKey.startsWith(`pending/${purpose}/`)) {
     throw new AppError("VALIDATION_FAILED");
   }
   const spec = PURPOSES[purpose];
-  const bucket = assetsBucket();
 
-  const head = await headObject(bucket, pendingKey);
-  if (!head) throw new AppError("NOT_FOUND"); // never uploaded or already reaped
-  if (
-    head.contentLength > spec.maxBytes ||
-    !(spec.types as readonly string[]).includes(head.contentType)
-  ) {
-    // Oversize/spoofed upload: refuse promotion; the lifecycle rule reaps it.
+  const info = await stagedInfo(pendingKey);
+  if (!info) throw new AppError("NOT_FOUND"); // never uploaded or already reaped
+  if (info.size > spec.maxBytes || !(spec.types as readonly string[]).includes(info.contentType)) {
+    // Oversize/spoofed upload: refuse promotion; the cleanup job reaps it.
     throw new AppError("VALIDATION_FAILED");
   }
 
@@ -95,7 +95,15 @@ export async function promotePendingUpload(
   const nameAfterId = filename.slice(filename.indexOf("-") + 1);
   const finalKey = `${spec.prefix}/${recordId}/${randomToken(8)}-${nameAfterId}`;
 
-  await copyObject(bucket, pendingKey, finalKey);
-  await deleteObject(bucket, pendingKey);
+  await promoteToAssets(pendingKey, finalKey);
+  try {
+    // B3 asset mirror (SUPABASE-MIGRATION-SPEC §7): one copy into the private
+    // backups bucket at promotion time — the replacement for S3 versioning.
+    await copyToBackups("assets", finalKey, `assets-mirror/${finalKey}`);
+  } catch (e) {
+    // The mirror is a recovery layer, not a gate: the asset IS promoted, so
+    // log and keep going rather than failing the editor's action.
+    console.error(`B3 mirror failed for ${finalKey}:`, e);
+  }
   return finalKey;
 }

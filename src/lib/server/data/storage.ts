@@ -1,0 +1,135 @@
+import { env } from "$env/dynamic/private";
+import { getSupabase, isMemoryBackend } from "./supabase";
+import * as memory from "./storage-memory";
+
+/**
+ * The asset-storage seam (SUPABASE-MIGRATION-SPEC §4): Supabase Storage with
+ * three buckets — private `staging` for pending uploads, public `assets` for
+ * promoted files, private `backups` for the B3 asset mirror (§7). The ONLY
+ * module that touches supabase.storage for uploads; everything above goes
+ * through services/uploads.ts.
+ *
+ * DATA_BACKEND=memory delegates every call to ./storage-memory — a runtime dev
+ * backend, and the same module vitest swaps in via vi.mock (same pattern as
+ * store.ts).
+ */
+
+export interface StagedObjectInfo {
+  size: number;
+  contentType: string;
+}
+
+function stagingBucket(): string {
+  return env.SUPABASE_STAGING_BUCKET || "staging";
+}
+
+function assetsBucket(): string {
+  return env.SUPABASE_ASSETS_BUCKET || "assets";
+}
+
+function backupsBucket(): string {
+  return env.SUPABASE_BACKUPS_BUCKET || "backups";
+}
+
+type StorageErrorLike = {
+  message: string;
+  status?: number;
+  statusCode?: string;
+  code?: string;
+};
+
+function isNotFound(error: StorageErrorLike): boolean {
+  return (
+    error.status === 404 ||
+    error.statusCode === "404" ||
+    error.code === "NoSuchKey" ||
+    error.code === "not_found" ||
+    /not.?found/i.test(error.message)
+  );
+}
+
+/**
+ * Signed upload URL into the STAGING bucket.
+ *
+ * NOTE (spec §4-2): Supabase signed-upload expiry is FIXED at ~2 hours and
+ * not configurable — `expiresInSeconds` is accepted for signature parity with
+ * the old presigner and IGNORED. Content-Type is NOT signed either; the
+ * promotion step is the enforcement point.
+ */
+export async function createUploadUrl(
+  path: string,
+  expiresInSeconds?: number,
+): Promise<string> {
+  if (isMemoryBackend()) return memory.createUploadUrl(path, expiresInSeconds);
+  void expiresInSeconds; // fixed ~2h expiry — see note above
+  const { data, error } = await getSupabase()
+    .storage.from(stagingBucket())
+    .createSignedUploadUrl(path);
+  if (error) throw new Error(`createUploadUrl(${path}) failed: ${error.message}`);
+  return data.signedUrl;
+}
+
+/** HeadObject replacement: staging `.info(path)` — null when the object is missing. */
+export async function stagedInfo(path: string): Promise<StagedObjectInfo | null> {
+  if (isMemoryBackend()) return memory.stagedInfo(path);
+  const { data, error } = await getSupabase().storage.from(stagingBucket()).info(path);
+  if (error) {
+    if (isNotFound(error)) return null; // never uploaded or already reaped
+    throw new Error(`stagedInfo(${path}) failed: ${error.message}`);
+  }
+  return {
+    size: data.size ?? 0,
+    contentType: data.contentType ?? "application/octet-stream",
+  };
+}
+
+/**
+ * Cross-bucket move staging → assets. Supabase does not claim atomicity here
+ * (spec §4-2); leftovers from a failed move are the cleanup job's problem.
+ */
+export async function promoteToAssets(
+  stagingPath: string,
+  assetPath: string,
+): Promise<void> {
+  if (isMemoryBackend()) return memory.promoteToAssets(stagingPath, assetPath);
+  const { error } = await getSupabase()
+    .storage.from(stagingBucket())
+    .move(stagingPath, assetPath, { destinationBucket: assetsBucket() });
+  if (error) {
+    throw new Error(`promoteToAssets(${stagingPath} → ${assetPath}) failed: ${error.message}`);
+  }
+}
+
+/** B3 asset mirror (spec §7): copy a promoted asset into the private backups bucket. */
+export async function copyToBackups(
+  sourceBucket: "assets",
+  sourcePath: string,
+  backupPath: string,
+): Promise<void> {
+  if (isMemoryBackend()) return memory.copyToBackups(sourceBucket, sourcePath, backupPath);
+  const { error } = await getSupabase()
+    .storage.from(assetsBucket())
+    .copy(sourcePath, backupPath, { destinationBucket: backupsBucket() });
+  if (error) {
+    throw new Error(`copyToBackups(${sourcePath} → ${backupPath}) failed: ${error.message}`);
+  }
+}
+
+export async function removeStaged(paths: string[]): Promise<void> {
+  if (isMemoryBackend()) return memory.removeStaged(paths);
+  if (paths.length === 0) return;
+  const { error } = await getSupabase().storage.from(stagingBucket()).remove(paths);
+  if (error) throw new Error(`removeStaged(${paths.length} paths) failed: ${error.message}`);
+}
+
+export async function listStaged(
+  prefix: string,
+): Promise<{ name: string; createdAt: string }[]> {
+  if (isMemoryBackend()) return memory.listStaged(prefix);
+  const { data, error } = await getSupabase()
+    .storage.from(stagingBucket())
+    .list(prefix, { limit: 1000 });
+  if (error) throw new Error(`listStaged(${prefix}) failed: ${error.message}`);
+  // created_at is null on folder placeholder rows — surface those as "".
+  return (data ?? []).map((f) => ({ name: f.name, createdAt: f.created_at ?? "" }));
+}
