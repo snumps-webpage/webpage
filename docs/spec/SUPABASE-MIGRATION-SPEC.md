@@ -1,210 +1,263 @@
-# AWS → Supabase·Firebase 이행 명세 (v0.1)
+# AWS → Supabase 이행 명세 (v0.2 — 검토 2라운드·결정 반영판)
 
-> **결정 (2026-09-01)**: 저장 기반을 AWS(S3+KMS+CloudFront)에서 **Supabase(무료 플랜) + Firebase(Spark)**로
-> 변경한다. 결제 수단 등록 없는 무료 운영이 절대 제약. 스케줄러는 **cron-job.org 단독** —
-> GitHub Actions의 크론 임무를 전면 이주한다 (CI는 GH Actions 유지 — 크론이 아님).
+> **확정 결정 (2026-09-01, 검토 32건 반영)**
 >
-> **최상위 원칙: API surface 무손상.** 여기서 API surface란 두 층 모두다:
-> ① HTTP 표면 — 라우트·액션·REST 엔드포인트·오류 코드 계약 (API-SPEC v0.6)
+> | # | 결정 |
+> |---|---|
+> | S1 | 스케줄러: **cron-job.org(주) + Vercel 일1회 크론(최후 심장, 존치) + Healthchecks.io dead-man's switch** |
+> | S2 | **Firebase 제외.** 감사 로그는 Supabase 내 Postgres `audit_log` 테이블. FCM이 실제 필요해질 때 Firebase 도입 재론 |
+> | S3 | 백업: **private `backups` 버킷 + 외부 사본(private GitHub repo push) + 자산 복구 계층 포함** |
+> | S4 | 로컬 개발: **2번째 무료 Supabase 프로젝트 = dev** + 시드 스크립트 (+인메모리 백엔드 env 플래그 보조) |
+> | S5 | `/api/health`는 **Bearer 보호** |
+> | S6 | 업로드 스테이징은 **private 버킷** |
+> | — | 정정 묶음 15건 일괄 반영 (본문에 통합) |
+>
+> **최상위 원칙: API surface 무손상.**
+> ① HTTP 표면 — 라우트·액션·오류 코드 계약 무변경
 > ② 내부 계약 — `getTable`/`mutate`/`getQueue`/`mutateQueue`/`audit`/`ensureCreated`/뷰·스키마의
->    시그니처와 의미 (IMPLEMENTATION-SPEC의 데이터 계약)
-> 서비스 8종·가드·라우트·테스트 137건은 **원칙적으로 무수정**이어야 하고, 교체는 데이터 계약의
-> **구현체 아래**에서만 일어난다.
+>    시그니처·의미 무변경. 교체는 구현체 아래에서만.
+> ③ 단 API-SPEC §1-3의 **저장 형식 절(gzip·S3 키·버킷 버전 관리)은 명시적으로 개정**한다 —
+>    이는 계약 개정이지 훼손 은폐가 아니다 (T10).
 
 ---
 
-## 0. 무료 플랜 제약 실측 (설계의 전제)
+## 0. 무료 플랜 제약 실측
 
 | 항목 | Supabase Free | 영향 |
 |---|---|---|
-| DB | Postgres 500MB, 프로젝트 2개 | 605행 + 성장분에 충분 |
-| **7일 무활동 일시정지** | **DB 쿼리 활동 기준** | keep-alive는 실제 SELECT를 유발해야 함 (§5) |
-| Storage | 1GB, 파일당 50MB | 자산 90개+파생본 충분. **이미지 변환 API는 유료** → 파생본은 앱에서 sharp로 생성(기존 계획 그대로) |
-| Egress | 5GB/월 | 동아리 트래픽 여유 |
-| 백업 | 무료 플랜 자동 백업 **없음** | 자체 백업 잡 필요 (§7) |
+| DB | Postgres 500MB, **프로젝트 2개**(prod/dev 분리에 사용) | 605행 여유. **500MB 초과 시 read-only — 전 mutate 500** (§6 모니터링) |
+| 7일 무활동 일시정지 | **DB 쿼리 활동 기준** (Storage 호출 계상은 미문서 — 신뢰 금지) | keep-alive 잡은 전부 실 SELECT 수행 (§5) |
+| pause 시 | DB·Storage·**공개 자산 URL 전부 다운**, 복원 가능 1년 | pause 런북 필수 (§5-4, OPERATOR) |
+| Storage | 1GB, 파일 50MB. 이미지 변환 유료 → 파생본은 sharp | **산수(§4-4)**: PDF 상한 50MB — 최대 20개로 소진 가능. 이주 시 실측 게이트 + 학기당 점검 수칙 |
+| Egress | **uncached 5GB + cached(CDN) 5GB 별도 버킷** (DB API 응답은 uncached 계상) | 여유 — 단 회계 단위 정확히 |
+| 백업 | 자동 백업 없음 | §7 자체 백업 |
+| 키 체계 | legacy JWT(service_role) **2026년 말 deprecate 예고** | **신 체계 `sb_secret_...` 기준으로 명명·발급** (§6) |
 
-| 항목 | Firebase Spark | 영향 |
-|---|---|---|
-| Cloud Functions | **불가 (Blaze 전용)** | 서버 로직은 전부 SvelteKit(Vercel) 유지 |
-| **Cloud Storage** | **신규 프로젝트는 Blaze 전용 (2024-10 정책)** | Firebase Storage 사용 불가 — 자산은 Supabase Storage |
-| Firestore | 1GiB, 읽기 5만/쓰기 2만/일 | Admin SDK(서비스 계정)로 서버에서 사용 가능, 카드 불요 |
-| FCM | 무료 | 장래 푸시 알림용 예비 |
+Firebase: **이번 이행에서 제외 (S2).** 근거 기록 — Spark는 Functions 불가, Cloud Storage는 2026-02부로
+기존 버킷 포함 전면 차단, Firestore 감사 싱크의 이점은 검토에서 해체(경합 0은 Postgres도 동일,
+침해 생존은 동일 env 동거로 과장)되고 쿼터 소진 시 탈퇴 액션이 막히는 역결합만 남았다.
 
-| cron-job.org | 값 |
-|---|---|
-| 실행 타임아웃 | **30초** — 크론 핸들러는 30초 내 완료 필수 |
-| 자동 비활성 | **25회 연속 실패 시** — 실패·비활성 알림 반드시 켬 |
-| 응답 요건 | **200 직접 반환** (302 리다이렉트는 실패로 집계) |
-| 헤더 | 커스텀 헤더 지원 → `Authorization: Bearer CRON_SECRET` 유지 가능 |
+cron-job.org: 30초 타임아웃 · 응답 64KB 상한 · 302는 실패 집계(→ **canonical URL로 정확히 등록**,
+`*.vercel.app`→커스텀 도메인 308 함정) · "25회 초과 연속 실패 시 비활성"은 공식 문구상 "in some cases" —
+계약이 아닌 지표로 취급, 알림은 필수 on.
 
 ## 1. 역할 분담
 
 | 시스템 | 역할 |
 |---|---|
-| **Supabase Postgres** | 테이블 저장소 — 기존 S3 JSON 문서 모델의 계약 보존 이식 (§2) |
-| **Supabase Storage** | 자산(사진·PDF) — presign→승격 파이프라인 이식 (§4) |
-| **Firebase Firestore** | 감사 로그 싱크 — append-only, 메인 DB와 물리 분리 (§3). ⚠️ 결정 필요 D-1 |
-| **Firebase FCM** | (예비) 장래 알림 — 이번 범위 아님 |
-| SvelteKit(Vercel) | 서버 로직 전부 — 변화 없음 |
-| **cron-job.org** | 스케줄러 단독 — 동기화·keep-alive·백업 잡 (§5) |
-| GitHub Actions | **CI만** (lint+test). `cron-sync-events.yml` 삭제 |
+| **Supabase Postgres (prod)** | 테이블 문서 저장 (§2) + `audit_log` (§3) |
+| **Supabase Storage (prod)** | 버킷 3: `assets`(public) · `staging`(private — 업로드 스테이징, S6) · `backups`(private, S3) |
+| **Supabase 프로젝트 #2 (dev)** | 로컬 개발용 — 동일 스키마 + 시드 (S4) |
+| SvelteKit(Vercel) | 서버 로직 전부 — 무변경 |
+| **cron-job.org** | 주 스케줄러 — 잡 3개 (§5) |
+| **Vercel cron (일1회)** | 자동 비활성 없는 최후 심장 — `vercel.json` 존치. CRON_SECRET env 존재 시 Bearer 자동 첨부라 코드 0 (S1) |
+| **Healthchecks.io** | dead-man's switch — "크론이 안 돌았음" 자체를 알림화 (S1) |
+| GitHub Actions | CI만. `cron-sync-events.yml` 삭제 |
+| private GitHub repo (`snumps-backups`) | 주간 DB 덤프의 off-platform 사본 (§7) |
 
-## 2. 데이터 계층 — 계약 보존 전략
+## 2. 데이터 계층
 
-### 2-1. 단계 원칙: S1 문서 모델 이식 → (선택) S2 관계형 정규화
+### 2-1. 전략: S1 문서 모델 이식 (관계형 정규화는 별도 마일스톤 S2로 격리)
 
-**S1(이번 작업)**: Postgres를 **버전 있는 JSONB 문서 스토어**로 사용해 현 계약을 그대로 이식한다.
-관계형 정규화(S2)는 하지 않는다 — 하면 서비스 8종 전면 재작성 = API surface 훼손이며,
-605행 규모에서 당장 이득이 없다. S2는 규모·질의 요구가 임계값(API-SPEC §1-3)에 닿을 때의
-별도 마일스톤으로 명시적으로 남긴다. **"Postgres를 문서 스토어로 쓰는 것"은 규모에 맞춘
-의도적 선택이지 결함이 아니다** — 이 근거를 코드 주석과 본 문서에 남긴다.
+Postgres를 **버전-CAS JSONB 문서 스토어**로 사용 — 605행 규모에 맞춘 의도적 선택(주석·문서 명기).
+정규화는 서비스 8종 재작성 = surface 훼손이므로 하지 않는다.
 
-### 2-2. 스키마 (SQL)
+### 2-2. 스키마 (`supabase/migrations/0001_documents.sql` — 커밋. Storage 버킷 생성·RLS도 SQL에 포함해 콘솔 의존 최소화)
 
 ```sql
--- 테이블 문서: S3의 tables/<name>.json.gz 1:1 대응
 create table app_tables (
   name    text primary key,
-  version bigint not null default 1,          -- ETag 대체: 단조 증가 CAS 토큰
-  doc     jsonb  not null                     -- { schemaVersion, rows } 봉투 그대로
+  version bigint not null default 1,
+  doc     jsonb  not null              -- { schemaVersion, rows } 봉투 그대로 (gzip 없음 — §1-3 개정)
 );
-
--- 출석 큐: 이벤트당 1행 (기존 이벤트당 객체 1:1 대응 — 버스트 경합 격리 유지)
 create table app_queues (
   event_id text primary key,
   version  bigint not null default 1,
   doc      jsonb  not null
 );
-
--- RLS: 전부 활성 + 정책 0개(전면 거부). 접근은 서버의 service_role 키 단일 경로 —
--- PostgREST 익명 노출 원천 차단. anon 키는 배포하지 않는다.
-alter table app_tables enable row level security;
-alter table app_queues enable row level security;
+create table audit_log (               -- §3. INSERT 전용
+  id        text primary key,
+  at        timestamptz not null default now(),
+  actor     text not null,
+  action    text not null,
+  target_tb text not null,
+  target_id text not null,
+  detail    jsonb
+);
+-- RLS 전면 활성 + 정책 0 (anon 표면 0). 접근은 서버 secret key 단일 경로.
+-- audit_log는 UPDATE/DELETE를 막는 트리거로 append-only 강제(secret key도 오삭제 방지).
 ```
 
-### 2-3. `data/store.ts` — s3.ts의 대체 (시그니처 보존)
-
-`tables.ts`의 알고리즘(재시도·봉투 검증·**쓰기 스키마 게이트**·no-op 스킵·캐시 연동)은
-**무수정**. 바뀌는 것은 저수준 모듈 하나:
+### 2-3. `data/store.ts` — s3.ts 대체 (시그니처 보존)
 
 ```ts
-// s3.ts의 getObjectWithEtag/putObjectConditional 대응
-readDoc(kind: "table"|"queue", key): { doc, version } | null
+readDoc(kind, key): { doc, version } | null
+readVersion(kind, key): number | null        // 조건부 GET 대응: version만 SELECT 후 비교
+                                             // — "삭제됨"과 "미변경"을 정확히 구분 (R1-4)
 writeDocIf(kind, key, doc, expectedVersion): boolean
-//  UPDATE ... SET doc=$1, version=version+1 WHERE key=$2 AND version=$3
-//  → 영향 행 0 = 조건 실패 = 기존 ConditionalWriteError와 동일 의미론
-//  신규 생성: INSERT ... ON CONFLICT DO NOTHING → 삽입 0행 = 경합
-listQueues(): event_id[]        // SELECT event_id FROM app_queues
-deleteQueueDoc(eventId)
+  // UPDATE ... SET doc=$d, version=$expected+1 WHERE key=$k AND version=$expected
+  // (PostgREST는 version=version+1 표현식 불가 — 클라이언트가 expected+1 기입; 의미 동일)
+  // 신규: INSERT ... ON CONFLICT DO NOTHING — 0행 = 경합
+listQueues() / deleteQueueDoc(eventId)
 ```
 
-- gzip 제거 — Postgres가 TOAST로 압축. 봉투 `{schemaVersion, rows}`는 유지(리더 분기 계약)
-- If-None-Match 최적화 대응: `version`을 캐시에 보관, `WHERE version > $cached` 조건 조회로 동등 효과
-- 클라이언트: `@supabase/supabase-js` service role — **`data/store.ts` 밖 사용 금지** (기존 s3.ts 규칙 승계)
-- **테스트**: `s3-memory.ts` → `store-memory.ts` 동일 표면. 기존 137테스트는 목 경로 교체 외 무수정이
-  성립해야 하며, 이것이 "API surface 무손상"의 검증 그 자체다
+- `tables.ts` 알고리즘(재시도·백오프, **쓰기 스키마 게이트**, no-op 스킵, 봉투 검증) 무수정 —
+  `ConditionalWriteError` 의미론은 "writeDocIf false" 1종으로 수렴 (412/409/404 구분은 재시도 동작에 무영향)
+- 압축 없음. (참고 정정: TOAST pglz는 2KB 초과에만 ~2.5×이고 egress를 줄이지 않음 — 압축은 근거가 아님)
+- 클라이언트: `@supabase/supabase-js` + **`sb_secret` 키** — `data/store.ts`·`data/storage.ts` 밖 사용 금지
 
-### 2-4. 삭제·보존 목록
+### 2-4. 테스트 전환 — 정직한 스코프 (R1-11)
 
-| 대상 | 처분 |
-|---|---|
-| `data/s3.ts`, AWS SDK 3종, `@vercel/functions` | 삭제 (스토리지 함수는 §4의 storage.ts로 대체) |
-| `infra/*.tf` 전체 | 삭제 — Supabase/Firebase는 콘솔 셋업(OPERATOR-TODO로 절차화). IaC 부재는 트레이드오프로 명기 |
-| `mutate`의 재시도·백오프 로직 | **보존** — Postgres CAS도 경합 시 재시도 필요 (의미 동일) |
-| 출석 큐 분리 저장 | **보존** — 행 단위 잠금이라 이론상 불필요해 보여도, 계약·테스트·버스트 격리 의미론 유지(콩팥) |
-| audit "mutate 밖" 원칙 | **보존** — §3 |
+"137 무수정"이 아니라 **"계약 표면 테스트 무수정 + 열거된 기계 수정만"**:
 
-## 3. 감사 로그 — Firestore 싱크
+| 수정 부류 | 대상 | 성격 |
+|---|---|---|
+| 목 경로 교체 | 12파일의 `vi.mock("./s3" …)` → `./store` | 기계적 |
+| 포이즌 픽스처 재작성 | `tables.test.ts` 2건 (바이트+키 직주입 → `__putRawDoc(name, doc)` 헬퍼로) | 표면 변경 반영 — 의미 동일 |
+| 감사 계수 교체 | `__keys().filter(audit/)` 3건 → `store-memory`의 `__auditRows()` | 표면 변경 반영 |
+| 신규 | store-memory·storage-memory (기존 s3-memory 분해), maintenance·백업 라이터 테스트 | 추가 |
 
-- 컬렉션 `audit/{yyyy-mm-dd}/entries/{id}` — 기존 "건당 객체 append-only" 의미론 1:1
-- `data/audit.ts` 시그니처·기록 대상·비대상·"탈퇴 계열 실패 시 액션 실패" 정책 전부 무수정 —
-  내부 putObject 호출만 Firestore `add()`로 교체
-- 접근: `firebase-admin` 서비스 계정(JSON을 env `FIREBASE_SERVICE_ACCOUNT_B64`로) — 서버 전용
-- 근거: 감사 로그를 메인 DB 밖 별도 시스템에 두면 ① DB 침해 시 감사 추적 생존 ② 메인 테이블과
-  쓰기 경합 0 ③ Firebase에 실재하는 역할 부여. **⚠️ D-1**: Postgres `audit_log` 테이블(단순)로도
-  가능 — Firebase 채택 여부는 결정 항목
+그 외 서비스·가드·공개 스위트는 무수정 통과가 게이트.
+
+## 3. 감사 로그 — Postgres `audit_log` (S2)
+
+- `data/audit.ts` 시그니처·대상·비대상·**"탈퇴 계열 실패 시 액션 실패"** 정책 무수정 — 내부만 INSERT로
+- append-only는 DB 트리거로 강제 (§2-2) — 기존 "건당 객체" 의미론의 등가물
+- 같은 DB 동거의 함의: DB 쿼터 소진 시 감사도 함께 막히지만, 그때는 **mutate 자체가 read-only로 막히므로**
+  탈퇴 흐름 전체가 어차피 정지 — 외부 쿼터에 따로 결합됐던 Firestore 안보다 실패 모드가 단순
 
 ## 4. 자산 — Supabase Storage
 
-버킷 2개: `assets`(public read), 업로드 스테이징은 같은 버킷의 `uploads/pending/` 프리픽스 유지.
+### 4-1. 버킷 3개 (전부 SQL로 생성)
 
-| 기존 (S3) | 대체 (Supabase Storage) |
-|---|---|
-| presigned PUT (10분) | `createSignedUploadUrl(path)` — 서버 발급, 브라우저 직접 업로드 |
-| HeadObject 실측 검증 | `list()`/`info()`의 size·mimetype 메타데이터로 동일 검증 |
-| CopyObject+Delete 승격 | `move(pendingPath, finalPath)` — 원자적 이동이라 오히려 단순 |
-| 수명주기 7일 고아 정리 | **네이티브 수명주기 없음** → 크론 잡이 `uploads/pending/` 열거·7일 초과 삭제 (§5 잡 3) |
-| CloudFront URL | `getPublicUrl()` 베이스 — env `ASSETS_CDN_URL` 교체로 `assetUrl()` 무수정 |
-| 파생본 (미구현 잔여) | 승격 시 sharp 생성 — 계획 그대로, Supabase 변환 API는 유료라 불사용 |
+| 버킷 | 공개성 | 용도 |
+|---|---|---|
+| `assets` | public read | 승격 완료 자산 + sharp 파생본 |
+| `staging` | **private** | `pending/<purpose>/…` 업로드 스테이징 (S6 — 승격 전 공개 서빙 차단) |
+| `backups` | **private** | §7 백업 (PII 포함 — public 동거 금지) |
 
-`uploads.ts`의 purpose 검증·슬러그·해시 키·승격 강제 지점 계약 전부 무수정. `uploads.test.ts`는
-`store-memory`의 스토리지 목으로 그대로 통과해야 한다.
+### 4-2. 파이프라인 매핑
 
-## 5. cron-job.org 잡 명세
+| 기존 | 대체 | 주의 |
+|---|---|---|
+| presigned PUT 10분 | `createSignedUploadUrl` | **만료 고정 2시간**(단축 불가 — 계약 문서 갱신), 기존 경로 재발급 400, upsert는 발급 시 서명 |
+| Content-Type 서명 | **미지원** | 승격 검증이 유일 방어선 — 이미 그렇게 설계돼 있음(HeadObject 대응). API-SPEC §8-2 문구 개정 |
+| HeadObject | `info()` (size·mimetype — typed) | `list()`는 100행 페이지네이션 주의 |
+| Copy+Delete | `move()` — staging→assets **크로스 버킷** | 원자적이라는 주장은 하지 않음. 실패 잔여물은 정리 잡이 처리 |
+| 수명주기 7일 | 잡 3이 staging 열거·7일 초과 삭제 | |
+| CloudFront | `assets` 공개 URL 베이스 → `ASSETS_CDN_URL` 값 교체 (`assetUrl()` 무수정) | |
 
-| # | 잡 | 스케줄 | 대상 | 역할 |
-|---|---|---|---|---|
-| 1 | sync-events | 매시 17분 | `GET /api/cron/sync-events` + `Authorization: Bearer` | 만료 정리·회차 자동 생성. **DB를 치므로 keep-alive 겸함** |
-| 2 | health/keep-alive | 매일 09:00 KST | `GET /api/health` (공개, 무인증) | 1행 SELECT 후 `200 {"ok":true}` — 잡 1과 독립된 두 번째 심장 |
-| 3 | maintenance | 매일 04:00 KST | `GET /api/cron/maintenance` + Bearer | ① pending 업로드 7일 초과 삭제 (§4) ② 주 1회(일요일 분기) 전 테이블 JSON 덤프를 Storage `backups/`에 적재 (§7) |
+### 4-3. 🔴 T3 착수 게이트: signed-upload 실측 테스트
 
-- 신규 라우트 2개: `/api/health` (public — 존 `api`, 무인증 공개 read-only), `/api/cron/maintenance` (Bearer)
-- 전 잡 30초 내 완료 보장 — 현 크론 스텝은 수백 ms 수준. maintenance 백업도 605행 JSON이라 여유
-- **알림 설정(운영 수칙)**: 실패 알림 + **자동 비활성 알림** 필수 on, 수신은 동아리 공용 메일
-- 응답은 200 직접 (기존 크론 엔드포인트가 이미 JSON 200 — 충족)
-- 25연속 실패 = 잡 비활성: 잡 1이 죽어도 잡 2·3이 keep-alive 유지 (상호 백업).
-  **⚠️ D-2**: Vercel 일1회 크론(vercel.json)을 제4의 백업으로 존치할지 — 결정 항목
-- `cron-sync-events.yml` 삭제. **`ci.yml`은 존치** — CI는 크론이 아니며 이주 대상 아님
+실 dev 프로젝트에서 검증 후 진행: ① 브라우저 업로드 방식(`uploadToSignedUrl` 토큰 동반 여부 —
+클라이언트 코드 변경 범위 확정) ② 버킷 `file_size_limit`/`allowed_mime_types`가 signed 경로에
+강제되는지 ③ 2h 만료 실측.
 
-## 6. 환경 변수·비밀
+### 4-4. 1GB 산수 (R2-5)
+
+이주 자산 90개 실측치는 MIG-1에서 확보(추정 수백 MB). 상한 시나리오: 세미나 PDF 50MB × 20 = 1GB 소진.
+수칙: ① 이주 직후 실측치·잔여율 기록 ② 학기말 점검(OPERATOR) ③ 80% 도달 시 PDF 상한 하향 또는 정리.
+
+## 5. 스케줄러 (S1 확정 구성)
+
+### 5-1. cron-job.org 잡 3개
+
+| # | 잡 | 스케줄 | 대상 |
+|---|---|---|---|
+| 1 | sync-events | 매시 17분 | `GET /api/cron/sync-events` + Bearer |
+| 2 | health | 매일 09:00 KST | `GET /api/health` + **Bearer (S5)** — 1행 SELECT 후 200 |
+| 3 | maintenance | 매일 04:00 KST | `GET /api/cron/maintenance` + Bearer — staging 7일 정리 + **1행 SELECT(keep-alive 자격 확보, R1-12)** + 일요일 분기: 백업(§7) |
+
+운영 수칙: 실패+자동비활성 알림 on(공용 메일), canonical URL 등록, 응답 200 직접.
+
+### 5-2. Vercel cron — 최후 심장
+
+`vercel.json` `"0 15 * * *"` 존치. 자동 비활성 없는 유일 스케줄러. CRON_SECRET env 존재 시
+Vercel이 Bearer 자동 첨부 — 코드 0. cron-job.org 3잡이 공통 모드(배포 사고)로 전멸해도 일1회 생존.
+
+### 5-3. Healthchecks.io — dead-man's switch
+
+- 각 크론 핸들러(sync-events·maintenance)가 **성공 시** `fetch(env.HEALTHCHECKS_PING_URL)` 1줄 (실패 무시)
+- Healthchecks 체크 grace 48h — 이틀간 성공 핑이 없으면(스케줄러 전멸·배포 사고·pause 포함 **모든 침묵 모드**) 공용 메일로 경보
+- 무료 20체크·카드 불요
+
+### 5-4. pause 런북 (OPERATOR-TODO 신설 절)
+
+증상(사이트·사진 전면 다운) → 대시보드 Resume → **cron-job.org 잡 3개 재활성화**(자동 비활성됐을 것) →
+Healthchecks 체크 정상 복귀 확인. 복원 가능 기간 1년.
+
+## 6. 환경 변수·보안·모니터링
 
 ```bash
-# 제거
-AWS_REGION, S3_DATA_BUCKET, S3_ASSETS_BUCKET, AWS_ROLE_ARN, AWS_ACCESS_KEY_ID/SECRET
-
-# 추가
+# 제거: AWS_* 5종, FIREBASE_* (미도입)
+# 추가 (prod / dev 프로젝트별)
 SUPABASE_URL=
-SUPABASE_SERVICE_ROLE_KEY=        # 서버 전용. 클라이언트 번들 유입 금지 ($env/dynamic/private)
+SUPABASE_SECRET_KEY=              # sb_secret_... (신 체계). 서버 전용
 SUPABASE_ASSETS_BUCKET=assets
-FIREBASE_SERVICE_ACCOUNT_B64=     # D-1 채택 시. base64(서비스 계정 JSON)
-# 유지
-ASSETS_CDN_URL=                   # Supabase 공개 URL 베이스로 값만 교체
-CRON_SECRET=                      # cron-job.org 헤더로 계속 사용 (fail-closed 유지)
+SUPABASE_STAGING_BUCKET=staging
+SUPABASE_BACKUPS_BUCKET=backups
+HEALTHCHECKS_PING_URL=
+GITHUB_BACKUP_REPO=snumps-webpage/snumps-backups   # §7
+GITHUB_BACKUP_TOKEN=              # fine-grained PAT, 해당 repo contents:write 한정
+DATA_BACKEND=supabase             # supabase | memory (S4 보조 — dev 오프라인용)
+# 유지: ASSETS_CDN_URL(값 교체), CRON_SECRET, PUBLIC_SITE_ORIGIN, REDIS_URL
 ```
 
-보안 노트: service role 키는 RLS를 우회하는 전권 키 — 기존 IAM 최소권한 대비 **후퇴**다.
-완화: RLS 전면 거부로 anon 표면 0 + 키는 Vercel env에만 + `data/store.ts` 단일 사용처.
-이 트레이드오프를 문서·주석에 명기.
+**명시적 보안 트레이드오프 (구 설계 대비 후퇴 — 수용 기록):**
+- IAM 최소권한 → secret key 전권 (완화: RLS 거부 + 단일 사용처 + audit_log 트리거 보호)
+- **SSE-KMS 전용 키 → 공유 at-rest 암호화** (무료 플랜 CMK 불가 — PII 암호화 등급 하락)
+- **CloudTrail 데이터 이벤트 → 상실** (무료 로그 보존 1일 — 인프라 레벨 접근 감사 불능. 앱 레벨 audit_log만 잔존)
 
-## 7. 백업 (AWS 버전 관리의 대체)
+**모니터링·알림 맵 (R2-7):**
 
-S3 버킷 버전 관리가 주던 "잘못된 쓰기 롤백"이 사라진다. 대체:
-- 잡 3이 주 1회 전 `app_tables`를 JSON으로 Storage `backups/<date>/`에 적재 (Storage 1GB 내 순환 8주 보관)
-- 복구 절차를 OPERATOR-TODO에 문서화 (수동 — 규모상 충분)
-- **⚠️ D-3**: 백업 주기(주1 vs 일1)와 보관 기간 — 결정 항목
-
-## 8. MIG(데이터 이주) 트랙 영향
-
-- 익스포터(Notion→테이블 JSON) 로직 무변경 — 업로더 목적지만 S3→`app_tables` UPSERT로
-- 자산 파이프라인 목적지 Supabase Storage로. sha256 멱등·매니페스트 계약 유지
-- `snumps-migration` IAM 역할 → Supabase service role 키 로컬 사용으로 대체
-- 검증 항목(행 수·dangling 0·자산 90) 무변경
-
-## 9. 작업 목록
-
-| # | 작업 | 비고 |
+| 신호 | 수신 | 경로 |
 |---|---|---|
-| T1 | SQL 마이그레이션 파일 (`supabase/migrations/0001_documents.sql`) — §2-2 | 레포에 커밋 (콘솔 클릭 최소화) |
-| T2 | `data/store.ts` + `store-memory.ts` — s3.ts/s3-memory.ts 대체 | 기존 테스트 무수정 통과가 게이트 |
-| T3 | `data/storage.ts` — presign/승격/공개 URL (§4) + `uploads.ts` 내부 교체 | uploads.test 무수정 통과 |
-| T4 | `data/audit.ts` 내부 교체 (D-1 결정에 따름) | 정책·시그니처 무변경 |
-| T5 | `/api/health` + `/api/cron/maintenance` 신설, 가드 레지스트리 등록 | |
-| T6 | AWS 제거 — s3.ts·SDK 의존성·infra/·`cron-sync-events.yml` 삭제, env·SETUP.md·OPERATOR-TODO 개정 | |
-| T7 | OPERATOR-TODO 재작성 — Supabase 프로젝트 생성·SQL 실행·버킷·(Firebase)·cron-job.org 잡 3개+알림 절차 | |
-| T8 | 문서 정합 — IMPLEMENTATION-SPEC·BACKEND-TASKS·CODE-REVIEW 잔여 항목에 기반 변경 반영 | |
+| 크론 실패/자동 비활성 | 공용 메일 | cron-job.org 알림 |
+| 크론 침묵(전멸·pause 포함) | 공용 메일 | Healthchecks grace 초과 |
+| Supabase 쿼터 접근·pause 예고 | **공용 계정 소유의 org** 메일 | Supabase 자동 메일 — 계정 공용화가 전제 (§9 T7) |
+| DB 500MB read-only | 사전: 학기말 점검 수칙 / 사후: 전 mutate 500 → Healthchecks | |
 
-## 10. 결정 필요 (검토 후 일괄)
+**계정 규율 (R2-8)**: Supabase org·cron-job.org·Healthchecks·GitHub·Vercel 전부 공용 메일 소유 + MFA.
+자격증명 인벤토리(보유자·복구 경로)를 OPERATOR-TODO에 표로.
 
-- **D-1** Firebase 역할: Firestore 감사 싱크 채택 vs Postgres `audit_log` 테이블(시스템 1개 감소, 분리 이점 포기)
-- **D-2** Vercel 일1회 크론 존치 여부 (4중 백업 vs 단순화)
-- **D-3** 백업 주기·보관 기간
+## 7. 백업 (S3 결정 반영)
+
+| 계층 | 내용 | 주기 | 대비 대상 |
+|---|---|---|---|
+| B1 | 전 `app_tables`+`audit_log` JSON 덤프 → `backups` 버킷(private) | 주 1회 (잡 3 일요일 분기) | 오염된 쓰기 롤백 (RPO ≤7일) |
+| B2 | 같은 덤프를 **private GitHub repo에 push** (contents API, PAT) | 주 1회 (B1 직후) | 프로젝트 단위 소멸 (off-platform) |
+| B3 | 자산: 승격 시 `backups/assets-mirror/`에 사본 1부 동시 기록 | 실시간 | 오삭제 복구 (구 S3 버전 관리 대체) |
+| B4 | 자산 전량 로컬 아카이브 | 이주 시 1회 + 분기 수칙 | 프로젝트 소멸 시 자산 |
+
+보관: B1 8주 순환, B3는 원본 삭제 후 90일 정리(잡 3). 복구 절차는 OPERATOR-TODO 문서화(T7).
+주의: 무료 플랜 직결 pg_dump는 IPv6-only 함정 — 복구·덤프는 앱 경유 JSON 방식으로 통일.
+
+## 8. MIG(데이터 이주) 트랙 — 개정 미니 목록
+
+| # | 항목 |
+|---|---|
+| M-1 | 자격증명: `snumps-migration` IAM 참조 전부 제거 → 로컬 실행 스크립트가 prod `sb_secret` 키 사용 (실행자 한정 전달·완료 후 회전) |
+| M-2 | P0-2 원본 덤프 목적지: `backups` 버킷(private) + 로컬 사본 |
+| M-3 | 업로더: `app_tables` UPSERT는 **Zod 봉투 파싱 통과 후** + `version=1` 초기화 — 쓰기 게이트 우회 금지 |
+| M-4 | 자산 파이프라인 목적지 `assets` + B3 미러 동시 기록, sha256 멱등·매니페스트 계약 유지, **용량 실측 → §4-4 산수 기록** |
+| M-5 | 검증(행 수·dangling 0·자산 90) 무변경 |
+
+## 9. 작업 목록 (개정)
+
+| # | 작업 | 게이트·비고 |
+|---|---|---|
+| T1 | SQL 마이그레이션 — §2-2 전체(테이블·audit_log·트리거·버킷·RLS) | 콘솔 의존 최소화 |
+| T2 | `data/store.ts` + `store-memory.ts` + `DATA_BACKEND` 플래그 | §2-4 스코프대로 테스트 전환 |
+| T3 | `data/storage.ts` + `uploads.ts` 내부 교체 | **§4-3 실측 게이트 선행** |
+| T4 | `data/audit.ts` 내부 교체 (audit_log INSERT) | 정책 무변경 |
+| T5 | 라우트: `/api/health`(Bearer)·`/api/cron/maintenance` + **maintenance 서비스**(staging 정리·keep-alive SELECT·백업 라이터 B1/B2/B3-정리) + Healthchecks 핑 삽입 + 가드 레지스트리 | R2-9 해소 |
+| T6 | AWS 제거 — s3.ts·SDK·infra/·`cron-sync-events.yml` 삭제. `vercel.json` **존치**(사유 주석). env·SETUP.md 개정 + **로컬 개발 절**(dev 프로젝트·시드·memory 플래그) | |
+| T7 | OPERATOR-TODO 재작성 — Supabase prod/dev 생성·SQL 실행·버킷 확인·cron-job.org 잡3+알림·Healthchecks·백업 repo+PAT·**pause 런북**·복구 절차·계정 규율+자격증명 인벤토리·학기말 점검 | |
+| T8 | dev 시드 스크립트 (`scripts/seed-dev.ts`) | S4 |
+| T9 | MIG 스크립트 개정 (§8 M-1~5) | AWS→Supabase 목적지 |
+| T10 | 문서 정합 — API-SPEC §1-3 저장 형식 절 개정 선언, §1-5·§8-2 문구, IMPLEMENTATION-SPEC **명시 목록**: BE-02·03 표, BE-35 "크론 확정(2026-08-28)" 표 대체, 부록 금지 1항(AWS SDK→supabase-js), Phase 7 "S3 목" 문구, CODE-REVIEW 잔여의 TF state 항목 폐기 처리 | R2-10·11 해소 |
+
+## 10. 결정 기록
+
+S1~S6 + 정정 묶음: 상단 표 (2026-09-01, 사용자 확정). 구 D-1/D-2/D-3은 각각 S2/S1/S3로 해소.
+잔존 미결: 없음.
