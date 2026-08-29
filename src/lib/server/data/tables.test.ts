@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { gzipSync } from "node:zlib";
 
-vi.mock("./s3", () => import("./s3-memory"));
+vi.mock("./store", () => import("./store-memory"));
 
-import { __putRaw, __reset, __setAlwaysConflict } from "./s3-memory";
+import { __putRawDoc, __reset, __setAlwaysConflict } from "./store-memory";
 import {
   _resetDataLayerForTests,
   getQueue,
@@ -72,19 +71,13 @@ describe("mutate — conditional writes", () => {
   });
 
   it("rejects an unknown schemaVersion instead of silently proceeding", async () => {
-    __putRaw(
-      "tables/gallery-dinner.json.gz",
-      gzipSync(JSON.stringify({ schemaVersion: 2, rows: [] })),
-    );
+    __putRawDoc("table", "gallery-dinner", { schemaVersion: 2, rows: [] });
     await invalidateCache("table_gallery-dinner");
     await expect(getTable("gallery-dinner")).rejects.toThrow(/envelope validation/);
   });
 
   it("rejects rows that fail the table schema", async () => {
-    __putRaw(
-      "tables/gallery-dinner.json.gz",
-      gzipSync(JSON.stringify({ schemaVersion: 1, rows: [{ id: "x" }] })),
-    );
+    __putRawDoc("table", "gallery-dinner", { schemaVersion: 1, rows: [{ id: "x" }] });
     await invalidateCache("table_gallery-dinner");
     await expect(getTable("gallery-dinner")).rejects.toThrow(/envelope validation/);
   });

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("$lib/server/data/s3", () => import("$lib/server/data/s3-memory"));
+vi.mock("$lib/server/data/store", () => import("$lib/server/data/store-memory"));
 
-import { __keys, __reset } from "$lib/server/data/s3-memory";
+import { __auditRows, __reset } from "$lib/server/data/store-memory";
 import { _resetDataLayerForTests, getTable, mutate } from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { newId } from "$lib/server/core/id";
@@ -60,7 +60,7 @@ describe("requestWithdrawal — triple confirmation (MEM-07)", () => {
 
   it("withdraws with previousStatus preserved and audits the destruction trigger", async () => {
     const m = await seed({ status: "associate" });
-    const auditBefore = __keys().filter((k) => k.startsWith("audit/")).length;
+    const auditBefore = __auditRows().length;
 
     await requestWithdrawal(m.id, ok(m.name));
 
@@ -68,7 +68,7 @@ describe("requestWithdrawal — triple confirmation (MEM-07)", () => {
     expect(updated.status).toBe("withdrawn");
     expect(updated.withdrawal?.previousStatus).toBe("associate");
     expect(updated.withdrawal?.holdBy).toBeNull();
-    expect(__keys().filter((k) => k.startsWith("audit/")).length).toBe(auditBefore + 1);
+    expect(__auditRows().length).toBe(auditBefore + 1);
 
     const state = await getWithdrawalState(m.id);
     expect(state).not.toBeNull();

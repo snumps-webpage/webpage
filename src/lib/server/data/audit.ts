@@ -1,10 +1,11 @@
 import { newId } from "$lib/server/core/id";
-import { dataBucket, putObject } from "./s3";
+import { insertAuditRow } from "./store";
 import type { TableName } from "./schemas";
 
 /**
- * Audit channel (API-SPEC §1-5): one S3 object per entry — object creation
- * IS the append, so log writes never contend with table mutations.
+ * Audit channel (API-SPEC §1-5, revised by SUPABASE-MIGRATION-SPEC §3): one
+ * append-only Postgres `audit_log` row per entry — the INSERT is the append,
+ * so log writes never contend with table mutations.
  * detail must carry field NAMES only, never PII values.
  */
 
@@ -31,12 +32,16 @@ export interface AuditEntry {
 }
 
 export async function audit(entry: AuditEntry): Promise<void> {
-  const id = newId();
-  const at = new Date().toISOString();
-  const date = at.slice(0, 10);
-  const body = new TextEncoder().encode(JSON.stringify({ id, at, ...entry }));
   try {
-    await putObject(dataBucket(), `audit/${date}/${id}.json`, body, "application/json");
+    await insertAuditRow({
+      id: newId(),
+      at: new Date().toISOString(),
+      actor: entry.actorMemberId,
+      action: entry.action,
+      target_tb: entry.targetTable,
+      target_id: entry.targetId,
+      detail: entry.detail ?? null,
+    });
   } catch (e) {
     // Withdrawal-lifecycle entries are destruction evidence: their loss must
     // fail the action itself. Everything else logs and moves on.

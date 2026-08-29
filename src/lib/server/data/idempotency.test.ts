@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("./s3", () => import("./s3-memory"));
+vi.mock("./store", () => import("./store-memory"));
 
-import { __reset } from "./s3-memory";
+import { __reset } from "./store-memory";
 import { _resetDataLayerForTests, getTable } from "./tables";
 import { ensureCreated } from "./idempotency";
 import { invalidateCache } from "$lib/server/cache";

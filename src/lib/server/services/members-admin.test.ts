@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("$lib/server/data/s3", () => import("$lib/server/data/s3-memory"));
+vi.mock("$lib/server/data/store", () => import("$lib/server/data/store-memory"));
 
-import { __keys, __reset } from "$lib/server/data/s3-memory";
+import { __auditRows, __reset } from "$lib/server/data/store-memory";
 import { _resetDataLayerForTests, getTable, mutate } from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { newId } from "$lib/server/core/id";
@@ -43,7 +43,7 @@ async function seedMember(over: Partial<Member> = {}): Promise<Member> {
   return m;
 }
 
-const auditKeyCount = () => __keys().filter((k) => k.startsWith("audit/")).length;
+const auditKeyCount = () => __auditRows().length;
 
 beforeEach(async () => {
   __reset();
