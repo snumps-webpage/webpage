@@ -87,6 +87,6 @@ mutate/mutateQueue 재시도 전체(409/412/404·부트스트랩·no-op 스킵) 
 - `?semester=` 대시보드 쿼리 (§4-5 — M7에서 대시보드 접촉 시)
 - 템플릿 메일 실패의 `mailFailed` 표면화 (공지·회장단 통지는 이미 구현)
 - 2단계 체크인 분기 (§5-4 — UI가 요구할 때)
-- Terraform state 버킷 결정 (운영자 — OPERATOR-TODO)
+- Terraform state 버킷 결정 (운영자 — OPERATOR-TODO) → **폐기 (2026-09-01 Supabase 전환으로 무의미)**
 
 검증: 테스트 132/132 (신규 17), tsc 0, lint 클린, 빌드 성공.

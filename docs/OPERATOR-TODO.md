@@ -3,88 +3,182 @@
 > **이 문서의 성격**: 코드가 아니라 **사람(운영자)이 직접 해야 하는 셋업·운영 작업**의 살아있는 목록.
 > 구현이 진행되며 새 작업이 생기면 여기에 추가되고, 완료하면 체크한다.
 > 각 작업은 "왜 필요한지 + 정확히 어떻게 하는지"를 함께 적는다.
+>
+> **2026-09-01 전면 재작성**: AWS → Supabase 전환([`SUPABASE-MIGRATION-SPEC.md`](./spec/SUPABASE-MIGRATION-SPEC.md)) 반영.
+> 기존 AWS 작업(계정 생성·Terraform·OIDC)은 [완료된 작업](#완료된-작업) 절에 **폐기**로 이관 기록.
 
 ## 상태 요약
 
 | # | 작업 | 상태 | 막고 있는 것 |
 |---|---|---|---|
-| 1 | AWS 계정 생성 | ⬜ 미완 | M3 이후 전부 (인프라 없이는 데이터 이주 불가) |
-| 2 | Terraform 설치·적용 | ⬜ 미완 (1 선행) | 〃 |
-| 3 | Vercel OIDC 활성화 | ⬜ 미완 (2 선행) | 런타임의 AWS 접근 |
-| 4 | `CRON_SECRET` 생성·등록 | ⬜ 미완 | 크론 동작 (현재 fail-closed로 501) |
-| 5 | Gmail 발신 계정 확인 | ⬜ 미완 | 전 회원 공지 메일 (M4) |
+| 1 | 공용 계정 준비 (콘솔 5종 공용화 + MFA + 자격증명 인벤토리) | ⬜ 미완 | 이하 전부 — 알림 수신·소유권의 전제 |
+| 2 | Supabase 프로젝트 2개 생성 (prod/dev) + SQL 실행 + sb_secret 키 발급 | ⬜ 미완 (1 선행) | 데이터 계층·자산·이주 전부 |
+| 3 | Vercel env 등록 | ⬜ 미완 (2 선행) | 런타임 동작 전부 |
+| 4 | cron-job.org 잡 3개 등록 + 알림 설정 | ⬜ 미완 (3 선행) | 만료 처리·회차 생성·keep-alive·주간 백업 |
+| 5 | Healthchecks.io 체크 생성 | ⬜ 미완 (1·3 선행) | 크론 침묵 감지 (dead-man's switch) |
+| 6 | 백업 repo (`snumps-backups`) + fine-grained PAT | ⬜ 미완 (1 선행) | off-platform 백업 (B2) |
+| 7 | 🔴 pause 런북 숙지 | 상시 | — (장애 시 대응 속도) |
+| 8 | 복구 절차 숙지 | 상시 | — |
+| 9 | 정기 수칙 (학기말·분기) | 🔁 반복 | — |
+| 10 | Gmail 발신 계정 확인 | ⬜ 미완 | 전 회원 공지 메일 (M4) |
 
 ---
 
-## 1. AWS 계정 생성
+## 1. 공용 계정 준비
 
-**왜**: 데이터 저장소(S3)·CDN(CloudFront)·감사 로그가 전부 AWS 위에 만들어진다.
+**왜**: Supabase의 쿼터 접근·pause 예고 메일, cron-job.org의 실패·자동 비활성 알림, Healthchecks의
+경보가 전부 **계정 소유 메일**로 온다. 개인 계정이면 그 사람이 졸업하는 순간 알림·소유권·복구 경로가
+같이 사라진다. 기존 문서의 규율 승계: **개인 계정 금지.**
 
-1. https://aws.amazon.com → 계정 생성. **동아리 공용 이메일**(예: snumps0@gmail.com) 사용 권장 — 개인 계정에 묶지 말 것.
-2. 결제 수단 등록 필요 (예상 비용 월 $1~3, 예산 알림 $10 — 자동 설정됨).
-3. 루트 계정에 **MFA 설정** (콘솔 → IAM → 루트 사용자 MFA). 루트는 이후 사용하지 않는다.
-4. **관리용 IAM 사용자 생성**: 콘솔 → IAM → Users → Create user
-   - 이름: `snumps-terraform` / "Provide user access to the AWS Management Console" 체크 해제
-   - 권한: `AdministratorAccess` 정책 연결 (Terraform 실행용 — 인프라 구축 후 축소 가능)
-   - 생성 후 **Security credentials 탭 → Create access key → CLI** 선택 → Access key ID / Secret 저장 (한 번만 표시됨)
+1. 다음 콘솔 전부를 **동아리 공용 이메일**(예: snumps0@gmail.com) 소유로 생성/이전하고 **MFA 활성화**:
+   - Supabase org
+   - cron-job.org
+   - Healthchecks.io
+   - GitHub org (`snumps-webpage`)
+   - Vercel
+2. MFA 복구 코드는 계정별로 발급 직후 안전한 공용 보관소(예: 회장단 인수인계 금고 문서)에 저장.
+3. **자격증명 인벤토리**를 아래 표 형식으로 유지 — 항목이 늘 때마다 갱신 (9절 정기 수칙):
 
-## 2. Terraform 설치·적용
+| 자격증명 | 보유자 | 보관 위치 | 복구 경로 |
+|---|---|---|---|
+| `SUPABASE_SECRET_KEY` (prod) | | | Supabase 콘솔에서 재발급 (구 키 폐기) |
+| `SUPABASE_SECRET_KEY` (dev) | | | 〃 |
+| `CRON_SECRET` | | | 재생성 → Vercel env + cron-job.org 잡 3개 동시 교체 |
+| `HEALTHCHECKS_PING_URL` | | | Healthchecks 콘솔에서 확인/재발급 |
+| `GITHUB_BACKUP_TOKEN` (fine-grained PAT — `snumps-backups` repo `contents:write` 한정) | | | GitHub 콘솔에서 재발급 |
+| Supabase org 로그인 | | | 공용 메일 비밀번호 재설정 + MFA 복구 코드 |
+| cron-job.org 로그인 | | | 〃 |
+| Healthchecks.io 로그인 | | | 〃 |
+| GitHub org 로그인 | | | 〃 |
+| Vercel 로그인 | | | 〃 |
 
-**왜**: 버킷·권한·CDN·예산 알림 8~10개 리소스를 콘솔 클릭이 아니라 코드(`infra/`)로 만든다.
-재현 가능하고, 리뷰 가능하고, 실수한 설정을 코드 수정으로 고칠 수 있다.
+## 2. Supabase 프로젝트 2개 생성 (prod / dev)
 
-```bash
-# ① 설치 (Arch Linux)
-sudo pacman -S terraform        # 또는 opentofu
+**왜**: 데이터(Postgres 문서 테이블)·자산(Storage)·감사 로그·백업이 전부 Supabase 위에 만들어진다.
+무료 플랜의 프로젝트 2개 한도를 **prod / dev 분리**에 쓴다 (S4 — 로컬 개발은 dev 프로젝트를 향한다).
 
-# ② 자격증명 — 1-4에서 만든 키를 환경변수로 (셸 히스토리 주의)
-export AWS_ACCESS_KEY_ID=<snumps-terraform 키>
-export AWS_SECRET_ACCESS_KEY=<시크릿>
-export AWS_REGION=ap-northeast-2
+1. https://supabase.com → 공용 계정으로 org 생성 → **프로젝트 2개** 생성: `snumps-prod`, `snumps-dev`.
+   - Region: **서울** — 선택지 이름은 **"Northeast Asia (Seoul)"** (AWS식 `ap-northeast-2` 표기는 목록에 없다).
+   - DB 비밀번호는 프로젝트별 생성 후 인벤토리(1절)에 기록.
+2. 각 프로젝트에서 **SQL Editor** 열기 → 레포의 `supabase/migrations/0001_documents.sql` 전문을
+   붙여 넣고 실행. (테이블 3종 + append-only 트리거 + Storage 버킷 + RLS를 SQL이 전부 만든다.)
+3. **Storage 버킷 3개 확인** — SQL이 생성하지만, 콘솔 → Storage에서 존재·공개성을 눈으로 확인:
+   `assets`(public) · `staging`(private) · `backups`(private).
+4. **API 키 발급**: 콘솔 → Project Settings → API Keys → **`sb_secret_...` 신 체계 secret key** 발급.
+   - ⚠️ **legacy JWT(`service_role`) 키가 아니다** — legacy 체계는 2026년 말 deprecate 예고 (스펙 §0).
+   - prod 키 → Vercel env 등록(3절). dev 키 → 로컬 `.env`에만 (Vercel에 넣지 않는다).
 
-# ③ 적용
-cd infra
-terraform init                  # 프로바이더 다운로드 (최초 1회)
-terraform plan                  # 만들어질 리소스 미리보기 — 여기서 멈추고 검토
-terraform apply                 # "yes" 입력 시 실제 생성. 수 분 소요 (CloudFront가 느림)
+## 3. Vercel env 등록
 
-# ④ 출력 확인
-terraform output assets_cdn_domain   # → ASSETS_CDN_URL 값으로 사용
-```
+**왜**: 런타임의 Supabase 접근·크론 인증·백업 push가 전부 env로 주입된다. **prod 값만 Vercel에**,
+dev 값은 로컬 `.env`로 (스펙 §6).
 
-- 상태 파일(`terraform.tfstate`)이 `infra/`에 생긴다. **커밋 금지**(.gitignore 처리됨), 분실 금지 —
-  이후 원격 상태(S3 backend)로 옮길 예정, 그 전까지 로컬 보관.
-- OIDC 미설정 상태로 처음 apply하면 **키 방식 폴백**(`snumps-runtime` IAM 유저)이 만들어진다.
-  이 유저의 액세스 키를 발급해 Vercel env에 넣으면 OIDC 전에도 동작한다. 3번 완료 후 재적용하면 역할로 전환됨.
+Vercel → `snumps` 프로젝트 → Settings → Environment Variables (Production):
 
-## 3. Vercel OIDC 활성화 (권장 인증 — 장기 비밀 없음)
+| env | 값 | 비고 |
+|---|---|---|
+| `SUPABASE_URL` | prod 프로젝트 URL | 콘솔 → Project Settings → API |
+| `SUPABASE_SECRET_KEY` | `sb_secret_...` (2절에서 발급) | 서버 전용 — 클라이언트 노출 금지 |
+| `SUPABASE_ASSETS_BUCKET` | `assets` | |
+| `SUPABASE_STAGING_BUCKET` | `staging` | |
+| `SUPABASE_BACKUPS_BUCKET` | `backups` | |
+| `HEALTHCHECKS_PING_URL` | 5절에서 발급 | |
+| `GITHUB_BACKUP_REPO` | `snumps-webpage/snumps-backups` | |
+| `GITHUB_BACKUP_TOKEN` | 6절에서 발급한 PAT | |
+| `DATA_BACKEND` | `supabase` | `memory`는 dev 오프라인 보조 플래그 |
+| `CRON_SECRET` | `openssl rand -base64 32`로 생성 | **유지** — cron-job.org 잡 헤더(4절)와 동일 값. Vercel cron은 이 env 존재 시 Bearer 자동 첨부 |
+| `ASSETS_CDN_URL` | `assets` 버킷 공개 URL 베이스 (값 교체) | 예: `https://<prod-ref>.supabase.co/storage/v1/object/public/assets` |
+| `PUBLIC_SITE_ORIGIN` / `REDIS_URL` | 기존 값 유지 | |
 
-**왜**: Vercel 함수가 AWS에 접근할 때 영구 액세스 키 대신 단기 토큰을 쓴다. 키 유출 위험 제거.
+- **제거**: `AWS_*` 5종 (남아 있으면 삭제).
+- dev 프로젝트의 `SUPABASE_URL`/`SUPABASE_SECRET_KEY`는 로컬 `.env`에만 등록 (`docs/SETUP.md` 로컬 개발 절 참조).
 
-1. Vercel 대시보드 → `snumps` 프로젝트 → Settings → **OpenID Connect** → Enable
-2. 표시되는 **Issuer URL**(예: `https://oidc.vercel.com/<team>`)과 **팀 slug** 기록
-3. `infra/`에서 변수 지정 후 재적용:
-   ```bash
-   terraform apply -var vercel_oidc_issuer="https://oidc.vercel.com/<team>" -var vercel_team_slug="<team>"
-   ```
-4. 출력된 역할 ARN을 Vercel env에 등록: `AWS_ROLE_ARN=arn:aws:iam::<계정>:role/snumps-runtime`
-5. 이제 `AWS_ACCESS_KEY_ID`/`SECRET`는 Vercel env에서 제거 가능
+## 4. cron-job.org 잡 3개 등록
 
-## 4. `CRON_SECRET` 생성·등록
+**왜**: Vercel Hobby는 크론이 일 1회뿐 — 주 스케줄러는 cron-job.org가 맡는다 (S1).
+잡 3개가 만료 처리·회차 생성·keep-alive(7일 무활동 pause 방지)·주간 백업을 전부 굴린다.
 
-**왜**: `/api/cron/sync-events`가 인증 없이 호출되는 걸 막는다. **현재 코드는 미설정 시 501을 반환**(fail-closed)하므로, 등록 전까지 크론이 동작하지 않는다.
+스펙 §5-1 표 그대로 등록:
 
-```bash
-openssl rand -base64 32          # 생성된 값을 아래 두 곳에 동일하게 등록
-```
+| # | 잡 이름 | 스케줄 (KST) | URL |
+|---|---|---|---|
+| 1 | sync-events | 매시 17분 | `GET https://snumps.vercel.app/api/cron/sync-events` |
+| 2 | health | 매일 09:00 | `GET https://snumps.vercel.app/api/health` |
+| 3 | maintenance | 매일 04:00 | `GET https://snumps.vercel.app/api/cron/maintenance` |
 
-1. **Vercel** → 프로젝트 Settings → Environment Variables → `CRON_SECRET` (Production)
-2. **GitHub** → `snumps-webpage/webpage` → Settings → Secrets and variables → Actions →
-   New repository secret → 이름 `CRON_SECRET`
+절차 (잡마다 반복):
 
-> GitHub Actions 스케줄(`.github/workflows/cron-sync-events.yml`)은 **main에 머지된 후에만** 돈다.
+1. cron-job.org → Create cronjob → URL 입력. ⚠️ **canonical URL `https://snumps.vercel.app`을 정확히** —
+   cron-job.org는 **302/308 리디렉션을 실패로 집계**한다. 다른 도메인 별칭·http·후행 슬래시 변형 금지.
+2. 타임존을 **Asia/Seoul**로 설정 후 스케줄 입력.
+3. **Advanced → Headers**: `Authorization` = `Bearer <CRON_SECRET>` (3절과 동일 값. URL 쿼리 전달 금지).
+4. **알림 설정**: ① 실행 실패 알림 on ② **연속 실패로 잡이 자동 비활성될 때의 알림 on** — 수신은 공용 메일.
+   (cron-job.org는 장기 연속 실패 시 잡을 꺼버릴 수 있다 — 알림 없이는 조용히 죽는다.)
+5. 저장 후 **수동 실행(Test run)으로 응답 200 직접 확인**. 401/501이면 `CRON_SECRET` 불일치/미설정.
 
-## 5. Gmail 발신 계정 확인
+## 5. Healthchecks.io
+
+**왜**: cron-job.org의 알림은 "실행했는데 실패"만 잡는다. **"아예 아무도 실행하지 않았음"**(스케줄러 전멸·
+배포 사고·프로젝트 pause — 모든 침묵 모드)은 dead-man's switch가 잡는다 (S1). 크론 핸들러가 성공할 때마다
+핑을 보내고, 핑이 끊기면 Healthchecks가 경보한다.
+
+1. https://healthchecks.io → 공용 계정 → **체크 1개** 생성 (이름 예: `snumps-cron`).
+2. **Grace time 48시간**으로 설정 — 이틀간 성공 핑이 없으면 경보.
+3. 알림 대상(Integrations)을 **공용 메일**로 설정.
+4. 체크의 **ping URL** 복사 → Vercel env `HEALTHCHECKS_PING_URL`로 등록 (3절 표).
+
+무료 플랜 20체크·카드 등록 불요.
+
+## 6. 백업 repo (`snumps-backups`)
+
+**왜**: Supabase 무료 플랜은 자동 백업이 없고, 프로젝트 단위 소멸(계정 사고·1년 경과 미복원)에 대비한
+**off-platform 사본**(B2)이 필요하다. 주간 덤프를 private GitHub repo로 push한다 (스펙 §7).
+
+1. GitHub org에 **private repo** `snumps-webpage/snumps-backups` 생성 (README만 있는 빈 repo면 충분).
+2. **fine-grained PAT 발급**: GitHub → Settings → Developer settings → Fine-grained tokens →
+   - Resource owner: `snumps-webpage` / Repository access: **`snumps-backups` 단일 repo만**
+   - Permissions: **Contents — Read and write** 만. 그 외 전부 No access.
+   - 만료일을 정했으면 갱신 예정일을 자격증명 인벤토리(1절)에 기록.
+3. 토큰 → Vercel env `GITHUB_BACKUP_TOKEN` (3절 표).
+
+## 7. 🔴 pause 런북 (스펙 §5-4)
+
+**왜**: Supabase 무료 프로젝트는 7일 무활동 시 일시정지된다. keep-alive 잡(4절 잡 3)이 막아주지만,
+잡이 전멸한 채 7일이 지나면 **DB·Storage·공개 자산 URL이 전부 다운**된다. 이때의 복구 순서:
+
+1. **증상**: 사이트·사진 전면 다운 (또는 Healthchecks "down" 경보).
+2. Supabase 대시보드 → 해당 프로젝트 → **Resume** (복원에 수 분 소요).
+3. **cron-job.org 잡 3개 재활성화** — pause 동안 연속 실패로 자동 비활성됐을 것이다. 잡별로 Enable 후 수동 실행 1회.
+4. Healthchecks 체크가 정상(up)으로 복귀했는지 확인.
+5. ⚠️ **복원 가능 기간은 pause 후 1년** — 그 이후는 프로젝트가 소멸하고 백업(8절)이 유일한 복구 수단이다.
+
+## 8. 복구 절차 (스펙 §7)
+
+**왜**: 오염된 쓰기 롤백(B1)·프로젝트 소멸(B2)·자산 오삭제(B3)의 세 실패 모드에 각각 대응 경로가 있다.
+
+- **B1/B2 — 테이블 복원**: `backups` 버킷의 주간 JSON 덤프(B1) 또는 `snumps-backups` repo 사본(B2)에서
+  복원할 시점의 덤프를 내려받아, **`app_tables`(및 `audit_log`)를 수동 upsert** — Supabase SQL Editor에서
+  덤프 JSON을 값으로 한 upsert 문 실행. (전용 복구 스크립트는 추후 제공 — 그 전까지는 이 수동 절차가 공식 경로.)
+  주의: 무료 플랜 직결 `pg_dump`/`psql` 복원은 IPv6-only 함정 — **앱 경유 JSON 방식으로 통일** (스펙 §7).
+- **B3 — 자산 개별 복원**: `backups/assets-mirror/`에 승격 시점 사본이 1부씩 있다. 오삭제된 파일을
+  콘솔에서 내려받아 `assets` 버킷의 원래 경로로 재업로드.
+- 복원 후: 사이트 표시 확인 + 잡 3개 정상 실행 확인.
+
+## 9. 정기 수칙
+
+**왜**: 무료 플랜의 상한(Storage 1GB, DB 500MB)과 계정 위생은 자동으로 관리되지 않는다 — 학기 단위 점검이 방어선.
+
+**학기말마다**:
+
+1. **Storage 사용량 점검** (스펙 §4-4 산수): 상한 1GB — 세미나 PDF 50MB × 20개면 소진된다.
+   콘솔 → Storage 사용량 확인, **80% 도달 시 PDF 상한 하향 또는 오래된 자산 정리**. 실측치를 기록.
+2. **콘솔 로그인 점검** (계정 위생): Supabase 두 프로젝트(prod·dev)를 포함한 콘솔 5종에 공용 계정으로
+   로그인해 접근 가능 여부·경고 메일 유무 확인 — 접근 상실을 조기에 발견한다.
+3. **자격증명 인벤토리 갱신** (1절 표): 보유자·보관 위치·PAT 만료일 최신화.
+
+**분기마다**: 자산 전량 로컬 아카이브 갱신 (B4 — 프로젝트 소멸 대비 최후 사본).
+
+## 10. Gmail 발신 계정 확인
 
 **왜**: 전 회원 공지(M4)는 하루 수신자 한도가 관건 — 소비자 gmail.com은 **일 500명**(공지 2회로 소진),
 Google Workspace는 일 2,000명.
@@ -96,10 +190,13 @@ Google Workspace는 일 2,000명.
 
 ## 완료된 작업
 
-(없음)
+- ~~AWS 계정 생성~~ · ~~Terraform 설치·적용~~ · ~~Vercel OIDC 활성화~~ — **폐기 (2026-09-01 Supabase 전환)**.
+  AWS 리소스는 만들지 않는다 (이미 만들었다면 해지·정리). 절차 이력은 git 이력의 이전 판 참조.
+- ~~`CRON_SECRET` GitHub Actions Secret 등록~~ — **폐기** (`cron-sync-events.yml` 삭제).
+  `CRON_SECRET` 자체는 유지 — 생성·등록은 3절(Vercel env)·4절(cron-job.org 헤더)로 이관.
 
 ## 이후 추가될 작업 (예고)
 
-- **M3 데이터 이주 직전**: 프로덕션 Vercel env 사본 전달 (`NOTION_DB_EVENTS`·`NOTION_DB_ATTENDANCE_QUEUE` 실측용), Notion 원본 백업 실행 입회
+- **M3 데이터 이주 직전**: 프로덕션 Vercel env 사본 전달 (`NOTION_DB_EVENTS`·`NOTION_DB_ATTENDANCE_QUEUE` 실측용), Notion 원본 백업 실행 입회. 이주 스크립트 실행자에게 prod `sb_secret` 키 한정 전달 → **이주 완료 후 키 회전** (스펙 §8 M-1)
 - **M3**: 정합성 이상 데이터 처리 결정 (주인 없는 개인정보 5건 등 — 동아리 확인 필요)
 - **M8 컷오버**: Notion 읽기 전용 전환 시점 결정, `robots.txt` 개방 승인

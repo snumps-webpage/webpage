@@ -23,6 +23,9 @@
 
 ### BE-02 Terraform (`infra/`)
 
+> **⛔ 폐기 — [`SUPABASE-MIGRATION-SPEC.md`](./SUPABASE-MIGRATION-SPEC.md)로 대체 (2026-09-01).**
+> AWS 인프라 전체가 관리형 Supabase(SQL 마이그레이션 1개)로 교체되어 이 절의 리소스는 더 이상 만들지 않는다. 이하 본문은 이력 보존용.
+
 ```
 infra/
 ├── main.tf          # provider, backend(s3 state)
@@ -61,6 +64,9 @@ infra/
 위 표 밖의 Delete·정책 변경 권한은 일절 부여하지 않는다.
 
 ### BE-03 SDK·환경변수
+
+> **⛔ 폐기 — [`SUPABASE-MIGRATION-SPEC.md`](./SUPABASE-MIGRATION-SPEC.md)로 대체 (2026-09-01).**
+> AWS SDK·OIDC 연결은 `@supabase/supabase-js` + `sb_secret` 키(동 스펙 §6 env 표)로 교체. 이하 본문은 이력 보존용.
 
 의존성: `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`, `@vercel/functions`(OIDC — `awsCredentialsProvider`).
 🔴 **`@sveltejs/adapter-vercel` ≥ 6.3.2로 잠금** — 이전 버전에 ISR 캐시 기만 취약점(SvelteSpill).
@@ -119,6 +125,9 @@ export function termRange(term: string): { start: Date; end: Date };
 ---
 
 ## Phase 1 — S3 데이터 계층
+
+> **⚠️ 2026-09-01 개정**: 이 Phase의 `s3.ts`·ETag/If-Match 계층은 `data/store.ts`(Postgres 문서 행 + version CAS)로 대체 —
+> [`SUPABASE-MIGRATION-SPEC.md`](./SUPABASE-MIGRATION-SPEC.md) §2. 계약 시그니처(`getTable`/`mutate`)·알고리즘(재시도·봉투 검증)은 불변, S3 구현 디테일은 이력 보존용.
 
 ### 파일 배치
 
@@ -445,6 +454,9 @@ export function invalidateAttendanceCaches(activityDate: DateRange, memberIds: s
 `expiryOf(e) < now` 계산을 쓴다 — `EventRepository`가 `effectiveStatus(e)`를 제공하고 가드·액션은 그것만 참조.
 크론의 expire는 표시용 상태 정리다.
 
+> **⚠️ 2026-09-01 개정**: 스케줄러는 **cron-job.org(주) + Vercel 일 1회(최후 심장) + Healthchecks.io dead-man's switch** —
+> [`SUPABASE-MIGRATION-SPEC.md`](./SUPABASE-MIGRATION-SPEC.md) §5. 아래 표(GitHub Actions 구성)는 이력 보존용.
+
 **크론 스케줄러 — 확정 (2026-08-28)**: **GitHub Actions 시간당(주) + Vercel 일 1회(백업)** 이중 구성.
 
 | 스케줄러 | 설정 | 역할 |
@@ -554,6 +566,10 @@ export async function createStudySession(study: Study, date: string,
 
 ### BE-52 업로드
 
+> **⚠️ 2026-09-01 개정**: presigned PUT → Supabase signed upload URL(만료 2시간 고정, Content-Type 미서명),
+> `HeadObject` → `info()`, CopyObject+Delete → 크로스 버킷 `move()`(staging→assets) — [`SUPABASE-MIGRATION-SPEC.md`](./SUPABASE-MIGRATION-SPEC.md) §4.
+> "승격 검증이 유일 강제 지점" 원칙은 불변. 이하 S3 디테일은 이력 보존용.
+
 ```ts
 // /api/uploads/presign/+server.ts
 const PURPOSES = {
@@ -639,13 +655,13 @@ scripts/migration/          # tsx로 로컬 실행, snumps-migration 역할 사�
 | `src/routes/(public)/public-loads.test.ts` | BE-64 스냅샷 |
 | `src/lib/server/core/semester.test.ts` | 경계: 2/28, 3/1, 8/31, 9/1, 연말연시 |
 
-전부 S3 목 위에서 실행 — 실 AWS 불요. 통합(실 버킷) 검증은 이주 리허설(30-verify)로 갈음.
+전부 store/storage 인메모리 목 위에서 실행 — 실 Supabase 불요. 통합(실 프로젝트) 검증은 이주 리허설(30-verify)로 갈음.
 
 ---
 
 ## 부록 — 구현 중 금지 사항 (리뷰 체크리스트)
 
-1. `data/s3.ts` 밖에서 AWS SDK 직접 호출
+1. `data/supabase.ts`·`store.ts`·`storage.ts` 밖에서 supabase-js 직접 호출
 2. `mutate` 밖에서 테이블 객체 PUT
 3. 공개 로드에서 원시 row 반환 (pick 파생 타입 강제)
 4. 경로 문자열 `startsWith` 가드 판정

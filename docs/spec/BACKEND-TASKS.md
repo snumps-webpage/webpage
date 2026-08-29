@@ -3,6 +3,9 @@
 > 기반: [`FUNCTIONAL-SPEC.md`](./FUNCTIONAL-SPEC.md) v0.8 / [`API-SPEC.md`](./API-SPEC.md) v0.4.
 > 구현 브랜치는 `docs/feature-api-spec`에서 분기.
 > 표기: **[선행]** = 착수 전 필수 의존. 괄호의 §는 API-SPEC 절 참조.
+>
+> **⚠️ 2026-09-01**: 저장 계층은 S3 → Supabase로 전환([`SUPABASE-MIGRATION-SPEC.md`](./SUPABASE-MIGRATION-SPEC.md)).
+> Phase 1·3 등의 S3 표현(If-Match·gzip·건당 객체 등)은 당시 구현 이력 — 현행 계약은 API-SPEC v0.7 §1-3·§1-5를 따른다.
 
 ## 진행 원칙
 
@@ -18,8 +21,8 @@
 | ID | 작업 | 내용 | 선행 |
 |---|---|---|---|
 | BE-01 | 테스트 스크립트 정비 | `package.json`에 `test: vitest run` 추가, CI 기본 체계 | — |
-| BE-02 | AWS 인프라 (Terraform `infra/`) | 버킷 2개(assets 공개/data 비공개), CloudFront+OAC, IAM 역할 2개(runtime/migration), 수명주기 규칙(비현재 버전 90일·미완료 멀티파트 7일·미등록 업로드 7일), SSE-KMS(비공개), CloudTrail 데이터 이벤트, Budgets | — |
-| BE-03 | AWS SDK·인증 연결 | `@aws-sdk/client-s3` + presigner, Vercel↔AWS OIDC (권장) 또는 키. env 정리. **`adapter-vercel` ≥6.3.2 잠금 확인** (ISR 캐시 기만 취약점) | BE-02 |
+| BE-02 | AWS 인프라 (Terraform `infra/`) **→ 폐기 (Supabase 전환, 2026-09-01 — SUPABASE-MIGRATION-SPEC)** | 버킷 2개(assets 공개/data 비공개), CloudFront+OAC, IAM 역할 2개(runtime/migration), 수명주기 규칙(비현재 버전 90일·미완료 멀티파트 7일·미등록 업로드 7일), SSE-KMS(비공개), CloudTrail 데이터 이벤트, Budgets | — |
+| BE-03 | AWS SDK·인증 연결 **→ 폐기 (Supabase 전환 — supabase-js + `sb_secret` 키로 대체)** | `@aws-sdk/client-s3` + presigner, Vercel↔AWS OIDC (권장) 또는 키. env 정리. **`adapter-vercel` ≥6.3.2 잠금 확인** (ISR 캐시 기만 취약점) | BE-02 |
 | BE-04 | `CRON_SECRET` 설정 + fail-closed | §8-1. 미설정 시 501 | — |
 | BE-05 | 공통 모듈 | 에러 코드 상수(§1-2), id 유틸(ULID/UUIDv7), **학기 파생 유틸 단일 정의**(§2), 전화번호 정규화 재사용 확인 | — |
 
@@ -114,7 +117,7 @@
 | ID | 작업 | 내용 | 선행 |
 |---|---|---|---|
 | MIG-0 | 선행 조치 | 프로덕션 env 확보(EVENTS/QUEUE 실측), 전 DB 원본 덤프 백업, 개인정보 누수 선차단(`getLatestExecutives` 레이아웃 제거), 정합성 이상 정리(고아 PII 11건 등) | — |
-| MIG-1 | 자산 이주 | 90개 열거(토글 재귀)·다운로드·정규화·업로드·파생본·`assets-manifest.json` | BE-02 |
+| MIG-1 | 자산 이주 | 90개 열거(토글 재귀)·다운로드·정규화·업로드·파생본·`assets-manifest.json` | Supabase 프로젝트 생성(OPERATOR) |
 | MIG-2 | 레코드 익스포터 | Notion → `tables/*.json` — §9 변환 규칙 전부 (status 전원 associate, `Seminar`→`세미나`, roles 파싱, id-map, applications 미이주, file→s3Key) | BE-10, MIG-0, MIG-1 |
 | MIG-3 | 정합 검증 | 행 수·relation dangling 0·자산 90·sha256 (API-SPEC §10 + db-to-s3 §7) | MIG-2 |
 | MIG-4 | 전환 | Notion 읽기 전용화 → 최종 델타 → 공개 해제·아카이브. **편집 UI(BE-53~54) 완성이 전제** | 전체 |
@@ -134,9 +137,9 @@
 ## 권장 마일스톤 (커밋·PR 단위)
 
 ```
-M1  Phase 0 + 1          "S3 데이터 계층"          — BE-15 통과가 게이트
+M1  Phase 0 + 1          "데이터 계층"             — BE-15 통과가 게이트
 M2  Phase 2              "가드 재설계"             — BE-24 통과가 게이트
-M3  MIG-0~3 + Phase 3    "저장소 전환(코드)"        — 코드가 S3 경로로 전환, 스냅샷 데이터로 검증.
+M3  MIG-0~3 + Phase 3    "저장소 전환(코드)"        — 코드가 신 저장소 경로로 전환, 스냅샷 데이터로 검증.
                                                     프로덕션 컷오버는 아직 아님 (아래 M8)
 M4  Phase 4a+4b          "회원·세미나 신기능"
 M5  Phase 4c             "스터디"

@@ -1,9 +1,11 @@
-# SNUMPS 웹페이지 — API 명세 (v0.6)
+# SNUMPS 웹페이지 — API 명세 (v0.7)
 
 > **전제**: [`FUNCTIONAL-SPEC.md`](./FUNCTIONAL-SPEC.md) v0.9.
-> 데이터 저장소는 **AWS S3** (D0). 모든 기능 ID(PUB-xx, MEM-xx …)는 기능 명세를 참조한다.
+> 데이터 저장소는 **Supabase** (Postgres 문서 행 + Storage — [`SUPABASE-MIGRATION-SPEC.md`](./SUPABASE-MIGRATION-SPEC.md)). 모든 기능 ID(PUB-xx, MEM-xx …)는 기능 명세를 참조한다.
 >
 > **v0.2**: 완전성·일관성 검토(2026-08-25, 검토 결과는 [`SPEC-REVIEW.md`](./SPEC-REVIEW.md)) 반영 전면 개정.
+>
+> **v0.7**: 저장 형식을 S3 객체에서 Supabase 문서 행으로 개정 — 계약 시그니처는 불변 (2026-09-01, §1-3·§1-5·§8-1·§8-2).
 >
 > **형식**: 이 앱은 SvelteKit이다. API는 세 층으로 구성된다.
 > 1. **페이지 로드** (`+page.server.ts load`) — 화면 데이터 공급. SSR/prerender/ISR
@@ -44,11 +46,13 @@
 | `NOT_FOUND` | 대상 레코드 없음 / dangling 참조 |
 | `FORBIDDEN` | 권한 없음 |
 | `CONFLICT` | 상태 충돌 (이미 처리됨, 중복 제안 등) |
-| `WRITE_CONFLICT` | S3 조건부 쓰기 재시도 소진 |
+| `WRITE_CONFLICT` | 조건부 쓰기(version CAS) 재시도 소진 |
 | `EVENT_NOT_OPEN` | 이벤트가 신청·출석 가능 상태 아님 (draft/expired/cancelled/시작 후 신청) |
 | `STUDY_NOT_RECRUITING` | 모집 중이 아닌 스터디에 참여 신청 |
 
-### 1-3. S3 데이터 계층 계약 (SYS-01)
+### 1-3. 데이터 계층 계약 (SYS-01)
+
+> **v0.7: 저장 형식을 S3 객체에서 Supabase 문서 행으로 개정 — 계약 시그니처는 불변.**
 
 ```ts
 getTable<T>(name: TableName): Promise<T[]>
@@ -56,11 +60,12 @@ mutate<T>(name: TableName, fn: (rows: T[]) => T[]): Promise<T[]>
 ```
 
 - 저장 형식: **`{ "schemaVersion": 1, "rows": [...] }` 봉투** — 필드 형상 변경 시 리더가 버전 분기
-- 테이블당 객체 1개 (`tables/<name>.json.gz`), gzip, 버킷 버전 관리
-- `mutate`: GET(ETag) → fn → PUT If-Match, 조건 실패 시 재읽기 재시도(지수 백오프) → `WRITE_CONFLICT`.
-  **재시도 대상은 412뿐 아니라 409(ConditionalRequestConflict)·If-Match 중 404도 포함.**
-  재시도 상한: 일반 테이블 5회, **출석 큐 10회** (동시 체크인 버스트 대상)
-- **예외 — 출석 큐는 이벤트당 객체 분할**: `attendance-queue/<eventId>.json`.
+- 저장: Supabase Postgres `app_tables`/`app_queues` — 테이블당 행 1개, `doc` JSONB에 봉투 그대로(gzip 없음)
+  + `version` bigint (CAS 열). 버킷 버전 관리의 롤백 역할은 백업 계층(SUPABASE-MIGRATION-SPEC §7)이 대체
+- `mutate`: 읽기(version) → fn → 조건부 쓰기(`WHERE version = expected`), 조건 실패 시 재읽기 재시도(지수 백오프)
+  → `WRITE_CONFLICT`. **재시도 의미 동일** — 구 412/409/404 구분은 "조건부 쓰기 실패" 1종으로 수렴
+  (재시도 동작에 무영향). 재시도 상한: 일반 테이블 5회, **출석 큐 10회** (동시 체크인 버스트 대상)
+- **예외 — 출석 큐는 이벤트당 행 분할**: `app_queues`의 `event_id`당 행 1개.
   세미나 시작 직후 N명 동시 체크인이 유일한 실동시성 쓰기 부하이므로 경합 범위를 이벤트 단위로 축소
 - 다중 테이블 쓰기는 원자적이지 않다 → 부수효과 큰 쓰기를 마지막에, 각 단계 멱등 (§1-6)
 - 레코드 id: **시간순 정렬 가능한 128비트 id (ULID 또는 UUIDv7)**. Notion uuid는 이주 시 1회 매핑 후 폐기
@@ -82,7 +87,8 @@ mutate<T>(name: TableName, fn: (rows: T[]) => T[]): Promise<T[]>
 
 `getTable/mutate` 계약 **밖의** 전용 채널. 테이블 JSON에 넣지 않는다 (append 경합·PII 혼입 방지).
 
-- 저장: 비공개 버킷 `audit/<yyyy-mm-dd>/<id>.json` — **건당 객체 1개** (S3는 append 불가, 객체 생성 = append-only)
+- 저장: Postgres `audit_log` **행** (건당 INSERT) — **UPDATE/DELETE 차단 트리거로 append-only 강제**
+  (구 "건당 객체 1개" 의미론의 등가물 — v0.7 개정)
 - 스키마: `{ id, at, actorMemberId, action, targetTable, targetId, detail? }`
 - 기록 대상 (전부 관리자 액션):
   - `private-info` **관리자 열람** (§7-3 GET) 및 `?/updatePrivateInfo`
@@ -91,7 +97,7 @@ mutate<T>(name: TableName, fn: (rows: T[]) => T[]): Promise<T[]>
   - 탈퇴 수명주기: `?/requestWithdrawal`·`?/cancelWithdrawal`(본인 행위지만 파기 트리거), `?/holdWithdrawal`·`?/releaseWithdrawalHold`, 크론 자동 익명화
 - **비대상**: 본인이 본인 개인정보를 읽고 고치는 경로(§4), 세션 훅의 회원 매칭 조회 —
   매 요청 발생하는 조회는 감사 대상에서 명시적으로 제외
-- 열람: 별도 UI 없음(1차). S3 콘솔/CLI로 조회. 필요 시 `/admin/audit` 추후 신설
+- 열람: 별도 UI 없음(1차). SQL로 조회 (Supabase SQL Editor). 필요 시 `/admin/audit` 추후 신설
 
 ### 1-6. 승인 흐름 멱등성 규약
 
@@ -105,7 +111,7 @@ mutate<T>(name: TableName, fn: (rows: T[]) => T[]): Promise<T[]>
 
 ---
 
-## 2. 데이터 모델 (S3 테이블)
+## 2. 데이터 모델 (문서 테이블)
 
 파일 자산은 `s3Key` 문자열 참조. 날짜: `date`(날짜만, `YYYY-MM-DD`)와 `datetime`(ISO 8601, KST 기준 저장)을 필드별로 구분 명시.
 
@@ -293,14 +299,14 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
 | 로드 | 기능 | 데이터 | 렌더 |
 |---|---|---|---|
 | `GET /` (게스트 분기) | PUB-01 | 정적 소개문 + 현 임원 (`members.roles` 최신 term + `publicContact`) | **세션 없는 분기만 ISR(60s).** 세션 있으면 §4-5 대시보드로 분기 — 회원 응답은 캐시 금지 |
-| `GET /about` 계열 (`charter`, `charter/history/[period]`, `elections`, `press`, `finance`) | PUB-02~04·06~08 | 레포 마크다운 + S3 자산 | prerender |
+| `GET /about` 계열 (`charter`, `charter/history/[period]`, `elections`, `press`, `finance`) | PUB-02~04·06~08 | 레포 마크다운 + Storage 자산 | prerender |
 | `GET /about/executives` | PUB-05 | `roles` 파생 역대 직책 (임기 내림차순) + `publicContact` | ISR(60s) |
 | `GET /archive/seminars`, `/[id]` | PUB-09 | `seminars` 학기 그룹 / 단건 + 자료·사진 CDN URL | ISR(60s) |
 | `GET /archive/studies` | PUB-10 | `studies` 공개 필드만 (운영 필드 제외) | ISR(60s) |
 | `GET /archive/activities` | PUB-11 | `activities` — attendeeIds 제외 | ISR(60s) |
 | `GET /archive/gallery` | PUB-12 | 3테이블 photos, thumb 파생본 | ISR(60s) |
 | `GET /archive/projects` | PUB-13 | `members` 중 `project != null` — 이름·학과·project 내용 | ISR(60s) |
-| `GET /archive/misc` 계열, `/archive/problems`, `/archive/discussions` | PUB-14 | 마크다운 + S3 PDF | prerender |
+| `GET /archive/misc` 계열, `/archive/problems`, `/archive/discussions` | PUB-14 | 마크다운 + Storage PDF | prerender |
 | `GET /members` | PUB-15 | name·department·joinedAt·roles (D2 범위). **`status: withdrawn` 제외** | ISR(60s) |
 
 `sitemap.xml`·`robots.txt` 정적 (PUB-16).
@@ -569,8 +575,9 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
 ### 8-1. `GET /api/cron/sync-events` — ADM-06, STU-06 자동 생성
 
 - 인증: `Bearer <CRON_SECRET>`. **미설정 시 501 (fail-closed)**
+- 호출 주체: **cron-job.org 매시(주 스케줄러) + Vercel cron 일 1회(최후 심장)** — SUPABASE-MIGRATION-SPEC §5
 - **만료는 lazy 판정이 1차 방어**: 신청·출석 검증(§5-3·5-4)은 저장된 `status`가 아니라
-  읽기 시점의 `expiryOf(event)` 계산으로 판정한다 — 크론 지연(호스팅 플랜에 따라 최대 1일)이
+  읽기 시점의 `expiryOf(event)` 계산으로 판정한다 — 크론 지연(최후 심장 단독 생존 시 최대 1일)이
   출석 링크를 살려두지 않도록. 크론의 expire는 상태 정리(표시용)다
 - 처리:
   1. 만료: §2 만료 판정 규칙에 따라 active → expired
@@ -584,10 +591,11 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
 
 - `POST /api/uploads/presign` — 가드 `ensureAdmin`
 - 입력: `{ purpose, filename, contentType, size }`. purpose별 타입·크기 상한 (이미지 10MB, PDF 50MB)
-- 응답: `{ uploadUrl, s3Key }` (presigned PUT 10분, Content-Type 서명 포함, 키에 해시 포함)
-- **크기 상한 강제는 등록(승격) 시점** — presigned PUT은 크기를 서버측 강제할 수 없다
-  (`content-length-range`는 POST policy 전용). 등록 액션이 `HeadObject`로 실측 크기·타입을 검증하고
-  초과 시 승격 거부 (pending 객체는 수명주기 7일 정리에 맡김)
+- 응답: `{ uploadUrl, s3Key }` (Supabase signed upload URL — **만료 2시간 고정**(단축 불가), 키에 해시 포함.
+  **Content-Type 미서명** — v0.7 개정)
+- **크기·타입 강제는 등록(승격) 시점이 유일 강제 지점** — signed upload URL은 크기·Content-Type을
+  서명으로 강제하지 않는다. 등록 액션이 `info()`(실측 size·mimetype)로 검증하고
+  초과 시 승격 거부 (staging의 pending 객체는 7일 정리 잡에 맡김)
 - 등록은 편집 액션(`?/addFile` 등) 경유. 이미지 purpose는 등록 시 파생본 생성. 미등록 키 7일 후 정리
 
 ### 8-3. 관리자 폴링 — `GET /api/admin/{applications, seminar-requests, study-requests}`. 전부 `ensureAdmin`
