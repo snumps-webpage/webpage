@@ -51,6 +51,12 @@ const zoneGuard: Handle = async ({ event, resolve }) => {
   // Unmatched URL — let SvelteKit render its 404, never a 500.
   if (routeId === null) return resolve(event);
 
+  // 프리렌더 크롤 중에는 가드를 끈다: 빌드엔 세션이 없으므로 여기서 던진
+  // 게스트용 303이 정적 라우트로 구워져, 배포 후 로그인 사용자까지 무조건
+  // 튕겨낸다 (실사고: /signup → /login 정적 리디렉션). 세션 의존 존은
+  // prerender=false라 크롤러가 렌더 자체를 건너뛴다 — 가드 부재가 아니다.
+  if (building) return resolve(event);
+
   const zone = zoneOf(routeId);
 
   // Public fast path: no session work for ANONYMOUS visitors (prerender/ISR
@@ -86,20 +92,6 @@ const zoneGuard: Handle = async ({ event, resolve }) => {
     hasApplication: application,
     pathname: event.url.pathname,
   });
-
-  // TODO(S9-diag): /signup 리디렉션 진단 — 판정 사유를 쿼리로 노출 (주소창에서
-  // 확인 가능). 원인 확정 후 제거. 값에 개인 정보 없음.
-  if (zone === "(applicant)" && decision.type === "redirect") {
-    const reason = !hasSession
-      ? "nosession"
-      : member?.status === "withdrawn"
-        ? "withdrawn"
-        : member?.registered
-          ? "registered"
-          : "other";
-    const sep = decision.location.includes("?") ? "&" : "?";
-    decision.location = `${decision.location}${sep}guard=${reason}`;
-  }
 
   switch (decision.type) {
     case "allow": {
