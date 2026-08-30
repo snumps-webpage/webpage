@@ -38,25 +38,13 @@ export function zoneOf(routeId: string): Zone | null {
 }
 
 /**
- * Public pages that show an admin-only operational note (SourcePendingNotice):
- * the hook must resolve the member here so isAdmin reaches the layout data.
+ * Routes the hook must resolve the member for, even inside the public zone.
+ * (Logged-in users are additionally resolved on EVERY public page via the
+ * session-cookie check in hooks.server.ts, so admin-only notes work there.)
  */
-const PUBLIC_WITH_ADMIN_NOTE = new Set([
-  "/(public)/about/charter",
-  "/(public)/about/charter/history/[period]",
-  "/(public)/about/elections",
-  "/(public)/about/finance",
-  "/(public)/about/press",
-  "/(public)/archive/problems",
-  "/(public)/archive/discussions",
-  "/(public)/archive/misc/integration-bee",
-]);
-
-/** Routes the hook must resolve the member for, even inside the public zone. */
 export function needsMemberResolution(routeId: string): boolean {
   const zone = zoneOf(routeId);
   if (zone === "(applicant)" || zone === "(member)" || zone === "(admin)") return true;
-  if (PUBLIC_WITH_ADMIN_NOTE.has(routeId)) return true;
   return routeId === ROOT_PAGE_ID; // hybrid landing/dashboard
 }
 

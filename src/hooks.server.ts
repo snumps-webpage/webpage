@@ -44,9 +44,16 @@ const zoneGuard: Handle = async ({ event, resolve }) => {
 
   const zone = zoneOf(routeId);
 
-  // Public fast path: no session work at all (prerender/ISR safety), except
-  // the hybrid landing page which branches on membership.
-  if ((zone === "(public)" && !needsMemberResolution(routeId)) || zone === "api") {
+  // Public fast path: no session work for ANONYMOUS visitors (prerender/ISR
+  // safety). A session cookie means a logged-in user is browsing the public
+  // zone — resolve them anyway, or the global nav treats them as a guest.
+  const hasSessionCookie =
+    event.cookies.get("__Secure-authjs.session-token") !== undefined ||
+    event.cookies.get("authjs.session-token") !== undefined;
+  if (
+    zone === "api" ||
+    (zone === "(public)" && !needsMemberResolution(routeId) && !hasSessionCookie)
+  ) {
     return resolve(event);
   }
 
