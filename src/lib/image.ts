@@ -14,3 +14,14 @@ export function thumbUrl(src: string, width: 480 | 640 | 960 | 1280 = 640, quali
   if (dev || !src.startsWith("http")) return src;
   return `/_vercel/image?url=${encodeURIComponent(src)}&w=${width}&q=${quality}`;
 }
+
+/**
+ * 반응형 srcset — 브라우저가 그리드 칸 실측 폭에 맞는 변환본만 받게 한다.
+ * dev(최적화 엔드포인트 없음)에서는 undefined → src 단독 사용.
+ */
+export function thumbSrcset(src: string, quality = 72): string | undefined {
+  if (dev || !src.startsWith("http")) return undefined;
+  return ([480, 640, 960] as const)
+    .map((w) => `${thumbUrl(src, w, quality)} ${w}w`)
+    .join(", ");
+}

@@ -3,6 +3,7 @@
   import PublicDirectoryNav from "$lib/components/public/PublicDirectoryNav.svelte";
   import { MANUSCRIPT } from "$lib/constants";
   import { formatArchiveTerm } from "$lib/domain/public-content";
+  import { thumbSrcset, thumbUrl } from "$lib/image";
   import { ARCHIVE_NAV } from "$lib/public-navigation";
 
   let { data } = $props();
@@ -66,6 +67,25 @@
         <p class="empty">등록된 공개 자료가 없습니다.</p>
       {/if}
     </section>
+    {#if seminar.photos.length}
+      <section class="record-section">
+        <h2>3. 활동 사진</h2>
+        <div class="photo-grid">
+          {#each seminar.photos as photo, i (photo)}
+            <a href={photo} target="_blank" rel="noopener noreferrer">
+              <img
+                src={thumbUrl(photo, 960)}
+                srcset={thumbSrcset(photo)}
+                sizes="(max-width: 680px) 100vw, 50vw"
+                alt={`${seminar.title} 활동 사진 ${i + 1}`}
+                loading="lazy"
+                decoding="async"
+              />
+            </a>
+          {/each}
+        </div>
+      </section>
+    {/if}
     <a class="paper-btn" href="/archive/seminars">← 세미나 목록</a>
   {:else}
     <p class="empty">데이터 이관 후 기록이 표시됩니다.</p>
@@ -87,6 +107,9 @@
   .file-list li:last-child { border-bottom: 0; }
   .file-list a { color: var(--latex-text); }
   .file-list span { color: var(--latex-muted); font-family: var(--font-mono); font-size: 0.58rem; text-transform: uppercase; }
+  .photo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
+  .photo-grid img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border: 1px solid var(--latex-rule); }
+  @media (max-width: 680px) { .photo-grid { grid-template-columns: 1fr; } }
   @media (max-width: 680px) {
     .metadata-grid { grid-template-columns: 1fr; }
     .metadata-grid > div, .metadata-grid > div:nth-last-child(-n + 2) { border-bottom: 1px solid var(--latex-rule); }

@@ -2,6 +2,7 @@
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import PublicDirectoryNav from "$lib/components/public/PublicDirectoryNav.svelte";
   import { MANUSCRIPT } from "$lib/constants";
+  import { thumbSrcset } from "$lib/image";
   import { ARCHIVE_NAV } from "$lib/public-navigation";
   let { data } = $props();
 
@@ -25,7 +26,14 @@
       {#each data.archive.gallery as item (item.id)}
         <figure>
           {#if item.thumbnailUrl && item.displayUrl}
-            <a href={item.displayUrl} target="_blank" rel="noopener noreferrer"><img src={item.thumbnailUrl} alt={item.alt} loading="lazy" decoding="async" /></a>
+            <a href={item.displayUrl} target="_blank" rel="noopener noreferrer"><img
+              src={item.thumbnailUrl}
+              srcset={thumbSrcset(item.displayUrl)}
+              sizes="(max-width: 460px) 100vw, (max-width: 720px) 50vw, 33vw"
+              alt={item.alt}
+              loading="lazy"
+              decoding="async"
+            /></a>
           {:else}
             <div class="image-pending" role="img" aria-label={`${item.alt} — 이미지 원본 연결 대기`}><span aria-hidden="true">▧</span><small>IMAGE SOURCE PENDING</small></div>
           {/if}
