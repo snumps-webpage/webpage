@@ -87,6 +87,17 @@ const zoneGuard: Handle = async ({ event, resolve }) => {
     pathname: event.url.pathname,
   });
 
+  // TODO(S9-diag): /signup 리디렉션 진단용 임시 로그 — 원인 확정 후 제거.
+  if (zone === "(applicant)") {
+    console.log(
+      `[applicant-guard] path=${event.url.pathname} decision=${decision.type}` +
+        `${"location" in decision ? `→${decision.location}` : ""}` +
+        ` hasSession=${hasSession} member=${member ? "yes" : "no"}` +
+        ` registered=${member?.registered ?? "n/a"} isAdmin=${member?.isAdmin ?? "n/a"}` +
+        ` hasApp=${application}`,
+    );
+  }
+
   switch (decision.type) {
     case "allow": {
       // S9: 회원 존 쓰기 게이트 — 열람은 위 decide가, 쓰기는 capability가 막는다.
