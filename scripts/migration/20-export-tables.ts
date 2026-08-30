@@ -23,11 +23,13 @@
 //    앱의 Zod 스키마(src/lib/server/data/schemas/*) — 업로드 전후로 사본에 대해
 //    `pnpm exec vitest run src/lib/server/data` 를 실행해 쓰기 게이트 통과를 확인할 것.
 
+import { readFileSync } from "node:fs";
 import {
   type DumpFile,
   currentTerm,
   filesOf,
   hasFlag,
+  optValue,
   id,
   idFor,
   kstISO,
@@ -146,6 +148,31 @@ async function main() {
   ]) {
     const d = readDump(dumpDir, key);
     if (d) dumps.set(key, d);
+  }
+
+  // --exclude <file>: 노션 page id 배열(JSON). 원본 정리 전 리허설용 —
+  // 조용한 누락이 아니라 명시적 차단이며, 제외 내역을 표로 보고한다.
+  const excludeFile = optValue("--exclude");
+  if (excludeFile) {
+    const raw = JSON.parse(readFileSync(excludeFile, "utf8")) as string[];
+    const excluded = new Set(raw.map(nid));
+    const report: { db: string; page: string }[] = [];
+    for (const [key, dump] of dumps) {
+      const before = dump.pages.length;
+      dump.pages = dump.pages.filter((p: any) => {
+        const hit = excluded.has(nid(p.id));
+        if (hit) report.push({ db: key, page: p.id });
+        return !hit;
+      });
+      if (dump.pages.length !== before) dumps.set(key, dump);
+    }
+    if (report.length > 0) {
+      console.log(`\n⚠️ --exclude 로 ${report.length}건 차단 (원본 정리 후 제외 없이 재실행할 것):`);
+      console.table(report);
+    }
+    if (report.length !== raw.length) {
+      console.log(`  (제외 목록 ${raw.length}건 중 덤프에서 발견된 것은 ${report.length}건)`);
+    }
   }
   const membersDump = dumps.get("members");
   if (!membersDump) {

@@ -4,14 +4,20 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 # Supabase prod 값은 로컬 .env.prod-secrets에서 (Vercel의 sensitive 값은 pull 불가).
+# TARGET=dev 면 로컬 .env(dev 프로젝트)를 대상으로 한다 — 리허설용.
 # Notion 값은 vercel env pull 산출물에서 필요한 키만 추출 — 통째 source는
 # 다중행 값(커밋 메시지 등) 때문에 깨진다.
 grep -E '^(NOTION_API_KEY|NOTION_DB_[A-Z_]+|ADMINS_EMAILS)=' .env.migration > .env.migration.clean
 chmod 600 .env.migration.clean
 set -a
-. ./.env.prod-secrets
+if [ "${TARGET:-prod}" = "dev" ]; then
+  . ./.env
+else
+  . ./.env.prod-secrets
+fi
 . ./.env.migration.clean
 set +a
+echo "== target: ${TARGET:-prod} (${SUPABASE_URL})"
 step="$1"; shift || true
 case "$step" in
   00) npx tsx scripts/migration/00-dump.ts "$@" ;;
