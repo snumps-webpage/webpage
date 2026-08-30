@@ -74,6 +74,7 @@ describe("resolveMember (S9)", () => {
     expect(ctx!.registered).toBe(false);
     expect(ctx!.capabilities).toEqual([]); // 회원 존은 못 들어감 — 재가입 필요
     expect(ctx!.privateInfoId).toBeNull();
+    expect(ctx!.memberId).toMatch(/^env-admin-[0-9a-f]{8}$/); // 감사용 — 이메일 미노출
   });
 
   it("returns null for a non-admin email with no member row", async () => {
@@ -81,7 +82,7 @@ describe("resolveMember (S9)", () => {
     expect(await resolveMember("nobody@snu.ac.kr")).toBeNull();
   });
 
-  it("ORs env-admin onto a real member row (post-approval continuity)", async () => {
+  it("uses the member record as the sole admin truth once a row exists (D4)", async () => {
     seedTables({
       members: [memberRow({ isAdmin: false })],
       "private-info": [infoRow(ADMIN_EMAIL)],
@@ -96,7 +97,8 @@ describe("resolveMember (S9)", () => {
       ],
     });
     const ctx = await resolveMember(ADMIN_EMAIL);
-    expect(ctx!.isAdmin).toBe(true); // env가 부트스트랩 권위
+    // 회원 행이 생기면 env 명단은 더 이상 참조하지 않는다 — 레코드가 진실
+    expect(ctx!.isAdmin).toBe(false);
     expect(ctx!.registered).toBe(true);
     expect(ctx!.capabilities).toContain("member.participate");
   });

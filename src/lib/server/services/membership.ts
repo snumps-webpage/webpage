@@ -1,4 +1,5 @@
 import { AppError, definedOnly } from "$lib/server/core/errors";
+import { isBootstrapAdminEmail } from "$lib/server/core/admin-bootstrap";
 import { newId } from "$lib/server/core/id";
 import { currentTerm } from "$lib/server/core/semester";
 import { nowKstIso } from "$lib/server/core/time";
@@ -87,10 +88,21 @@ export async function approveApplication(
     (i) => norm(i.email) === email,
   );
 
+  // 부트스트랩 관리자 스탬프: env 명단은 승인 전환 시 회원 레코드에 새겨지고
+  // 그 후로는 레코드가 유일 진실이다 (해제는 회원 관리에서 — 하향은 안 한다).
+  const stampAdmin = isBootstrapAdminEmail(email);
+
   let memberId: string;
   if (existingInfo) {
     // 재가입 — 신청서의 최신 연락 정보로 갱신
     memberId = existingInfo.memberId;
+    if (stampAdmin) {
+      await mutate("members", (rows) => {
+        const idx = rows.findIndex((m) => m.id === existingInfo.memberId);
+        if (idx !== -1 && !rows[idx].isAdmin) rows[idx] = { ...rows[idx], isAdmin: true };
+        return rows;
+      });
+    }
     await mutate("private-info", (rows) => {
       const idx = rows.findIndex((i) => i.id === existingInfo.id);
       if (idx === -1) throw new AppError("NOT_FOUND");
@@ -118,7 +130,7 @@ export async function approveApplication(
       isAlumni: false,
       alumniRevoked: false,
       roles: [],
-      isAdmin: false,
+      isAdmin: stampAdmin,
       publicContact: null,
       project: null,
       legacyMemberId: legacyInfo?.memberId ?? null,
