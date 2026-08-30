@@ -10,7 +10,7 @@ import {
 } from "$lib/server/services/records-admin";
 import { promotePendingUpload } from "$lib/server/services/uploads";
 import { AppError } from "$lib/server/core/errors";
-import { currentTerm, TERM_PATTERN } from "$lib/server/core/semester";
+import { currentTerm, SEMESTER_PATTERN } from "$lib/server/core/semester";
 import { nowKstIso } from "$lib/server/core/time";
 import { StudyStatus } from "$lib/server/data/schemas";
 import {
@@ -68,7 +68,7 @@ export const actions = {
       const title = (data.get("title") as string)?.trim();
       const semester = data.get("semester") as string;
       const organizerId = data.get("organizerId") as string;
-      if (!title || !TERM_PATTERN.test(semester) || !organizerId) {
+      if (!title || !SEMESTER_PATTERN.test(semester) || !organizerId) {
         throw new AppError("VALIDATION_FAILED");
       }
       await createStudy({

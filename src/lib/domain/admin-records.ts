@@ -101,7 +101,7 @@ export const adminSeminarRecordSchema = z.object({
   term: z
     .string()
     .trim()
-    .regex(/^\d{2}-[12]$/, "학기는 YY-1 또는 YY-2 형식이어야 합니다."),
+    .regex(/^\d{2}-(?:[12SW])$/, "학기는 YY-1·YY-2·YY-S·YY-W 형식이어야 합니다."),
   kind: z.enum(["regular", "irregular"]),
   description: z
     .string()
@@ -125,7 +125,7 @@ export const adminStudyRecordSchema = z.object({
   term: z
     .string()
     .trim()
-    .regex(/^\d{2}-[12]$/, "학기는 YY-1 또는 YY-2 형식이어야 합니다."),
+    .regex(/^\d{2}-(?:[12SW])$/, "학기는 YY-1·YY-2·YY-S·YY-W 형식이어야 합니다."),
   description: z
     .string()
     .trim()

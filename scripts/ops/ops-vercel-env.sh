@@ -4,7 +4,10 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 add() { # add <NAME> <VALUE>
-  printf '%s' "$2" | vercel env add "$1" production --force >/dev/null 2>&1 \
+  # 에이전트/CI에선 CLI가 non-interactive 기본이라 stdin 프롬프트를 건너뛰고
+  # 빈 값을 저장한다 — 반드시 --value로 전달해야 한다.
+  if [ -z "$2" ]; then echo "SKIP $1 (empty value)"; return; fi
+  vercel env add "$1" production --value "$2" --yes --force >/dev/null 2>&1 \
     && echo "set  $1" || echo "FAIL $1"
 }
 

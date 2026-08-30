@@ -5,7 +5,8 @@ import { Id, SourceRequestId } from "./common";
 export const PrivateInfoSchema = z.object({
   id: Id,
   memberId: Id, // canonical direction of the member↔private-info relation
-  email: z.string().email(), // login matching key (unique)
+  // login matching key (unique when present) — 이메일 미기록 옛 회원은 빈 문자열
+  email: z.string().email().or(z.literal("")),
   phone: z.string(),
   background: z.string(),
   // Per-type mail preferences; one key today, more types add keys (not a migration).

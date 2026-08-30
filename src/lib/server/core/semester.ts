@@ -9,6 +9,13 @@ const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 export const TERM_PATTERN = /^\d{2}-[12]$/;
 
+/**
+ * Stored record semesters (seminars/studies) additionally allow the vacation
+ * terms that exist in the club's historical data: "YY-S" (여름) / "YY-W" (겨울).
+ * Date-DERIVED terms (termOf/termRange, 임원 roles) remain regular-only.
+ */
+export const SEMESTER_PATTERN = /^\d{2}-(?:[12SW])$/;
+
 function kstYearMonth(d: Date): { year: number; month: number } {
   const shifted = new Date(d.getTime() + KST_OFFSET_MS);
   return { year: shifted.getUTCFullYear(), month: shifted.getUTCMonth() + 1 };

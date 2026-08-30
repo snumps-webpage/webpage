@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { Id, SourceRequestId, Term } from "./common";
+import { Id, Semester, SourceRequestId } from "./common";
 
 export const SeminarSchema = z.object({
   id: Id,
   title: z.string().min(1),
-  semester: Term,
+  semester: Semester,
   note: z.string(),
   presenterIds: z.array(Id),
   externalPresenters: z.string(), // non-member presenters, free text

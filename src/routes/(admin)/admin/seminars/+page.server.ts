@@ -9,7 +9,7 @@ import {
 } from "$lib/server/services/records-admin";
 import { promotePendingUpload } from "$lib/server/services/uploads";
 import { AppError } from "$lib/server/core/errors";
-import { currentTerm, TERM_PATTERN } from "$lib/server/core/semester";
+import { currentTerm, SEMESTER_PATTERN } from "$lib/server/core/semester";
 import { nowKstIso } from "$lib/server/core/time";
 import {
   adminSeminarRequestItem,
@@ -104,7 +104,7 @@ const parseIds = (raw: string | null) =>
   raw ? [...new Set(raw.split(",").map((s) => s.trim()).filter(Boolean))] : [];
 
 function requireTerm(raw: string): string {
-  if (!TERM_PATTERN.test(raw)) throw new AppError("VALIDATION_FAILED");
+  if (!SEMESTER_PATTERN.test(raw)) throw new AppError("VALIDATION_FAILED");
   return raw;
 }
 

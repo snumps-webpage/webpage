@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DateTime, Id, Term } from "./common";
+import { DateTime, Id, Semester } from "./common";
 import { RequestStatus } from "./seminar-request";
 
 export const StudyRequestSchema = z.object({
@@ -7,7 +7,7 @@ export const StudyRequestSchema = z.object({
   title: z.string().min(1), // 분야명
   textbook: z.string(),
   description: z.string(),
-  semester: Term,
+  semester: Semester,
   requesterId: Id, // becomes the organizer on approval
   status: RequestStatus,
   createdAt: DateTime,

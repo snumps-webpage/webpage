@@ -390,8 +390,8 @@ async function main() {
   for (const page of dumps.get("seminars")?.pages ?? []) {
     const where = `seminars/${page.id}`;
     const semester = String(propValue(page.properties["학기"]) || "");
-    if (!/^\d{2}-[12]$/.test(semester)) {
-      fail(`${where}: 학기 "${semester}" 가 YY-1|YY-2 형식이 아님`);
+    if (!/^\d{2}-(?:[12SW])$/.test(semester)) {
+      fail(`${where}: 학기 "${semester}" 가 YY-1|YY-2|YY-S|YY-W 형식이 아님`);
       continue;
     }
     seminars.push({
@@ -421,8 +421,8 @@ async function main() {
       (p) => p?.type === "title",
     );
     const semester = String(propValue(page.properties["학기"]) || "");
-    if (!/^\d{2}-[12]$/.test(semester)) {
-      fail(`${where}: 학기 "${semester}" 가 YY-1|YY-2 형식이 아님`);
+    if (!/^\d{2}-(?:[12SW])$/.test(semester)) {
+      fail(`${where}: 학기 "${semester}" 가 YY-1|YY-2|YY-S|YY-W 형식이 아님`);
       continue;
     }
     const organizerIds = mapMemberIds(
@@ -600,6 +600,8 @@ const dateOnlyOrNull: Check = (v) =>
 const dateRange: Check = (v) =>
   !!v && dateTime(v.start) && (v.end === null || dateTime(v.end));
 const term: Check = (v) => typeof v === "string" && /^\d{2}-[12]$/.test(v);
+// 기록 학기: 방학 학기(YY-S/YY-W) 포함 — 임원 role term은 위의 정규 학기만.
+const semesterCheck: Check = (v) => typeof v === "string" && /^\d{2}-(?:[12SW])$/.test(v);
 const oneOf =
   (...values: string[]): Check =>
   (v) =>
@@ -631,7 +633,7 @@ const TABLE_CHECKS: Record<string, Record<string, Check>> = {
   "private-info": {
     id: nonEmpty,
     memberId: nonEmpty,
-    email: (v) => typeof v === "string" && /.+@.+\..+/.test(v),
+    email: (v) => typeof v === "string" && (v === "" || /.+@.+\..+/.test(v)),
     phone: str,
     background: str,
     mailPrefs: (v) => !!v && bool(v.announcements),
@@ -687,7 +689,7 @@ const TABLE_CHECKS: Record<string, Record<string, Check>> = {
     title: nonEmpty,
     textbook: str,
     description: str,
-    semester: term,
+    semester: semesterCheck,
     requesterId: nonEmpty,
     status: oneOf("pending", "approved", "rejected", "withdrawn"),
     createdAt: dateTime,
@@ -695,7 +697,7 @@ const TABLE_CHECKS: Record<string, Record<string, Check>> = {
   studies: {
     id: nonEmpty,
     title: nonEmpty,
-    semester: term,
+    semester: semesterCheck,
     textbook: str,
     description: str,
     note: str,
@@ -712,7 +714,7 @@ const TABLE_CHECKS: Record<string, Record<string, Check>> = {
   seminars: {
     id: nonEmpty,
     title: nonEmpty,
-    semester: term,
+    semester: semesterCheck,
     note: str,
     presenterIds: idArr,
     externalPresenters: str,

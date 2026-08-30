@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DateTime, Id, SourceRequestId, Term } from "./common";
+import { DateTime, Id, Semester, SourceRequestId } from "./common";
 
 export const StudyStatus = z.enum(["recruiting", "ongoing", "finished"]);
 export type StudyStatus = z.infer<typeof StudyStatus>;
@@ -7,7 +7,7 @@ export type StudyStatus = z.infer<typeof StudyStatus>;
 export const StudySchema = z.object({
   id: Id,
   title: z.string().min(1),
-  semester: Term,
+  semester: Semester,
   textbook: z.string(),
   description: z.string(),
   note: z.string(),

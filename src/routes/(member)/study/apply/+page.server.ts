@@ -1,6 +1,6 @@
 import { handleUserAction } from "$lib/server/auth-guards";
 import { AppError } from "$lib/server/core/errors";
-import { currentTerm, TERM_PATTERN } from "$lib/server/core/semester";
+import { currentTerm, SEMESTER_PATTERN } from "$lib/server/core/semester";
 import { getTable } from "$lib/server/data/tables";
 import { studyRequestView } from "$lib/server/data/views";
 import {
@@ -33,7 +33,7 @@ export const actions = {
           userMessage: "분야명은 필수 입력 항목입니다.",
         });
       }
-      if (!TERM_PATTERN.test(semester)) {
+      if (!SEMESTER_PATTERN.test(semester)) {
         throw new AppError("VALIDATION_FAILED", {
           userMessage: "학기 형식이 올바르지 않습니다. 예: 26-2",
         });
