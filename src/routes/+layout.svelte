@@ -7,10 +7,12 @@
 	import { onNavigate, afterNavigate } from '$app/navigation';
 	import { signOut } from '@auth/sveltekit/client';
 	import { getInitialTheme, applyTheme, type Theme } from '$lib/theme';
-    import Toasts from '$lib/components/Toasts.svelte';
+	import ExecutiveContacts from '$lib/components/ExecutiveContacts.svelte';
+	import Toasts from '$lib/components/Toasts.svelte';
 
 	let { children } = $props();
 	const session = $derived(page.data.session);
+	const isWithdrawn = $derived(page.data.memberStatus === 'withdrawn');
 	const isGuestLanding = $derived(!session?.user && page.url.pathname === '/');
 
 	// Theme state
@@ -98,66 +100,79 @@
 			<a href="/" class="guest-wordmark no-sel" aria-label="SNUMPS Home">
 				<img src={favicon} alt="" aria-hidden="true" class="guest-logo-mark" />
 			</a>
-			{#if session?.user}
+			<a href="/about" class="paper-nav-link desktop-only">About</a>
+			<a href="/archive" class="paper-nav-link desktop-only">Archive</a>
+			<a href="/members" class="paper-nav-link desktop-only">Members</a>
+			{#if session?.user && !isWithdrawn}
 				<a href="/seminar/apply" class="paper-nav-link desktop-only">Seminar</a>
 				<a href="/study" class="paper-nav-link desktop-only">Study</a>
-				{#if page.data.isPresenter}
-					<a href="/events/manage" class="paper-nav-link desktop-only">Manage</a>
+				{#if page.data.hasPresenterEvents}
+					<a href="/events/manage" class="paper-nav-link desktop-only">Attendance</a>
 				{/if}
+				<a href="/settings/notifications" class="paper-nav-link desktop-only">Settings</a>
 			{/if}
 		</div>
 		<div class="nav-right">
-			{#if session?.user}
-				<div class="desktop-only nav-actions">
-					{#if page.data.isAdmin}
+				{#if session?.user}
+					<div class="desktop-only nav-actions">
+					{#if page.data.isAdmin && !isWithdrawn}
 						<a href="/admin" class="circle-btn">Admin</a>
-						<a href="/notion" class="circle-btn">DB</a>
 					{/if}
 					<button class="logout-btn" onclick={() => signOut()}>로그아웃</button>
 				</div>
-					<button
-						class="mobile-menu-toggle mobile-only"
-						class:is-open={isMobileMenuOpen}
-						onclick={() => (isMobileMenuOpen = !isMobileMenuOpen)}
-						aria-controls="mobile-nav-menu"
-						aria-expanded={isMobileMenuOpen}
-						aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
-					>
-						<span class="menu-glyph" aria-hidden="true">
-							<span class="menu-line line-1"></span>
-							<span class="menu-line line-2"></span>
-							<span class="menu-line line-3"></span>
-						</span>
-					</button>
-				{/if}
+			{/if}
+			<button
+				class="mobile-menu-toggle mobile-only"
+				class:is-open={isMobileMenuOpen}
+				onclick={() => (isMobileMenuOpen = !isMobileMenuOpen)}
+				aria-controls="mobile-nav-menu"
+				aria-expanded={isMobileMenuOpen}
+				aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+			>
+				<span class="menu-glyph" aria-hidden="true">
+					<span class="menu-line line-1"></span>
+					<span class="menu-line line-2"></span>
+					<span class="menu-line line-3"></span>
+				</span>
+			</button>
 			</div>
 		</div>
 
-		{#if session?.user && isMobileMenuOpen}
+		{#if isMobileMenuOpen}
 			<div id="mobile-nav-menu" class="mobile-dropdown mobile-only stagger-1">
 			<div class="mobile-dropdown-content">
 				<div class="mobile-group">
-					<span class="group-label">Seminar</span>
-					<a href="/seminar/apply" class="mobile-link">세미나 개설</a>
-					{#if page.data.isPresenter}
-						<a href="/events/manage" class="mobile-link">세미나 출석 관리</a>
-					{/if}
+					<span class="group-label">Public</span>
+					<a href="/about" class="mobile-link">동아리 소개</a>
+					<a href="/about/executives" class="mobile-link">역대 회장단</a>
+					<a href="/archive" class="mobile-link">활동 아카이브</a>
+					<a href="/members" class="mobile-link">회원 명단</a>
 				</div>
-				<div class="mobile-group">
-					<span class="group-label">Study</span>
-					<a href="/study" class="mobile-link">스터디</a>
-					<a href="/study/apply" class="mobile-link">스터디 개설</a>
-				</div>
-				{#if page.data.isAdmin}
+				{#if session?.user && !isWithdrawn}
 					<div class="mobile-group">
-						<span class="group-label">Admin</span>
-						<a href="/admin" class="mobile-link">관리자 대시보드</a>
-						<a href="/notion" class="mobile-link">Notion 데이터베이스</a>
+						<span class="group-label">Member</span>
+						<a href="/study" class="mobile-link">내 스터디</a>
+						<a href="/seminar/apply" class="mobile-link">세미나 개설</a>
+						{#if page.data.hasPresenterEvents}
+							<a href="/events/manage" class="mobile-link">발표 출석 관리</a>
+						{/if}
+						<a href="/settings/notifications" class="mobile-link">회원 설정</a>
+					</div>
+					{#if page.data.isAdmin}
+						<div class="mobile-group">
+							<span class="group-label">Admin</span>
+							<a href="/admin" class="mobile-link">관리자 대시보드</a>
+							<a href="/admin/seminars" class="mobile-link">세미나 운영</a>
+							<a href="/admin/activities" class="mobile-link">활동 기록</a>
+							<a href="/admin/gallery" class="mobile-link">갤러리 관리</a>
+						</div>
+					{/if}
+				{/if}
+				{#if session?.user}
+					<div class="mobile-group">
+						<button class="mobile-logout-btn" onclick={() => signOut()}>로그아웃</button>
 					</div>
 				{/if}
-				<div class="mobile-group">
-					<button class="mobile-logout-btn" onclick={() => signOut()}>로그아웃</button>
-				</div>
 			</div>
 		</div>
 	{/if}
@@ -172,14 +187,8 @@
 <footer class="guest-latex-footer unified-footer">
 	<div class="footer-content">
 		<div class="footer-info">
-			<p>
-				{#await page.data.executives}
-					<span class="footer-chip"><span class="no-sel">회장:</span> ...</span>
-				{:then execs}
-					<span class="footer-chip"><span class="no-sel">회장:</span> {execs?.president?.name || "공석"}</span>
-				{/await}
-				<span class="footer-sep" aria-hidden="true">|</span>
-				<a href="mailto:snumps0@gmail.com" class="footer-chip">snumps0@gmail.com</a>
+			<div class="footer-line">
+				<ExecutiveContacts roster={page.data.executives} variant="footer" />
 				<span class="footer-sep" aria-hidden="true">|</span>
 				<a
 					href="https://instagram.com/snu_mps"
@@ -190,7 +199,7 @@
 				>
 					<img src={instagram} alt="Instagram" class="social-icon" />
 				</a>
-			</p>
+			</div>
 		</div>
 		<div class="theme-selector guest-theme-selector">
 			<button class="theme-btn" class:active={currentTheme === 'light'} onclick={() => (currentTheme = 'light')}>라이트</button>

@@ -27,8 +27,7 @@ vite.config.ts.timestamp-*
 .oauth_client.json
 *-oauthclient.json
 
-# Lockfiles
-package-lock.json
+# Alternative package manager lockfile
 pnpm-lock.yaml
 
 # Tools & Local Scripts

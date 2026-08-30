@@ -3,18 +3,18 @@
     import { getSemesterKeyFromDate } from '$lib/utils';
     import ManuscriptHeader from '$lib/components/ManuscriptHeader.svelte';
     import StatusBadge from '$lib/components/StatusBadge.svelte';
-    import type { NotionActivity } from '$lib/types';
+    import type { AdminConnectableActivity } from '$lib/domain/admin-dashboard';
     import { MANUSCRIPT } from '$lib/constants';
 
-    let { data } = $props();
+    let { data, form } = $props();
     
     let searchQuery = $state('');
     let selectedSemester = $state('all');
-    let selectedEvent = $state<NotionActivity | null>(null);
+    let selectedEvent = $state<AdminConnectableActivity | null>(null);
 
     let filteredActivities = $derived(
-        data.activities.filter((a: NotionActivity) => {
-            const matchesSearch = a.name.toLowerCase().includes(searchQuery.toLowerCase());
+        data.activities.filter((a: AdminConnectableActivity) => {
+            const matchesSearch = a.title.toLowerCase().includes(searchQuery.toLowerCase());
             
             let matchesSemester = true;
             if (selectedSemester !== 'all') {
@@ -26,7 +26,7 @@
         })
     );
 
-    function selectEvent(event: NotionActivity) {
+    function selectEvent(event: AdminConnectableActivity) {
         selectedEvent = event;
     }
 </script>
@@ -37,11 +37,12 @@
         subtitle="Existing Activity Index" 
         figure={MANUSCRIPT.FIGURES.EVENT_CONNECT}
     />
-    <p class="desc">Notion에 이미 등록된 활동을 선택하여 출석 페이지를 생성합니다.</p>
+    <p class="desc">기존 활동 이력은 그대로 두고, 선택한 활동에 새 출석 세션을 연결합니다.</p>
+    {#if form?.error}<p class="form-error" role="alert">{form.error}</p>{/if}
 
     <ol class="paper-sections">
         <li class="paper-section">
-            <h2 class="paper-section-title">Notion Activity Index</h2>
+            <h2 class="paper-section-title">Activity Index</h2>
             <div class="filter-bar">
                 <div class="search-box">
                     <input type="text" bind:value={searchQuery} placeholder="이벤트 명 검색..." />
@@ -67,8 +68,9 @@
                                 onclick={() => selectEvent(activity)}
                             >
                                 <StatusBadge status={activity.type} type="tag" />
-                                <span class="event-name">{activity.name}</span>
+                                <span class="event-name">{activity.title}</span>
                                 <span class="event-date">{activity.date}</span>
+                                <span class="event-date">기존 참석 {activity.attendeeCount}명</span>
                             </button>
                         {/each}
                     </div>
@@ -82,10 +84,7 @@
 
         <form method="POST" action="?/publish" use:enhance>
             {#if selectedEvent}
-                <input type="hidden" name="notionPageId" value={selectedEvent.id} />
-                <input type="hidden" name="title" value={selectedEvent.name} />
-                <input type="hidden" name="date" value={selectedEvent.date} />
-                <input type="hidden" name="type" value={selectedEvent.type} />
+                <input type="hidden" name="activityId" value={selectedEvent.id} />
             {/if}
             <button class="btn publish" disabled={!selectedEvent}>발행</button>
         </form>
@@ -107,6 +106,15 @@
         margin: 0 0 0.82rem;
         padding-bottom: 0.65rem;
         border-bottom: 1px solid var(--latex-rule);
+    }
+
+    .form-error {
+        margin: 0 0 0.8rem;
+        padding: 0.55rem 0.65rem;
+        border-left: 3px solid var(--color-danger-text);
+        background: var(--color-danger-bg);
+        color: var(--color-danger-text);
+        font-size: 0.78rem;
     }
 
     .filter-bar {

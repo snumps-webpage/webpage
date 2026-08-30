@@ -8,6 +8,13 @@
 
 	let { data, form } = $props();
     let submitting = $state(false);
+    let withdrawing = $state(false);
+    function getIssues(value: typeof form): Record<string, string> {
+        return value && 'issues' in value && value.issues && typeof value.issues === 'object'
+            ? value.issues as Record<string, string>
+            : {};
+    }
+    let issues = $derived(getIssues(form));
 </script>
 
 <article class="paper-document">
@@ -20,16 +27,30 @@
 	{#if form?.error}
 		<p class="paper-status-note error">{form.message ?? form.error}</p>
 	{/if}
+	{#if data.preview}
+		<p class="paper-status-note muted">개발 프리뷰입니다. 수정과 철회는 관리자 프리뷰 대기열에 반영됩니다.</p>
+	{/if}
 
 	{#if form?.success}
         <SuccessScreen 
-            title="신청 정보가 수정되었습니다." 
-            description="신청 정보가 성공적으로 반영되었습니다." 
-            buttonLabel="홈으로 이동"
+            title={form.operation === 'applicationWithdrawn' ? '가입 신청을 철회했습니다.' : '신청 정보가 수정되었습니다.'}
+            description={form.operation === 'applicationWithdrawn' ? '입력한 개인정보를 대기열에서 삭제했습니다.' : '신청 정보가 성공적으로 반영되었습니다.'}
+            buttonLabel="메인으로 이동"
         />
+	{:else if !data.application}
+		<ol class="paper-sections">
+			<li class="paper-section">
+				<h2 class="paper-section-title">Application Status</h2>
+				<p class="paper-hint">수정할 가입 신청이 없습니다.</p>
+				<div class="paper-actions">
+					<a href="/signup?preview=1" class="paper-btn primary">새 신청서 열기</a>
+				</div>
+			</li>
+		</ol>
 	{:else}
 		<form
 			method="POST"
+			action={data.preview ? '?/updateApplication&preview=1' : '?/updateApplication'}
 			use:enhance={() => {
 				submitting = true;
 				return async ({ update }) => {
@@ -49,6 +70,7 @@
 					title="Revision Fields" 
 					phone={data.application?.phone} 
 					background={data.application?.background} 
+					{issues}
 				/>
 			</ol>
 			<div class="paper-actions">
@@ -58,9 +80,27 @@
 				<a href="/" class="paper-btn secondary">취소</a>
 			</div>
 		</form>
+		<form
+			method="POST"
+			action={data.preview ? '?/withdrawApplication&preview=1' : '?/withdrawApplication'}
+			class="withdraw-form"
+			onsubmit={(event) => {
+				if (!confirm('가입 신청을 철회하고 입력한 개인정보를 삭제할까요?')) event.preventDefault();
+			}}
+			use:enhance={() => {
+				withdrawing = true;
+				return async ({ update }) => { await update(); withdrawing = false; };
+			}}
+		>
+			<input type="hidden" name="id" value={data.application?.id} />
+			<button class="paper-btn danger" disabled={withdrawing}>{withdrawing ? '처리 중...' : '가입 신청 철회'}</button>
+			<p>철회하면 대기 중인 신청과 입력한 연락처·배경지식이 즉시 삭제됩니다.</p>
+		</form>
 	{/if}
 </article>
 
 <style>
-	/* All manuscript styling centralized in lib/manuscript.css */
+	.withdraw-form { display: grid; justify-items: end; gap: 0.35rem; margin-top: 0.9rem; padding-top: 0.75rem; border-top: 1px solid var(--latex-rule); }
+	.withdraw-form p { margin: 0; color: var(--latex-muted); font-size: 0.72rem; text-align: right; }
+	@media (max-width: 480px) { .withdraw-form { justify-items: stretch; } .withdraw-form button { width: 100%; } }
 </style>

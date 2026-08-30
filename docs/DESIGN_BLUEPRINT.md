@@ -9,7 +9,7 @@
 
 - 포함:
   - `/` 비로그인 상태 + 해당 상태의 글로벌 헤더/푸터
-  - 로그인 이후 주요 운영 라우트(`/signup*`, `/wait`, `/events/*`, `/seminar*`, `/admin*`, `/notion`)
+  - 로그인 이후 주요 운영 라우트(`/signup*`, `/wait`, `/events/*`, `/seminar*`, `/study*`, `/admin*`)
   - 실험 라우트(`/experiment/*`)의 시각 문법
 - 제외: 서버 액션/로드/데이터 계약 변경.
 

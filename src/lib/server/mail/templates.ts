@@ -82,7 +82,7 @@ export async function sendSeminarStatusNotification(
 
 신청하신 세미나 '${seminarTitle}'가 ${statusText}되었습니다.
 
-${status === "approved" ? "자세한 일정의 확인 부탁드립니다." : "아쉽게도 이번 세미나는 개설이 어렵게 되었습니다."}
+${status === "approved" ? "세부 일정은 발표자와 조율한 뒤 공식 웹사이트에 게시합니다. 일정이 확정되거나 이후 변경되면 별도 안내 메일을 보내드립니다." : "아쉽게도 이번 세미나는 개설이 어렵게 되었습니다."}
 
 감사합니다.`;
 
@@ -218,7 +218,7 @@ export async function sendWelcomeEmail(
 - 공지방 : ${CHATROOM_NOTICE_LINK}
 - 잡담방 : ${CHATROOM_CHAT_LINK}
 
-공지방에서는 채팅을 자제하시고, 문의 사항은 잡담방이나 회장을 통해 알려주세요. 동아리의 모든 자료와 가이드라인은 공식 노션(https://snumps.notion.site)에서 확인할 수 있습니다. 수학문제연구회에 오신 것을 환영합니다.`;
+공지방에서는 채팅을 자제하시고, 문의 사항은 잡담방이나 회장을 통해 알려주세요. 동아리의 자료와 가이드라인은 공식 웹사이트에서 확인할 수 있습니다. 수학문제연구회에 오신 것을 환영합니다.`;
 
     await dispatchEmail(accessToken, [recipientEmail], subject, body);
   } catch (e) {
