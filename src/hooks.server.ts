@@ -87,15 +87,18 @@ const zoneGuard: Handle = async ({ event, resolve }) => {
     pathname: event.url.pathname,
   });
 
-  // TODO(S9-diag): /signup 리디렉션 진단용 임시 로그 — 원인 확정 후 제거.
-  if (zone === "(applicant)") {
-    console.log(
-      `[applicant-guard] path=${event.url.pathname} decision=${decision.type}` +
-        `${"location" in decision ? `→${decision.location}` : ""}` +
-        ` hasSession=${hasSession} member=${member ? "yes" : "no"}` +
-        ` registered=${member?.registered ?? "n/a"} isAdmin=${member?.isAdmin ?? "n/a"}` +
-        ` hasApp=${application}`,
-    );
+  // TODO(S9-diag): /signup 리디렉션 진단 — 판정 사유를 쿼리로 노출 (주소창에서
+  // 확인 가능). 원인 확정 후 제거. 값에 개인 정보 없음.
+  if (zone === "(applicant)" && decision.type === "redirect") {
+    const reason = !hasSession
+      ? "nosession"
+      : member?.status === "withdrawn"
+        ? "withdrawn"
+        : member?.registered
+          ? "registered"
+          : "other";
+    const sep = decision.location.includes("?") ? "&" : "?";
+    decision.location = `${decision.location}${sep}guard=${reason}`;
   }
 
   switch (decision.type) {
