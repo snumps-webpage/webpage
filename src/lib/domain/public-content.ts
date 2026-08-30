@@ -73,8 +73,10 @@ export interface PublicIndexItem {
 }
 
 export function formatArchiveTerm(term: string) {
-  const match = /^(\d{2})-([12])$/.exec(term);
-  return match ? `20${match[1]}년 ${match[2]}학기` : term;
+  const match = /^(\d{2})-([12SW])$/.exec(term);
+  if (!match) return term;
+  const label = { "1": "1학기", "2": "2학기", S: "여름학기", W: "겨울학기" }[match[2]];
+  return `20${match[1]}년 ${label}`;
 }
 
 export function filterPublicIndex(items: PublicIndexItem[], query: string) {

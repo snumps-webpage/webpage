@@ -18,8 +18,10 @@
     border: 1px solid var(--latex-rule);
   }
   a {
-    flex: 1 1 8rem;
-    padding: 0.55rem 0.7rem;
+    /* 7개 탭이 상세 페이지(≈880px)에서도 한 줄에 들어가도록 basis를 줄인다 —
+       8rem이면 목록(980px)에서만 한 줄이라 상세에서 마지막 탭이 꺾였다 */
+    flex: 1 1 5.5rem;
+    padding: 0.55rem 0.5rem;
     border-right: 1px solid var(--latex-rule);
     color: var(--latex-text);
     font-family: var(--font-mono);

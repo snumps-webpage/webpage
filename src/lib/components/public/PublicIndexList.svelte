@@ -37,9 +37,11 @@
           {/if}
         </h2>
         <p class="description">{item.description}</p>
-        {#if item.metadata.length}
+        {#if item.metadata.some(Boolean)}
           <ul class="metadata">
-            {#each item.metadata as value (value)}<li>{value}</li>{/each}
+            <!-- 표시용 문자열 목록 — 값 키는 실데이터의 빈/중복 문자열에서 each_key_duplicate로
+                 클라이언트 전체를 죽인다. 순서 고정 표시라 비키 each + 빈 값 필터가 맞다. -->
+            {#each item.metadata.filter(Boolean) as value}<li>{value}</li>{/each}
           </ul>
         {/if}
       </div>

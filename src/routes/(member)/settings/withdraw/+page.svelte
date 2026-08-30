@@ -52,7 +52,8 @@
       <strong>먼저 주최자를 전달해야 합니다.</strong>
       <p>진행 중인 스터디의 주최자는 바로 탈퇴할 수 없습니다.</p>
       <ul>
-        {#each actionForm?.organizedStudies ?? data.organizedStudies as study (study)}
+        <!-- 제목 문자열 목록 — 같은 제목의 스터디가 있으면 값 키가 중복돼 클라이언트가 죽는다 -->
+        {#each actionForm?.organizedStudies ?? data.organizedStudies as study, i (i)}
           <li>{study}</li>
         {/each}
       </ul>
