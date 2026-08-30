@@ -2,6 +2,7 @@ import { error } from "@sveltejs/kit";
 import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
 import { AppError } from "$lib/server/core/errors";
 import { getTable } from "$lib/server/data/tables";
+import { getDirectoryIndex } from "$lib/server/data/directory";
 import { checkIn, effectiveStatus } from "$lib/server/services/events";
 import { parseGoogleName } from "$lib/utils";
 import type { PageServerLoad } from "./$types";
@@ -23,8 +24,8 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 
   // Supplementary context for the metadata sheet: presenters (seminars) and
   // session number (auto-generated study sessions), resolved from the tables.
-  const members = await getTable("members");
-  const memberById = new Map(members.map((m) => [m.id, m]));
+  // 표시용 발표자 이름 — legacy id 발표자도 해석되도록 통합 디렉터리 사용.
+  const memberById = await getDirectoryIndex();
   const entries: { label: string; value: string }[] = [];
   const presenterNames = event.presenterIds
     .map((id) => memberById.get(id)?.name)

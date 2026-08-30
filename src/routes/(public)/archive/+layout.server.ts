@@ -4,6 +4,7 @@ import type {
 } from "$lib/domain/public-content";
 import { assetUrl } from "$lib/server/public/archive";
 import { getTable } from "$lib/server/data/tables";
+import { getDirectoryIndex, getMemberDirectory } from "$lib/server/data/directory";
 import { termRange } from "$lib/server/core/semester";
 import type { LayoutServerLoad } from "./$types";
 
@@ -44,17 +45,20 @@ function termStartDate(term: string): string {
 }
 
 export const load: LayoutServerLoad = async () => {
-  const [seminars, studies, dinners, activities, members, seminarRequests] =
+  // S9: 아카이브는 과거 기록의 legacy id를 이름으로 풀어야 한다 — 이름
+  // 해석은 디렉터리 인덱스, 명단(프로젝트)은 병합 디렉터리를 쓴다.
+  const [seminars, studies, dinners, activities, members, directoryIndex, seminarRequests] =
     await Promise.all([
       getTable("seminars"),
       getTable("studies"),
       getTable("gallery-dinner"),
       getTable("activities"),
-      getTable("members"),
+      getMemberDirectory(),
+      getDirectoryIndex(),
       getTable("seminar-requests"),
     ]);
 
-  const nameOf = new Map(members.map((m) => [m.id, m.name]));
+  const nameOf = new Map([...directoryIndex].map(([id, m]) => [id, m.name]));
   const activityStart = new Map(activities.map((a) => [a.id, a.date.start]));
   const requestOf = new Map(seminarRequests.map((r) => [r.id, r]));
 

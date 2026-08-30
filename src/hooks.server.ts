@@ -7,8 +7,14 @@ import {
   buildDevPreviewSession,
   resolveDevPreviewRole,
 } from "$lib/server/dev-preview";
-import { decide, needsMemberResolution, zoneOf } from "$lib/server/guards/zone";
+import {
+  decide,
+  memberPostCapability,
+  needsMemberResolution,
+  zoneOf,
+} from "$lib/server/guards/zone";
 import { hasApplication, resolveMember } from "$lib/server/guards/resolve-member";
+import { capabilitiesFor } from "$lib/server/core/capabilities";
 
 if (!building && !env.AUTH_SECRET) {
   console.error("FATAL: AUTH_SECRET is not set. Authentication will fail.");
@@ -26,6 +32,9 @@ const devPreviewHandle: Handle = async ({ event, resolve }) => {
       name: "Dev Preview",
       status: "regular",
       isAdmin: devPreviewRole === "admin",
+      isAlumni: false,
+      registered: true,
+      capabilities: capabilitiesFor({ isAlumni: false, registered: true }),
     };
   }
 
@@ -66,8 +75,10 @@ const zoneGuard: Handle = async ({ event, resolve }) => {
 
   const member = event.locals.member;
   const hasSession = member !== null || !!email;
-  const application =
-    !member && email && zone !== "(public)" ? await hasApplication(email) : false;
+  // S9: 미등록 회원(재가입 대기)도 신청 여부가 판정에 필요하다 — 비회원과 동일 조건.
+  const needsApplicationLookup =
+    email !== null && zone !== "(public)" && (!member || !member.registered);
+  const application = needsApplicationLookup ? await hasApplication(email) : false;
 
   const decision = decide(routeId, {
     hasSession,
@@ -77,8 +88,16 @@ const zoneGuard: Handle = async ({ event, resolve }) => {
   });
 
   switch (decision.type) {
-    case "allow":
+    case "allow": {
+      // S9: 회원 존 쓰기 게이트 — 열람은 위 decide가, 쓰기는 capability가 막는다.
+      if (event.request.method === "POST" && zone === "(member)" && member) {
+        const needed = memberPostCapability(routeId);
+        if (needed && !member.capabilities.includes(needed)) {
+          throw error(403, "이번 학기 등록 회원만 할 수 있는 작업입니다.");
+        }
+      }
       return resolve(event);
+    }
     case "redirect":
       throw redirect(303, decision.location);
     case "notFound":

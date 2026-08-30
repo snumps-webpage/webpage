@@ -1,4 +1,5 @@
 import { env } from "$env/dynamic/private";
+import { getMemberDirectory } from "$lib/server/data/directory";
 import { getTable } from "$lib/server/data/tables";
 import { currentTerm } from "$lib/server/core/semester";
 
@@ -15,13 +16,13 @@ export function assetUrl(s3Key: string): string {
 }
 
 async function memberNameMap(): Promise<Map<string, string>> {
-  const members = await getTable("members");
+  const members = await getMemberDirectory();
   return new Map(members.map((m) => [m.id, m.name]));
 }
 
 /** PUB-15: the public roster — D2 fields, withdrawn members excluded. */
 export async function getPublicMembers() {
-  const members = await getTable("members");
+  const members = await getMemberDirectory();
   return members
     .filter((m) => m.status !== "withdrawn")
     .map((m) => ({
@@ -36,7 +37,7 @@ export async function getPublicMembers() {
 /** PUB-01/05: executives derived from roles + the consented public contact (D4). */
 export async function getPublicExecutives() {
   const term = currentTerm();
-  const members = await getTable("members");
+  const members = await getMemberDirectory();
   const byTerm = new Map<string, { term: string; title: string; name: string; contact: string | null }[]>();
   for (const m of members) {
     for (const r of m.roles) {
@@ -142,7 +143,7 @@ export async function getPublicGallery() {
 
 /** PUB-13: project board — name/department plus the project content only. */
 export async function getPublicProjects() {
-  const members = await getTable("members");
+  const members = await getMemberDirectory();
   return members
     .filter((m) => m.status !== "withdrawn" && m.project !== null)
     .map((m) => ({

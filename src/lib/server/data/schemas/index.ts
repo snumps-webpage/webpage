@@ -9,6 +9,7 @@ import { StudyRequestSchema } from "./study-request";
 import { StudySchema } from "./study";
 import { SeminarSchema } from "./seminar";
 import { GalleryDinnerSchema } from "./gallery-dinner";
+import { RegistrationSchema } from "./registration";
 
 /**
  * The table registry — the single source of truth for what lives in S3
@@ -18,6 +19,11 @@ import { GalleryDinnerSchema } from "./gallery-dinner";
 export const TABLES = {
   members: MemberSchema,
   "private-info": PrivateInfoSchema,
+  // S9: 학기별 등록제 — 등록 행 (승인이 생성)
+  registrations: RegistrationSchema,
+  // S9: 노션 이주분 원본 — 순수 기록용 아카이브. 운영 로직은 절대 쓰지(write) 않는다.
+  "legacy-members": MemberSchema,
+  "legacy-private-info": PrivateInfoSchema,
   activities: ActivitySchema,
   events: EventSchema,
   applications: ApplicationSchema,
@@ -51,3 +57,4 @@ export * from "./study-request";
 export * from "./study";
 export * from "./seminar";
 export * from "./gallery-dinner";
+export * from "./registration";

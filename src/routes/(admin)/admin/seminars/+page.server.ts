@@ -14,21 +14,22 @@ import { nowKstIso } from "$lib/server/core/time";
 import {
   adminSeminarRequestItem,
   contentFileFromKey,
-  memberSummaryById,
+  directorySummaryIndex,
 } from "$lib/server/data/admin-queue-views";
 import type { SeminarPublicationStatus } from "$lib/domain/admin-seminars";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
   await ensureAdmin(locals, { silent: true });
-  const [seminars, members, requests, events, allMembers] = await Promise.all([
+  // members(=memberPickers)는 발표자 지정용 운영 명단, summaries는 표시용
+  // 통합 디렉터리 — 이주된 세미나의 presenterIds는 legacy id다.
+  const [seminars, members, requests, events, summaries] = await Promise.all([
     getTable("seminars"),
     memberPickers(),
     getTable("seminar-requests"),
     getTable("events"),
-    getTable("members"),
+    directorySummaryIndex(),
   ]);
-  const summaries = memberSummaryById(allMembers);
   const requestById = new Map(requests.map((r) => [r.id, r]));
   const rows = [...seminars].reverse().map((s) => {
     const request = s.sourceRequestId ? requestById.get(s.sourceRequestId) : undefined;

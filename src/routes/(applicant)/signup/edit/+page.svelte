@@ -62,10 +62,11 @@
 					department={data.parsedInfo.department} 
 					email={data.user?.email ?? ''} 
 				/>
-				<SignupContactFields 
-					title="Revision Fields" 
-					phone={data.application?.phone} 
-					background={data.application?.background} 
+				<SignupContactFields
+					title="Revision Fields"
+					phone={data.application?.phone}
+					studentId={data.application?.studentId}
+					background={data.application?.background}
 					{issues}
 				/>
 			</ol>

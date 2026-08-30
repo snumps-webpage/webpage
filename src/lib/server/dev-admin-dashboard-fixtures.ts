@@ -53,6 +53,7 @@ function initialApplications(): AdminMembershipApplicationItem[] {
       email: "analysis-applicant@snu.ac.kr",
       phone: "010-4521-8963",
       department: "수리과학부",
+      studentId: "2023-11111",
       background: "해석개론을 수강했고 편미분방정식에 관심이 있습니다.",
       consentAt: "2026-08-26T10:20:00+09:00",
       submittedAt: "2026-08-26T10:20:00+09:00",
@@ -65,6 +66,7 @@ function initialApplications(): AdminMembershipApplicationItem[] {
       email: "probability-applicant@snu.ac.kr",
       phone: "010-8035-1724",
       department: "통계학과",
+      studentId: "2023-11111",
       background: "확률론과 조합론 문제 풀이를 좋아합니다.",
       consentAt: "2026-08-28T13:45:00+09:00",
       submittedAt: "2026-08-28T13:45:00+09:00",
@@ -344,6 +346,7 @@ export function submitDevApplication(input: {
   const submittedAt = new Date().toISOString();
   const application: AdminMembershipApplicationItem = {
     id: `application-${crypto.randomUUID()}`,
+    studentId: "",
     ...clone(input),
     consentAt: submittedAt,
     submittedAt,

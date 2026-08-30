@@ -6,7 +6,8 @@
  */
 import { describe, expect, it } from "vitest";
 import { env } from "$env/dynamic/private";
-import { getTable } from "$lib/server/data/tables";
+import { currentTerm } from "$lib/server/core/semester";
+import { getTable, mutate } from "$lib/server/data/tables";
 import {
   approveApplication,
   getApplicationForEmail,
@@ -33,6 +34,7 @@ suite("signup lifecycle (live dev DB)", () => {
       name: "테스트지원자",
       department: "수리과학부",
       phone: "010-1234-5678",
+      studentId: "2024-12345",
       background: "E2E 검증용 배경 지식",
     });
     const queued = await getApplicationForEmail(EMAIL);
@@ -49,6 +51,7 @@ suite("signup lifecycle (live dev DB)", () => {
         name: "x",
         department: "y",
         phone: "z",
+        studentId: "",
         background: "",
       }),
     ).rejects.toMatchObject({ code: "CONFLICT" });
@@ -76,8 +79,18 @@ suite("signup lifecycle (live dev DB)", () => {
 
     expect(await getApplicationForEmail(EMAIL)).toBeNull(); // 큐에서 사라짐
 
+    // S9: 승인은 이번 학기 registrations 행도 만든다
+    const regs = await getTable("registrations");
+    const reg = regs.find((r) => r.sourceRequestId === app.id);
+    expect(reg).toBeDefined();
+    expect(reg!.memberId).toBe(member!.id);
+    expect(reg!.term).toBe(currentTerm());
+
     // 4) 중복 승인 차단 (행이 이미 전환됨 → CONFLICT)
     await expect(approveApplication(app.id)).rejects.toMatchObject({ code: "CONFLICT" });
+
+    // 정리: 프로브 회원의 등록 행 제거 (중복 승인 검사 뒤에 해야 CONFLICT 판정이 성립)
+    await mutate("registrations", (rows) => rows.filter((r) => r.sourceRequestId !== app.id));
   });
 
   it("reject removes the row outright (no member conversion)", async () => {
@@ -86,6 +99,7 @@ suite("signup lifecycle (live dev DB)", () => {
       name: "거절테스트",
       department: "수리과학부",
       phone: "010-9999-8888",
+      studentId: "2024-54321",
       background: "",
     });
     const { email } = await rejectApplication(app.id);

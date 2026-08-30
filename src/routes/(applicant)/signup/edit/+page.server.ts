@@ -39,11 +39,19 @@ export const actions = {
         });
       }
 
+      const studentId = ((data.get("studentId") as string) ?? "").trim();
+      if (!/^\d{4}-?\d{4,6}$/.test(studentId)) {
+        throw new AppError("VALIDATION_FAILED", {
+          userMessage: "학번을 2024-12345 형식으로 입력해 주세요.",
+        });
+      }
+
       // Own row only — resolved by session email, never by a client-supplied id.
       await updateOwnApplication(session.user.email, {
         name,
         department,
         phone,
+        studentId,
         background: (data.get("background") as string) ?? "",
       });
     });

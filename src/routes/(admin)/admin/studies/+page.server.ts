@@ -16,19 +16,20 @@ import { StudyStatus } from "$lib/server/data/schemas";
 import {
   adminStudyRequestItem,
   contentFileFromKey,
-  memberSummaryById,
+  directorySummaryIndex,
 } from "$lib/server/data/admin-queue-views";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
   await ensureAdmin(locals, { silent: true });
-  const [studies, members, requests, allMembers] = await Promise.all([
+  // members(=memberPickers)는 조직자 지정용 운영 명단, summaries는 표시용
+  // 통합 디렉터리 — 이주된 스터디의 organizerIds는 legacy id다.
+  const [studies, members, requests, summaries] = await Promise.all([
     getTable("studies"),
     memberPickers(),
     getTable("study-requests"),
-    getTable("members"),
+    directorySummaryIndex(),
   ]);
-  const summaries = memberSummaryById(allMembers);
   const nameOf = (id: string) => summaries.get(id)?.name ?? "알 수 없음";
   return {
     requests: requests

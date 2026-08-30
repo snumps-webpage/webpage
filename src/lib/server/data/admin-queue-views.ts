@@ -25,6 +25,19 @@ export function memberSummaryById(members: Member[]) {
 
 type MemberSummaryMap = ReturnType<typeof memberSummaryById>;
 
+/**
+ * S9: 표시용 이름·학과 맵 — 이주된 요청(seminar-requests 등)의 requester/
+ * presenter id는 legacy id라서, 운영 members가 아닌 통합 디렉터리 인덱스로
+ * 해석한다. 키는 조회에 쓰인 id 그대로 유지한다(요청 행과의 1:1 대응).
+ */
+export async function directorySummaryIndex(): Promise<MemberSummaryMap> {
+  const { getDirectoryIndex } = await import("./directory");
+  const index = await getDirectoryIndex();
+  return new Map(
+    [...index].map(([id, m]) => [id, { id, name: m.name, department: m.department }]),
+  );
+}
+
 const UNKNOWN_MEMBER = { id: "", name: "알 수 없음", department: "" };
 
 export function adminApplicationItem(
@@ -36,6 +49,7 @@ export function adminApplicationItem(
     email: a.email,
     phone: a.phone,
     department: a.department,
+    studentId: a.studentId,
     background: a.background,
     // The table holds only unprocessed rows; consent is given at submission.
     consentAt: a.createdAt,

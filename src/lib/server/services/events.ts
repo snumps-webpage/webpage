@@ -9,6 +9,7 @@ import {
   mutate,
   mutateQueue,
 } from "$lib/server/data/tables";
+import { getDirectoryIndex } from "$lib/server/data/directory";
 import type { Activity, AttendanceRecord, Event } from "$lib/server/data/schemas";
 import { invalidateAttendanceCaches, mergeAttendees } from "$lib/server/attendance";
 
@@ -186,13 +187,12 @@ export async function cancelEventApplication(
 
 /** Seminars the member presents, with resolved applicants and current checks. */
 export async function getManagedSeminars(memberId: string) {
-  const [events, activities, members] = await Promise.all([
+  const [events, activities, memberById] = await Promise.all([
     getTable("events"),
     getTable("activities"),
-    getTable("members"),
+    getDirectoryIndex(), // 표시용 이름·학과 — 과거 기록의 legacy id도 해석
   ]);
   const activityById = new Map(activities.map((a) => [a.id, a]));
-  const memberById = new Map(members.map((m) => [m.id, m]));
 
   return events
     .filter((e) => isSeminarType(e.type) && e.presenterIds.includes(memberId))
@@ -317,12 +317,11 @@ export async function updateAttendanceTime(
 
 /** Admin dashboard: pending rows across all events, member names resolved. */
 export async function getPendingAttendance() {
-  const [queues, members, events] = await Promise.all([
+  const [queues, memberById, events] = await Promise.all([
     listPendingQueues(),
-    getTable("members"),
+    getDirectoryIndex(), // 표시용 이름·학과만 — 큐 행 자체는 운영 데이터
     getTable("events"),
   ]);
-  const memberById = new Map(members.map((m) => [m.id, m]));
   const eventById = new Map(events.map((e) => [e.id, e]));
   return queues.flatMap(({ eventId, rows }) =>
     rows.map((r) => ({

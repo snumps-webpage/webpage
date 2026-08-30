@@ -12,6 +12,8 @@ export interface AdminMembershipApplicationItem {
   email: string;
   phone: string;
   department: string;
+  /** S9: 가입/재가입 신청부터 필수 수집 (구 신청 행은 빈 문자열) */
+  studentId: string;
   background: string;
   consentAt: string;
   submittedAt: string;

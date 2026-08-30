@@ -7,12 +7,20 @@
 export const ZONES = ["(public)", "(applicant)", "(member)", "(admin)", "api"] as const;
 export type Zone = (typeof ZONES)[number];
 
+import { CAPABILITIES, hasCapability, type Capability } from "$lib/server/core/capabilities";
+
 export interface MemberContext {
   memberId: string;
   privateInfoId: string | null;
   name: string;
   status: "associate" | "regular" | "withdrawn";
   isAdmin: boolean;
+  /** S9: 동문 지위 (정회원 취득 이력 — 영구) */
+  isAlumni: boolean;
+  /** S9: 이번 학기 등록 여부 (registrations 테이블) */
+  registered: boolean;
+  /** S9: 파생된 원자 권한 — 가드·서비스는 이것만 본다 */
+  capabilities: Capability[];
 }
 
 export interface GuardContext {
@@ -35,6 +43,31 @@ const ROOT_PAGE_ID = "/(public)";
 export function zoneOf(routeId: string): Zone | null {
   const first = routeId.split("/").filter(Boolean)[0];
   return (ZONES as readonly string[]).includes(first) ? (first as Zone) : null;
+}
+
+/**
+ * S9: 회원 존 쓰기(POST)가 요구하는 capability — 라우트 단위 중앙 등록.
+ * 등록 회원만 참여 행위 가능, 동문(열람 전용)은 본인 것 관리만.
+ * 새 회원 존 라우트가 생기면 여기 한 줄이 늘어난다 (zone.test가 강제).
+ */
+const MEMBER_POST_CAPABILITY: Record<string, Capability> = {
+  "/(member)/seminar/apply": CAPABILITIES.PARTICIPATE,
+  "/(member)/seminar/edit/[id]": CAPABILITIES.PARTICIPATE,
+  "/(member)/study": CAPABILITIES.PARTICIPATE,
+  "/(member)/study/apply": CAPABILITIES.PARTICIPATE,
+  "/(member)/study/[id]": CAPABILITIES.PARTICIPATE,
+  "/(member)/study/[id]/manage": CAPABILITIES.PARTICIPATE,
+  "/(member)/study/[id]/attendance": CAPABILITIES.PARTICIPATE,
+  "/(member)/events/[id]/[type]": CAPABILITIES.PARTICIPATE,
+  "/(member)/events/manage": CAPABILITIES.PARTICIPATE,
+  "/(member)/settings/notifications": CAPABILITIES.MANAGE_SELF,
+  "/(member)/settings/withdraw": CAPABILITIES.MANAGE_SELF,
+  "/(member)/withdraw/pending": CAPABILITIES.MANAGE_SELF,
+};
+
+/** 회원 존 POST에 필요한 capability (null = 회원 존 밖이거나 미등록 라우트). */
+export function memberPostCapability(routeId: string): Capability | null {
+  return MEMBER_POST_CAPABILITY[routeId] ?? null;
 }
 
 /**
@@ -73,7 +106,9 @@ export function decide(routeId: string, ctx: GuardContext): GuardDecision {
         // Grace-period members must not re-apply while their record still exists.
         return { type: "redirect", location: WITHDRAW_PENDING };
       }
-      if (ctx.member) return { type: "redirect", location: "/" };
+      // S9: 이번 학기 등록을 마친 회원만 신청 존에서 내보낸다 —
+      // 미등록 회원(동문 포함)은 재가입 신청을 위해 들어와야 한다.
+      if (ctx.member && ctx.member.registered) return { type: "redirect", location: "/" };
       return { type: "allow" };
     }
 
@@ -92,6 +127,12 @@ export function decide(routeId: string, ctx: GuardContext): GuardDecision {
         !routeId.startsWith(`/(member)${WITHDRAW_PENDING}`)
       ) {
         return { type: "redirect", location: WITHDRAW_PENDING };
+      }
+      if (ctx.member.status === "withdrawn") return { type: "allow" };
+      // S9 재등록 게이트: 회원 존 열람 capability가 없으면 재가입으로 보낸다.
+      // (등록 회원·동문은 통과 — 동문의 쓰기 행위는 PARTICIPATE 검사가 막는다.)
+      if (!hasCapability(ctx.member.capabilities, CAPABILITIES.VIEW_MEMBER_ZONE)) {
+        return { type: "redirect", location: ctx.hasApplication ? "/wait" : "/signup" };
       }
       return { type: "allow" };
     }

@@ -9,6 +9,9 @@ export const PrivateInfoSchema = z.object({
   email: z.string().email().or(z.literal("")),
   phone: z.string(),
   background: z.string(),
+  // 학번 (S9) — 신규 가입부터 필수 수집. 형식 강제는 폼/액션 계층에서 하고,
+  // 스키마는 legacy 이관·테스트 픽스처를 위해 빈 문자열을 허용한다.
+  studentId: z.string().default(""),
   // Per-type mail preferences; one key today, more types add keys (not a migration).
   mailPrefs: z.object({ announcements: z.boolean() }),
   sourceRequestId: SourceRequestId,

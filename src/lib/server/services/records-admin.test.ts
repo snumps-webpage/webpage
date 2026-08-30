@@ -41,7 +41,7 @@ const seedMember = async (id: string, status: "regular" | "withdrawn" = "regular
           ? { requestedAt: nowKstIso(), previousStatus: "regular" as const, holdBy: null, holdAt: null }
           : null,
       isAlumni: false, alumniRevoked: false, roles: [], isAdmin: false,
-      publicContact: null, project: null, sourceRequestId: null,
+      publicContact: null, project: null, legacyMemberId: null, sourceRequestId: null,
     },
   ]);
 

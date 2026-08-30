@@ -32,6 +32,10 @@ export async function getActivitiesBetween(start: Date, end: Date): Promise<Acti
   });
 }
 
-export async function getActivitiesOf(memberId: string): Promise<Activity[]> {
-  return (await getTable("activities")).filter((a) => a.attendeeIds.includes(memberId));
+export async function getActivitiesOf(...memberIds: (string | null)[]): Promise<Activity[]> {
+  // S9: 재가입 회원은 legacy id의 과거 기록도 본인 것이다 — 복수 id 매칭.
+  const ids = memberIds.filter((id): id is string => !!id);
+  return (await getTable("activities")).filter((a) =>
+    ids.some((id) => a.attendeeIds.includes(id)),
+  );
 }

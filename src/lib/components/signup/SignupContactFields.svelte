@@ -1,9 +1,26 @@
 <script lang="ts">
-	let { title = 'Submission', phone = '', background = '', issues = {} } = $props();
+	let { title = 'Submission', phone = '', studentId = '', background = '', issues = {} } = $props();
 </script>
 
 <li class="paper-section">
 	<h2 class="paper-section-title">{title}</h2>
+	<div class="paper-field">
+		<label for="studentId" class="paper-label">학번 <span class="req">*</span></label>
+		<input
+			type="text"
+			id="studentId"
+			name="studentId"
+			value={studentId}
+			required
+			placeholder="2024-12345"
+			pattern="[0-9][0-9][0-9][0-9]-?[0-9]+"
+			title="학번을 2024-12345 형식으로 입력해주세요."
+			inputmode="numeric"
+			aria-invalid={Boolean(issues.studentId)}
+			aria-describedby={issues.studentId ? 'studentId-error' : undefined}
+		/>
+		{#if issues.studentId}<small id="studentId-error" class="field-error">{issues.studentId}</small>{/if}
+	</div>
 	<div class="paper-field">
 		<label for="phone" class="paper-label">전화번호 <span class="req">*</span></label>
 		<input

@@ -25,7 +25,7 @@ import {
   adminApplicationItem,
   adminSeminarRequestItem,
   adminStudyRequestItem,
-  memberSummaryById,
+  directorySummaryIndex,
 } from "$lib/server/data/admin-queue-views";
 import {
   adminAttendanceCapabilities,
@@ -126,21 +126,19 @@ export const load: PageServerLoad = async (event) => {
         }));
       })(),
       seminarRequests: (async () => {
-        const [requests, members] = await Promise.all([
+        const [requests, summaries] = await Promise.all([
           getTable("seminar-requests"),
-          getTable("members"),
+          directorySummaryIndex(),
         ]);
-        const summaries = memberSummaryById(members);
         return requests
           .filter((r) => r.status === "pending")
           .map((r) => adminSeminarRequestItem(r, summaries));
       })(),
       studyRequests: (async () => {
-        const [requests, members] = await Promise.all([
+        const [requests, summaries] = await Promise.all([
           getTable("study-requests"),
-          getTable("members"),
+          directorySummaryIndex(),
         ]);
-        const summaries = memberSummaryById(members);
         return requests
           .filter((r) => r.status === "pending")
           .map((r) => adminStudyRequestItem(r, summaries));

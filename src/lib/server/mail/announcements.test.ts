@@ -26,7 +26,7 @@ async function seedInfo(email: string, announcements: boolean) {
   await mutate("private-info", (rows) => [
     ...rows,
     {
-      id: newId(), memberId: newId(), email, phone: "", background: "",
+      id: newId(), memberId: newId(), email, phone: "", studentId: "", background: "",
       mailPrefs: { announcements }, sourceRequestId: null,
     },
   ]);

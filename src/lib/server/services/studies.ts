@@ -2,6 +2,7 @@ import { AppError } from "$lib/server/core/errors";
 import { newId, randomToken } from "$lib/server/core/id";
 import { nowKstIso } from "$lib/server/core/time";
 import { getTable, mutate } from "$lib/server/data/tables";
+import { getDirectoryIndex } from "$lib/server/data/directory";
 import { ensureCreated } from "$lib/server/data/idempotency";
 import { invalidateAttendanceCaches, mergeAttendees } from "$lib/server/attendance";
 import type { Event, Study, StudyRequest } from "$lib/server/data/schemas";
@@ -392,13 +393,12 @@ export async function declineTransfer(studyId: string, memberId: string): Promis
 
 /** Session×participant attendance sheet for the organizer. */
 export async function getAttendanceSheet(study: Study) {
-  const [events, activities, members] = await Promise.all([
+  const [events, activities, memberById] = await Promise.all([
     getTable("events"),
     getTable("activities"),
-    getTable("members"),
+    getDirectoryIndex(), // 표시용 — 이주된 스터디의 participantIds는 legacy id
   ]);
   const activityById = new Map(activities.map((a) => [a.id, a]));
-  const memberById = new Map(members.map((m) => [m.id, m]));
 
   const sessions = events
     .filter((e) => e.studyId === study.id && e.status !== "cancelled")

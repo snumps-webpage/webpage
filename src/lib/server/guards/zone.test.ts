@@ -1,7 +1,15 @@
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { decide, zoneOf, type GuardContext, type MemberContext, type Zone } from "./zone";
+import { CAPABILITIES, capabilitiesFor } from "$lib/server/core/capabilities";
+import {
+  decide,
+  memberPostCapability,
+  zoneOf,
+  type GuardContext,
+  type MemberContext,
+  type Zone,
+} from "./zone";
 
 /**
  * BE-24: the guard matrix. Every route in src/routes must be registered here
@@ -121,6 +129,9 @@ const memberCtx = (over: Partial<MemberContext> = {}): MemberContext => ({
   name: "회원",
   status: "regular",
   isAdmin: false,
+  isAlumni: false,
+  registered: true,
+  capabilities: capabilitiesFor({ isAlumni: false, registered: true }),
   ...over,
 });
 
@@ -138,6 +149,24 @@ const ROLES: Record<string, GuardContext> = {
   admin: {
     hasSession: true,
     member: memberCtx({ isAdmin: true }),
+    hasApplication: false,
+    pathname: "/x",
+  },
+  // S9: 준회원 이력만 있고 이번 학기 미등록 — capability 없음, 재가입 대상
+  unregistered: {
+    hasSession: true,
+    member: memberCtx({ registered: false, isAlumni: false, capabilities: [] }),
+    hasApplication: false,
+    pathname: "/x",
+  },
+  // S9: 동문(정회원 이력) + 이번 학기 미등록 — 회원 존 열람은 유지
+  alumni: {
+    hasSession: true,
+    member: memberCtx({
+      registered: false,
+      isAlumni: true,
+      capabilities: capabilitiesFor({ isAlumni: true, registered: false }),
+    }),
     hasApplication: false,
     pathname: "/x",
   },
@@ -177,6 +206,8 @@ const MATRIX: Array<[routeId: string, expectations: Record<string, Expect>]> = [
       member: "redirect:/",
       withdrawn: "redirect:/withdraw/pending",
       admin: "redirect:/",
+      unregistered: "allow", // S9: 미등록 회원은 재가입 신청을 위해 들어온다
+      alumni: "allow", // S9: 동문도 미등록이면 재등록 신청 가능
     },
   ],
   [
@@ -188,6 +219,8 @@ const MATRIX: Array<[routeId: string, expectations: Record<string, Expect>]> = [
       member: "allow",
       withdrawn: "redirect:/withdraw/pending",
       admin: "allow",
+      unregistered: "redirect:/signup", // S9: VIEW_MEMBER_ZONE 없음 → 재가입으로
+      alumni: "allow", // S9: 동문은 열람 허용 (쓰기는 PARTICIPATE 검사가 막는다)
     },
   ],
   [
@@ -243,5 +276,19 @@ describe("guard matrix", () => {
     expect(decide("/(member)/withdraw/pending", ROLES.withdrawn)).toEqual({
       type: "allow",
     });
+  });
+});
+
+describe("memberPostCapability (S9)", () => {
+  it("maps participation routes to PARTICIPATE", () => {
+    expect(memberPostCapability("/(member)/study/apply")).toBe(CAPABILITIES.PARTICIPATE);
+  });
+
+  it("maps self-management routes to MANAGE_SELF", () => {
+    expect(memberPostCapability("/(member)/settings/withdraw")).toBe(CAPABILITIES.MANAGE_SELF);
+  });
+
+  it("returns null outside the member zone", () => {
+    expect(memberPostCapability("/(public)/about")).toBeNull();
   });
 });

@@ -1,4 +1,5 @@
 import { redirect, error, fail, type ActionFailure } from "@sveltejs/kit";
+import { hasCapability, type Capability } from "./core/capabilities";
 import { AppError } from "./core/errors";
 import { resolveMember } from "./guards/resolve-member";
 import type { MemberContext } from "./guards/zone";
@@ -135,6 +136,19 @@ async function runAction<T extends Record<string, unknown>>(
 /**
  * Standard wrapper for user actions.
  */
+/**
+ * S9: 원자 capability 게이트. 회원 존 쓰기 액션은 이걸로 PARTICIPATE 등을
+ * 요구한다 — 동문(열람 전용)·미등록 회원의 쓰기를 서비스 앞에서 차단.
+ * locals.member는 zone guard가 이미 해석해 둔 상태다.
+ */
+export function requireCapability(locals: App.Locals, cap: Capability): void {
+  if (!hasCapability(locals.member?.capabilities, cap)) {
+    throw new AppError("FORBIDDEN", {
+      userMessage: "이번 학기 등록 회원만 할 수 있는 작업입니다.",
+    });
+  }
+}
+
 export async function handleUserAction<T extends Record<string, unknown>>(
   locals: App.Locals,
   logic: (
@@ -176,6 +190,15 @@ export async function ensureOrganizer(studyId: string, memberId: string) {
   const { getTable } = await import("./data/tables");
   const study = (await getTable("studies")).find((s) => s.id === studyId);
   if (!study) throw new AppError("NOT_FOUND");
-  if (!study.organizerIds.includes(memberId)) throw new AppError("FORBIDDEN");
+  // S9: 재가입 회원의 이주된 스터디는 organizerIds가 그 사람의 LEGACY id를
+  // 담고 있다 — 현재 id와 legacyMemberId 둘 다 조직자 자격으로 인정한다.
+  // (호출자는 항상 운영 members의 회원 — legacy 전용 id로는 로그인 불가.)
+  const caller = (await getTable("members")).find((m) => m.id === memberId);
+  const candidateIds = new Set(
+    [memberId, caller?.legacyMemberId].filter((id): id is string => !!id),
+  );
+  if (!study.organizerIds.some((id) => candidateIds.has(id))) {
+    throw new AppError("FORBIDDEN");
+  }
   return study;
 }

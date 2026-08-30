@@ -34,7 +34,7 @@ async function seedMember(id: string, name = "회원"): Promise<void> {
     id, name, department: "수리과학부", joinedAt: "2024-03-01",
     status: "regular", statusChangedAt: nowKstIso(), withdrawal: null,
     isAlumni: true, alumniRevoked: false, roles: [], isAdmin: false,
-    publicContact: null, project: null, sourceRequestId: null,
+    publicContact: null, project: null, legacyMemberId: null, sourceRequestId: null,
   };
   await mutate("members", (rows) => [...rows, m]);
 }

@@ -116,7 +116,8 @@ describe("presenter attendance management (PRES-02 / BE-44)", () => {
         id: "a1", name: "김수학", department: "수리과학부", joinedAt: "2024-03-01",
         status: "regular" as const, statusChangedAt: toKstIso(new Date()),
         withdrawal: null, isAlumni: true, alumniRevoked: false, roles: [],
-        isAdmin: false, publicContact: null, project: null, sourceRequestId: null,
+        isAdmin: false, publicContact: null, project: null,
+        legacyMemberId: null, sourceRequestId: null,
       },
     ]);
     await savePresenterAttendance(event.id, "presenter", ["a1"]);

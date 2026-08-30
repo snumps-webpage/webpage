@@ -45,6 +45,7 @@ export function applicationView(a: Application) {
     email: a.email,
     phone: a.phone,
     department: a.department,
+    studentId: a.studentId,
     background: a.background,
     accepted: false, // the table holds only unprocessed rows
     submittedAt: a.createdAt,

@@ -1,6 +1,8 @@
 import { dev } from "$app/environment";
 import { fail } from "@sveltejs/kit";
-import { handleUserAction } from "$lib/server/auth-guards";
+import { handleUserAction, requireCapability } from "$lib/server/auth-guards";
+import { getDirectoryIndex } from "$lib/server/data/directory";
+import { CAPABILITIES } from "$lib/server/core/capabilities";
 import { resolveDevPreviewRole } from "$lib/server/dev-preview";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { getActivitiesBetween, getActivitiesOf, getPrivateInfoOf } from "$lib/server/data/repos";
@@ -171,6 +173,11 @@ export const load: PageServerLoad = async (event) => {
 
     try {
       const range = termRange(currentTerm());
+      // S9: 재가입 회원의 과거(legacy) 기록 연결 — 본인 행의 legacyMemberId
+      const legacyId =
+        (await getTable("members")).find((m) => m.id === member.memberId)
+          ?.legacyMemberId ?? null;
+      const myIds = new Set([member.memberId, ...(legacyId ? [legacyId] : [])]);
       const [
         currentRaw,
         attendedRaw,
@@ -182,7 +189,7 @@ export const load: PageServerLoad = async (event) => {
         allMembers,
       ] = await Promise.all([
         getActivitiesBetween(range.start, range.end),
-        getActivitiesOf(member.memberId),
+        getActivitiesOf(member.memberId, legacyId),
         getTable("seminar-requests"),
         getPrivateInfoOf(member.memberId),
         getTable("seminars"),
@@ -191,21 +198,23 @@ export const load: PageServerLoad = async (event) => {
         getTable("members"),
       ]);
       const eventByActivityId = new Map(allEvents.map((e) => [e.activityId, e]));
-      const memberNameById = new Map(allMembers.map((m) => [m.id, m.name]));
+      const directory = await getDirectoryIndex();
+      // S9: 과거 기록은 legacy id를 가리킨다 — 이름 해석은 통합 디렉터리로.
+      const memberNameById = new Map([...directory.entries()].map(([id, m]) => [id, m.name]));
       const memberRow = allMembers.find((m) => m.id === member.memberId) ?? null;
       const now = new Date();
 
       const requests = allRequests
         .filter(
           (r) =>
-            r.presenterIds.includes(member.memberId) ||
-            r.requesterId === member.memberId,
+            r.presenterIds.some((id) => myIds.has(id)) ||
+            myIds.has(r.requesterId),
         )
         .map(seminarRequestView);
 
       const currentActivities = currentRaw.map((a) => {
         const event = eventByActivityId.get(a.id);
-        const attended = a.attendeeIds.includes(member.memberId);
+        const attended = a.attendeeIds.some((id) => myIds.has(id));
         const isApplied = event?.applicantIds.includes(member.memberId) ?? false;
         const started = event ? new Date(event.date.start) <= now : true;
         return {
@@ -263,9 +272,9 @@ export const load: PageServerLoad = async (event) => {
             title: s.title,
             semester: s.semester,
             status: s.status,
-            role: s.organizerIds.includes(member.memberId)
+            role: s.organizerIds.some((id) => myIds.has(id))
               ? "organizer"
-              : s.participantIds.includes(member.memberId)
+              : s.participantIds.some((id) => myIds.has(id))
                 ? "participant"
                 : "pending",
           })),
@@ -280,7 +289,7 @@ export const load: PageServerLoad = async (event) => {
             requestedAt: s.pendingTransfer?.requestedAt ?? "",
           })),
         approvedSeminars: allSeminars
-          .filter((s) => s.presenterIds.includes(member.memberId))
+          .filter((s) => s.presenterIds.some((id) => myIds.has(id)))
           .map((s) => ({ id: s.id, title: s.title, semester: s.semester, remarks: s.note })),
         myAttendanceStats: {
           total: currentActivities.length,
@@ -326,6 +335,7 @@ export const actions = {
     return handleUserAction(locals, async () => {
       const member = locals.member;
       if (!member) throw new AppError("FORBIDDEN");
+      requireCapability(locals, CAPABILITIES.PARTICIPATE);
       const { applyToEvent } = await import("$lib/server/services/events");
       await applyToEvent(eventId, member.memberId);
       return {};
@@ -343,6 +353,7 @@ export const actions = {
     return handleUserAction(locals, async () => {
       const member = locals.member;
       if (!member) throw new AppError("FORBIDDEN");
+      requireCapability(locals, CAPABILITIES.PARTICIPATE);
       const { cancelEventApplication } = await import("$lib/server/services/events");
       await cancelEventApplication(eventId, member.memberId);
       return {};

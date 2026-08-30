@@ -26,6 +26,9 @@
 				<dl class="application-summary">
 					<div><dt>이름</dt><dd>{data.application.name}</dd></div>
 					<div><dt>학과</dt><dd>{data.application.department}</dd></div>
+					{#if data.application.studentId}
+						<div><dt>학번</dt><dd>{data.application.studentId}</dd></div>
+					{/if}
 					<div><dt>전화번호</dt><dd>{data.application.phone}</dd></div>
 					<div><dt>신청 시각</dt><dd>{new Date(data.application.submittedAt).toLocaleString('ko-KR')}</dd></div>
 				</dl>

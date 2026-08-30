@@ -45,6 +45,9 @@
         </header>
         <dl>
           <div><dt>이메일</dt><dd>{application.email}</dd></div>
+          {#if application.studentId}
+            <div><dt>학번</dt><dd>{application.studentId}</dd></div>
+          {/if}
           <div><dt>전화번호</dt><dd>{application.phone}</dd></div>
         </dl>
         <details>

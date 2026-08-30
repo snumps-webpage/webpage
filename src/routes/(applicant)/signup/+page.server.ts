@@ -65,7 +65,13 @@ export const actions = {
 
       const data = await request.formData();
       const phone = normalizePhoneNumber(data.get("phone") as string);
+      const studentId = ((data.get("studentId") as string) ?? "").trim();
       const background = (data.get("background") as string) ?? "";
+      if (!/^\d{4}-?\d{4,6}$/.test(studentId)) {
+        throw new AppError("VALIDATION_FAILED", {
+          userMessage: "학번을 2024-12345 형식으로 입력해 주세요.",
+        });
+      }
       if (!data.get("agreement")) {
         throw new AppError("VALIDATION_FAILED", {
           userMessage: "개인정보 수집 및 이용에 동의해야 합니다.",
@@ -83,6 +89,7 @@ export const actions = {
           name,
           department,
           phone,
+          studentId,
           background,
         });
       } catch (e) {

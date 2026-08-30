@@ -9,14 +9,13 @@ export const GET: RequestHandler = async ({ locals }) => {
   if (!allowed) return json({ error: "FORBIDDEN" }, { status: 403 });
 
   const requests = await getTable("study-requests");
-  const members = await getTable("members");
   const { studyRequestView } = await import("$lib/server/data/views");
-  const { adminStudyRequestItem, memberSummaryById } = await import(
+  const { adminStudyRequestItem, directorySummaryIndex } = await import(
     "$lib/server/data/admin-queue-views"
   );
   const { nowKstIso } = await import("$lib/server/core/time");
   const pending = requests.filter((r) => r.status === "pending");
-  const summaries = memberSummaryById(members);
+  const summaries = await directorySummaryIndex();
   return json({
     studyRequests: pending.map(studyRequestView),
     // Shared queue envelope for the admin poller (client/api.ts).

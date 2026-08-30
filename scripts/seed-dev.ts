@@ -88,6 +88,7 @@ const members = [
     isAdmin: true,
     publicContact: null,
     project: null,
+    legacyMemberId: null,
     sourceRequestId: null,
   },
   {
@@ -104,6 +105,7 @@ const members = [
     isAdmin: false,
     publicContact: "github.com/dev-regular",
     project: { title: "졸업 프로젝트", url: "https://example.com/project" },
+    legacyMemberId: null,
     sourceRequestId: null,
   },
   {
@@ -120,6 +122,7 @@ const members = [
     isAdmin: false,
     publicContact: null,
     project: null,
+    legacyMemberId: null,
     sourceRequestId: null,
   },
   {
@@ -141,6 +144,7 @@ const members = [
     isAdmin: false,
     publicContact: null,
     project: null,
+    legacyMemberId: null,
     sourceRequestId: null,
   },
 ];
@@ -151,6 +155,7 @@ const privateInfo = members.map((m, i) => ({
   memberId: m.id,
   email: `dev${i + 1}@snu.ac.kr`,
   phone: `010-0000-000${i + 1}`,
+  studentId: `2024-1234${i + 1}`,
   background: `시드 데이터 — ${m.name} (${m.department})`,
   mailPrefs: { announcements: true },
   sourceRequestId: null,
@@ -302,6 +307,7 @@ const applications = [
     email: "dev-applicant@snu.ac.kr",
     phone: "010-0000-0099",
     department: "자유전공학부",
+    studentId: "2025-98765",
     background: "시드 데이터 — 가입 신청",
     createdAt: nowISO,
   },
@@ -317,10 +323,22 @@ const galleryDinner = [
   },
 ];
 
-// 테이블명 10종 — src/lib/server/data/schemas/index.ts TABLES와 정확히 일치해야 함.
+// --- registrations (S9: 학기별 등록 — 시드 회원 전원 이번 학기 등록) ---
+const registrations = members.map((m) => ({
+  id: id(),
+  memberId: m.id,
+  term,
+  registeredAt: kstISO(daysFromNow(-3)),
+  sourceRequestId: null,
+}));
+
+// 테이블명 13종 — src/lib/server/data/schemas/index.ts TABLES와 정확히 일치해야 함 (S9: registrations·legacy 포함).
 const SEED: Record<string, unknown[]> = {
   members,
   "private-info": privateInfo,
+  registrations,
+  "legacy-members": [],
+  "legacy-private-info": [],
   activities,
   events,
   applications,

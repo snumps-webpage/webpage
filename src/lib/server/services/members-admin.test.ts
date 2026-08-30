@@ -33,6 +33,7 @@ const makeMember = (over: Partial<Member> = {}): Member => ({
   isAdmin: false,
   publicContact: null,
   project: null,
+  legacyMemberId: null,
   sourceRequestId: null,
   ...over,
 });

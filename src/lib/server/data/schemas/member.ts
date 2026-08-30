@@ -34,6 +34,8 @@ export const MemberSchema = z.object({
   // The single sanctioned public-contact field (API-SPEC §3 exception).
   publicContact: z.string().nullable(),
   project: z.object({ title: z.string(), url: z.string().optional() }).nullable(),
+  // S9: 재가입 승인 시 이메일로 자동 매칭된 legacy-members 행 — 과거 활동 기록 연결용.
+  legacyMemberId: Id.nullable().default(null),
   sourceRequestId: SourceRequestId,
 });
 

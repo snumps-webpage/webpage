@@ -59,7 +59,7 @@ async function seedFixture() {
       roles: [{ term, title: "회장" }],
       isAdmin: true, publicContact: "snumps0@gmail.com",
       project: { title: "정수론 시각화", url: "https://example.com" },
-      sourceRequestId: "src-1",
+      legacyMemberId: null, sourceRequestId: "src-1",
     },
     {
       id: "m2", name: "이탈퇴", department: "수리과학부", joinedAt: "2023-03-01",
@@ -69,13 +69,15 @@ async function seedFixture() {
         holdBy: null, holdAt: null,
       },
       isAlumni: true, alumniRevoked: false, roles: [], isAdmin: false,
-      publicContact: null, project: { title: "숨겨야 함" }, sourceRequestId: null,
+      publicContact: null, project: { title: "숨겨야 함" }, legacyMemberId: null,
+      sourceRequestId: null,
     },
   ]);
   await mutate("private-info", () => [
     {
       id: newId(), memberId: "m1", email: "secret@snu.ac.kr", phone: "010-0000-0000",
-      background: "비밀", mailPrefs: { announcements: true }, sourceRequestId: null,
+      studentId: "2020-00000", background: "비밀", mailPrefs: { announcements: true },
+      sourceRequestId: null,
     },
   ]);
   await mutate("seminars", () => [
