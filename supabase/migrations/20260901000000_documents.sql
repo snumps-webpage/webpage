@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0001_documents.sql — AWS → Supabase 이행 T1
+-- 20260901000000_documents.sql — AWS → Supabase 이행 T1
 --
 -- Purpose : version-CAS JSONB document store (app_tables / app_queues),
 --           append-only audit_log, RLS lockdown, and the three Storage buckets.

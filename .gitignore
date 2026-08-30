@@ -56,3 +56,6 @@ static/posters/exports
 
 # Migration script output (PII-laden Notion dumps and manifests — never commit)
 scripts/migration/out/
+
+# Supabase CLI local state
+supabase/.temp/

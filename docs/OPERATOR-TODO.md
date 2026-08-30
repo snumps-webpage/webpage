@@ -12,11 +12,11 @@
 | # | 작업 | 상태 | 막고 있는 것 |
 |---|---|---|---|
 | 1 | 공용 계정 준비 (콘솔 5종 공용화 + MFA + 자격증명 인벤토리) | ⬜ 미완 | 이하 전부 — 알림 수신·소유권의 전제 |
-| 2 | Supabase 프로젝트 2개 생성 (prod/dev) + SQL 실행 + sb_secret 키 발급 | ⬜ 미완 (1 선행) | 데이터 계층·자산·이주 전부 |
-| 3 | Vercel env 등록 | ⬜ 미완 (2 선행) | 런타임 동작 전부 |
+| 2 | Supabase 프로젝트 2개 생성 (prod/dev) + SQL 실행 + sb_secret 키 발급 | ✅ 완료 (CLI, 2026-08-30) — org 공용화(1절)만 잔여 | 데이터 계층·자산·이주 전부 |
+| 3 | Vercel env 등록 | 🟡 CLI로 10종 등록 완료 (2026-08-30) — `HEALTHCHECKS_PING_URL`(5절)·`GITHUB_BACKUP_TOKEN`(6절)만 발급 후 추가 | 런타임 동작 전부 |
 | 4 | cron-job.org 잡 3개 등록 + 알림 설정 | ⬜ 미완 (3 선행) | 만료 처리·회차 생성·keep-alive·주간 백업 |
 | 5 | Healthchecks.io 체크 생성 | ⬜ 미완 (1·3 선행) | 크론 침묵 감지 (dead-man's switch) |
-| 6 | 백업 repo (`snumps-backups`) + fine-grained PAT | ⬜ 미완 (1 선행) | off-platform 백업 (B2) |
+| 6 | 백업 repo (`snumps-backups`) + fine-grained PAT | 🟡 repo 생성 완료 (2026-08-30) — **PAT 발급·등록만 남음** | off-platform 백업 (B2) |
 | 7 | 🔴 pause 런북 숙지 | 상시 | — (장애 시 대응 속도) |
 | 8 | 복구 절차 숙지 | 상시 | — |
 | 9 | 정기 수칙 (학기말·분기) | 🔁 반복 | — |
@@ -57,21 +57,38 @@
 **왜**: 데이터(Postgres 문서 테이블)·자산(Storage)·감사 로그·백업이 전부 Supabase 위에 만들어진다.
 무료 플랜의 프로젝트 2개 한도를 **prod / dev 분리**에 쓴다 (S4 — 로컬 개발은 dev 프로젝트를 향한다).
 
-1. https://supabase.com → 공용 계정으로 org 생성 → **프로젝트 2개** 생성: `snumps-prod`, `snumps-dev`.
-   - Region: **서울** — 선택지 이름은 **"Northeast Asia (Seoul)"** (AWS식 `ap-northeast-2` 표기는 목록에 없다).
-   - DB 비밀번호는 프로젝트별 생성 후 인벤토리(1절)에 기록.
-2. 각 프로젝트에서 **SQL Editor** 열기 → 레포의 `supabase/migrations/0001_documents.sql` 전문을
-   붙여 넣고 실행. (테이블 3종 + append-only 트리거 + Storage 버킷 + RLS를 SQL이 전부 만든다.)
-3. **Storage 버킷 3개 확인** — SQL이 생성하지만, 콘솔 → Storage에서 존재·공개성을 눈으로 확인:
-   `assets`(public) · `staging`(private) · `backups`(private).
-4. **API 키 발급**: 콘솔 → Project Settings → API Keys → **`sb_secret_...` 신 체계 secret key** 발급.
-   - ⚠️ **legacy JWT(`service_role`) 키가 아니다** — legacy 체계는 2026년 말 deprecate 예고 (스펙 §0).
-   - prod 키 → Vercel env 등록(3절). dev 키 → 로컬 `.env`에만 (Vercel에 넣지 않는다).
+> **2026-08-30 CLI로 대부분 완료** — 아래는 실제 상태. 원래 절차 중 남은 것은 ⬜ 표시 항목뿐.
+>
+> - ✅ prod = 기존 org `snumps`의 **`webpage`** 프로젝트 (ref `rwlvnttpaqkhpebtebif`).
+>   ⚠️ Region이 **Tokyo(ap-northeast-1)** 다 — 서울 아님. 기존 프로젝트라 리전 변경 불가(이전하려면
+>   신규 프로젝트 + 데이터 이사). 도쿄↔서울 지연 차이는 이 규모에서 체감 미미 — **그대로 쓰는 것을 권장**.
+> - ✅ dev = **`snumps-dev`** CLI 생성 (ref `gcahkryexewswzvtfltj`, Tokyo). DB 비밀번호는
+>   레포의 `.env.devdbpass` (gitignored) — 인벤토리(1절)에 옮겨 기록할 것.
+> - ✅ dev 마이그레이션 적용 (`supabase db push`, `20260901000000_documents.sql`) — 테이블 3종 +
+>   append-only 트리거 + 버킷 3개(공개성 실측 확인) + RLS.
+> - ✅ dev 시드 주입 (`scripts/seed-dev.ts`, 10테이블) + **T3 실측 게이트 5/5 통과**
+>   (signed-upload Content-Type 미서명 → `info()` 검사 유일 강제선 성립, cross-bucket move 동작,
+>   동일 경로 재발급 거부 확인 — `scripts/ops/ops-t3-gate.mjs`).
+> - ✅ sb_secret 키 발급·수집: dev 키 → 로컬 `.env` 조립 완료. prod 키 포함 Vercel용 값 일체 →
+>   **`.env.prod-secrets`** (gitignored) — 3절에서 그대로 복사해 넣으면 된다.
+> - ✅ **prod 마이그레이션 적용** (2026-08-30, `scripts/ops/ops-push-prod.sh`) — prod 버킷 3개
+>   존재·공개성 실측 확인 (`ops-check-buckets-prod.sh`).
+> - ✅ **보안 경계 실측** (dev): audit_log append-only 트리거가 UPDATE/DELETE 거부
+>   (`ops-check-audit-trigger.sh`), publishable 키의 테이블 읽기/쓰기·private 버킷 열람 전부 거부 —
+>   RLS deny-all 성립 (`ops-check-rls.sh`).
+> - ⬜ 프로젝트 소유 org를 공용 계정으로 이전 (1절).
 
 ## 3. Vercel env 등록
 
 **왜**: 런타임의 Supabase 접근·크론 인증·백업 push가 전부 env로 주입된다. **prod 값만 Vercel에**,
 dev 값은 로컬 `.env`로 (스펙 §6).
+
+> **2026-08-30 CLI로 등록 완료** (`scripts/ops/ops-vercel-env.sh`): 아래 표에서
+> `HEALTHCHECKS_PING_URL`(5절 발급 후)·`GITHUB_BACKUP_TOKEN`(6절 발급 후) **2종만 남음** —
+> 발급되면 스크립트 재실행 대신 `vercel env add <NAME> production` 으로 개별 추가.
+> `CRON_SECRET`은 생성돼 레포의 `.env.cronsecret`(gitignored)에 보관 — **cron-job.org 잡 3개의
+> `Authorization: Bearer` 값으로 이 파일 내용을 그대로 복사**할 것. AWS_* 잔존 env 없음(확인).
+> ⚠️ env는 **다음 배포부터** 적용된다.
 
 Vercel → `snumps` 프로젝트 → Settings → Environment Variables (Production):
 
@@ -134,7 +151,7 @@ Vercel → `snumps` 프로젝트 → Settings → Environment Variables (Product
 **왜**: Supabase 무료 플랜은 자동 백업이 없고, 프로젝트 단위 소멸(계정 사고·1년 경과 미복원)에 대비한
 **off-platform 사본**(B2)이 필요하다. 주간 덤프를 private GitHub repo로 push한다 (스펙 §7).
 
-1. GitHub org에 **private repo** `snumps-webpage/snumps-backups` 생성 (README만 있는 빈 repo면 충분).
+1. ✅ GitHub org에 **private repo** `snumps-webpage/snumps-backups` 생성 (2026-08-30, gh CLI — README만 포함).
 2. **fine-grained PAT 발급**: GitHub → Settings → Developer settings → Fine-grained tokens →
    - Resource owner: `snumps-webpage` / Repository access: **`snumps-backups` 단일 repo만**
    - Permissions: **Contents — Read and write** 만. 그 외 전부 No access.

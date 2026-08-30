@@ -73,7 +73,8 @@ PUBLIC_SITE_ORIGIN=https://snumps.vercel.app   # links inside outgoing mail
 
 로컬 개발은 **2번째 무료 Supabase 프로젝트(dev)** 를 사용한다 (스펙 결정 S4 — prod와 완전 분리).
 
-1. Supabase에서 dev 프로젝트를 생성하고 `supabase/migrations/0001_documents.sql`을 적용한다.
+1. Supabase에서 dev 프로젝트를 생성하고 `supabase/migrations/20260901000000_documents.sql`을 적용한다.
+   (2026-08-30 완료 — dev 프로젝트 `snumps-dev`, ref `gcahkryexewswzvtfltj`. 재구축 시 `scripts/ops/` 스크립트 참조.)
 2. `.env`에 **dev 프로젝트의** `SUPABASE_URL` / `SUPABASE_SECRET_KEY`를 넣는다 (prod 키 금지).
 3. 시드 데이터 주입: `npx tsx scripts/seed-dev.ts`
 4. 오프라인 보조로는 `DATA_BACKEND=memory`를 쓸 수 있다 — 단 **프로세스 재시작 시 데이터가 소멸**하고

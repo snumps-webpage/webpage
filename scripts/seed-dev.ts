@@ -1,7 +1,7 @@
 // run: npx tsx scripts/seed-dev.ts
 //
 // dev 프로젝트 시드 스크립트 (SUPABASE-MIGRATION-SPEC.md T8 / 결정 S4).
-// 대상: supabase/migrations/0001_documents.sql이 적용된 **dev** Supabase 프로젝트.
+// 대상: supabase/migrations/20260901000000_documents.sql이 적용된 **dev** Supabase 프로젝트.
 // 필요 env: SUPABASE_URL, SUPABASE_SECRET_KEY (sb_secret_..., 서버 전용 — 절대 커밋 금지)
 //
 // 의존성: @supabase/supabase-js (T2에서 추가됨 — 아직 없으면 `pnpm add @supabase/supabase-js`).

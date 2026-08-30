@@ -18,7 +18,7 @@
 ## 적용 방법 A — 대시보드 SQL Editor (권장, 가장 간단)
 
 1. Supabase 대시보드 → 해당 프로젝트 → **SQL Editor**
-2. `migrations/0001_documents.sql` 내용 전체를 붙여넣고 **Run**
+2. `migrations/20260901000000_documents.sql` 내용 전체를 붙여넣고 **Run**
 3. prod·dev 두 프로젝트에 각각 반복
 
 ## 적용 방법 B — Supabase CLI

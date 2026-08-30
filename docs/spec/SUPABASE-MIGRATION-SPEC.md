@@ -62,7 +62,7 @@ cron-job.org: 30초 타임아웃 · 응답 64KB 상한 · 302는 실패 집계(�
 Postgres를 **버전-CAS JSONB 문서 스토어**로 사용 — 605행 규모에 맞춘 의도적 선택(주석·문서 명기).
 정규화는 서비스 8종 재작성 = surface 훼손이므로 하지 않는다.
 
-### 2-2. 스키마 (`supabase/migrations/0001_documents.sql` — 커밋. Storage 버킷 생성·RLS도 SQL에 포함해 콘솔 의존 최소화)
+### 2-2. 스키마 (`supabase/migrations/20260901000000_documents.sql` — 커밋. Storage 버킷 생성·RLS도 SQL에 포함해 콘솔 의존 최소화)
 
 ```sql
 create table app_tables (
