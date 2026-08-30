@@ -88,13 +88,13 @@
     <section class:hidden={step !== 3} aria-labelledby="withdraw-step-3">
       <p class="section-index">03 · Verification</p>
       <h1 id="withdraw-step-3">등록된 이름을 정확히 입력해 주세요.</h1>
-      <p>이 작업은 <strong>{data.account.name}</strong> 회원의 탈퇴 신청으로 기록됩니다.</p>
+      <p>이 작업은 <strong>{data.memberName}</strong> 회원의 탈퇴 신청으로 기록됩니다.</p>
       <label class="name-field" for="confirmName">
         <span>본인 이름</span>
         <input id="confirmName" name="confirmName" autocomplete="off" bind:value={confirmName} aria-invalid={actionForm?.issues?.confirmName ? "true" : undefined} />
       </label>
       {#if actionForm?.issues?.confirmName}<p class="field-error">{actionForm.issues.confirmName}</p>{/if}
-      <div class="actions"><button type="button" class="paper-btn" onclick={() => (step = 2)}>이전</button><button class="paper-btn danger" disabled={confirmName !== data.account.name || hasOrganizerConflict}>탈퇴 신청 확정</button></div>
+      <div class="actions"><button type="button" class="paper-btn" onclick={() => (step = 2)}>이전</button><button class="paper-btn danger" disabled={confirmName !== data.memberName || hasOrganizerConflict}>탈퇴 신청 확정</button></div>
     </section>
   </form>
 </article>

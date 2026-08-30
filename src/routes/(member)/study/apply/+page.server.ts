@@ -17,7 +17,8 @@ export const load: PageServerLoad = async ({ locals }) => {
     defaultSemester: currentTerm(),
     myRequests: requests
       .filter((r) => r.requesterId === memberId)
-      .map(studyRequestView),
+      .map(studyRequestView)
+      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)),
   };
 };
 

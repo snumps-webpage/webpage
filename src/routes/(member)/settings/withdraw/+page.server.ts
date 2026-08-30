@@ -1,11 +1,17 @@
 import { redirect } from "@sveltejs/kit";
 import { handleUserAction } from "$lib/server/auth-guards";
 import { requestWithdrawal } from "$lib/server/services/withdrawal";
+import { getTable } from "$lib/server/data/tables";
 import type { PageServerLoad } from "./$types";
 
 /** MEM-07: the withdrawal request page (triple confirmation). */
 export const load: PageServerLoad = async ({ locals }) => {
-  return { memberName: locals.member!.name };
+  const memberId = locals.member!.memberId;
+  // Mirrors the organizer guard in services/withdrawal.ts so the UI can warn upfront.
+  const organizedStudies = (await getTable("studies"))
+    .filter((s) => s.organizerIds.includes(memberId) && s.status !== "finished")
+    .map((s) => s.title);
+  return { memberName: locals.member!.name, organizedStudies };
 };
 
 export const actions = {

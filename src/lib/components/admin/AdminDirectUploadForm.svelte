@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { dev } from "$app/environment";
   import { v7 as uuidv7 } from "uuid";
   import { uploadAdminFile } from "$lib/client/api";
   import type { UploadPurpose } from "$lib/domain/api";
@@ -40,7 +39,7 @@
   };
 
   async function submit(event: SubmitEvent) {
-    if (dev || readyToRegister) return;
+    if (readyToRegister) return;
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
     const file = input?.files?.[0];
@@ -57,9 +56,14 @@
     clientError = null;
     try {
       const uploaded = await uploadAdminFile(file, purpose, uuidv7());
-      for (const [name, value] of Object.entries(uploaded)) {
-        addHidden(form, name, String(value));
-      }
+      // Register the staged object with the editor action (?/addFile,
+      // ?/addPhoto): it promotes `pendingKey` by purpose-derived field.
+      addHidden(form, "pendingKey", uploaded.s3Key);
+      addHidden(
+        form,
+        "field",
+        purpose === "seminar-material" ? "materials" : "photos",
+      );
       if (input) input.value = "";
       readyToRegister = true;
       form.requestSubmit();

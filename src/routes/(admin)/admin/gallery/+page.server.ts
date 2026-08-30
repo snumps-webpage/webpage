@@ -8,6 +8,7 @@ import {
 } from "$lib/server/services/records-admin";
 import { promotePendingUpload } from "$lib/server/services/uploads";
 import { AppError } from "$lib/server/core/errors";
+import { nowKstIso } from "$lib/server/core/time";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -16,11 +17,26 @@ export const load: PageServerLoad = async ({ locals }) => {
     getTable("gallery-dinner"),
     getTable("activities"),
   ]);
+  const activityById = new Map(activities.map((a) => [a.id, a]));
   return {
-    entries: [...entries].reverse(),
+    gallery: [...entries].reverse().map((entry) => {
+      const activity = entry.activityId ? activityById.get(entry.activityId) : undefined;
+      return {
+        id: entry.id,
+        year: entry.year,
+        activityId: entry.activityId,
+        title: activity?.title ?? `${entry.year} 회식`,
+        date: activity ? activity.date.start.slice(0, 10) : entry.year,
+        photos: entry.photos.map((key) => ({
+          s3Key: key,
+          name: key.slice(key.lastIndexOf("/") + 1),
+        })),
+      };
+    }),
     activities: activities
       .filter((a) => a.type === "회식")
-      .map((a) => ({ id: a.id, title: a.title, date: a.date.start })),
+      .map((a) => ({ id: a.id, title: a.title, date: a.date.start.slice(0, 10) })),
+    generatedAt: nowKstIso(),
   };
 };
 
@@ -36,7 +52,7 @@ export const actions = {
         year,
         activityId: (data.get("activityId") as string) || null,
       });
-      return {};
+      return { operation: "galleryCreated" };
     });
   },
 
@@ -47,7 +63,7 @@ export const actions = {
         year: (data.get("year") as string)?.trim() || undefined,
         activityId: (data.get("activityId") as string) || null,
       });
-      return {};
+      return { operation: "galleryUpdated" };
     });
   },
 
@@ -55,7 +71,7 @@ export const actions = {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
       await deleteGalleryEntry(id);
-      return {};
+      return { operation: "galleryDeleted" };
     });
   },
 
@@ -69,7 +85,7 @@ export const actions = {
         id,
       );
       await setGalleryPhotos(id, { add: finalKey });
-      return { s3Key: finalKey };
+      return { s3Key: finalKey, operation: "galleryPhotoAdded" };
     });
   },
 
@@ -79,7 +95,7 @@ export const actions = {
       await setGalleryPhotos(data.get("id") as string, {
         remove: data.get("s3Key") as string,
       });
-      return {};
+      return { operation: "galleryPhotoRemoved" };
     });
   },
 };

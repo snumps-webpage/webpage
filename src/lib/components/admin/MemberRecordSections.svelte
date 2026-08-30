@@ -1,17 +1,24 @@
+<script lang="ts" module>
+  /** Sections report which record the backend action just changed. */
+  export type MemberSectionOperation =
+    | "memberUpdated"
+    | "statusUpdated"
+    | "alumniRevoked"
+    | "privateInfoUpdated"
+    | "withdrawalHoldUpdated";
+</script>
+
 <script lang="ts">
   import { enhance } from "$app/forms";
   import { untrack } from "svelte";
-  import type {
-    AdminMemberDetail,
-    MemberAdminOperationResult,
-  } from "$lib/domain/members";
+  import type { AdminMemberDetail } from "$lib/domain/members";
 
   let {
     member,
     onresult,
   }: {
     member: AdminMemberDetail;
-    onresult: (result: MemberAdminOperationResult) => void;
+    onresult: (operation: MemberSectionOperation) => void;
   } = $props();
 
   const initialMember = untrack(() => ({
@@ -48,10 +55,19 @@
     return result.type === "failure"
       ? (result.data as {
           error?: string;
+          message?: string;
           issues?: Record<string, string>;
         })
       : null;
   }
+
+  const OPERATION_BY_KIND: Record<SectionKind, MemberSectionOperation> = {
+    record: "memberUpdated",
+    status: "statusUpdated",
+    alumni: "alumniRevoked",
+    private: "privateInfoUpdated",
+    withdrawal: "withdrawalHoldUpdated",
+  };
 
   function actionEnhancer(kind: SectionKind) {
     processing = kind;
@@ -61,17 +77,24 @@
     }
     if (kind === "private") privateIssues = {};
 
-    return async ({ result }: { result: import("@sveltejs/kit").ActionResult }) => {
+    return async ({
+      result,
+      update,
+    }: {
+      result: import("@sveltejs/kit").ActionResult;
+      update: (options?: { reset?: boolean; invalidateAll?: boolean }) => Promise<void>;
+    }) => {
       processing = null;
       if (result.type === "success") {
-        const operation = result.data as MemberAdminOperationResult;
-        onresult(operation);
-        if (operation.operation === "alumniRevoked") alumniReason = "";
+        // The action returns no record — re-run the load, the data authority.
+        await update({ reset: false });
+        onresult(OPERATION_BY_KIND[kind]);
+        if (kind === "alumni") alumniReason = "";
         return;
       }
       const failure = failureData(result);
       const issues = failure?.issues ?? {
-        _form: failure?.error ?? "변경 사항을 저장하지 못했습니다.",
+        _form: failure?.message ?? failure?.error ?? "변경 사항을 저장하지 못했습니다.",
       };
       if (kind === "record") recordIssues = issues;
       else if (kind === "private") privateIssues = issues;
@@ -112,6 +135,17 @@
         action="?/updateMember"
         use:enhance={() => actionEnhancer("record")}
       >
+        <!-- publicContact rides along unchanged — the action would otherwise
+             null the single opt-in contact string. -->
+        <input
+          type="hidden"
+          name="publicContact"
+          value={member.publicContact
+            ? [member.publicContact.phone, member.publicContact.email]
+                .filter(Boolean)
+                .join(" · ")
+            : ""}
+        />
         <label class="paper-field">
           <span class="paper-label">이름</span>
           <input name="name" bind:value={name} aria-invalid={!!recordIssues.name} />

@@ -10,11 +10,31 @@
   import type { PresenterAttendanceOperationResult } from "$lib/domain/attendance";
 
   let { data } = $props();
-  const initialManagement = untrack(() => data.management);
-  let management = $derived(data.management);
+
+  function buildManagement(
+    seminars: typeof data.managedSeminars,
+    requestedEventId: string | null,
+  ) {
+    if (seminars.length === 0) return null;
+    const selectedEvent =
+      seminars.find((seminar) => seminar.id === requestedEventId) ?? seminars[0];
+    return {
+      events: seminars,
+      selectedEvent,
+      applicants: selectedEvent.applicants,
+      nonApplicantAttendanceCount: selectedEvent.nonApplicantAttendanceCount,
+    };
+  }
+
+  const initialManagement = untrack(() =>
+    buildManagement(data.managedSeminars, page.url.searchParams.get("event")),
+  );
+  let management = $derived(
+    buildManagement(data.managedSeminars, page.url.searchParams.get("event")),
+  );
   const selectedIds = new SvelteSet(
     initialManagement?.applicants
-      .filter((member) => member.attended)
+      .filter((member) => member.checked)
       .map((member) => member.id) ?? [],
   );
   const savedApplicantIds = new SvelteSet(selectedIds);
@@ -34,12 +54,12 @@
     selectedEventId = management.selectedEvent.id;
     replaceSelected(
       management.applicants
-        .filter((member) => member.attended)
+        .filter((member) => member.checked)
         .map((member) => member.id),
     );
     replaceSaved(
       management.applicants
-        .filter((member) => member.attended)
+        .filter((member) => member.checked)
         .map((member) => member.id),
     );
     notice = null;
@@ -146,14 +166,12 @@
         <span>Seminar</span>
         <strong>{management.selectedEvent.title}</strong>
       </div>
-      <div><span>구분</span><strong>{management.selectedEvent.kind === "regular" ? "정기" : "비정기"}</strong></div>
       <div><span>상태</span><strong>{statusLabel(management.selectedEvent.status)}</strong></div>
       <div><span>선택</span><strong>{selectedCount} / {management.applicants.length}</strong></div>
     </section>
 
     <section class="schedule-line">
-      <div><span>일시</span><strong>{formatDate(management.selectedEvent.startsAt)}</strong></div>
-      <div><span>장소</span><strong>{management.selectedEvent.location}</strong></div>
+      <div><span>일시</span><strong>{formatDate(management.selectedEvent.date)}</strong></div>
     </section>
 
     <aside class="merge-note">
@@ -228,16 +246,16 @@
       <div class="register-actions">
         <div class="share-link">
           <span>참여자용 출석 링크</span>
-          <code>{management.selectedEvent.attendancePath}</code>
+          <code>{management.selectedEvent.attendPath}</code>
           <div class="share-actions">
             <CopyButton
-              text={`${page.url.origin}${management.selectedEvent.attendancePath}`}
+              text={`${page.url.origin}${management.selectedEvent.attendPath}`}
               title="출석 링크 복사"
             />
-            <a class="paper-btn small" href={management.selectedEvent.attendancePath} target="_blank">열기</a>
+            <a class="paper-btn small" href={management.selectedEvent.attendPath} target="_blank">열기</a>
           </div>
         </div>
-        <button class="paper-btn primary" disabled={!management.canSave || processing}>
+        <button class="paper-btn primary" disabled={processing}>
           {processing ? "저장 중…" : `${selectedCount}명 출석 저장`}
         </button>
       </div>
@@ -250,11 +268,11 @@
   .event-toolbar { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0.65rem; margin-bottom: 0.85rem; }
   .event-toolbar label, .event-index span, .schedule-line span, .register-heading p, .share-link > span, .section-index { color: var(--latex-muted); font: 700 0.58rem/1.2 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; }
   select { width: 100%; min-height: 2.65rem; padding: 0.55rem 0.7rem; border: 1px solid var(--latex-rule); background: var(--latex-bg); color: var(--latex-text); }
-  .event-index { display: grid; grid-template-columns: 2fr 0.55fr 0.7fr 0.7fr; border: 1px solid var(--latex-rule); }
+  .event-index { display: grid; grid-template-columns: 2fr 0.7fr 0.7fr; border: 1px solid var(--latex-rule); }
   .event-index > div, .schedule-line > div { min-width: 0; display: grid; gap: 0.18rem; padding: 0.65rem 0.75rem; border-right: 1px solid var(--latex-rule); }
   .event-index > div:last-child, .schedule-line > div:last-child { border-right: 0; }
   .event-index strong, .schedule-line strong { overflow-wrap: anywhere; font-size: 0.78rem; font-weight: 560; }
-  .schedule-line { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--latex-rule); border-top: 0; }
+  .schedule-line { display: grid; grid-template-columns: 1fr; border: 1px solid var(--latex-rule); border-top: 0; }
   .merge-note { margin: 0.8rem 0; padding: 0.7rem 0.8rem; border-left: 3px solid var(--latex-accent); background: color-mix(in srgb, var(--latex-accent) 4%, transparent); color: var(--latex-muted); font-size: 0.75rem; line-height: 1.6; }
   .merge-note strong { color: var(--latex-text); margin-right: 0.4rem; }
   .notice { display: flex; justify-content: space-between; gap: 0.8rem; margin-bottom: 0.75rem; padding: 0.65rem 0.75rem; border: 1px solid var(--latex-rule); border-left: 4px solid var(--latex-text); font-size: 0.76rem; }
@@ -285,6 +303,6 @@
   .empty-sheet h1 { margin: 0.4rem 0; font-size: 1.25rem; font-weight: 560; }
   .empty-sheet > p:last-of-type { color: var(--latex-muted); font-size: 0.78rem; line-height: 1.7; }
   .empty-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
-  @media (max-width: 700px) { .event-toolbar { grid-template-columns: 1fr; } .event-index { grid-template-columns: 1fr 1fr 1fr; } .event-index .title-cell { grid-column: 1 / -1; border-right: 0; border-bottom: 1px solid var(--latex-rule); } .schedule-line { grid-template-columns: 1fr; } .schedule-line > div { border-right: 0; border-bottom: 1px solid var(--latex-rule); } .schedule-line > div:last-child { border-bottom: 0; } .attendance-row { grid-template-columns: 1.6rem 1.1rem minmax(5rem, 1fr) auto; gap: 0.3rem; padding: 0.45rem 0.2rem; } .attendance-row .check-mark { grid-column: 2; } .attendance-row .member-name { grid-column: 3; } .member-department { grid-column: 3; grid-row: 2; } .checkin-source { grid-column: 4; grid-row: 1 / span 2; } .attendance-row input { display: none; } .register-actions { grid-template-columns: 1fr; } .register-actions > :global(.paper-btn) { width: 100%; } }
-  @media (max-width: 430px) { .event-index { grid-template-columns: 1fr 1fr; } .event-index > div { border-bottom: 1px solid var(--latex-rule); } .event-index > div:nth-child(3) { border-right: 0; } .event-index > div:last-child { grid-column: 1 / -1; border-bottom: 0; } .share-link { grid-template-columns: 1fr; } .share-actions { grid-column: 1; grid-row: auto; justify-content: stretch; } .share-actions :global(.paper-btn) { flex: 1; text-align: center; } }
+  @media (max-width: 700px) { .event-toolbar { grid-template-columns: 1fr; } .event-index { grid-template-columns: 1fr 1fr; } .event-index .title-cell { grid-column: 1 / -1; border-right: 0; border-bottom: 1px solid var(--latex-rule); } .schedule-line { grid-template-columns: 1fr; } .schedule-line > div { border-right: 0; border-bottom: 1px solid var(--latex-rule); } .schedule-line > div:last-child { border-bottom: 0; } .attendance-row { grid-template-columns: 1.6rem 1.1rem minmax(5rem, 1fr) auto; gap: 0.3rem; padding: 0.45rem 0.2rem; } .attendance-row .check-mark { grid-column: 2; } .attendance-row .member-name { grid-column: 3; } .member-department { grid-column: 3; grid-row: 2; } .checkin-source { grid-column: 4; grid-row: 1 / span 2; } .attendance-row input { display: none; } .register-actions { grid-template-columns: 1fr; } .register-actions > :global(.paper-btn) { width: 100%; } }
+  @media (max-width: 430px) { .share-link { grid-template-columns: 1fr; } .share-actions { grid-column: 1; grid-row: auto; justify-content: stretch; } .share-actions :global(.paper-btn) { flex: 1; text-align: center; } }
 </style>

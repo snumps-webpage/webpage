@@ -1,16 +1,17 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
-  import type {
-    StudyManagementData,
-    StudyMemberSummary,
-    StudyOperationResult,
-  } from "$lib/domain/studies";
+  import type { StudyMemberSummary } from "$lib/domain/studies";
 
   interface Props {
-    pendingTransfer: StudyManagementData["pendingTransfer"];
+    pendingTransfer: {
+      toMemberId: string;
+      toName: string;
+      toDepartment: string;
+      requestedAt: string;
+    } | null;
     candidates: StudyMemberSummary[];
     canTransfer: boolean;
-    onTransition: (result: StudyOperationResult) => void;
+    onNotice: (message: string) => void;
     onError: (message: string) => void;
   }
 
@@ -18,22 +19,37 @@
     pendingTransfer,
     candidates,
     canTransfer,
-    onTransition,
+    onNotice,
     onError,
   }: Props = $props();
   let memberId = $state("");
   let processing = $state(false);
 
-  function enhanceTransfer() {
+  function enhanceTransfer(kind: "propose" | "cancel") {
     processing = true;
-    return async ({ result }: { result: import("@sveltejs/kit").ActionResult }) => {
+    const proposedName = candidates.find((c) => c.id === memberId)?.name;
+    return async ({
+      result,
+      update,
+    }: {
+      result: import("@sveltejs/kit").ActionResult;
+      update: () => Promise<void>;
+    }) => {
       processing = false;
       if (result.type === "success") {
-        onTransition(result.data as StudyOperationResult);
+        await update();
+        onNotice(
+          kind === "propose"
+            ? `${proposedName ?? "선택한 참여자"} 님에게 주최자 전달을 제안했습니다.`
+            : "주최자 전달 제안을 철회했습니다.",
+        );
         return;
       }
-      const data = result.type === "failure" ? result.data as { error?: string } : null;
-      onError(data?.error ?? "주최자 전달 제안을 처리하지 못했습니다.");
+      const data =
+        result.type === "failure"
+          ? result.data as { error?: string; message?: string }
+          : null;
+      onError(data?.message ?? data?.error ?? "주최자 전달 제안을 처리하지 못했습니다.");
     };
   }
 </script>
@@ -50,19 +66,19 @@
   {#if pendingTransfer}
     <div class="pending-transfer">
       <div>
-        <strong>{pendingTransfer.toMember.name}</strong>
-        <p>{pendingTransfer.toMember.department} · 수락 대기 중</p>
+        <strong>{pendingTransfer.toName}</strong>
+        <p>{pendingTransfer.toDepartment} · 수락 대기 중</p>
         <time datetime={pendingTransfer.requestedAt}>{new Date(pendingTransfer.requestedAt).toLocaleString("ko-KR")}</time>
       </div>
-      <form method="POST" action="?/cancelTransfer" use:enhance={enhanceTransfer}>
+      <form method="POST" action="?/cancelTransfer" use:enhance={() => enhanceTransfer("cancel")}>
         <button class="paper-btn small" disabled={processing}>제안 철회</button>
       </form>
     </div>
   {:else if canTransfer}
-    <form class="proposal-form" method="POST" action="?/proposeTransfer" use:enhance={enhanceTransfer}>
+    <form class="proposal-form" method="POST" action="?/proposeTransfer" use:enhance={() => enhanceTransfer("propose")}>
       <label class="paper-label" for="transfer-member">새 주최자</label>
       <div>
-        <select id="transfer-member" name="memberId" bind:value={memberId} required>
+        <select id="transfer-member" name="toMemberId" bind:value={memberId} required>
           <option value="" disabled>현재 참여자 선택</option>
           {#each candidates as candidate (candidate.id)}
             <option value={candidate.id}>{candidate.name} · {candidate.department}</option>

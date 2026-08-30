@@ -308,7 +308,7 @@
           <input
             type="url"
             id="attachmentUrl"
-            name="attachmentUrl"
+            name="attachment"
             bind:value={attachmentUrl}
             oninput={() => clearIssue("attachmentUrl")}
             inputmode="url"
@@ -340,8 +340,8 @@
         />
         <input
           type="hidden"
-          name="presenterIds"
-          value={JSON.stringify(selectedPresenters.map((presenter) => presenter.id))}
+          name="speakerIds"
+          value={selectedPresenters.map((presenter) => presenter.id).join(",")}
         />
       </li>
 

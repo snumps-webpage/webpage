@@ -8,17 +8,26 @@ import {
   updateActivity,
 } from "$lib/server/services/records-admin";
 import { AppError } from "$lib/server/core/errors";
-import { kstInputToIso } from "$lib/server/core/time";
+import { kstInputToIso, nowKstIso } from "$lib/server/core/time";
 import { ACTIVITY_TYPES, type Activity } from "$lib/server/data/schemas";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
   await ensureAdmin(locals, { silent: true });
-  const [activities, members] = await Promise.all([getTable("activities"), memberPickers()]);
+  const [activities, members, events] = await Promise.all([
+    getTable("activities"),
+    memberPickers(),
+    getTable("events"),
+  ]);
   return {
-    activities: [...activities].reverse(),
+    activities: [...activities].reverse().map((a) => ({
+      ...a,
+      // Referential-integrity hint for the delete row (deleteActivity CONFLICTs).
+      linkedEventIds: events.filter((e) => e.activityId === a.id).map((e) => e.id),
+    })),
     members,
     activityTypes: [...ACTIVITY_TYPES],
+    generatedAt: nowKstIso(),
   };
 };
 
@@ -44,7 +53,7 @@ export const actions = {
         date: { start: kstInputToIso(start), end: end ? kstInputToIso(end) : null },
         type: parseType(data.get("type") as string),
       });
-      return {};
+      return { operation: "activityCreated" };
     });
   },
 
@@ -61,7 +70,7 @@ export const actions = {
           ? { start: kstInputToIso(start), end: end ? kstInputToIso(end) : null }
           : undefined,
       });
-      return {};
+      return { operation: "activityUpdated" };
     });
   },
 
@@ -69,7 +78,7 @@ export const actions = {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
       await deleteActivity(id);
-      return {};
+      return { operation: "activityDeleted" };
     });
   },
 
@@ -80,7 +89,7 @@ export const actions = {
       const id = data.get("id") as string;
       const attendeeIds = (data.getAll("attendeeIds") as string[]).filter(Boolean);
       await setAttendees(id, attendeeIds);
-      return {};
+      return { operation: "attendeesReplaced" };
     });
   },
 };

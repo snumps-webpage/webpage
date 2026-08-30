@@ -10,9 +10,16 @@ export const GET: RequestHandler = async ({ locals }) => {
 
   const apps = await getTable("applications");
   const { applicationView } = await import("$lib/server/data/views");
+  const { adminApplicationItem } = await import("$lib/server/data/admin-queue-views");
+  const { nowKstIso } = await import("$lib/server/core/time");
+  const sorted = [...apps].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
   return json({
-    applications: apps
-      .map(applicationView)
-      .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime()),
+    applications: sorted.map(applicationView),
+    // Shared queue envelope for the admin poller (client/api.ts).
+    success: true,
+    items: sorted.map(adminApplicationItem),
+    generatedAt: nowKstIso(),
   });
 };

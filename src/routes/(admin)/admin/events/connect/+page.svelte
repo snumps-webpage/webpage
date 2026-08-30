@@ -3,18 +3,19 @@
     import { getSemesterKeyFromDate } from '$lib/utils';
     import ManuscriptHeader from '$lib/components/ManuscriptHeader.svelte';
     import StatusBadge from '$lib/components/StatusBadge.svelte';
-    import type { AdminConnectableActivity } from '$lib/domain/admin-dashboard';
     import { MANUSCRIPT } from '$lib/constants';
 
     let { data, form } = $props();
-    
+
+    type ConnectableActivity = (typeof data.activities)[number];
+
     let searchQuery = $state('');
     let selectedSemester = $state('all');
-    let selectedEvent = $state<AdminConnectableActivity | null>(null);
+    let selectedEvent = $state<ConnectableActivity | null>(null);
 
     let filteredActivities = $derived(
-        data.activities.filter((a: AdminConnectableActivity) => {
-            const matchesSearch = a.title.toLowerCase().includes(searchQuery.toLowerCase());
+        data.activities.filter((a) => {
+            const matchesSearch = a.name.toLowerCase().includes(searchQuery.toLowerCase());
             
             let matchesSemester = true;
             if (selectedSemester !== 'all') {
@@ -26,7 +27,7 @@
         })
     );
 
-    function selectEvent(event: AdminConnectableActivity) {
+    function selectEvent(event: ConnectableActivity) {
         selectedEvent = event;
     }
 </script>
@@ -68,7 +69,7 @@
                                 onclick={() => selectEvent(activity)}
                             >
                                 <StatusBadge status={activity.type} type="tag" />
-                                <span class="event-name">{activity.title}</span>
+                                <span class="event-name">{activity.name}</span>
                                 <span class="event-date">{activity.date}</span>
                                 <span class="event-date">기존 참석 {activity.attendeeCount}명</span>
                             </button>

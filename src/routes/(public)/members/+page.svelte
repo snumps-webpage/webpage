@@ -1,7 +1,6 @@
 <script lang="ts">
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import { MANUSCRIPT } from "$lib/constants";
-  import type { PublicMemberRecord } from "$lib/domain/members";
 
   let { data } = $props();
   let query = $state("");
@@ -9,7 +8,7 @@
   const filteredMembers = $derived.by(() => {
     const normalized = query.trim().toLocaleLowerCase("ko-KR");
     if (!normalized) return data.members;
-    return data.members.filter((member: PublicMemberRecord) =>
+    return data.members.filter((member) =>
       [
         member.name,
         member.department,
@@ -68,7 +67,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each filteredMembers as member, index (member.id)}
+          {#each filteredMembers as member, index (`${member.name}-${member.department}-${index}`)}
             <tr>
               <td>{String(index + 1).padStart(3, "0")}</td>
               <th scope="row">{member.name}</th>
@@ -90,7 +89,7 @@
     </div>
 
     <section class="mobile-register" aria-label="회원 명단">
-      {#each filteredMembers as member, index (member.id)}
+      {#each filteredMembers as member, index (`${member.name}-${member.department}-${index}`)}
         <article class="member-card">
           <header>
             <span>{String(index + 1).padStart(3, "0")}</span>

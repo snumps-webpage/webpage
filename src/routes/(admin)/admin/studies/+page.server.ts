@@ -10,14 +10,53 @@ import {
 } from "$lib/server/services/records-admin";
 import { promotePendingUpload } from "$lib/server/services/uploads";
 import { AppError } from "$lib/server/core/errors";
-import { TERM_PATTERN } from "$lib/server/core/semester";
+import { currentTerm, TERM_PATTERN } from "$lib/server/core/semester";
+import { nowKstIso } from "$lib/server/core/time";
 import { StudyStatus } from "$lib/server/data/schemas";
+import {
+  adminStudyRequestItem,
+  contentFileFromKey,
+  memberSummaryById,
+} from "$lib/server/data/admin-queue-views";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
   await ensureAdmin(locals, { silent: true });
-  const [studies, members] = await Promise.all([getTable("studies"), memberPickers()]);
-  return { studies: [...studies].reverse(), members };
+  const [studies, members, requests, allMembers] = await Promise.all([
+    getTable("studies"),
+    memberPickers(),
+    getTable("study-requests"),
+    getTable("members"),
+  ]);
+  const summaries = memberSummaryById(allMembers);
+  const nameOf = (id: string) => summaries.get(id)?.name ?? "알 수 없음";
+  return {
+    requests: requests
+      .filter((r) => r.status === "pending")
+      .map((r) => adminStudyRequestItem(r, summaries)),
+    records: [...studies].reverse().map((s) => ({
+      id: s.id,
+      sourceRequestId: s.sourceRequestId,
+      title: s.title,
+      term: s.semester,
+      description: s.description,
+      material: s.textbook,
+      organizerIds: s.organizerIds,
+      organizerNames: s.organizerIds.map(nameOf),
+      pendingTransfer: s.pendingTransfer,
+      transferHistory: s.transferHistory.map((t) => ({
+        fromMemberId: t.from,
+        toMemberId: t.to,
+        changedAt: t.at,
+        byAdmin: t.byAdmin,
+      })),
+      sessionCount: s.schedule.length,
+      files: s.photos.map((key) => contentFileFromKey(key, "image")),
+    })),
+    members,
+    currentTerm: currentTerm(),
+    generatedAt: nowKstIso(),
+  };
 };
 
 type Ctx = { request: Request; locals: App.Locals };
@@ -40,7 +79,7 @@ export const actions = {
         note: (data.get("note") as string) ?? "",
         organizerIds: [organizerId],
       });
-      return {};
+      return { operation: "studyRecordCreated" };
     });
   },
 
@@ -57,7 +96,7 @@ export const actions = {
         note: (data.get("note") as string) ?? undefined,
         status,
       });
-      return {};
+      return { operation: "studyRecordUpdated" };
     });
   },
 
@@ -65,7 +104,7 @@ export const actions = {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
       await deleteStudy(id);
-      return {};
+      return { operation: "studyRecordDeleted" };
     });
   },
 
@@ -78,7 +117,7 @@ export const actions = {
         data.get("organizerId") as string,
         locals.member!.memberId,
       );
-      return {};
+      return { operation: "studyOrganizerSet" };
     });
   },
 
@@ -92,7 +131,7 @@ export const actions = {
         id,
       );
       await setStudyPhotos(id, { add: finalKey });
-      return { s3Key: finalKey };
+      return { s3Key: finalKey, operation: "studyFileAdded" };
     });
   },
 
@@ -100,7 +139,7 @@ export const actions = {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       await setStudyPhotos(data.get("id") as string, { remove: data.get("s3Key") as string });
-      return {};
+      return { operation: "studyFileRemoved" };
     });
   },
 };

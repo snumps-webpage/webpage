@@ -19,11 +19,43 @@
   import type { AdminStudyRequestItem } from "$lib/domain/studies";
 
   let { data } = $props();
-  let dashboard = $state<AdminDashboardData>(
-    structuredClone(untrack(() => data.dashboard)),
-  );
+  // The backend load streams each queue as a promise — collect them into the
+  // dashboard view state as they resolve (and again after invalidation).
+  let dashboard = $state<AdminDashboardData>({
+    applications: [],
+    seminarRequests: [],
+    studyRequests: [],
+    events: [],
+    attendanceQueue: [],
+    withdrawals: [],
+    generatedAt: untrack(() => data.generatedAt),
+  });
   let notice = $state<{ tone: "success" | "error"; message: string } | null>(null);
   let pollingError = $state<string | null>(null);
+
+  $effect(() => {
+    const { streamed, generatedAt } = data;
+    void (async () => {
+      const [applications, events, attendanceQueue, withdrawals, seminarRequests, studyRequests] =
+        await Promise.all([
+          streamed.applications,
+          streamed.events,
+          streamed.attendanceQueue,
+          streamed.withdrawnPending,
+          streamed.seminarRequests,
+          streamed.studyRequests,
+        ]);
+      dashboard = {
+        applications,
+        seminarRequests,
+        studyRequests,
+        events,
+        attendanceQueue,
+        withdrawals,
+        generatedAt,
+      };
+    })();
+  });
 
   async function refreshReviewQueues() {
     try {

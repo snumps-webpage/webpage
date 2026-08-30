@@ -9,6 +9,7 @@
 	import { getInitialTheme, applyTheme, type Theme } from '$lib/theme';
 	import ExecutiveContacts from '$lib/components/ExecutiveContacts.svelte';
 	import Toasts from '$lib/components/Toasts.svelte';
+	import { toExecutiveRoster } from '$lib/domain/executive-roster';
 
 	let { children } = $props();
 	const session = $derived(page.data.session);
@@ -188,7 +189,9 @@
 	<div class="footer-content">
 		<div class="footer-info">
 			<div class="footer-line">
-				<ExecutiveContacts roster={page.data.executives} variant="footer" />
+				{#await page.data.executives then executiveTerms}
+					<ExecutiveContacts roster={toExecutiveRoster(executiveTerms)} variant="footer" />
+				{/await}
 				<span class="footer-sep" aria-hidden="true">|</span>
 				<a
 					href="https://instagram.com/snu_mps"

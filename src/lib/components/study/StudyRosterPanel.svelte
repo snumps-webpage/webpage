@@ -1,17 +1,14 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
   import type { SubmitFunction } from "@sveltejs/kit";
-  import type {
-    StudyMemberSummary,
-    StudyOperationResult,
-  } from "$lib/domain/studies";
+  import type { StudyMemberSummary } from "$lib/domain/studies";
 
   interface Props {
     pendingParticipants: StudyMemberSummary[];
     participants: StudyMemberSummary[];
     organizerIds: string[];
     canManage: boolean;
-    onTransition: (result: StudyOperationResult) => void;
+    onNotice: (message: string) => void;
     onError: (message: string) => void;
   }
 
@@ -20,23 +17,31 @@
     participants,
     organizerIds,
     canManage,
-    onTransition,
+    onNotice,
     onError,
   }: Props = $props();
 
   let processingMemberId = $state<string | null>(null);
 
-  function submitMember(memberId: string, fallback: string): SubmitFunction {
+  function submitMember(
+    memberId: string,
+    successMessage: string,
+    fallback: string,
+  ): SubmitFunction {
     return () => {
       processingMemberId = memberId;
-      return async ({ result }) => {
+      return async ({ result, update }) => {
         processingMemberId = null;
         if (result.type === "success") {
-          onTransition(result.data as StudyOperationResult);
+          await update();
+          onNotice(successMessage);
           return;
         }
-        const data = "data" in result ? result.data as { error?: string } : null;
-        onError(data?.error ?? fallback);
+        const data =
+          "data" in result
+            ? result.data as { error?: string; message?: string }
+            : null;
+        onError(data?.message ?? data?.error ?? fallback);
       };
     };
   }
@@ -68,7 +73,7 @@
               <form
                 method="POST"
                 action="?/acceptParticipant"
-                use:enhance={submitMember(member.id, "참여 신청을 수락하지 못했습니다.")}
+                use:enhance={submitMember(member.id, `${member.name} 님의 참여 신청을 수락했습니다.`, "참여 신청을 수락하지 못했습니다.")}
               >
                 <input type="hidden" name="memberId" value={member.id} />
                 <button class="paper-btn primary small" disabled={processingMemberId === member.id}>
@@ -78,7 +83,7 @@
               <form
                 method="POST"
                 action="?/removeParticipant"
-                use:enhance={submitMember(member.id, "참여 신청을 거절하지 못했습니다.")}
+                use:enhance={submitMember(member.id, "참여자 목록을 갱신했습니다.", "참여 신청을 거절하지 못했습니다.")}
               >
                 <input type="hidden" name="memberId" value={member.id} />
                 <button class="paper-btn small" disabled={processingMemberId === member.id}>
@@ -112,7 +117,7 @@
             <form
               method="POST"
               action="?/removeParticipant"
-              use:enhance={submitMember(member.id, "참여자를 제외하지 못했습니다.")}
+              use:enhance={submitMember(member.id, "참여자 목록을 갱신했습니다.", "참여자를 제외하지 못했습니다.")}
             >
               <input type="hidden" name="memberId" value={member.id} />
               <button

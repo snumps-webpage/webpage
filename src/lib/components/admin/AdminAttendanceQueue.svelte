@@ -19,11 +19,11 @@
   function submit(record: AdminAttendanceQueueItem, operation: "approved" | "rejected" | "updated" | "deleted"): SubmitFunction {
     return () => {
       processingId = record.id;
-      return async ({ result }) => {
+      return async ({ result, update }) => {
         processingId = null;
         if (result.type === "success") {
-          const data = result.data as { attendance?: AdminAttendanceQueueItem };
-          onResolved(record.id, operation, data.attendance ?? record);
+          await update({ reset: false });
+          onResolved(record.id, operation, record);
           if (operation === "updated") editing = null;
         } else {
           const data = result.type === "failure"
@@ -59,18 +59,18 @@
         <div class="row-actions">
           <form method="POST" action="?/approveAttendance" use:enhance={submit(record, "approved")}>
             <input type="hidden" name="eventId" value={record.eventId} />
-            <input type="hidden" name="queueId" value={record.id} />
+            <input type="hidden" name="id" value={record.id} />
             <button class="paper-btn primary small" disabled={processingId !== null}>승인</button>
           </form>
           <form method="POST" action="?/rejectAttendance" use:enhance={submit(record, "rejected")}>
             <input type="hidden" name="eventId" value={record.eventId} />
-            <input type="hidden" name="queueId" value={record.id} />
+            <input type="hidden" name="id" value={record.id} />
             <button class="paper-btn danger small" disabled={processingId !== null}>반려</button>
           </form>
           <button class="paper-btn small" disabled={processingId !== null} onclick={() => { issues = {}; editing = record; }}>시간</button>
           <form method="POST" action="?/deleteAttendanceRecord" use:enhance={submit(record, "deleted")}>
             <input type="hidden" name="eventId" value={record.eventId} />
-            <input type="hidden" name="queueId" value={record.id} />
+            <input type="hidden" name="id" value={record.id} />
             <button class="paper-btn small" disabled={processingId !== null}>삭제</button>
           </form>
         </div>
@@ -88,15 +88,15 @@
       <p>{editing.member.name} · {editing.eventTitle}</p>
       <form method="POST" action="?/updateAttendanceTime" use:enhance={submit(editing, "updated")}>
         <input type="hidden" name="eventId" value={editing.eventId} />
-        <input type="hidden" name="queueId" value={editing.id} />
+        <input type="hidden" name="id" value={editing.id} />
         <label>
           <span>시작</span>
-          <input type="datetime-local" name="startTimeLocal" value={toLocal(editing.startTime)} aria-invalid={Boolean(issues.startTimeLocal)} aria-describedby={issues.startTimeLocal ? "attendance-start-error" : undefined} required />
+          <input type="datetime-local" name="startTime" value={toLocal(editing.startTime)} aria-invalid={Boolean(issues.startTimeLocal)} aria-describedby={issues.startTimeLocal ? "attendance-start-error" : undefined} required />
           {#if issues.startTimeLocal}<small id="attendance-start-error" class="field-error">{issues.startTimeLocal}</small>{/if}
         </label>
         <label>
           <span>종료</span>
-          <input type="datetime-local" name="endTimeLocal" value={toLocal(editing.endTime)} aria-invalid={Boolean(issues.endTimeLocal)} aria-describedby={issues.endTimeLocal ? "attendance-end-error" : undefined} required />
+          <input type="datetime-local" name="endTime" value={toLocal(editing.endTime)} aria-invalid={Boolean(issues.endTimeLocal)} aria-describedby={issues.endTimeLocal ? "attendance-end-error" : undefined} required />
           {#if issues.endTimeLocal}<small id="attendance-end-error" class="field-error">{issues.endTimeLocal}</small>{/if}
         </label>
         <button class="paper-btn primary" disabled={processingId !== null}>수정 저장</button>

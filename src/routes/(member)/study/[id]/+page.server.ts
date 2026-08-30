@@ -13,7 +13,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   if (!study) throw error(404, "Not Found");
 
   const [events, members] = await Promise.all([getTable("events"), memberPickers()]);
-  const nameOf = new Map(members.map((m) => [m.id, m.name]));
+  const byId = new Map(members.map((m) => [m.id, m]));
+  const nameOf = (id: string) => byId.get(id)?.name ?? "Unknown";
 
   return {
     study: {
@@ -22,9 +23,15 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       semester: study.semester,
       textbook: study.textbook,
       description: study.description,
+      note: study.note,
       status: study.status,
-      organizerNames: study.organizerIds.map((id) => nameOf.get(id) ?? "Unknown"),
-      participantNames: study.participantIds.map((id) => nameOf.get(id) ?? "Unknown"),
+      organizers: study.organizerIds.map((id) => ({
+        id,
+        name: nameOf(id),
+        department: byId.get(id)?.department ?? "",
+      })),
+      organizerNames: study.organizerIds.map(nameOf),
+      participantNames: study.participantIds.map(nameOf),
       isOrganizer: study.organizerIds.includes(memberId),
       isParticipant: study.participantIds.includes(memberId),
       isPending: study.pendingParticipantIds.includes(memberId),

@@ -68,22 +68,11 @@ describe("frontend API client", () => {
 
   it("retries network and 5xx PUT failures but never retries 4xx", async () => {
     const file = new File(["notes"], "notes.pdf", { type: "application/pdf" });
+    const operationId = "01991b5d-2eef-7a71-a664-d38e09285195";
     const presign = {
       success: true,
-      upload: {
-        url: "https://upload.example/file",
-        method: "PUT",
-        headers: { "Content-Type": "application/pdf" },
-        expiresAt: "2026-08-28T00:10:00Z",
-      },
-      file: {
-        operationId: "01991b5d-2eef-7a71-a664-d38e09285195",
-        s3Key: "pending/file",
-        purpose: "seminar-material",
-        filename: "notes.pdf",
-        contentType: "application/pdf",
-        size: file.size,
-      },
+      uploadUrl: "https://upload.example/file",
+      s3Key: "pending/file",
     } as const;
     const retrying = vi
       .fn()
@@ -97,7 +86,7 @@ describe("frontend API client", () => {
       uploadAdminFile(
         file,
         "seminar-material",
-        presign.file.operationId,
+        operationId,
         retrying,
       ),
     ).resolves.toMatchObject({ s3Key: "pending/file" });
@@ -113,7 +102,7 @@ describe("frontend API client", () => {
       uploadAdminFile(
         file,
         "seminar-material",
-        presign.file.operationId,
+        operationId,
         rejecting,
       ),
     ).rejects.toMatchObject({ status: 403 });

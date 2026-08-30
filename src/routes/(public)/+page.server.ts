@@ -9,14 +9,52 @@ import { seminarRequestView } from "$lib/server/data/views";
 import { currentTerm, termRange } from "$lib/server/core/semester";
 import { AppError } from "$lib/server/core/errors";
 import { getSemesterInfo, getSemesterKeyFromDate, normalizePhoneNumber } from "$lib/utils";
+import type { ActivityType } from "$lib/constants";
+import type { RequestStatus, StudyStatus } from "$lib/server/data/schemas";
 import type { PageServerLoad } from "./$types";
 
-function buildDevDashboardPreview(semesterKey: string) {
+/** The streamed member-dashboard payload (FUNCTIONAL-SPEC MEM-04·05, EVT-02·03, STU-07). */
+export type DashboardData = {
+  activities: {
+    id: string;
+    name: string;
+    date: string;
+    type: ActivityType;
+    attended: boolean;
+    url: string;
+    semester: string;
+    eventId: string | null;
+    isApplied: boolean;
+    canApply: boolean;
+    pendingAttendance: boolean;
+  }[];
+  seminarRequests: { id: string; title: string; status: RequestStatus; submittedAt: string }[];
+  myStudies: {
+    id: string;
+    title: string;
+    semester: string;
+    status: StudyStatus;
+    role: "organizer" | "participant" | "pending";
+  }[];
+  pendingTransfers: {
+    studyId: string;
+    title: string;
+    fromMemberName: string;
+    requestedAt: string;
+  }[];
+  approvedSeminars: { id: string; title: string; semester: string; remarks: string }[];
+  myAttendanceStats: { total: number; attended: number };
+  profile: { name: string; department: string; email: string; phone: string; background: string };
+  semesters: string[];
+  generatedAt: string;
+};
+
+function buildDevDashboardPreview(semesterKey: string): DashboardData {
   const today = new Date();
   const toDate = (offsetDays: number) =>
     new Date(today.getTime() + offsetDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-  const activities = [
+  const activities: DashboardData["activities"] = [
     {
       id: "preview-activity-1",
       name: "조합론 세미나",
@@ -25,15 +63,23 @@ function buildDevDashboardPreview(semesterKey: string) {
       attended: true,
       url: "https://example.com/preview/seminar-1",
       semester: semesterKey,
+      eventId: null,
+      isApplied: false,
+      canApply: false,
+      pendingAttendance: false,
     },
     {
       id: "preview-activity-2",
       name: "기하학 문제풀이",
       date: toDate(-4),
-      type: "문제풀이",
+      type: "문제 풀이",
       attended: false,
       url: "https://example.com/preview/geometry",
       semester: semesterKey,
+      eventId: null,
+      isApplied: false,
+      canApply: false,
+      pendingAttendance: false,
     },
     {
       id: "preview-activity-3",
@@ -43,6 +89,10 @@ function buildDevDashboardPreview(semesterKey: string) {
       attended: true,
       url: "https://example.com/preview/logic",
       semester: semesterKey,
+      eventId: null,
+      isApplied: false,
+      canApply: false,
+      pendingAttendance: false,
     },
   ];
 
@@ -56,6 +106,8 @@ function buildDevDashboardPreview(semesterKey: string) {
         submittedAt: new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString(),
       },
     ],
+    myStudies: [],
+    pendingTransfers: [],
     approvedSeminars: [
       {
         id: "preview-approved-1",
@@ -69,10 +121,14 @@ function buildDevDashboardPreview(semesterKey: string) {
       attended: activities.filter((activity) => activity.attended).length,
     },
     profile: {
+      name: "미리보기 회원",
+      department: "수리과학부",
+      email: "preview@snu.ac.kr",
       phone: "010-1234-5678",
       background: "대수학, 해석학, 조합론에 관심이 있습니다.",
     },
     semesters: [semesterKey],
+    generatedAt: new Date().toISOString(),
   };
 }
 
@@ -110,7 +166,7 @@ export const load: PageServerLoad = async (event) => {
 
   const member = event.locals.member ?? null;
 
-  const dashboardPromise = async () => {
+  const dashboardPromise = async (): Promise<DashboardData | { error: string } | null> => {
     if (!member) return null;
 
     try {
@@ -123,6 +179,7 @@ export const load: PageServerLoad = async (event) => {
         allSeminars,
         allEvents,
         allStudies,
+        allMembers,
       ] = await Promise.all([
         getActivitiesBetween(range.start, range.end),
         getActivitiesOf(member.memberId),
@@ -131,8 +188,11 @@ export const load: PageServerLoad = async (event) => {
         getTable("seminars"),
         getTable("events"),
         getTable("studies"),
+        getTable("members"),
       ]);
       const eventByActivityId = new Map(allEvents.map((e) => [e.activityId, e]));
+      const memberNameById = new Map(allMembers.map((m) => [m.id, m.name]));
+      const memberRow = allMembers.find((m) => m.id === member.memberId) ?? null;
       const now = new Date();
 
       const requests = allRequests
@@ -182,6 +242,10 @@ export const load: PageServerLoad = async (event) => {
           attended: true,
           url: "",
           semester: getSemesterKeyFromDate(a.date.start),
+          eventId: null,
+          isApplied: false,
+          canApply: false,
+          pendingAttendance: false,
         }));
 
       return {
@@ -208,7 +272,13 @@ export const load: PageServerLoad = async (event) => {
         // STU-07: transfer proposals addressed to me — the acceptance entry point
         pendingTransfers: allStudies
           .filter((s) => s.pendingTransfer?.toMemberId === member.memberId)
-          .map((s) => ({ studyId: s.id, title: s.title })),
+          .map((s) => ({
+            studyId: s.id,
+            title: s.title,
+            // STU invariant: exactly one organizer — transfers always come from them.
+            fromMemberName: memberNameById.get(s.organizerIds[0]) ?? "주최자",
+            requestedAt: s.pendingTransfer?.requestedAt ?? "",
+          })),
         approvedSeminars: allSeminars
           .filter((s) => s.presenterIds.includes(member.memberId))
           .map((s) => ({ id: s.id, title: s.title, semester: s.semester, remarks: s.note })),
@@ -217,10 +287,14 @@ export const load: PageServerLoad = async (event) => {
           attended: currentActivities.filter((a) => a.attended).length,
         },
         profile: {
+          name: member.name,
+          department: memberRow?.department ?? "",
+          email: session?.user?.email ?? "",
           phone: privateInfo?.phone || "",
           background: privateInfo?.background || "",
         },
         semesters,
+        generatedAt: new Date().toISOString(),
       };
     } catch (e) {
       console.error("[Dashboard Load] Promise Error:", e);

@@ -4,6 +4,7 @@
   import DashboardProfilePanel from "$lib/components/dashboard/DashboardProfilePanel.svelte";
   import DashboardWorkSummary from "$lib/components/dashboard/DashboardWorkSummary.svelte";
   import GuestLanding from "$lib/components/dashboard/GuestLanding.svelte";
+  import { toExecutiveRoster } from "$lib/domain/executive-roster";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import { MANUSCRIPT } from "$lib/constants";
 
@@ -15,41 +16,89 @@
   <title>{session?.user ? "활동 현황 · SNUMPS" : "서울대학교 수학문제연구회 SNUMPS"}</title>
 </svelte:head>
 
-{#if session?.user && data.dashboard}
-  <article class="paper-document dashboard-paper">
-    <div class="dashboard-heading">
-      <ManuscriptHeader
-        title="활동 현황"
-        subtitle={`Issue ${data.dashboard.selectedSemester}`}
-        figure={MANUSCRIPT.FIGURES.DASHBOARD}
-      />
-      <div class="member-index">
-        <span>Member</span>
-        <strong>{data.dashboard.profile.name}</strong>
-        <span>{data.dashboard.profile.department}</span>
-      </div>
-    </div>
+{#if session?.user}
+  {#await data.streamed.dashboard then dashboard}
+    {#if dashboard && !("error" in dashboard)}
+      {@const requestedSemester = page.url.searchParams.get("semester")}
+      {@const selectedSemester =
+        requestedSemester && dashboard.semesters.includes(requestedSemester)
+          ? requestedSemester
+          : data.currentSemesterKey}
+      {@const activities = dashboard.activities
+        .filter((activity) => activity.semester === selectedSemester)
+        .map((activity) => ({
+          id: activity.id,
+          title: activity.name,
+          type: activity.type,
+          startsAt: activity.date,
+          semester: activity.semester,
+          detailUrl: activity.url || null,
+          eventId: activity.eventId,
+          isApplied: activity.isApplied,
+          canApply: activity.canApply,
+          pendingAttendance: activity.pendingAttendance,
+          attended: activity.attended,
+        }))}
+      {@const requests = dashboard.seminarRequests.map((request) => ({
+        id: request.id,
+        type: "seminar" as const,
+        title: request.title,
+        status: request.status,
+        submittedAt: request.submittedAt,
+        actionPath: null,
+      }))}
+      {@const studies = dashboard.myStudies.map((study) => ({
+        id: study.id,
+        title: study.title,
+        semester: study.semester,
+        status: study.status,
+        relationship: study.role,
+        canManage: study.role === "organizer",
+      }))}
+      {@const pendingTransfer = dashboard.pendingTransfers[0]
+        ? {
+            studyTitle: dashboard.pendingTransfers[0].title,
+            fromMemberName: dashboard.pendingTransfers[0].fromMemberName,
+          }
+        : null}
+      <article class="paper-document dashboard-paper">
+        <div class="dashboard-heading">
+          <ManuscriptHeader
+            title="활동 현황"
+            subtitle={`Issue ${selectedSemester}`}
+            figure={MANUSCRIPT.FIGURES.DASHBOARD}
+          />
+          <div class="member-index">
+            <span>Member</span>
+            <strong>{dashboard.profile.name}</strong>
+            <span>{dashboard.profile.department}</span>
+          </div>
+        </div>
 
-    <DashboardWorkSummary
-      requests={data.dashboard.myRequests}
-      studies={data.dashboard.myStudies}
-      pendingTransfer={data.dashboard.pendingTransfer}
-    />
+        <DashboardWorkSummary {requests} {studies} {pendingTransfer} />
 
-    <DashboardProfilePanel initialProfile={data.dashboard.profile} />
+        <DashboardProfilePanel initialProfile={dashboard.profile} />
 
-    {#key data.dashboard.selectedSemester}
-      <DashboardActivityLedger
-        initialActivities={data.dashboard.activities}
-        semesters={data.dashboard.semesters}
-        selectedSemester={data.dashboard.selectedSemester}
-      />
-    {/key}
+        {#key selectedSemester}
+          <DashboardActivityLedger
+            initialActivities={activities}
+            semesters={dashboard.semesters}
+            {selectedSemester}
+          />
+        {/key}
 
-    <p class="generated-at">데이터 기준 {new Date(data.dashboard.generatedAt).toLocaleString("ko-KR")}</p>
-  </article>
+        <p class="generated-at">데이터 기준 {new Date(dashboard.generatedAt).toLocaleString("ko-KR")}</p>
+      </article>
+    {:else}
+      {#await page.data.executives then executiveTerms}
+        <GuestLanding executives={toExecutiveRoster(executiveTerms)} />
+      {/await}
+    {/if}
+  {/await}
 {:else}
-  <GuestLanding executives={page.data.executives} />
+  {#await page.data.executives then executiveTerms}
+    <GuestLanding executives={toExecutiveRoster(executiveTerms)} />
+  {/await}
 {/if}
 
 <style>

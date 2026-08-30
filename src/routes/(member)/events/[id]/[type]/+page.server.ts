@@ -21,8 +21,32 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
   if (params.type !== event.attendCode) throw error(404, "Event not found");
   if (effectiveStatus(event) !== "active") throw error(403, "Event is not active");
 
+  // Supplementary context for the metadata sheet: presenters (seminars) and
+  // session number (auto-generated study sessions), resolved from the tables.
+  const members = await getTable("members");
+  const memberById = new Map(members.map((m) => [m.id, m]));
+  const entries: { label: string; value: string }[] = [];
+  const presenterNames = event.presenterIds
+    .map((id) => memberById.get(id)?.name)
+    .filter(Boolean)
+    .join(", ");
+  if (presenterNames) entries.push({ label: "발표자", value: presenterNames });
+  if (event.sessionNo !== null) {
+    entries.push({ label: "회차", value: `${event.sessionNo}회차` });
+  }
+  const context =
+    entries.length > 0
+      ? {
+          primaryLabel: entries[0].label,
+          primaryValue: entries[0].value,
+          secondaryLabel: entries[1]?.label ?? "종류",
+          secondaryValue: entries[1]?.value ?? event.type,
+        }
+      : null;
+
   return {
     event: { ...event, date: event.date.start },
+    context,
     user: session.user,
     actionType: "attend",
   };

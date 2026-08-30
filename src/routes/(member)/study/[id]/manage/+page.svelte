@@ -1,19 +1,22 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
-  import { untrack } from "svelte";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import StudyRosterPanel from "$lib/components/study/StudyRosterPanel.svelte";
   import StudySessionTimeline from "$lib/components/study/StudySessionTimeline.svelte";
   import StudyTransferPanel from "$lib/components/study/StudyTransferPanel.svelte";
-  import type {
-    StudyOperationResult,
-    StudyStatus,
-  } from "$lib/domain/studies";
+  import type { StudyStatus } from "$lib/domain/studies";
   import { MANUSCRIPT } from "$lib/constants";
 
   let { data } = $props();
-  const initialStudy = untrack(() => data.study);
-  let study = $state(structuredClone(initialStudy));
+  const study = $derived(data.study);
+  const participants = $derived(data.participants);
+  const pendingParticipants = $derived(data.pendingParticipants);
+  const sessions = $derived(data.sessions);
+  // §6-4: finished is terminal — every organizer mutation locks with it.
+  const canMutate = $derived(study.status !== "finished");
+  const transferCandidates = $derived(
+    data.members.filter((member) => !study.organizerIds.includes(member.id)),
+  );
   let notice = $state<{ tone: "success" | "error"; message: string } | null>(null);
   let statusProcessing = $state(false);
 
@@ -25,73 +28,31 @@
     notice = { tone: "error", message };
   }
 
-  function handleTransition(result: StudyOperationResult) {
-    switch (result.operation) {
-      case "participantAccepted":
-        study.pendingParticipants = study.pendingParticipants.filter(
-          (member) => member.id !== result.member.id,
-        );
-        if (!study.participants.some((member) => member.id === result.member.id)) {
-          study.participants = [...study.participants, result.member];
-        }
-        notice = { tone: "success", message: `${result.member.name} 님의 참여 신청을 수락했습니다.` };
-        break;
-      case "participantRemoved":
-        study.pendingParticipants = study.pendingParticipants.filter(
-          (member) => member.id !== result.memberId,
-        );
-        study.participants = study.participants.filter(
-          (member) => member.id !== result.memberId,
-        );
-        notice = { tone: "success", message: "참여자 목록을 갱신했습니다." };
-        break;
-      case "statusChanged":
-        study.status = result.status;
-        study.capabilities.canCreateSession = result.status !== "finished";
-        study.capabilities.canManageParticipants = result.status !== "finished";
-        study.capabilities.canChangeStatus = result.status !== "finished";
-        study.capabilities.canTransferOrganizer = result.status !== "finished";
-        notice = { tone: "success", message: `스터디 상태를 ‘${statusName(result.status)}’ 상태로 변경했습니다.` };
-        break;
-      case "transferProposed":
-        study.pendingTransfer = {
-          toMember: result.toMember,
-          requestedAt: result.requestedAt,
-        };
-        notice = { tone: "success", message: `${result.toMember.name} 님에게 주최자 전달을 제안했습니다.` };
-        break;
-      case "transferCancelled":
-        study.pendingTransfer = null;
-        notice = { tone: "success", message: "주최자 전달 제안을 철회했습니다." };
-        break;
-      case "sessionCreated":
-        if (!study.sessions.some((session) => session.id === result.session.id)) {
-          study.sessions = [result.session, ...study.sessions];
-        }
-        notice = {
-          tone: "success",
-          message: `${result.session.title}를 만들고 출석 체크를 열었습니다.`,
-        };
-        break;
-      case "sessionUpdated":
-        study.sessions = study.sessions.map((session) =>
-          session.id === result.sessionId
-            ? { ...session, title: result.title, startedAt: result.startedAt }
-            : session,
-        );
-        notice = { tone: "success", message: "회차 정보를 정정했습니다." };
-        break;
-      case "sessionCancelled":
-        study.sessions = study.sessions.map((session) =>
-          session.id === result.sessionId
-            ? { ...session, status: "cancelled", canEdit: false, canCancel: false }
-            : session,
-        );
-        notice = { tone: "success", message: "회차를 취소했습니다. 취소한 회차는 다시 열리지 않습니다." };
-        break;
-      case "attendanceSaved":
-        break;
-    }
+  function showNotice(message: string) {
+    notice = { tone: "success", message };
+  }
+
+  function statusEnhancer(next: StudyStatus, fallback: string) {
+    statusProcessing = true;
+    return async ({
+      result,
+      update,
+    }: {
+      result: import("@sveltejs/kit").ActionResult;
+      update: () => Promise<void>;
+    }) => {
+      statusProcessing = false;
+      if (result.type === "success") {
+        await update();
+        showNotice(`스터디 상태를 ‘${statusName(next)}’ 상태로 변경했습니다.`);
+        return;
+      }
+      const data =
+        result.type === "failure"
+          ? result.data as { error?: string; message?: string }
+          : null;
+      showError(data?.message ?? data?.error ?? fallback);
+    };
   }
 
   function statusName(status: StudyStatus) {
@@ -118,10 +79,10 @@
       <span>Status</span><strong>{statusLabel}</strong>
     </div>
     <div>
-      <span>Members</span><strong>{study.participants.length}</strong>
+      <span>Members</span><strong>{participants.length}</strong>
     </div>
     <div>
-      <span>Sessions</span><strong>{study.sessions.length}</strong>
+      <span>Sessions</span><strong>{sessions.length}</strong>
     </div>
   </div>
 
@@ -137,37 +98,16 @@
     <div class="status-control">
       <span>Study State</span>
       {#if study.status === "recruiting"}
-        <form method="POST" action="?/setStudyStatus" use:enhance={() => {
-          statusProcessing = true;
-          return async ({ result }) => {
-            statusProcessing = false;
-            if (result.type === "success") handleTransition(result.data as StudyOperationResult);
-            else showError("스터디를 시작하지 못했습니다.");
-          };
-        }}>
+        <form method="POST" action="?/setStudyStatus" use:enhance={() => statusEnhancer("ongoing", "스터디를 시작하지 못했습니다.")}>
           <input type="hidden" name="status" value="ongoing" />
           <button class="paper-btn primary small" disabled={statusProcessing}>진행 시작</button>
         </form>
       {:else if study.status === "ongoing"}
-        <form method="POST" action="?/setStudyStatus" use:enhance={() => {
-          statusProcessing = true;
-          return async ({ result }) => {
-            statusProcessing = false;
-            if (result.type === "success") handleTransition(result.data as StudyOperationResult);
-            else showError("스터디 상태를 변경하지 못했습니다.");
-          };
-        }}>
+        <form method="POST" action="?/setStudyStatus" use:enhance={() => statusEnhancer("recruiting", "스터디 상태를 변경하지 못했습니다.")}>
           <input type="hidden" name="status" value="recruiting" />
           <button class="paper-btn small" disabled={statusProcessing}>모집 다시 열기</button>
         </form>
-        <form method="POST" action="?/setStudyStatus" use:enhance={() => {
-          statusProcessing = true;
-          return async ({ result }) => {
-            statusProcessing = false;
-            if (result.type === "success") handleTransition(result.data as StudyOperationResult);
-            else showError("스터디를 종료하지 못했습니다.");
-          };
-        }}>
+        <form method="POST" action="?/setStudyStatus" use:enhance={() => statusEnhancer("finished", "스터디를 종료하지 못했습니다.")}>
           <input type="hidden" name="status" value="finished" />
           <button
             class="paper-btn danger small"
@@ -195,32 +135,32 @@
   <div class="management-grid">
     <StudySessionTimeline
       studyId={study.id}
-      sessions={study.sessions}
-      canCreate={study.capabilities.canCreateSession}
-      onTransition={handleTransition}
+      {sessions}
+      canCreate={canMutate}
+      onNotice={showNotice}
       onError={showError}
     />
     <StudyRosterPanel
-      pendingParticipants={study.pendingParticipants}
-      participants={study.participants}
-      organizerIds={study.organizers.map((member) => member.id)}
-      canManage={study.capabilities.canManageParticipants}
-      onTransition={handleTransition}
+      {pendingParticipants}
+      {participants}
+      organizerIds={study.organizerIds}
+      canManage={canMutate}
+      onNotice={showNotice}
       onError={showError}
     />
   </div>
 
   <StudyTransferPanel
     pendingTransfer={study.pendingTransfer}
-    candidates={data.transferCandidates}
-    canTransfer={study.capabilities.canTransferOrganizer}
-    onTransition={handleTransition}
+    candidates={transferCandidates}
+    canTransfer={canMutate}
+    onNotice={showNotice}
     onError={showError}
   />
 
   <footer>
     <a href="/study" class="paper-btn">스터디 목록</a>
-    <span>데이터 기준 {new Date(study.generatedAt).toLocaleString("ko-KR")}</span>
+    <span>데이터 기준 {new Date(data.generatedAt).toLocaleString("ko-KR")}</span>
   </footer>
 </article>
 

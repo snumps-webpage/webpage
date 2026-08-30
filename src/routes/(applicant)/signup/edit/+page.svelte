@@ -27,9 +27,6 @@
 	{#if form?.error}
 		<p class="paper-status-note error">{form.message ?? form.error}</p>
 	{/if}
-	{#if data.preview}
-		<p class="paper-status-note muted">개발 프리뷰입니다. 수정과 철회는 관리자 프리뷰 대기열에 반영됩니다.</p>
-	{/if}
 
 	{#if form?.success}
         <SuccessScreen 
@@ -43,14 +40,13 @@
 				<h2 class="paper-section-title">Application Status</h2>
 				<p class="paper-hint">수정할 가입 신청이 없습니다.</p>
 				<div class="paper-actions">
-					<a href="/signup?preview=1" class="paper-btn primary">새 신청서 열기</a>
+					<a href="/signup" class="paper-btn primary">새 신청서 열기</a>
 				</div>
 			</li>
 		</ol>
 	{:else}
 		<form
 			method="POST"
-			action={data.preview ? '?/updateApplication&preview=1' : '?/updateApplication'}
 			use:enhance={() => {
 				submitting = true;
 				return async ({ update }) => {
@@ -82,7 +78,7 @@
 		</form>
 		<form
 			method="POST"
-			action={data.preview ? '?/withdrawApplication&preview=1' : '?/withdrawApplication'}
+			action="/wait?/withdrawApplication"
 			class="withdraw-form"
 			onsubmit={(event) => {
 				if (!confirm('가입 신청을 철회하고 입력한 개인정보를 삭제할까요?')) event.preventDefault();

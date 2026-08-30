@@ -1,6 +1,15 @@
 <script lang="ts">
   import type { DashboardRequestItem } from "$lib/domain/dashboard";
-  import type { StudyListItem, StudyTransferOffer } from "$lib/domain/studies";
+  import type { StudyRelationship, StudyStatus } from "$lib/domain/studies";
+
+  interface WorkStudyItem {
+    id: string;
+    title: string;
+    semester: string;
+    status: StudyStatus;
+    relationship: StudyRelationship;
+    canManage: boolean;
+  }
 
   let {
     requests,
@@ -8,15 +17,15 @@
     pendingTransfer,
   }: {
     requests: DashboardRequestItem[];
-    studies: StudyListItem[];
-    pendingTransfer: StudyTransferOffer | null;
+    studies: WorkStudyItem[];
+    pendingTransfer: { studyTitle: string; fromMemberName: string } | null;
   } = $props();
 
   function requestStatus(status: DashboardRequestItem["status"]) {
     return { pending: "심사 대기", approved: "승인", rejected: "반려", withdrawn: "철회" }[status];
   }
 
-  function studyRelation(study: StudyListItem) {
+  function studyRelation(study: WorkStudyItem) {
     return { organizer: "주최", participant: "참여", pending: "참여 승인 대기", none: "미참여" }[study.relationship];
   }
 </script>
@@ -24,7 +33,7 @@
 {#if pendingTransfer}
   <aside class="transfer-callout">
     <div><span>Action Required</span><strong>주최자 전달 제안</strong></div>
-    <p><b>{pendingTransfer.studyTitle}</b>의 {pendingTransfer.fromMember.name} 님이 주최자 역할을 전달하려 합니다.</p>
+    <p><b>{pendingTransfer.studyTitle}</b>의 {pendingTransfer.fromMemberName} 님이 주최자 역할을 전달하려 합니다.</p>
     <a class="paper-btn primary small" href="/study">확인</a>
   </aside>
 {/if}

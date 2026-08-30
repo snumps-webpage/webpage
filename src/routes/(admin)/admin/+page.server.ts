@@ -22,11 +22,16 @@ import {
 } from "$lib/server/services/events";
 import { getWithdrawnPending } from "$lib/server/services/members-admin";
 import {
-  adminEventView,
-  applicationView,
-  seminarRequestView,
-  studyRequestView,
-} from "$lib/server/data/views";
+  adminApplicationItem,
+  adminSeminarRequestItem,
+  adminStudyRequestItem,
+  memberSummaryById,
+} from "$lib/server/data/admin-queue-views";
+import {
+  adminAttendanceCapabilities,
+  adminEventCapabilities,
+} from "$lib/domain/admin-dashboard";
+import { nowKstIso } from "$lib/server/core/time";
 import {
   sendApplicationRejectedEmail,
   sendSeminarStatusNotification,
@@ -43,29 +48,102 @@ export const load: PageServerLoad = async (event) => {
   await ensureAdmin(event.locals, { silent: true });
 
   return {
+    generatedAt: nowKstIso(),
     streamed: {
       applications: (async () => {
         const apps = await getTable("applications");
-        return apps
-          .map(applicationView)
+        return [...apps]
           .sort(
             (a, b) =>
-              new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime(),
-          );
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+          )
+          .map(adminApplicationItem);
       })(),
       events: (async () => {
-        const events = await getTable("events");
-        return [...events].map((e) => adminEventView(e, effectiveStatus(e))).reverse();
+        const [events, pending] = await Promise.all([
+          getTable("events"),
+          getPendingAttendance(),
+        ]);
+        const pendingCount = new Map<string, number>();
+        for (const row of pending) {
+          pendingCount.set(row.eventId, (pendingCount.get(row.eventId) ?? 0) + 1);
+        }
+        return [...events].reverse().map((e) => {
+          const status = effectiveStatus(e);
+          const count = pendingCount.get(e.id) ?? 0;
+          return {
+            id: e.id,
+            activityId: e.activityId,
+            title: e.title,
+            type: e.type,
+            startsAt: e.date.start,
+            endsAt: e.date.end,
+            status,
+            attendancePath: `/events/${e.pathId}/${e.attendCode}`,
+            pendingAttendanceCount: count,
+            ...adminEventCapabilities(status, count),
+          };
+        });
       })(),
-      attendanceQueue: getPendingAttendance(),
-      withdrawnPending: getWithdrawnPending(),
+      attendanceQueue: (async () => {
+        const [rows, events, privateInfos] = await Promise.all([
+          getPendingAttendance(),
+          getTable("events"),
+          getTable("private-info"),
+        ]);
+        const eventById = new Map(events.map((e) => [e.id, e]));
+        const emailByMember = new Map(privateInfos.map((p) => [p.memberId, p.email]));
+        return rows.map((r) => ({
+          id: r.id,
+          eventId: r.eventId,
+          eventTitle: r.eventTitle,
+          activityId: eventById.get(r.eventId)?.activityId ?? "",
+          member: {
+            id: r.memberId,
+            name: r.userName,
+            department: r.userDept,
+            email: emailByMember.get(r.memberId) ?? "",
+          },
+          startTime: r.startTime,
+          endTime: r.endTime ?? r.startTime,
+          status: r.status,
+          createdAt: r.startTime,
+          ...adminAttendanceCapabilities(r.status),
+        }));
+      })(),
+      withdrawnPending: (async () => {
+        const [pending, members] = await Promise.all([
+          getWithdrawnPending(),
+          getTable("members"),
+        ]);
+        const byId = new Map(members.map((m) => [m.id, m]));
+        return pending.map((w) => ({
+          memberId: w.id,
+          name: w.name,
+          requestedAt: w.requestedAt,
+          graceEndsAt: w.deleteAfter,
+          holdBy: byId.get(w.id)?.withdrawal?.holdBy ?? null,
+        }));
+      })(),
       seminarRequests: (async () => {
-        const requests = await getTable("seminar-requests");
-        return requests.filter((r) => r.status === "pending").map(seminarRequestView);
+        const [requests, members] = await Promise.all([
+          getTable("seminar-requests"),
+          getTable("members"),
+        ]);
+        const summaries = memberSummaryById(members);
+        return requests
+          .filter((r) => r.status === "pending")
+          .map((r) => adminSeminarRequestItem(r, summaries));
       })(),
       studyRequests: (async () => {
-        const requests = await getTable("study-requests");
-        return requests.filter((r) => r.status === "pending").map(studyRequestView);
+        const [requests, members] = await Promise.all([
+          getTable("study-requests"),
+          getTable("members"),
+        ]);
+        const summaries = memberSummaryById(members);
+        return requests
+          .filter((r) => r.status === "pending")
+          .map((r) => adminStudyRequestItem(r, summaries));
       })(),
     },
   };

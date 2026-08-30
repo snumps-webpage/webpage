@@ -5,6 +5,9 @@
   import { ABOUT_NAV } from "$lib/public-navigation";
 
   let { data } = $props();
+  const history = $derived(
+    data.terms.map((term) => ({ term: term.term, executives: term.holders })),
+  );
 
   function termLabel(term: string) {
     const [year, semester] = term.split("-");
@@ -38,24 +41,26 @@
 
   {#if data.dataAvailable}
     <div class="history-list">
-      {#each data.history as term, termIndex (term.term)}
+      {#each history as term, termIndex (term.term)}
         <section class:current-term={termIndex === 0} class="term-section">
           <header>
             <div><span>{term.term}</span><h2>{termLabel(term.term)}</h2></div>
             {#if termIndex === 0}<strong>Current</strong>{/if}
           </header>
           <div class="executive-grid">
-            {#each term.executives as executive (`${executive.id}-${executive.title}`)}
+            {#each term.executives as executive (`${executive.name}-${executive.title}`)}
               <article class="executive-card">
                 <p>{executive.title}</p>
                 <h3>{executive.name}</h3>
-                <span>{executive.department}</span>
                 {#if executive.contact}
                   <div class="contact-block">
-                    <a href={`tel:${executive.contact.phone.replace(/[^\d+]/g, "")}`}>
-                      {executive.contact.phone}
-                    </a>
-                    <a href={`mailto:${executive.contact.email}`}>{executive.contact.email}</a>
+                    {#if executive.contact.includes("@")}
+                      <a href={`mailto:${executive.contact}`}>{executive.contact}</a>
+                    {:else}
+                      <a href={`tel:${executive.contact.replace(/[^\d+]/g, "")}`}>
+                        {executive.contact}
+                      </a>
+                    {/if}
                   </div>
                 {/if}
               </article>
@@ -84,10 +89,9 @@
   .executive-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .executive-card { min-width: 0; padding: 0.85rem; border-right: 1px solid var(--latex-rule); }
   .executive-card:nth-child(2n) { border-right: 0; }
-  .executive-card p, .executive-card h3, .executive-card > span { margin: 0; }
+  .executive-card p, .executive-card h3 { margin: 0; }
   .executive-card p { color: var(--latex-muted); font-family: var(--font-mono); font-size: 0.58rem; font-weight: 700; text-transform: uppercase; }
   .executive-card h3 { margin-top: 0.25rem; font-size: 1.1rem; font-weight: 570; }
-  .executive-card > span { display: block; margin-top: 0.12rem; color: var(--latex-muted); font-size: 0.72rem; }
   .contact-block { display: grid; gap: 0.18rem; margin-top: 0.65rem; padding-top: 0.55rem; border-top: 1px solid var(--latex-rule); }
   .contact-block a { width: fit-content; max-width: 100%; color: var(--latex-text); font-family: var(--font-mono); font-size: 0.68rem; overflow-wrap: anywhere; text-underline-offset: 0.16em; }
   .empty-state { margin: 0; padding: 1.5rem; border: 1px dashed var(--latex-rule); color: var(--latex-muted); text-align: center; }

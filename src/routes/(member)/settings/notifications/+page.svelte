@@ -37,8 +37,8 @@
       </p>
     </div>
     <div class="preference-control">
-      <span class:enabled={data.account.announcementsEnabled} class="status-mark">
-        {data.account.announcementsEnabled ? "수신 중" : "수신 안 함"}
+      <span class:enabled={data.mailPrefs.announcements} class="status-mark">
+        {data.mailPrefs.announcements ? "수신 중" : "수신 안 함"}
       </span>
       <form
         method="POST"
@@ -52,11 +52,11 @@
         }}
       >
         <input type="hidden" name="type" value="announcements" />
-        <input type="hidden" name="enabled" value={data.account.announcementsEnabled ? "false" : "true"} />
+        <input type="hidden" name="enabled" value={data.mailPrefs.announcements ? "false" : "true"} />
         <button class="paper-btn" disabled={saving}>
           {saving
             ? "저장 중…"
-            : data.account.announcementsEnabled
+            : data.mailPrefs.announcements
               ? "공지 메일 수신 중지"
               : "공지 메일 다시 받기"}
         </button>
@@ -65,7 +65,7 @@
   </section>
 
   <dl class="policy-grid">
-    <div><dt>수신 주소</dt><dd>{data.account.email}</dd></div>
+    <div><dt>수신 주소</dt><dd>{data.email}</dd></div>
     <div><dt>적용 범위</dt><dd>전 회원 공지</dd></div>
     <div><dt>발송 방식</dt><dd>Bcc 전용</dd></div>
   </dl>

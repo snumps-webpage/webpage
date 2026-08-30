@@ -7,6 +7,21 @@
 
   let { data } = $props();
   const seminar = $derived(data.seminar);
+  const presenterNames = $derived([
+    ...seminar.presenters,
+    ...(seminar.externalPresenters ? [seminar.externalPresenters] : []),
+  ]);
+  const files = $derived(
+    seminar.materials.map((url) => {
+      const name = decodeURIComponent(url.split("/").pop() ?? url);
+      const extension = name.includes(".") ? (name.split(".").pop() ?? "").toLowerCase() : "";
+      const kind =
+        extension === "pdf" ? "pdf"
+        : ["png", "jpg", "jpeg", "gif", "webp", "avif"].includes(extension) ? "image"
+        : "link";
+      return { id: url, name, url, kind };
+    }),
+  );
 
   function dateTimeLabel(value: string | null) {
     if (!value) return "일정 기록 없음";
@@ -28,12 +43,11 @@
 
   {#if seminar}
     <dl class="metadata-grid">
-      <div><dt>학기</dt><dd>{formatArchiveTerm(seminar.term)}</dd></div>
-      <div><dt>발표자</dt><dd>{seminar.presenterNames.join(", ")}</dd></div>
+      <div><dt>학기</dt><dd>{formatArchiveTerm(seminar.semester)}</dd></div>
+      <div><dt>발표자</dt><dd>{presenterNames.join(", ")}</dd></div>
       <div><dt>일시</dt><dd>{dateTimeLabel(seminar.scheduledAt)}</dd></div>
-      <div><dt>장소</dt><dd>{seminar.location ?? "기록 없음"}</dd></div>
-      <div><dt>소요 시간</dt><dd>{seminar.durationMinutes ? `${seminar.durationMinutes}분` : "기록 없음"}</dd></div>
-      <div><dt>선수지식</dt><dd>{seminar.prerequisites}</dd></div>
+      <div><dt>소요 시간</dt><dd>{seminar.duration || "기록 없음"}</dd></div>
+      <div><dt>선수지식</dt><dd>{seminar.prerequisites || "기록 없음"}</dd></div>
     </dl>
 
     <section class="record-section">
@@ -42,9 +56,9 @@
     </section>
     <section class="record-section">
       <h2>2. 공개 자료</h2>
-      {#if seminar.files.length}
+      {#if files.length}
         <ul class="file-list">
-          {#each seminar.files as file (file.id)}
+          {#each files as file (file.id)}
             <li><a href={file.url} target="_blank" rel="noopener noreferrer">{file.name}</a><span>{file.kind}</span></li>
           {/each}
         </ul>

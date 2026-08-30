@@ -1,12 +1,21 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
-  import { untrack } from "svelte";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
-  import type { StudyOperationResult } from "$lib/domain/studies";
   import { MANUSCRIPT } from "$lib/constants";
 
   let { data } = $props();
-  let study = $state(structuredClone(untrack(() => data.study)));
+  const study = $derived(data.study);
+  const relationship = $derived(
+    study.isOrganizer
+      ? ("organizer" as const)
+      : study.isParticipant
+        ? ("participant" as const)
+        : study.isPending
+          ? ("pending" as const)
+          : ("none" as const),
+  );
+  const participantCount = $derived(study.participantNames.length);
+  const canJoin = $derived(relationship === "none" && study.status === "recruiting");
   let processing = $state(false);
   let notice = $state<{ tone: "success" | "error"; message: string } | null>(null);
 
@@ -19,37 +28,33 @@
       participant: "참여 중",
       pending: "승인 대기",
       none: "미참여",
-    }[study.relationship],
+    }[relationship],
   );
 
-  function handleResult(result: StudyOperationResult) {
-    if (result.operation === "studyJoined") {
-      study.relationship = "pending";
-      study.canJoin = false;
-      study.canLeave = true;
-      notice = { tone: "success", message: "참여 신청을 보냈습니다. 주최자 승인을 기다려 주세요." };
-    }
-    if (result.operation === "studyLeft") {
-      const wasParticipant = study.relationship === "participant";
-      study.relationship = "none";
-      study.canJoin = study.status === "recruiting";
-      study.canLeave = false;
-      if (wasParticipant) study.participantCount = Math.max(0, study.participantCount - 1);
-      notice = { tone: "success", message: "스터디 참여 상태를 해제했습니다." };
-    }
-  }
-
-  function actionEnhancer() {
+  function actionEnhancer(kind: "join" | "leave") {
     processing = true;
     notice = null;
-    return async ({ result }: { result: import("@sveltejs/kit").ActionResult }) => {
+    return async ({
+      result,
+      update,
+    }: {
+      result: import("@sveltejs/kit").ActionResult;
+      update: () => Promise<void>;
+    }) => {
       processing = false;
       if (result.type === "success") {
-        handleResult(result.data as StudyOperationResult);
+        await update();
+        notice =
+          kind === "join"
+            ? { tone: "success", message: "참여 신청을 보냈습니다. 주최자 승인을 기다려 주세요." }
+            : { tone: "success", message: "스터디 참여 상태를 해제했습니다." };
         return;
       }
-      const data = result.type === "failure" ? result.data as { error?: string } : null;
-      notice = { tone: "error", message: data?.error ?? "참여 상태를 변경하지 못했습니다." };
+      const data =
+        result.type === "failure"
+          ? result.data as { error?: string; message?: string }
+          : null;
+      notice = { tone: "error", message: data?.message ?? data?.error ?? "참여 상태를 변경하지 못했습니다." };
     };
   }
 </script>
@@ -67,7 +72,7 @@
     <div><span>Term</span><strong>{study.semester}</strong></div>
     <div><span>Status</span><strong>{statusLabel}</strong></div>
     <div><span>Relation</span><strong>{relationshipLabel}</strong></div>
-    <div><span>Members</span><strong>{study.participantCount}</strong></div>
+    <div><span>Members</span><strong>{participantCount}</strong></div>
   </div>
 
   {#if notice}
@@ -92,14 +97,14 @@
     <aside class="enrollment-sheet">
       <p class="eyebrow">02 · Enrollment</p>
       <h2>참여 상태</h2>
-      <div class="relationship-stamp" data-relationship={study.relationship}>{relationshipLabel}</div>
+      <div class="relationship-stamp" data-relationship={relationship}>{relationshipLabel}</div>
 
-      {#if study.relationship === "organizer"}
+      {#if relationship === "organizer"}
         <p>이 스터디의 주최자입니다. 참여자 승인과 회차·출석 관리는 관리 화면에서 진행합니다.</p>
         <a class="paper-btn primary" href={`/study/${study.id}/manage`}>스터디 관리</a>
-      {:else if study.relationship === "participant"}
+      {:else if relationship === "participant"}
         <p>현재 참여자로 등록되어 있습니다. 나가면 참여자 명단에서 즉시 제외됩니다.</p>
-        <form method="POST" action="?/leave" use:enhance={actionEnhancer}>
+        <form method="POST" action="?/leave" use:enhance={() => actionEnhancer("leave")}>
           <button
             class="paper-btn danger"
             disabled={processing}
@@ -108,14 +113,14 @@
             }}
           >스터디 나가기</button>
         </form>
-      {:else if study.relationship === "pending"}
+      {:else if relationship === "pending"}
         <p>주최자가 참여 신청을 검토하고 있습니다. 승인 전에는 신청을 취소할 수 있습니다.</p>
-        <form method="POST" action="?/leave" use:enhance={actionEnhancer}>
+        <form method="POST" action="?/leave" use:enhance={() => actionEnhancer("leave")}>
           <button class="paper-btn" disabled={processing}>참여 신청 취소</button>
         </form>
-      {:else if study.canJoin}
+      {:else if canJoin}
         <p>참여 신청을 보내면 주최자의 승인을 거쳐 참여자 명단에 추가됩니다.</p>
-        <form method="POST" action="?/join" use:enhance={actionEnhancer}>
+        <form method="POST" action="?/join" use:enhance={() => actionEnhancer("join")}>
           <button class="paper-btn primary" disabled={processing}>참여 신청</button>
         </form>
       {:else}

@@ -9,7 +9,7 @@ import type { PageServerLoad } from "./$types";
 export const load: PageServerLoad = async ({ locals, params }) => {
   const study = await ensureOrganizer(params.id, locals.member!.memberId);
   const sheet = await getAttendanceSheet(study);
-  return { studyTitle: study.title, ...sheet };
+  return { studyId: study.id, studyTitle: study.title, ...sheet };
 };
 
 export const actions = {

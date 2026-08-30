@@ -33,13 +33,13 @@
 		</li>
 	</ol>
 	<div class="paper-actions">
-		<a href={data.preview ? '/signup/edit?preview=1' : '/signup/edit'} class="paper-btn primary">신청 정보 수정</a>
+		<a href="/signup/edit" class="paper-btn primary">신청 정보 수정</a>
 		<button class="paper-btn secondary" onclick={() => signOut()}>로그아웃</button>
 	</div>
 	{#if data.application}
 		<form
 			method="POST"
-			action={data.preview ? '?/withdrawApplication&preview=1' : '?/withdrawApplication'}
+			action="?/withdrawApplication"
 			class="withdraw-form"
 			onsubmit={(event) => {
 				if (!confirm('가입 신청을 철회하고 입력한 개인정보를 삭제할까요?')) event.preventDefault();

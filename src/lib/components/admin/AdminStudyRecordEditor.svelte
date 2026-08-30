@@ -70,7 +70,7 @@
       {messages[form.operation]}
     </p>
   {/if}
-  {#if form?.error === "CONFLICT" && form.scope === "record-delete"}
+  {#if form?.error === "CONFLICT"}
     <p class="paper-status-note error" role="alert">
       출석 회차가 있는 스터디는 삭제할 수 없습니다.
     </p>
@@ -94,7 +94,7 @@
         <label>
           <span class="paper-label">학기</span>
           <input
-            name="term"
+            name="semester"
             value={form?.scope === "record-create"
               ? (form.values?.term ?? currentTerm)
               : currentTerm}
@@ -134,7 +134,7 @@
         <label class="wide">
           <span class="paper-label">교재·자료</span>
           <input
-            name="material"
+            name="textbook"
             value={form?.scope === "record-create"
               ? (form.values?.material ?? "")
               : ""}
@@ -188,7 +188,7 @@
               >
               <label
                 ><span class="paper-label">학기</span><input
-                  name="term"
+                  name="semester"
                   value={record.term}
                   aria-invalid={!!updateIssues.term}
                 />{#if updateIssues.term}<small>{updateIssues.term}</small
@@ -206,7 +206,7 @@
               >
               <label class="wide"
                 ><span class="paper-label">교재·자료</span><input
-                  name="material"
+                  name="textbook"
                   value={record.material}
                   aria-invalid={!!updateIssues.material}
                 />{#if updateIssues.material}<small
@@ -265,7 +265,7 @@
                     >
                       <input type="hidden" name="id" value={record.id} /><input
                         type="hidden"
-                        name="fileId"
+                        name="s3Key"
                         value={file.id}
                       /><button class="paper-btn small" type="submit"
                         >제거</button

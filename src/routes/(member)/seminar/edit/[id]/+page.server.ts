@@ -53,7 +53,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 };
 
 export const actions: Actions = {
-  default: async ({ request, locals, params }) => {
+  update: async ({ request, locals, params }) => {
     return handleUserAction(locals, async () => {
       const member = locals.member;
       if (!member) throw new AppError("FORBIDDEN");

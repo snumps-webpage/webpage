@@ -23,15 +23,14 @@
     members={data.members}
     memberDirectoryUnavailable={data.memberDirectoryUnavailable}
     initialValues={{
-      kind: data.request.kind,
       title: data.request.title,
       description: data.request.description,
       prerequisites: data.request.prerequisites,
       duration: data.request.duration,
-      attachmentUrl: data.request.attachmentUrl,
-      presenterIds: data.request.presenterIds,
+      attachmentUrl: data.request.attachment,
+      presenterIds: data.request.speakerIds,
     }}
-    initialPresenters={data.request.initialPresenters}
+    initialPresenters={data.request.initialSpeakers}
     {form}
   />
 

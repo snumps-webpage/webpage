@@ -2,15 +2,16 @@
   import { enhance } from "$app/forms";
   import { untrack } from "svelte";
   import type { SubmitFunction } from "@sveltejs/kit";
-  import type {
-    AdminSeminarOperationResult,
-    AdminSeminarRequestItem,
-  } from "$lib/domain/admin-seminars";
+  import type { AdminSeminarRequestItem } from "$lib/domain/admin-seminars";
   import type { SeminarKind } from "$lib/domain/seminars";
 
   interface Props {
     request: AdminSeminarRequestItem;
-    onTransition: (result: AdminSeminarOperationResult) => void;
+    onTransition: (
+      operation: "approved" | "rejected",
+      requestId: string,
+      mailFailed: boolean,
+    ) => void;
     onError: (message: string) => void;
   }
 
@@ -24,11 +25,18 @@
     return () => {
       processing = operation;
 
-      return async ({ result }) => {
+      return async ({ result, update }) => {
         processing = null;
 
         if (result.type === "success") {
-          onTransition(result.data as AdminSeminarOperationResult);
+          // The verdict lands on /admin — reload this page's board data.
+          await update({ reset: false });
+          const payload = result.data as { mailFailed?: boolean } | undefined;
+          onTransition(
+            operation === "approve" ? "approved" : "rejected",
+            request.id,
+            Boolean(payload?.mailFailed),
+          );
           return;
         }
 
@@ -101,10 +109,10 @@
     {#if request.canApprove}
       <form
         method="POST"
-        action="?/approveSeminar"
+        action="/admin?/approveSeminar"
         use:enhance={actionEnhancer("approve")}
       >
-        <input type="hidden" name="requestId" value={request.id} />
+        <input type="hidden" name="id" value={request.id} />
         <input type="hidden" name="kind" value={selectedKind} />
         <button class="paper-btn primary" disabled={processing !== null}>
           {processing === "approve" ? "처리 중…" : "승인 및 개설 공지"}
@@ -114,10 +122,10 @@
     {#if request.canReject}
       <form
         method="POST"
-        action="?/rejectSeminar"
+        action="/admin?/rejectSeminar"
         use:enhance={actionEnhancer("reject")}
       >
-        <input type="hidden" name="requestId" value={request.id} />
+        <input type="hidden" name="id" value={request.id} />
         <button class="paper-btn danger" disabled={processing !== null}>
           {processing === "reject" ? "처리 중…" : "반려"}
         </button>

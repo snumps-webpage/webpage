@@ -103,8 +103,9 @@ export async function uploadAdminFile(
   operationId: string,
   fetcher: Fetcher = fetch,
 ): Promise<AdminUploadResult> {
-  const presignInput: PresignRequest = {
-    operationId,
+  // The presign endpoint validates purpose/contentType/size; operationId is
+  // kept client-side for the editor's idempotent registration step.
+  const presignInput: Omit<PresignRequest, "operationId"> = {
     purpose,
     filename: file.name,
     contentType: file.type,
@@ -131,16 +132,24 @@ export async function uploadAdminFile(
     );
   }
   const presign = parsedPresign.data;
+  const uploaded: AdminUploadResult = {
+    operationId,
+    s3Key: presign.s3Key,
+    purpose,
+    filename: file.name,
+    contentType: file.type,
+    size: file.size,
+  };
 
   let lastError: ApiRequestError | null = null;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const response = await fetcher(presign.upload.url, {
+      const response = await fetcher(presign.uploadUrl, {
         method: "PUT",
-        headers: presign.upload.headers,
+        headers: { "Content-Type": file.type },
         body: file,
       });
-      if (response.ok) return presign.file;
+      if (response.ok) return uploaded;
       const retryable = response.status >= 500;
       lastError = new ApiRequestError(
         "파일 업로드에 실패했습니다.",

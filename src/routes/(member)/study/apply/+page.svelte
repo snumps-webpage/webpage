@@ -1,43 +1,21 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
-  import { untrack } from "svelte";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import StudyRequestForm from "$lib/components/study/StudyRequestForm.svelte";
-  import type {
-    StudyOperationResult,
-    StudyRequestItem,
-  } from "$lib/domain/studies";
   import { MANUSCRIPT } from "$lib/constants";
 
   let { data } = $props();
-  let requests = $state<StudyRequestItem[]>([
-    ...untrack(() => data.requests),
-  ]);
+  const requests = $derived(data.myRequests);
   let notice = $state<string | null>(null);
   let withdrawingId = $state<string | null>(null);
 
-  function statusLabel(status: StudyRequestItem["status"]) {
+  function statusLabel(status: (typeof requests)[number]["status"]) {
     return {
       pending: "심사 중",
       approved: "승인",
       rejected: "반려",
       withdrawn: "철회",
     }[status];
-  }
-
-  function handleOperation(result: StudyOperationResult) {
-    if (result.operation === "requestSubmitted") {
-      requests = [result.request, ...requests];
-      notice = "스터디 개설 신청을 제출했습니다.";
-    }
-    if (result.operation === "requestWithdrawn") {
-      requests = requests.map((request) =>
-        request.id === result.requestId
-          ? { ...request, status: "withdrawn", canWithdraw: false }
-          : request,
-      );
-      notice = "신청을 철회했습니다.";
-    }
   }
 </script>
 
@@ -65,7 +43,7 @@
       </div>
       <StudyRequestForm
         defaultSemester={data.defaultSemester}
-        onSubmitted={handleOperation}
+        onSubmitted={() => (notice = "스터디 개설 신청을 제출했습니다.")}
       />
     </section>
 
@@ -81,22 +59,23 @@
               <strong>{request.title}</strong>
               <span>{statusLabel(request.status)}</span>
             </header>
-            <p>{request.semester} · {new Date(request.createdAt).toLocaleDateString("ko-KR")}</p>
-            {#if request.canWithdraw}
+            <p>{request.semester} · {new Date(request.submittedAt).toLocaleDateString("ko-KR")}</p>
+            {#if request.status === "pending"}
               <form
                 method="POST"
                 action="?/withdraw"
                 use:enhance={() => {
                   withdrawingId = request.id;
-                  return async ({ result }) => {
+                  return async ({ result, update }) => {
                     withdrawingId = null;
                     if (result.type === "success") {
-                      handleOperation(result.data as StudyOperationResult);
+                      await update();
+                      notice = "신청을 철회했습니다.";
                     }
                   };
                 }}
               >
-                <input type="hidden" name="requestId" value={request.id} />
+                <input type="hidden" name="id" value={request.id} />
                 <button
                   class="paper-btn small"
                   disabled={withdrawingId === request.id}

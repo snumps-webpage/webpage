@@ -1,21 +1,11 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
-  import { untrack } from "svelte";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
-  import type {
-    StudyListItem,
-    StudyOperationResult,
-    StudyTransferOffer,
-  } from "$lib/domain/studies";
   import { MANUSCRIPT } from "$lib/constants";
 
   let { data } = $props();
-  let studies = $state<StudyListItem[]>([
-    ...untrack(() => data.studies),
-  ]);
-  let transferOffers = $state<StudyTransferOffer[]>([
-    ...untrack(() => data.transferOffers),
-  ]);
+  const studies = $derived(data.studies);
+  const transferOffers = $derived(data.transferOffers);
   let notice = $state<{ tone: "success" | "error"; message: string } | null>(null);
   let processingStudyId = $state<string | null>(null);
 
@@ -25,7 +15,7 @@
     ] ?? status;
   }
 
-  function relationshipLabel(relationship: StudyListItem["relationship"]) {
+  function relationshipLabel(relationship: (typeof studies)[number]["myState"]) {
     return {
       organizer: "주최자",
       participant: "참여 중",
@@ -34,34 +24,31 @@
     }[relationship];
   }
 
-  function transition(result: StudyOperationResult) {
-    if (result.operation === "transferAccepted") {
-      studies = studies.map((study) =>
-        study.id === result.studyId ? result.study : study,
-      );
-      transferOffers = transferOffers.filter(
-        (offer) => offer.studyId !== result.studyId,
-      );
-      notice = { tone: "success", message: "주최자 역할을 수락했습니다. 이제 스터디를 관리할 수 있습니다." };
-    }
-    if (result.operation === "transferDeclined") {
-      transferOffers = transferOffers.filter(
-        (offer) => offer.studyId !== result.studyId,
-      );
-      notice = { tone: "success", message: "주최자 전달 제안을 거절했습니다." };
-    }
-  }
-
-  function transferEnhancer(studyId: string) {
+  function transferEnhancer(studyId: string, accepted: boolean) {
     processingStudyId = studyId;
-    return async ({ result }: { result: import("@sveltejs/kit").ActionResult }) => {
+    return async ({
+      result,
+      update,
+    }: {
+      result: import("@sveltejs/kit").ActionResult;
+      update: () => Promise<void>;
+    }) => {
       processingStudyId = null;
       if (result.type === "success") {
-        transition(result.data as StudyOperationResult);
+        await update();
+        notice = {
+          tone: "success",
+          message: accepted
+            ? "주최자 역할을 수락했습니다. 이제 스터디를 관리할 수 있습니다."
+            : "주최자 전달 제안을 거절했습니다.",
+        };
         return;
       }
-      const data = result.type === "failure" ? result.data as { error?: string } : null;
-      notice = { tone: "error", message: data?.error ?? "제안을 처리하지 못했습니다." };
+      const data =
+        result.type === "failure"
+          ? result.data as { error?: string; message?: string }
+          : null;
+      notice = { tone: "error", message: data?.message ?? data?.error ?? "제안을 처리하지 못했습니다." };
     };
   }
 </script>
@@ -100,15 +87,15 @@
         <article>
           <div>
             <strong>{offer.studyTitle}</strong>
-            <p>{offer.fromMember.name} 님이 주최자 역할을 전달하려 합니다.</p>
+            <p>{offer.fromName} 님이 주최자 역할을 전달하려 합니다.</p>
             <span>{new Date(offer.requestedAt).toLocaleString("ko-KR")}</span>
           </div>
           <div class="offer-actions">
-            <form method="POST" action="?/declineTransfer" use:enhance={() => transferEnhancer(offer.studyId)}>
+            <form method="POST" action="?/declineTransfer" use:enhance={() => transferEnhancer(offer.studyId, false)}>
               <input type="hidden" name="studyId" value={offer.studyId} />
               <button class="paper-btn small" disabled={processingStudyId === offer.studyId}>거절</button>
             </form>
-            <form method="POST" action="?/acceptTransfer" use:enhance={() => transferEnhancer(offer.studyId)}>
+            <form method="POST" action="?/acceptTransfer" use:enhance={() => transferEnhancer(offer.studyId, true)}>
               <input type="hidden" name="studyId" value={offer.studyId} />
               <button class="paper-btn primary small" disabled={processingStudyId === offer.studyId}>수락</button>
             </form>
@@ -123,7 +110,7 @@
       <article class="study-card" data-status={study.status}>
         <header>
           <div>
-            <p>{study.semester} · {relationshipLabel(study.relationship)}</p>
+            <p>{study.semester} · {relationshipLabel(study.myState)}</p>
             <h2>{study.title}</h2>
           </div>
           <span>{statusLabel(study.status)}</span>
@@ -136,7 +123,7 @@
         </dl>
         <div class="card-actions">
           <a class="paper-btn" href={`/study/${study.id}`}>상세 보기</a>
-          {#if study.canManage}
+          {#if study.myState === "organizer"}
             <a class="paper-btn primary" href={`/study/${study.id}/manage`}>스터디 관리</a>
           {/if}
         </div>

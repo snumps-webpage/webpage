@@ -34,8 +34,37 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     targetId: member.id,
   });
 
+  // The stored publicContact is one opt-in string ("phone · email"); the
+  // authority record view splits it for display.
+  const [contactPhone = "", contactEmail = ""] = (member.publicContact ?? "")
+    .split(" · ")
+    .map((part) => part.trim());
+
   return {
-    member,
+    member: {
+      ...member,
+      publicContact: member.publicContact
+        ? {
+            status: "granted" as const,
+            phone: contactPhone,
+            email: contactEmail,
+            changedAt: member.statusChangedAt,
+            changedBy: "",
+          }
+        : null,
+      publicContactStatus: (member.publicContact ? "granted" : "unset") as
+        | "granted"
+        | "revoked"
+        | "unset",
+      privateInfo: privateInfo
+        ? {
+            email: privateInfo.email,
+            phone: privateInfo.phone,
+            background: privateInfo.background,
+            mailPrefs: privateInfo.mailPrefs,
+          }
+        : null,
+    },
     privateInfo: privateInfo
       ? { email: privateInfo.email, phone: privateInfo.phone, background: privateInfo.background }
       : null,

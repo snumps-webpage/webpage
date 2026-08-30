@@ -7,7 +7,10 @@ import type { PageServerLoad } from "./$types";
 export const load: PageServerLoad = async ({ locals }) => {
   const memberId = locals.member!.memberId;
   const info = (await getTable("private-info")).find((p) => p.memberId === memberId);
-  return { mailPrefs: info?.mailPrefs ?? { announcements: true } };
+  return {
+    mailPrefs: info?.mailPrefs ?? { announcements: true },
+    email: info?.email ?? "",
+  };
 };
 
 export const actions = {

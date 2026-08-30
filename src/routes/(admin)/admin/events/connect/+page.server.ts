@@ -13,6 +13,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     name: a.title,
     date: a.date.start,
     type: a.type,
+    attendeeCount: a.attendeeIds.length,
   }));
 
   const semesters = Array.from(

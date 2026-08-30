@@ -1,25 +1,21 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
-  import { onMount, untrack } from "svelte";
+  import { onMount } from "svelte";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import AdminSectionNav from "$lib/components/admin/AdminSectionNav.svelte";
   import AdminStudyRecordEditor, {
     type StudyRecordFormState,
   } from "$lib/components/admin/AdminStudyRecordEditor.svelte";
-  import type { AdminStudyRecord } from "$lib/domain/admin-records";
-  import type {
-    AdminStudyRequestItem,
-    StudyOperationResult,
-  } from "$lib/domain/studies";
+  import type { AdminStudyRequestItem } from "$lib/domain/studies";
   import { MANUSCRIPT } from "$lib/constants";
   import { fetchAdminQueue } from "$lib/client/api";
   import { createAdminQueuePoller } from "$lib/client/admin-queue-poller";
 
   let { data, form } = $props();
-  let requests = $state<AdminStudyRequestItem[]>([
-    ...untrack(() => data.requests),
-  ]);
-  let records = $state<AdminStudyRecord[]>([...untrack(() => data.records)]);
+  // Load data is the record authority; successful actions re-run it and this
+  // writable derived resyncs (the poller may overwrite it in between).
+  let requests: AdminStudyRequestItem[] = $derived([...data.requests]);
+  const records = $derived(data.records);
   let processingId = $state<string | null>(null);
   let notice = $state<{ tone: "success" | "error"; message: string } | null>(
     null,
@@ -45,47 +41,40 @@
     return () => poller.stop();
   });
 
-  function handleResult(result: StudyOperationResult) {
-    if (result.operation === "studyApproved") {
-      requests = requests.filter((request) => request.id !== result.requestId);
-      records = [
-        result.record,
-        ...records.filter((record) => record.id !== result.record.id),
-      ];
-      notice = {
-        tone: "success",
-        message: `‘${result.study.title}’을 모집 중 상태로 개설하고 신청자에게 승인 메일을 보냈습니다.`,
-      };
-      void refreshRequests();
-    }
-    if (result.operation === "studyRejected") {
-      requests = requests.filter((request) => request.id !== result.requestId);
-      notice = {
-        tone: "success",
-        message: "스터디 신청을 반려하고 신청자에게 결과 메일을 보냈습니다.",
-      };
-      void refreshRequests();
-    }
-  }
-
-  function requestEnhancer(requestId: string) {
-    processingId = requestId;
+  function requestEnhancer(request: AdminStudyRequestItem, approved: boolean) {
+    processingId = request.id;
     notice = null;
     return async ({
       result,
+      update,
     }: {
       result: import("@sveltejs/kit").ActionResult;
+      update: (options?: { reset?: boolean; invalidateAll?: boolean }) => Promise<void>;
     }) => {
       processingId = null;
       if (result.type === "success") {
-        handleResult(result.data as StudyOperationResult);
+        requests = requests.filter((item) => item.id !== request.id);
+        notice = approved
+          ? {
+              tone: "success",
+              message: `‘${request.title}’을 모집 중 상태로 개설하고 신청자에게 승인 메일을 보냈습니다.`,
+            }
+          : {
+              tone: "success",
+              message: "스터디 신청을 반려하고 신청자에게 결과 메일을 보냈습니다.",
+            };
+        // The approval creates the study on /admin — reload this page's records.
+        await update({ reset: false });
+        void refreshRequests();
         return;
       }
-      const data =
-        result.type === "failure" ? (result.data as { error?: string }) : null;
+      const failure =
+        result.type === "failure"
+          ? (result.data as { error?: string; message?: string })
+          : null;
       notice = {
         tone: "error",
-        message: data?.error ?? "스터디 신청을 처리하지 못했습니다.",
+        message: failure?.message ?? failure?.error ?? "스터디 신청을 처리하지 못했습니다.",
       };
     };
   }
@@ -145,10 +134,10 @@
         <footer>
           <form
             method="POST"
-            action="?/rejectStudy"
-            use:enhance={() => requestEnhancer(request.id)}
+            action="/admin?/rejectStudy"
+            use:enhance={() => requestEnhancer(request, false)}
           >
-            <input type="hidden" name="requestId" value={request.id} />
+            <input type="hidden" name="id" value={request.id} />
             <button
               class="paper-btn danger"
               disabled={processingId === request.id}
@@ -160,10 +149,10 @@
           </form>
           <form
             method="POST"
-            action="?/approveStudy"
-            use:enhance={() => requestEnhancer(request.id)}
+            action="/admin?/approveStudy"
+            use:enhance={() => requestEnhancer(request, true)}
           >
-            <input type="hidden" name="requestId" value={request.id} />
+            <input type="hidden" name="id" value={request.id} />
             <button
               class="paper-btn primary"
               disabled={processingId === request.id}>승인 및 개설</button

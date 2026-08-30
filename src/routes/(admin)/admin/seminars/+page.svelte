@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
+  import { onMount } from "svelte";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import AdminSectionNav from "$lib/components/admin/AdminSectionNav.svelte";
   import AdminSeminarRecordEditor, {
@@ -10,7 +10,6 @@
   import SeminarScheduleDialog from "$lib/components/admin/SeminarScheduleDialog.svelte";
   import type {
     AdminSeminarItem,
-    AdminSeminarOperationResult,
     AdminSeminarRequestItem,
   } from "$lib/domain/admin-seminars";
   import { MANUSCRIPT } from "$lib/constants";
@@ -19,12 +18,11 @@
 
   let { data, form } = $props();
 
-  const initialDashboard = untrack(() => data.dashboard);
-  let requests = $state<AdminSeminarRequestItem[]>([
-    ...initialDashboard.requests,
-  ]);
-  let seminars = $state<AdminSeminarItem[]>([...initialDashboard.seminars]);
-  let records = $state([...untrack(() => data.records)]);
+  // Load data is the record authority; successful actions re-run it and this
+  // writable derived resyncs (the poller may overwrite it in between).
+  let requests: AdminSeminarRequestItem[] = $derived([...data.dashboard.requests]);
+  const seminars = $derived(data.dashboard.seminars);
+  const records = $derived(data.records);
   let selectedSeminar = $state<AdminSeminarItem | null>(null);
   let notice = $state<{ tone: "success" | "error"; message: string } | null>(
     null,
@@ -54,70 +52,28 @@
     notice = { tone: "error", message };
   }
 
-  function handleTransition(result: AdminSeminarOperationResult) {
-    switch (result.operation) {
-      case "approved":
-        requests = requests.filter((item) => item.id !== result.requestId);
-        seminars = [result.seminar, ...seminars];
-        records = [
-          result.record,
-          ...records.filter((item) => item.id !== result.record.id),
-        ];
-        notice = {
-          tone: result.mailFailed ? "error" : "success",
-          message: result.mailFailed
-            ? "세미나는 승인했지만 ‘일정 추후 안내’ 공지 발송에 실패했습니다."
-            : "세미나를 승인하고 ‘일정 추후 안내’ 공지를 발송했습니다. 일정 공개·변경 시에도 안내 메일을 보냅니다.",
-        };
-        void refreshRequests();
-        break;
-      case "rejected":
-        requests = requests.filter((item) => item.id !== result.requestId);
-        notice = { tone: "success", message: "세미나 신청을 반려했습니다." };
-        void refreshRequests();
-        break;
-      case "scheduled":
-        seminars = seminars.map((item) => {
-          if (item.id !== result.seminarId) return item;
-          const alreadyPublished = item.publicationStatus === "published";
-          return {
-            ...item,
-            schedule: result.schedule,
-            publicationStatus: alreadyPublished ? "published" : "scheduled",
-            canPublish: !alreadyPublished,
-          };
-        });
-        selectedSeminar = null;
-        notice = {
-          tone: result.mailFailed ? "error" : "success",
-          message:
-            result.mailEvent === "schedule-changed"
-              ? result.mailFailed
-                ? "일정은 변경했지만 변경 안내 메일 발송에 실패했습니다."
-                : "공개된 세미나 일정을 변경하고 안내 메일을 발송했습니다."
-              : "일정을 저장했습니다. 확정 일정 안내는 세미나를 공개할 때 발송됩니다.",
-        };
-        break;
-      case "published":
-        seminars = seminars.map((item) =>
-          item.id === result.seminarId
-            ? {
-                ...item,
-                publicationStatus: "published",
-                activityId: result.activityId,
-                eventId: result.eventId,
-                canPublish: false,
-              }
-            : item,
-        );
-        notice = {
-          tone: result.mailFailed ? "error" : "success",
-          message: result.mailFailed
-            ? "세미나와 출석 이벤트는 공개했지만 확정 일정 안내 메일 발송에 실패했습니다."
-            : "세미나와 출석 이벤트를 공개하고 확정 일정 안내 메일을 발송했습니다.",
-        };
-        break;
+  /**
+   * The backend approval creates 활동·출석 이벤트 in the same chain (§7-2),
+   * so a review verdict is the only board transition; the reloaded data
+   * carries the new published seminar and record.
+   */
+  function handleTransition(
+    operation: "approved" | "rejected",
+    requestId: string,
+    mailFailed: boolean,
+  ) {
+    requests = requests.filter((item) => item.id !== requestId);
+    if (operation === "approved") {
+      notice = {
+        tone: mailFailed ? "error" : "success",
+        message: mailFailed
+          ? "세미나는 승인했지만 ‘일정 추후 안내’ 공지 발송에 실패했습니다."
+          : "세미나를 승인하고 ‘일정 추후 안내’ 공지를 발송했습니다. 일정 공개·변경 시에도 안내 메일을 보냅니다.",
+      };
+    } else {
+      notice = { tone: "success", message: "세미나 신청을 반려했습니다." };
     }
+    void refreshRequests();
   }
 </script>
 
@@ -217,7 +173,7 @@
           <SeminarPublicationCard
             {seminar}
             onSchedule={(item) => (selectedSeminar = item)}
-            onTransition={handleTransition}
+            onTransition={() => void 0}
             onError={showError}
           />
         {:else}
@@ -245,7 +201,7 @@
           <SeminarPublicationCard
             {seminar}
             onSchedule={(item) => (selectedSeminar = item)}
-            onTransition={handleTransition}
+            onTransition={() => void 0}
             onError={showError}
           />
         {:else}
@@ -268,7 +224,7 @@
         <SeminarPublicationCard
           {seminar}
           onSchedule={(item) => (selectedSeminar = item)}
-          onTransition={handleTransition}
+          onTransition={() => void 0}
           onError={showError}
         />
       {:else}
@@ -290,7 +246,7 @@
 
   <footer class="data-freshness">
     프리뷰 데이터 기준 시각 {new Date(
-      initialDashboard.generatedAt,
+      data.dashboard.generatedAt,
     ).toLocaleString("ko-KR")}
   </footer>
 </article>
@@ -299,7 +255,7 @@
   {#key selectedSeminar.id}
     <SeminarScheduleDialog
       seminar={selectedSeminar}
-      onSaved={handleTransition}
+      onSaved={() => (selectedSeminar = null)}
       onClose={() => (selectedSeminar = null)}
     />
   {/key}

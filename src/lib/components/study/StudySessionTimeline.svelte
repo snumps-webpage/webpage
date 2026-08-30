@@ -1,28 +1,43 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
   import { page } from "$app/state";
-  import { v7 as uuidv7 } from "uuid";
   import CopyButton from "$lib/components/CopyButton.svelte";
   import StudySessionCorrectionDialog from "./StudySessionCorrectionDialog.svelte";
-  import type {
-    StudyOperationResult,
-    StudySessionItem,
-  } from "$lib/domain/studies";
+  import type { StudySession } from "./StudySessionCorrectionDialog.svelte";
 
   interface Props {
     studyId: string;
-    sessions: StudySessionItem[];
+    sessions: StudySession[];
     canCreate: boolean;
-    onTransition: (result: StudyOperationResult) => void;
+    onNotice: (message: string) => void;
     onError: (message: string) => void;
   }
 
-  let { studyId, sessions, canCreate, onTransition, onError }: Props = $props();
-  let operationId = $state(uuidv7());
+  let { studyId, sessions, canCreate, onNotice, onError }: Props = $props();
   let creating = $state(false);
-  let cancellingSessionId = $state<string | null>(null);
-  let selectedSession = $state<StudySessionItem | null>(null);
-  let latestCreated = $state<StudySessionItem | null>(null);
+  let cancellingEventId = $state<string | null>(null);
+  let selectedSession = $state<StudySession | null>(null);
+  let latestCreatedEventId = $state<string | null>(null);
+  const latestCreated = $derived.by(() => {
+    const found = sessions.find((s) => s.eventId === latestCreatedEventId);
+    return found && found.status !== "cancelled" ? found : null;
+  });
+
+  /** "YYYY-MM-DDTHH:mm" of the current instant in KST — the backend's
+   * `createSession` reads the `date` field in datetime-local format. */
+  function nowKstLocal() {
+    return new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "Asia/Seoul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    })
+      .format(new Date())
+      .replace(" ", "T");
+  }
 
   function formatDate(value: string) {
     return new Intl.DateTimeFormat("ko-KR", {
@@ -35,32 +50,23 @@
     }).format(new Date(value));
   }
 
-  function statusLabel(status: StudySessionItem["status"]) {
-    return { active: "출석 진행", expired: "종료", cancelled: "취소" }[status];
+  function statusLabel(status: StudySession["status"]) {
+    return (
+      { active: "출석 진행", expired: "종료", cancelled: "취소" }[
+        status as "active" | "expired" | "cancelled"
+      ] ?? status
+    );
   }
 
-  function applyResult(result: StudyOperationResult) {
-    if (result.operation === "sessionCreated") {
-      latestCreated = result.session;
-      operationId = uuidv7();
-    }
-    if (result.operation === "sessionUpdated") {
-      selectedSession = null;
-      if (latestCreated?.id === result.sessionId) {
-        latestCreated = {
-          ...latestCreated,
-          title: result.title,
-          startedAt: result.startedAt,
-        };
-      }
-    }
-    if (
-      result.operation === "sessionCancelled" &&
-      latestCreated?.id === result.sessionId
-    ) {
-      latestCreated = null;
-    }
-    onTransition(result);
+  function failureMessage(
+    result: import("@sveltejs/kit").ActionResult,
+    fallback: string,
+  ) {
+    const data =
+      "data" in result
+        ? result.data as { error?: string; message?: string }
+        : null;
+    return data?.message ?? data?.error ?? fallback;
   }
 </script>
 
@@ -81,20 +87,26 @@
     <form
       method="POST"
       action="?/createSession"
-      use:enhance={() => {
+      use:enhance={({ formData }) => {
         creating = true;
-        return async ({ result }) => {
+        formData.set("date", nowKstLocal()); // submit-time now, not render-time
+        return async ({ result, update }) => {
           creating = false;
           if (result.type === "success") {
-            applyResult(result.data as StudyOperationResult);
+            await update();
+            const newest =
+              [...sessions]
+                .filter((s) => s.status !== "cancelled")
+                .sort((a, b) => (b.sessionNo ?? 0) - (a.sessionNo ?? 0))[0] ?? null;
+            latestCreatedEventId = newest?.eventId ?? null;
+            if (newest) onNotice(`${newest.title}를 만들고 출석 체크를 열었습니다.`);
           } else {
-            const data = "data" in result ? result.data as { error?: string } : null;
-            onError(data?.error ?? "새 회차를 만들지 못했습니다.");
+            onError(failureMessage(result, "새 회차를 만들지 못했습니다."));
           }
         };
       }}
     >
-      <input type="hidden" name="operationId" value={operationId} />
+      <input type="hidden" name="date" value={nowKstLocal()} />
       <button class="paper-btn primary" disabled={!canCreate || creating}>
         {creating ? "회차 생성 중…" : "새 회차 만들기"}
       </button>
@@ -105,11 +117,11 @@
     <aside class="created-sheet" role="status">
       <div>
         <strong>{latestCreated.title} 출석 링크가 열렸습니다.</strong>
-        <span>{formatDate(latestCreated.startedAt)} · 출석 진행 중</span>
+        <span>{formatDate(latestCreated.date)} · 출석 진행 중</span>
       </div>
       <div class="created-actions">
         <CopyButton
-          text={`${page.url.origin}${latestCreated.attendancePath}`}
+          text={`${page.url.origin}${latestCreated.attendPath}`}
           title="출석 링크 복사"
         />
         <a
@@ -121,14 +133,14 @@
   {/if}
 
   <ol class="session-timeline">
-    {#each sessions as session (session.id)}
+    {#each sessions as session (session.eventId)}
       <li class="session-entry" data-status={session.status}>
-        <div class="session-number">{String(session.sessionNo).padStart(2, "0")}</div>
+        <div class="session-number">{String(session.sessionNo ?? 0).padStart(2, "0")}</div>
         <article>
           <header class="session-heading">
             <div>
               <h3>{session.title}</h3>
-              <p>{formatDate(session.startedAt)} · KST</p>
+              <p>{formatDate(session.date)} · KST</p>
             </div>
             <span class="status-mark">{statusLabel(session.status)}</span>
           </header>
@@ -139,7 +151,7 @@
           <div class="session-actions">
             {#if session.status !== "cancelled"}
               <CopyButton
-                text={`${page.url.origin}${session.attendancePath}`}
+                text={`${page.url.origin}${session.attendPath}`}
                 title={`${session.title} 출석 링크 복사`}
               />
               <a
@@ -147,30 +159,30 @@
                 href={`/study/${studyId}/attendance?event=${session.eventId}`}
               >출석부</a>
             {/if}
-            {#if session.canEdit}
+            {#if session.status !== "cancelled"}
               <button class="paper-btn small" onclick={() => (selectedSession = session)}>정정</button>
             {/if}
-            {#if session.canCancel}
+            {#if session.status !== "cancelled"}
               <form
                 method="POST"
                 action="?/cancelSession"
                 use:enhance={() => {
-                  cancellingSessionId = session.id;
-                  return async ({ result }) => {
-                    cancellingSessionId = null;
+                  cancellingEventId = session.eventId;
+                  return async ({ result, update }) => {
+                    cancellingEventId = null;
                     if (result.type === "success") {
-                      applyResult(result.data as StudyOperationResult);
+                      await update();
+                      onNotice("회차를 취소했습니다. 취소한 회차는 다시 열리지 않습니다.");
                     } else {
-                      const data = "data" in result ? result.data as { error?: string } : null;
-                      onError(data?.error ?? "회차를 취소하지 못했습니다.");
+                      onError(failureMessage(result, "회차를 취소하지 못했습니다."));
                     }
                   };
                 }}
               >
-                <input type="hidden" name="sessionId" value={session.id} />
+                <input type="hidden" name="eventId" value={session.eventId} />
                 <button
                   class="paper-btn danger small"
-                  disabled={cancellingSessionId === session.id}
+                  disabled={cancellingEventId === session.eventId}
                   onclick={(event) => {
                     if (!confirm(`${session.title}를 취소하시겠습니까? 취소한 회차는 다시 열 수 없습니다.`)) {
                       event.preventDefault();
@@ -189,10 +201,13 @@
 </section>
 
 {#if selectedSession}
-  {#key selectedSession.id}
+  {#key selectedSession.eventId}
     <StudySessionCorrectionDialog
       session={selectedSession}
-      onSaved={applyResult}
+      onSaved={() => {
+        selectedSession = null;
+        onNotice("회차 정보를 정정했습니다.");
+      }}
       onClose={() => (selectedSession = null)}
     />
   {/key}

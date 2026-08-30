@@ -30,17 +30,17 @@
 
   <section class="status-sheet">
     <p class="status-code">STATUS · WITHDRAWN</p>
-    <h1>{data.account.name}님의 회원 기능이 중지되었습니다.</h1>
+    <h1>{data.memberName}님의 회원 기능이 중지되었습니다.</h1>
     <p>유예 기간 안에는 아래 버튼으로 탈퇴 신청을 철회하고 기존 지위로 돌아갈 수 있습니다.</p>
 
     <dl>
-      <div><dt>신청 시각</dt><dd>{dateTime(data.withdrawal.requestedAt)}</dd></div>
+      <div><dt>신청 시각</dt><dd>{dateTime(data.state.requestedAt)}</dd></div>
       <div>
         <dt>개인정보 처리</dt>
         <dd>
-          {data.withdrawal.holdBy
+          {data.state.held
             ? "관리자가 보존 필요 상태로 표시함"
-            : `${dateTime(data.withdrawal.graceEndsAt)}에 유예 종료 · 이후 처리 정책은 확정 전`}
+            : `${dateTime(data.state.deleteAfter)}에 유예 종료 · 이후 처리 정책은 확정 전`}
         </dd>
       </div>
     </dl>

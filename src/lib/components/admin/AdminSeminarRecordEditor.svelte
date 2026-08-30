@@ -57,6 +57,13 @@
   };
   const kindLabel = { regular: "정기", irregular: "비정기" } as const;
 
+  /** The backend action reads one comma-separated `presenterIds` field. */
+  function joinPresenterIds(event: FormDataEvent) {
+    const ids = event.formData.getAll("presenterIds").map(String);
+    event.formData.delete("presenterIds");
+    event.formData.set("presenterIds", ids.join(","));
+  }
+
   function scheduleLabel(value: string | null) {
     if (!value) return "일정 미정";
     return new Intl.DateTimeFormat("ko-KR", {
@@ -81,7 +88,7 @@
       {messages[form.operation]}
     </p>
   {/if}
-  {#if form?.error === "CONFLICT" && form.scope === "record-delete"}
+  {#if form?.error === "CONFLICT"}
     <p class="paper-status-note error" role="alert">
       연결된 활동·출석 이벤트가 있어 삭제할 수 없습니다.
     </p>
@@ -89,7 +96,12 @@
 
   <details class="create-record" open={form?.scope === "record-create"}>
     <summary>새 세미나 레코드 생성</summary>
-    <form method="POST" action="?/create" class="record-form">
+    <form
+      method="POST"
+      action="?/create"
+      class="record-form"
+      onformdata={joinPresenterIds}
+    >
       <div class="field-grid">
         <label class="title-field"
           ><span class="paper-label">제목</span><input
@@ -103,7 +115,7 @@
         >
         <label
           ><span class="paper-label">학기</span><input
-            name="term"
+            name="semester"
             value={form?.scope === "record-create"
               ? (form.values?.term ?? currentTerm)
               : currentTerm}
@@ -135,7 +147,7 @@
         >
         <label class="wide"
           ><span class="paper-label">설명</span><textarea
-            name="description"
+            name="note"
             rows="3"
             aria-invalid={!!createIssues.description}
             >{form?.scope === "record-create"
@@ -208,7 +220,12 @@
           ></summary
         >
         <div class="record-body">
-          <form method="POST" action="?/update" class="record-form">
+          <form
+            method="POST"
+            action="?/update"
+            class="record-form"
+            onformdata={joinPresenterIds}
+          >
             <input type="hidden" name="id" value={record.id} />
             <div class="field-grid">
               <label class="title-field"
@@ -220,7 +237,7 @@
                   >{/if}</label
               ><label
                 ><span class="paper-label">학기</span><input
-                  name="term"
+                  name="semester"
                   value={record.term}
                 /></label
               ><label
@@ -242,7 +259,7 @@
                 /></label
               ><label class="wide"
                 ><span class="paper-label">설명</span><textarea
-                  name="description"
+                  name="note"
                   rows="3">{record.description}</textarea
                 ></label
               ><label class="wide"
@@ -292,8 +309,12 @@
                     >
                       <input type="hidden" name="id" value={record.id} /><input
                         type="hidden"
-                        name="fileId"
+                        name="s3Key"
                         value={file.id}
+                      /><input
+                        type="hidden"
+                        name="field"
+                        value={file.kind === "pdf" ? "materials" : "photos"}
                       /><button class="paper-btn small" type="submit"
                         >제거</button
                       >

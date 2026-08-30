@@ -1,14 +1,11 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
   import { tick } from "svelte";
-  import type {
-    StudyOperationResult,
-    StudyRequestFormIssues,
-  } from "$lib/domain/studies";
+  import type { StudyRequestFormIssues } from "$lib/domain/studies";
 
   interface Props {
     defaultSemester: string;
-    onSubmitted: (result: StudyOperationResult) => void;
+    onSubmitted: () => void;
   }
 
   let { defaultSemester, onSubmitted }: Props = $props();
@@ -38,10 +35,11 @@
   use:enhance={() => {
     processing = true;
     issues = {};
-    return async ({ result }) => {
+    return async ({ result, update }) => {
       processing = false;
       if (result.type === "success") {
-        onSubmitted(result.data as StudyOperationResult);
+        await update();
+        onSubmitted();
         title = "";
         textbook = "";
         description = "";
@@ -51,9 +49,10 @@
         const data = result.data as {
           issues?: StudyRequestFormIssues;
           error?: string;
+          message?: string;
         };
         issues = data.issues ?? {
-          _form: data.error ?? "스터디 신청을 제출하지 못했습니다.",
+          _form: data.message ?? data.error ?? "스터디 신청을 제출하지 못했습니다.",
         };
         await tick();
         formElement

@@ -26,11 +26,11 @@
   function submit(event: AdminEventItem, operation: "activated" | "expired" | "updated" | "deleted"): SubmitFunction {
     return () => {
       processingId = event.id;
-      return async ({ result }) => {
+      return async ({ result, update }) => {
         processingId = null;
         if (result.type === "success") {
-          const data = result.data as { event?: AdminEventItem };
-          onTransition(event.id, operation, data.event);
+          await update({ reset: false });
+          onTransition(event.id, operation, event);
           if (operation === "updated") editing = null;
         } else {
           const data = result.type === "failure"
@@ -100,12 +100,12 @@
         <div class="time-grid">
           <label>
             <span>시작</span>
-            <input type="datetime-local" name="startsAtLocal" value={toLocal(editing.startsAt)} aria-invalid={Boolean(issues.startsAtLocal)} aria-describedby={issues.startsAtLocal ? "event-start-error" : undefined} required />
+            <input type="datetime-local" name="start" value={toLocal(editing.startsAt)} aria-invalid={Boolean(issues.startsAtLocal)} aria-describedby={issues.startsAtLocal ? "event-start-error" : undefined} required />
             {#if issues.startsAtLocal}<small id="event-start-error" class="field-error">{issues.startsAtLocal}</small>{/if}
           </label>
           <label>
             <span>종료 (선택)</span>
-            <input type="datetime-local" name="endsAtLocal" value={toLocal(editing.endsAt)} aria-invalid={Boolean(issues.endsAtLocal)} aria-describedby={issues.endsAtLocal ? "event-end-error" : undefined} />
+            <input type="datetime-local" name="end" value={toLocal(editing.endsAt)} aria-invalid={Boolean(issues.endsAtLocal)} aria-describedby={issues.endsAtLocal ? "event-end-error" : undefined} />
             {#if issues.endsAtLocal}<small id="event-end-error" class="field-error">{issues.endsAtLocal}</small>{/if}
           </label>
         </div>

@@ -6,33 +6,43 @@
   import { SvelteSet } from "svelte/reactivity";
   import CopyButton from "$lib/components/CopyButton.svelte";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
-  import type { StudyOperationResult } from "$lib/domain/studies";
   import { MANUSCRIPT } from "$lib/constants";
 
   let { data } = $props();
-  const initialAttendance = untrack(() => data.attendance);
-  let attendance = $derived(data.attendance);
-  const selectedIds = new SvelteSet(
-    initialAttendance.attendees
-      .filter((member) => member.attended)
-      .map((member) => member.id),
+  const sessions = $derived(data.sessions);
+  const selectedSession = $derived(
+    sessions.find((s) => s.eventId === page.url.searchParams.get("event")) ??
+      sessions[sessions.length - 1] ??
+      null,
   );
-  let selectedEventId = $state(initialAttendance.selectedSession.eventId);
+  const attendees = $derived(
+    selectedSession
+      ? data.participants.map((member) => ({
+          ...member,
+          attended: selectedSession.attendeeIds.includes(member.id),
+        }))
+      : [],
+  );
+  const selectedIds = new SvelteSet(
+    untrack(() =>
+      attendees.filter((member) => member.attended).map((member) => member.id),
+    ),
+  );
+  let syncedEventId = $state(untrack(() => selectedSession?.eventId ?? null));
   let processing = $state(false);
   let notice = $state<{ tone: "success" | "error"; message: string } | null>(null);
 
   const selectedCount = $derived(selectedIds.size);
   const allSelected = $derived(
-    attendance.attendees.length > 0 && selectedIds.size === attendance.attendees.length,
+    attendees.length > 0 && selectedIds.size === attendees.length,
   );
 
   $effect(() => {
-    if (attendance.selectedSession.eventId === selectedEventId) return;
-    selectedEventId = attendance.selectedSession.eventId;
+    const eventId = selectedSession?.eventId ?? null;
+    if (eventId === syncedEventId) return;
+    syncedEventId = eventId;
     replaceSelected(
-      attendance.attendees
-        .filter((member) => member.attended)
-        .map((member) => member.id),
+      attendees.filter((member) => member.attended).map((member) => member.id),
     );
     notice = null;
   });
@@ -49,7 +59,7 @@
 
   function toggleAll() {
     if (allSelected) selectedIds.clear();
-    else replaceSelected(attendance.attendees.map((member) => member.id));
+    else replaceSelected(attendees.map((member) => member.id));
   }
 
   function formatDate(value: string) {
@@ -78,12 +88,12 @@
 </script>
 
 <svelte:head>
-  <title>{attendance.selectedSession.title} 출석부 · {attendance.study.title}</title>
+  <title>{selectedSession ? `${selectedSession.title} 출석부` : "출석부"} · {data.studyTitle}</title>
 </svelte:head>
 
 <article class="paper-document attendance-register">
   <ManuscriptHeader
-    title={`${attendance.study.title} · ${attendance.selectedSession.title}`}
+    title={selectedSession ? `${data.studyTitle} · ${selectedSession.title}` : data.studyTitle}
     subtitle="Organizer Attendance Register"
     figure={MANUSCRIPT.FIGURES.STUDY_ATTENDANCE}
   />
@@ -92,114 +102,113 @@
     <label for="session-selector">회차 선택</label>
     <select
       id="session-selector"
-      value={attendance.selectedSession.eventId}
+      value={selectedSession?.eventId}
       onchange={(event) => switchSession(event.currentTarget.value)}
     >
-      {#each attendance.sessions as session (session.id)}
+      {#each sessions as session (session.eventId)}
         <option value={session.eventId}>
-          {session.title} · {formatDate(session.startedAt)}
+          {session.title} · {formatDate(session.date)}
         </option>
       {/each}
     </select>
-    <a href={`/study/${attendance.study.id}/manage`} class="paper-btn small">관리 허브</a>
+    <a href={`/study/${data.studyId}/manage`} class="paper-btn small">관리 허브</a>
   </div>
 
-  <section class="session-index">
-    <div><span>회차</span><strong>{attendance.selectedSession.sessionNo}</strong></div>
-    <div><span>시작</span><strong>{formatDate(attendance.selectedSession.startedAt)}</strong></div>
-    <div><span>상태</span><strong>{sessionStatusLabel(attendance.selectedSession.status)}</strong></div>
-    <div><span>선택</span><strong>{selectedCount} / {attendance.attendees.length}</strong></div>
-  </section>
+  {#if selectedSession}
+    <section class="session-index">
+      <div><span>회차</span><strong>{selectedSession.sessionNo ?? "-"}</strong></div>
+      <div><span>시작</span><strong>{formatDate(selectedSession.date)}</strong></div>
+      <div><span>상태</span><strong>{sessionStatusLabel(selectedSession.status)}</strong></div>
+      <div><span>선택</span><strong>{selectedCount} / {attendees.length}</strong></div>
+    </section>
 
-  <aside class="merge-note">
-    <strong>회차별 출석부</strong>
-    이 화면에서 관리하는 참여자만 갱신하며, 다른 출석 경로에서 기록된 관리 범위 밖의 값은 보존합니다.
-  </aside>
+    <aside class="merge-note">
+      <strong>회차별 출석부</strong>
+      이 화면에서 관리하는 참여자만 갱신하며, 다른 출석 경로에서 기록된 관리 범위 밖의 값은 보존합니다.
+    </aside>
 
-  {#if notice}
-    <div class="notice" data-tone={notice.tone} role="status">
-      <p>{notice.message}</p>
-      <button aria-label="알림 닫기" onclick={() => (notice = null)}>×</button>
-    </div>
-  {/if}
+    {#if notice}
+      <div class="notice" data-tone={notice.tone} role="status">
+        <p>{notice.message}</p>
+        <button aria-label="알림 닫기" onclick={() => (notice = null)}>×</button>
+      </div>
+    {/if}
 
-  <form
-    method="POST"
-    action="?/saveAttendance"
-    use:enhance={() => {
-      processing = true;
-      notice = null;
-      return async ({ result }) => {
-        processing = false;
-        if (result.type === "success") {
-          const data = result.data as StudyOperationResult;
-          if (data.operation === "attendanceSaved") {
-            const participantIds = new Set(
-              attendance.attendees.map((member) => member.id),
-            );
-            const selectedParticipantIds = data.attendeeIds.filter((memberId) =>
-              participantIds.has(memberId),
-            );
-            replaceSelected(selectedParticipantIds);
+    <form
+      method="POST"
+      action="?/saveAttendance"
+      use:enhance={() => {
+        processing = true;
+        notice = null;
+        return async ({ result, update }) => {
+          processing = false;
+          if (result.type === "success") {
+            await update();
+            const savedIds = attendees
+              .filter((member) => member.attended)
+              .map((member) => member.id);
+            replaceSelected(savedIds);
             notice = {
               tone: "success",
-              message: `${selectedParticipantIds.length}명의 참여자 출석을 저장했습니다. 관리 범위 밖의 기존 출석은 보존했습니다.`,
+              message: `${savedIds.length}명의 참여자 출석을 저장했습니다. 관리 범위 밖의 기존 출석은 보존했습니다.`,
             };
+            return;
           }
-          return;
-        }
-        const data = "data" in result ? result.data as { error?: string } : null;
-        notice = { tone: "error", message: data?.error ?? "출석을 저장하지 못했습니다." };
-      };
-    }}
-  >
-    <input type="hidden" name="eventId" value={attendance.selectedSession.eventId} />
+          const payload = "data" in result ? result.data as { error?: string; message?: string } : null;
+          notice = { tone: "error", message: payload?.message ?? payload?.error ?? "출석을 저장하지 못했습니다." };
+        };
+      }}
+    >
+      <input type="hidden" name="eventId" value={selectedSession.eventId} />
 
-    <div class="register-heading">
-      <div>
-        <p>Participant Register</p>
-        <h2>참여자 명부</h2>
+      <div class="register-heading">
+        <div>
+          <p>Participant Register</p>
+          <h2>참여자 명부</h2>
+        </div>
+        <button type="button" class="paper-btn small" onclick={toggleAll}>
+          {allSelected ? "전체 해제" : "전체 선택"}
+        </button>
       </div>
-      <button type="button" class="paper-btn small" onclick={toggleAll}>
-        {allSelected ? "전체 해제" : "전체 선택"}
-      </button>
-    </div>
 
-    <div class="attendance-list">
-      {#each attendance.attendees as member, index (member.id)}
-        <label class="attendance-row" class:checked={selectedIds.has(member.id)}>
-          <span class="row-index">{String(index + 1).padStart(2, "0")}</span>
-          <input
-            type="checkbox"
-            name="attendeeIds"
-            value={member.id}
-            checked={selectedIds.has(member.id)}
-            onchange={(event) => setSelected(member.id, event.currentTarget.checked)}
+      <div class="attendance-list">
+        {#each attendees as member, index (member.id)}
+          <label class="attendance-row" class:checked={selectedIds.has(member.id)}>
+            <span class="row-index">{String(index + 1).padStart(2, "0")}</span>
+            <input
+              type="checkbox"
+              name="attendeeIds"
+              value={member.id}
+              checked={selectedIds.has(member.id)}
+              onchange={(event) => setSelected(member.id, event.currentTarget.checked)}
+            />
+            <span class="check-mark" aria-hidden="true">{selectedIds.has(member.id) ? "✓" : ""}</span>
+            <span class="member-name">{member.name}</span>
+            <span class="member-department">{member.department}</span>
+            <span class="checkin-source">
+              {member.attended ? "기존 체크인" : "미체크인"}
+            </span>
+          </label>
+        {/each}
+      </div>
+
+      <div class="register-actions">
+        <div class="share-link">
+          <span>참여자용 출석 링크</span>
+          <code>{selectedSession.attendPath}</code>
+          <CopyButton
+            text={`${page.url.origin}${selectedSession.attendPath}`}
+            title="출석 링크 복사"
           />
-          <span class="check-mark" aria-hidden="true">{selectedIds.has(member.id) ? "✓" : ""}</span>
-          <span class="member-name">{member.name}</span>
-          <span class="member-department">{member.department}</span>
-          <span class="checkin-source">
-            {member.checkedInAt ? "기존 체크인" : "미체크인"}
-          </span>
-        </label>
-      {/each}
-    </div>
-
-    <div class="register-actions">
-      <div class="share-link">
-        <span>참여자용 출석 링크</span>
-        <code>{attendance.selectedSession.attendancePath}</code>
-        <CopyButton
-          text={`${page.url.origin}${attendance.selectedSession.attendancePath}`}
-          title="출석 링크 복사"
-        />
+        </div>
+        <button class="paper-btn primary" disabled={attendees.length === 0 || processing}>
+          {processing ? "저장 중…" : `${selectedCount}명 출석 저장`}
+        </button>
       </div>
-      <button class="paper-btn primary" disabled={!attendance.canSave || processing}>
-        {processing ? "저장 중…" : `${selectedCount}명 출석 저장`}
-      </button>
-    </div>
-  </form>
+    </form>
+  {:else}
+    <p class="empty-line">아직 생성된 회차가 없습니다.</p>
+  {/if}
 </article>
 
 <style>
@@ -402,6 +411,13 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .empty-line {
+    margin: 0;
+    padding: 1rem 0;
+    color: var(--latex-muted);
+    font-size: 0.8rem;
   }
 
   @media (max-width: 720px) {

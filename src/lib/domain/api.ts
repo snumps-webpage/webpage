@@ -52,14 +52,10 @@ export const presignRequestSchema = z.object({
 });
 export type PresignRequest = z.infer<typeof presignRequestSchema>;
 
+/** Mirrors POST /api/uploads/presign — the endpoint shape is the contract. */
 export const presignSuccessSchema = z.object({
   success: z.literal(true),
-  upload: z.object({
-    url: z.url(),
-    method: z.literal("PUT"),
-    headers: z.object({ "Content-Type": z.string().min(1) }),
-    expiresAt: z.iso.datetime({ offset: true }),
-  }),
-  file: presignRequestSchema.extend({ s3Key: z.string().min(1) }),
+  uploadUrl: z.url(),
+  s3Key: z.string().min(1),
 });
 export type PresignSuccess = z.infer<typeof presignSuccessSchema>;
