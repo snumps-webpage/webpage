@@ -25,7 +25,7 @@
       {#each data.archive.gallery as item (item.id)}
         <figure>
           {#if item.thumbnailUrl && item.displayUrl}
-            <a href={item.displayUrl} target="_blank" rel="noopener noreferrer"><img src={item.thumbnailUrl} alt={item.alt} loading="lazy" /></a>
+            <a href={item.displayUrl} target="_blank" rel="noopener noreferrer"><img src={item.thumbnailUrl} alt={item.alt} loading="lazy" decoding="async" /></a>
           {:else}
             <div class="image-pending" role="img" aria-label={`${item.alt} — 이미지 원본 연결 대기`}><span aria-hidden="true">▧</span><small>IMAGE SOURCE PENDING</small></div>
           {/if}

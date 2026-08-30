@@ -2,6 +2,7 @@ import type {
   PublicArchiveSnapshot,
   PublicFileReference,
 } from "$lib/domain/public-content";
+import { thumbUrl } from "$lib/image";
 import { assetUrl } from "$lib/server/public/archive";
 import { getTable } from "$lib/server/data/tables";
 import { getDirectoryIndex, getMemberDirectory } from "$lib/server/data/directory";
@@ -106,7 +107,7 @@ export const load: LayoutServerLoad = async () => {
           date:
             dateOnly(s.activityId ? activityStart.get(s.activityId) : null) ??
             termStartDate(s.semester),
-          thumbnailUrl: assetUrl(key),
+          thumbnailUrl: thumbUrl(assetUrl(key), 640),
           displayUrl: assetUrl(key),
           alt: `${s.title} 활동 사진`,
         })),
@@ -117,7 +118,7 @@ export const load: LayoutServerLoad = async () => {
           title: s.title,
           category: "study" as const,
           date: dateOnly(s.schedule[0]?.date) ?? termStartDate(s.semester),
-          thumbnailUrl: assetUrl(key),
+          thumbnailUrl: thumbUrl(assetUrl(key), 640),
           displayUrl: assetUrl(key),
           alt: `${s.title} 활동 사진`,
         })),
@@ -130,7 +131,7 @@ export const load: LayoutServerLoad = async () => {
           date:
             dateOnly(g.activityId ? activityStart.get(g.activityId) : null) ??
             (/^\d{4}$/.test(g.year) ? `${g.year}-01-01` : "1970-01-01"),
-          thumbnailUrl: assetUrl(key),
+          thumbnailUrl: thumbUrl(assetUrl(key), 640),
           displayUrl: assetUrl(key),
           alt: `${g.year} 회식 사진`,
         })),
