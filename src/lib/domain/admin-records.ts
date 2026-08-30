@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { ACTIVITY_TYPES, type ActivityType } from "$lib/constants";
 import type { PublicFileReference } from "$lib/domain/public-content";
 import type { SeminarKind } from "$lib/domain/seminars";

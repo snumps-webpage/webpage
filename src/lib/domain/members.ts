@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export const MEMBER_STATUSES = ["associate", "regular", "withdrawn"] as const;
 export type MemberStatus = (typeof MEMBER_STATUSES)[number];

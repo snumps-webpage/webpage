@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { ACTIVITY_TYPES, type ActivityType } from "$lib/constants";
 import type { AdminSeminarRequestItem } from "$lib/domain/admin-seminars";
 import type { AdminStudyRequestItem } from "$lib/domain/studies";

@@ -1,48 +1,448 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
-	import type { PageData } from './$types';
+  import { enhance } from "$app/forms";
+  import { goto } from "$app/navigation";
+  import { page } from "$app/state";
+  import { untrack } from "svelte";
+  import { SvelteSet } from "svelte/reactivity";
+  import CopyButton from "$lib/components/CopyButton.svelte";
+  import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
+  import type { StudyOperationResult } from "$lib/domain/studies";
+  import { MANUSCRIPT } from "$lib/constants";
 
-	let { data }: { data: PageData } = $props();
+  let { data } = $props();
+  const initialAttendance = untrack(() => data.attendance);
+  let attendance = $derived(data.attendance);
+  const selectedIds = new SvelteSet(
+    initialAttendance.attendees
+      .filter((member) => member.attended)
+      .map((member) => member.id),
+  );
+  let selectedEventId = $state(initialAttendance.selectedSession.eventId);
+  let processing = $state(false);
+  let notice = $state<{ tone: "success" | "error"; message: string } | null>(null);
+
+  const selectedCount = $derived(selectedIds.size);
+  const allSelected = $derived(
+    attendance.attendees.length > 0 && selectedIds.size === attendance.attendees.length,
+  );
+
+  $effect(() => {
+    if (attendance.selectedSession.eventId === selectedEventId) return;
+    selectedEventId = attendance.selectedSession.eventId;
+    replaceSelected(
+      attendance.attendees
+        .filter((member) => member.attended)
+        .map((member) => member.id),
+    );
+    notice = null;
+  });
+
+  function replaceSelected(memberIds: Iterable<string>) {
+    selectedIds.clear();
+    for (const memberId of memberIds) selectedIds.add(memberId);
+  }
+
+  function setSelected(memberId: string, checked: boolean) {
+    if (checked) selectedIds.add(memberId);
+    else selectedIds.delete(memberId);
+  }
+
+  function toggleAll() {
+    if (allSelected) selectedIds.clear();
+    else replaceSelected(attendance.attendees.map((member) => member.id));
+  }
+
+  function formatDate(value: string) {
+    return new Intl.DateTimeFormat("ko-KR", {
+      timeZone: "Asia/Seoul",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(value));
+  }
+
+  function sessionStatusLabel(status: string) {
+    return { active: "출석 진행", expired: "종료", cancelled: "취소" }[
+      status
+    ] ?? status;
+  }
+
+  function switchSession(eventId: string) {
+    const next = new URL(page.url);
+    next.searchParams.set("event", eventId);
+    goto(`${next.pathname}${next.search}`);
+  }
 </script>
 
-<svelte:head><title>{data.studyTitle} 출결 — SNUMPS</title></svelte:head>
+<svelte:head>
+  <title>{attendance.selectedSession.title} 출석부 · {attendance.study.title}</title>
+</svelte:head>
 
-<section class="sheet">
-	<h1>{data.studyTitle} — 출결 관리</h1>
-	{#if data.sessions.length === 0}
-		<p>회차가 없습니다. 관리 페이지에서 회차를 먼저 만들어 주세요.</p>
-	{/if}
-	{#each data.sessions as sess (sess.eventId)}
-		<article>
-			<h2>{sess.sessionNo}회차 <small>{new Date(sess.date).toLocaleString('ko-KR')} · {sess.status}</small></h2>
-			<form method="POST" action="?/saveAttendance" use:enhance>
-				<input type="hidden" name="eventId" value={sess.eventId} />
-				<ul>
-					{#each data.participants as p (p.id)}
-						<li>
-							<label>
-								<input
-									type="checkbox"
-									name="attendeeIds"
-									value={p.id}
-									checked={sess.attendeeIds.includes(p.id)}
-								/>
-								{p.name} ({p.department})
-							</label>
-						</li>
-					{/each}
-				</ul>
-				<button>저장</button>
-				<p class="note">체크인 링크로 직접 출석한 인원은 저장으로 지워지지 않습니다.</p>
-			</form>
-		</article>
-	{/each}
-</section>
+<article class="paper-document attendance-register">
+  <ManuscriptHeader
+    title={`${attendance.study.title} · ${attendance.selectedSession.title}`}
+    subtitle="Organizer Attendance Register"
+    figure={MANUSCRIPT.FIGURES.STUDY_ATTENDANCE}
+  />
+
+  <div class="attendance-toolbar">
+    <label for="session-selector">회차 선택</label>
+    <select
+      id="session-selector"
+      value={attendance.selectedSession.eventId}
+      onchange={(event) => switchSession(event.currentTarget.value)}
+    >
+      {#each attendance.sessions as session (session.id)}
+        <option value={session.eventId}>
+          {session.title} · {formatDate(session.startedAt)}
+        </option>
+      {/each}
+    </select>
+    <a href={`/study/${attendance.study.id}/manage`} class="paper-btn small">관리 허브</a>
+  </div>
+
+  <section class="session-index">
+    <div><span>회차</span><strong>{attendance.selectedSession.sessionNo}</strong></div>
+    <div><span>시작</span><strong>{formatDate(attendance.selectedSession.startedAt)}</strong></div>
+    <div><span>상태</span><strong>{sessionStatusLabel(attendance.selectedSession.status)}</strong></div>
+    <div><span>선택</span><strong>{selectedCount} / {attendance.attendees.length}</strong></div>
+  </section>
+
+  <aside class="merge-note">
+    <strong>회차별 출석부</strong>
+    이 화면에서 관리하는 참여자만 갱신하며, 다른 출석 경로에서 기록된 관리 범위 밖의 값은 보존합니다.
+  </aside>
+
+  {#if notice}
+    <div class="notice" data-tone={notice.tone} role="status">
+      <p>{notice.message}</p>
+      <button aria-label="알림 닫기" onclick={() => (notice = null)}>×</button>
+    </div>
+  {/if}
+
+  <form
+    method="POST"
+    action="?/saveAttendance"
+    use:enhance={() => {
+      processing = true;
+      notice = null;
+      return async ({ result }) => {
+        processing = false;
+        if (result.type === "success") {
+          const data = result.data as StudyOperationResult;
+          if (data.operation === "attendanceSaved") {
+            const participantIds = new Set(
+              attendance.attendees.map((member) => member.id),
+            );
+            const selectedParticipantIds = data.attendeeIds.filter((memberId) =>
+              participantIds.has(memberId),
+            );
+            replaceSelected(selectedParticipantIds);
+            notice = {
+              tone: "success",
+              message: `${selectedParticipantIds.length}명의 참여자 출석을 저장했습니다. 관리 범위 밖의 기존 출석은 보존했습니다.`,
+            };
+          }
+          return;
+        }
+        const data = "data" in result ? result.data as { error?: string } : null;
+        notice = { tone: "error", message: data?.error ?? "출석을 저장하지 못했습니다." };
+      };
+    }}
+  >
+    <input type="hidden" name="eventId" value={attendance.selectedSession.eventId} />
+
+    <div class="register-heading">
+      <div>
+        <p>Participant Register</p>
+        <h2>참여자 명부</h2>
+      </div>
+      <button type="button" class="paper-btn small" onclick={toggleAll}>
+        {allSelected ? "전체 해제" : "전체 선택"}
+      </button>
+    </div>
+
+    <div class="attendance-list">
+      {#each attendance.attendees as member, index (member.id)}
+        <label class="attendance-row" class:checked={selectedIds.has(member.id)}>
+          <span class="row-index">{String(index + 1).padStart(2, "0")}</span>
+          <input
+            type="checkbox"
+            name="attendeeIds"
+            value={member.id}
+            checked={selectedIds.has(member.id)}
+            onchange={(event) => setSelected(member.id, event.currentTarget.checked)}
+          />
+          <span class="check-mark" aria-hidden="true">{selectedIds.has(member.id) ? "✓" : ""}</span>
+          <span class="member-name">{member.name}</span>
+          <span class="member-department">{member.department}</span>
+          <span class="checkin-source">
+            {member.checkedInAt ? "기존 체크인" : "미체크인"}
+          </span>
+        </label>
+      {/each}
+    </div>
+
+    <div class="register-actions">
+      <div class="share-link">
+        <span>참여자용 출석 링크</span>
+        <code>{attendance.selectedSession.attendancePath}</code>
+        <CopyButton
+          text={`${page.url.origin}${attendance.selectedSession.attendancePath}`}
+          title="출석 링크 복사"
+        />
+      </div>
+      <button class="paper-btn primary" disabled={!attendance.canSave || processing}>
+        {processing ? "저장 중…" : `${selectedCount}명 출석 저장`}
+      </button>
+    </div>
+  </form>
+</article>
 
 <style>
-	.sheet { max-width: 34rem; margin: 2rem auto; padding: 0 1rem; display: flex; flex-direction: column; gap: 1rem; }
-	article { border: 1px solid #8886; padding: 0.9rem; }
-	ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
-	button { padding: 0.3rem 0.9rem; cursor: pointer; }
-	.note { font-size: 0.85rem; opacity: 0.7; margin: 0.3rem 0 0; }
+  .attendance-register {
+    width: min(100%, 980px);
+  }
+
+  .attendance-toolbar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.65rem;
+    margin-bottom: 0.9rem;
+  }
+
+  .attendance-toolbar label,
+  .session-index span,
+  .register-heading p,
+  .share-link > span {
+    color: var(--latex-muted);
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  select {
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--latex-rule);
+  }
+
+  .session-index {
+    display: grid;
+    grid-template-columns: 0.6fr 1.7fr 0.8fr 0.8fr;
+    border: 1px solid var(--latex-rule);
+  }
+
+  .session-index div {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.65rem 0.75rem;
+    border-right: 1px solid var(--latex-rule);
+  }
+
+  .session-index div:last-child {
+    border-right: 0;
+  }
+
+  .session-index strong {
+    font-size: 0.8rem;
+    font-weight: 560;
+  }
+
+  .merge-note {
+    margin: 0.8rem 0;
+    padding: 0.7rem 0.8rem;
+    border-left: 3px solid var(--latex-accent);
+    background: color-mix(in srgb, var(--latex-accent) 4%, transparent);
+    color: var(--latex-muted);
+    font-size: 0.76rem;
+    line-height: 1.6;
+  }
+
+  .merge-note strong {
+    display: block;
+    color: var(--latex-text);
+  }
+
+  .notice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.8rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--latex-rule);
+    border-left: 4px solid var(--latex-text);
+  }
+
+  .notice[data-tone="error"] {
+    border-left-color: var(--latex-accent);
+    color: var(--latex-accent);
+  }
+
+  .notice p,
+  .register-heading p,
+  h2 {
+    margin: 0;
+  }
+
+  .notice p {
+    font-size: 0.8rem;
+  }
+
+  .notice button {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .register-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding: 0.75rem 0;
+    border-top: 2px solid var(--latex-rule);
+    border-bottom: 1px solid var(--latex-rule);
+  }
+
+  h2 {
+    margin-top: 0.2rem;
+    font-size: 1.15rem;
+    font-weight: 560;
+  }
+
+  .attendance-list {
+    border-bottom: 2px solid var(--latex-rule);
+  }
+
+  .attendance-row {
+    display: grid;
+    grid-template-columns: 2rem 1.6rem minmax(8rem, 1fr) minmax(8rem, 1fr) auto;
+    align-items: center;
+    gap: 0.55rem;
+    min-height: 3.7rem;
+    padding: 0.55rem 0.65rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--latex-rule) 26%, transparent);
+    cursor: pointer;
+  }
+
+  .attendance-row:last-child {
+    border-bottom: 0;
+  }
+
+  .attendance-row.checked {
+    background: color-mix(in srgb, var(--latex-text) 4%, transparent);
+  }
+
+  .attendance-row input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+
+  .row-index,
+  .checkin-source,
+  code {
+    color: var(--latex-muted);
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+  }
+
+  .check-mark {
+    display: grid;
+    place-items: center;
+    width: 1.45rem;
+    height: 1.45rem;
+    border: 1px solid var(--latex-rule);
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+  }
+
+  .member-name {
+    font-weight: 620;
+  }
+
+  .member-department,
+  .checkin-source {
+    color: var(--latex-muted);
+    font-size: 0.74rem;
+  }
+
+  .register-actions {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 0.9rem;
+  }
+
+  .share-link {
+    display: grid;
+    grid-template-columns: auto auto;
+    align-items: center;
+    gap: 0.25rem 0.45rem;
+    min-width: 0;
+  }
+
+  .share-link > span {
+    grid-column: 1 / -1;
+  }
+
+  code {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 720px) {
+    .attendance-toolbar {
+      grid-template-columns: 1fr;
+    }
+
+    .session-index {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .session-index div:nth-child(2) {
+      border-right: 0;
+    }
+
+    .session-index div:nth-child(-n + 2) {
+      border-bottom: 1px solid var(--latex-rule);
+    }
+
+    .attendance-row {
+      grid-template-columns: 1.5rem 1.6rem minmax(0, 1fr) auto;
+    }
+
+    .member-department {
+      grid-column: 3 / -1;
+      margin-top: -0.4rem;
+    }
+
+    .checkin-source {
+      grid-column: 4;
+      grid-row: 1;
+    }
+
+    .register-actions {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .share-link,
+    .register-actions > button {
+      width: 100%;
+    }
+  }
 </style>

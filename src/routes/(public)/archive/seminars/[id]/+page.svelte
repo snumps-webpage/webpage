@@ -1,31 +1,81 @@
 <script lang="ts">
-	import type { PageData } from './$types';
+  import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
+  import PublicDirectoryNav from "$lib/components/public/PublicDirectoryNav.svelte";
+  import { MANUSCRIPT } from "$lib/constants";
+  import { formatArchiveTerm } from "$lib/domain/public-content";
+  import { ARCHIVE_NAV } from "$lib/public-navigation";
 
-	let { data }: { data: PageData } = $props();
-	const s = $derived(data.seminar);
+  let { data } = $props();
+  const seminar = $derived(data.seminar);
+
+  function dateTimeLabel(value: string | null) {
+    if (!value) return "일정 기록 없음";
+    return new Intl.DateTimeFormat("ko-KR", {
+      dateStyle: "long",
+      timeStyle: "short",
+      timeZone: "Asia/Seoul",
+    }).format(new Date(value));
+  }
 </script>
 
-<svelte:head><title>{s.title} — SNUMPS 세미나</title></svelte:head>
+<svelte:head>
+  <title>{seminar?.title ?? "세미나 기록"} · SNUMPS</title>
+</svelte:head>
 
-<section class="doc-page">
-	<h1>{s.title} <small>{s.semester}</small></h1>
-	<p>발표: {[...s.presenters, s.externalPresenters].filter(Boolean).join(', ')}</p>
-	{#if s.note}<p>{s.note}</p>{/if}
-	{#if s.materials.length}
-		<h2>강의 자료</h2>
-		<ul>{#each s.materials as url (url)}<li><a href={url}>{url.split('/').pop()}</a></li>{/each}</ul>
-	{/if}
-	{#if s.photos.length}
-		<h2>활동 사진</h2>
-		<div class="grid">
-			{#each s.photos as url (url)}<img src={url} alt="{s.title} 활동 사진" loading="lazy" />{/each}
-		</div>
-	{/if}
-	<p><a href="/archive/seminars">← 목록</a></p>
-</section>
+<article class="paper-document detail-paper">
+  <ManuscriptHeader title={seminar?.title ?? "세미나 기록"} subtitle="Seminar Record" figure={MANUSCRIPT.FIGURES.ARCHIVE_SEMINARS} />
+  <PublicDirectoryNav items={[...ARCHIVE_NAV]} label="활동 아카이브 탐색" />
+
+  {#if seminar}
+    <dl class="metadata-grid">
+      <div><dt>학기</dt><dd>{formatArchiveTerm(seminar.term)}</dd></div>
+      <div><dt>발표자</dt><dd>{seminar.presenterNames.join(", ")}</dd></div>
+      <div><dt>일시</dt><dd>{dateTimeLabel(seminar.scheduledAt)}</dd></div>
+      <div><dt>장소</dt><dd>{seminar.location ?? "기록 없음"}</dd></div>
+      <div><dt>소요 시간</dt><dd>{seminar.durationMinutes ? `${seminar.durationMinutes}분` : "기록 없음"}</dd></div>
+      <div><dt>선수지식</dt><dd>{seminar.prerequisites}</dd></div>
+    </dl>
+
+    <section class="record-section">
+      <h2>1. 개요</h2>
+      <p>{seminar.description}</p>
+    </section>
+    <section class="record-section">
+      <h2>2. 공개 자료</h2>
+      {#if seminar.files.length}
+        <ul class="file-list">
+          {#each seminar.files as file (file.id)}
+            <li><a href={file.url} target="_blank" rel="noopener noreferrer">{file.name}</a><span>{file.kind}</span></li>
+          {/each}
+        </ul>
+      {:else}
+        <p class="empty">등록된 공개 자료가 없습니다.</p>
+      {/if}
+    </section>
+    <a class="paper-btn" href="/archive/seminars">← 세미나 목록</a>
+  {:else}
+    <p class="empty">새 AWS 공개 세미나 API 연결 후 기록이 표시됩니다.</p>
+  {/if}
+</article>
 
 <style>
-	.doc-page { max-width: 40rem; margin: 3rem auto; padding: 0 1rem; }
-	.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: 0.5rem; }
-	img { max-width: 100%; height: auto; }
+  .detail-paper { width: min(100%, 880px); }
+  .metadata-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0 0 1.4rem; border-top: 2px solid var(--latex-rule); border-bottom: 2px solid var(--latex-rule); }
+  .metadata-grid > div { display: grid; grid-template-columns: 6rem 1fr; padding: 0.62rem 0.7rem; border-bottom: 1px solid var(--latex-rule); }
+  .metadata-grid > div:nth-last-child(-n + 2) { border-bottom: 0; }
+  dt { color: var(--latex-muted); font-family: var(--font-mono); font-size: 0.6rem; font-weight: 700; text-transform: uppercase; }
+  dd { margin: 0; font-size: 0.8rem; }
+  .record-section { margin: 1.2rem 0; padding-top: 0.8rem; border-top: 1px solid var(--latex-rule); }
+  .record-section h2 { margin: 0 0 0.55rem; font-size: 1.05rem; font-weight: 570; }
+  .record-section p { margin: 0; color: var(--latex-muted); font-size: 0.86rem; line-height: 1.75; }
+  .file-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--latex-rule); }
+  .file-list li { display: flex; justify-content: space-between; gap: 1rem; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--latex-rule); }
+  .file-list li:last-child { border-bottom: 0; }
+  .file-list a { color: var(--latex-text); }
+  .file-list span { color: var(--latex-muted); font-family: var(--font-mono); font-size: 0.58rem; text-transform: uppercase; }
+  @media (max-width: 680px) {
+    .metadata-grid { grid-template-columns: 1fr; }
+    .metadata-grid > div, .metadata-grid > div:nth-last-child(-n + 2) { border-bottom: 1px solid var(--latex-rule); }
+    .metadata-grid > div:last-child { border-bottom: 0; }
+  }
 </style>

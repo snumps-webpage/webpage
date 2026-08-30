@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import type { MemberPickerItem, SeminarKind } from "./seminars";
 import type { AdminSeminarRecord } from "./admin-records";
 

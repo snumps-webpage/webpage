@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { mergeManagedAttendance } from "$lib/domain/attendance";
 import type { AdminStudyRecord } from "$lib/domain/admin-records";
 
