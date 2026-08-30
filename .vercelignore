@@ -1,0 +1,5 @@
+# 로컬 개발기의 pnpm 셤이 만드는 파일 — Vercel이 pnpm을 선택해 stale lockfile로
+# 실패하지 않도록 배포 업로드에서 제외한다 (배포는 package-lock.json + npm).
+pnpm-lock.yaml
+pnpm-workspace.yaml
+scripts/migration/out
