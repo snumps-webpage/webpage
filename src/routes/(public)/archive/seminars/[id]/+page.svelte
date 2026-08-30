@@ -68,7 +68,7 @@
     </section>
     <a class="paper-btn" href="/archive/seminars">← 세미나 목록</a>
   {:else}
-    <p class="empty">새 AWS 공개 세미나 API 연결 후 기록이 표시됩니다.</p>
+    <p class="empty">데이터 이관 후 기록이 표시됩니다.</p>
   {/if}
 </article>
 

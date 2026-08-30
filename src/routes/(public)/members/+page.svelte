@@ -111,7 +111,7 @@
 
     <p class="freshness">조회 기준 {new Date(data.generatedAt).toLocaleString("ko-KR")}</p>
   {:else}
-    <p class="unavailable">새 AWS 공개 회원 API 연결 후 명단이 표시됩니다.</p>
+    <p class="unavailable">데이터 이관 후 명단이 표시됩니다.</p>
   {/if}
 </article>
 

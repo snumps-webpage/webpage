@@ -26,7 +26,7 @@
 <article class="paper-document gallery-admin-paper">
   <ManuscriptHeader title="갤러리 관리" subtitle="Gallery Record Editor" figure={MANUSCRIPT.FIGURES.ADMIN_GALLERY} />
   <AdminSectionNav />
-  <p class="scope-note">운영에서는 원본을 presigned PUT으로 AWS에 직접 업로드하고, 등록 후 400px 썸네일과 1200px 표시본을 생성합니다. 현재 로컬 프리뷰는 파일 검증과 메타데이터 등록까지 재현합니다.</p>
+  <p class="scope-note">운영에서는 원본을 presigned PUT으로 스토리지에 직접 업로드하고, 등록 후 400px 썸네일과 1200px 표시본을 생성합니다. 현재 로컬 프리뷰는 파일 검증과 메타데이터 등록까지 재현합니다.</p>
   {#if form?.success && form.operation}<p class="paper-status-note success" role="status">{messages[form.operation as string]}</p>{/if}
   {#if form?.error}<p class="paper-status-note error" role="alert">{form.message ?? "갤러리 기록을 처리하지 못했습니다."}</p>{/if}
 

@@ -16,7 +16,10 @@
   });
 
   function dateLabel(value: string) {
-    return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeZone: "Asia/Seoul" }).format(new Date(`${value}T00:00:00+09:00`));
+    // value is a full ISO datetime from the activities table, or a bare date.
+    const parsed = new Date(value.includes("T") ? value : `${value}T00:00:00+09:00`);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeZone: "Asia/Seoul" }).format(parsed);
   }
 </script>
 
@@ -44,7 +47,7 @@
         </tbody>
       </table>
     </div>
-  {:else}<p class="empty">새 AWS 공개 활동 API 연결 후 기록이 표시됩니다.</p>{/if}
+  {:else}<p class="empty">데이터 이관 후 기록이 표시됩니다.</p>{/if}
 </article>
 
 <style>

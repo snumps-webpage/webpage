@@ -7,7 +7,10 @@
 
   const categoryLabel = { seminar: "세미나", study: "스터디", dinner: "회식" } as const;
   function dateLabel(value: string) {
-    return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeZone: "Asia/Seoul" }).format(new Date(`${value}T00:00:00+09:00`));
+    // value may be a full ISO datetime, a bare date, or a bare year.
+    const parsed = new Date(value.includes("T") ? value : `${value}T00:00:00+09:00`);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeZone: "Asia/Seoul" }).format(parsed);
   }
 </script>
 
@@ -30,7 +33,7 @@
         </figure>
       {:else}<p class="empty">공개된 갤러리 자료가 없습니다.</p>{/each}
     </div>
-  {:else}<p class="empty">새 AWS 공개 자산 API 연결 후 사진이 표시됩니다.</p>{/if}
+  {:else}<p class="empty">데이터 이관 후 사진이 표시됩니다.</p>{/if}
 </article>
 
 <style>
