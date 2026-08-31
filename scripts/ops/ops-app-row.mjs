@@ -12,10 +12,10 @@ if (mode === "add") {
   rows.push({
     id: "01E2EUIPROBE0000000000TEST",
     email: EMAIL,
-    name: "큐확인용지원자",
+    name: "유출검증대상",
     department: "수리과학부",
-    phone: "010-0000-0000",
-    background: "관리자 큐 렌더 확인",
+    phone: "010-7777-3333",
+    background: "유출검증-배경-고유토큰",
     createdAt: new Date().toISOString().slice(0, 19) + "+09:00",
   });
 }
