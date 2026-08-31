@@ -203,16 +203,17 @@ function interpolate(text: string, vars: Record<string, string>): string {
 
 /**
  * key의 현행 템플릿(오버라이드 우선)을 변수 치환해 반환.
- * null = 이 메일이 꺼져 있음(enabled=false) — 호출부는 발송을 건너뛴다.
- * 템플릿 조회 실패는 기본값으로 폴백한다 — 메일이 본 동작을 막으면 안 된다.
+ * null = 이 메일이 꺼져 있음(enabled=false) 또는 커스텀 템플릿이 삭제됨 —
+ * 호출부는 발송을 건너뛴다. 기본 키의 조회 실패는 기본값으로 폴백한다 —
+ * 메일이 본 동작을 막으면 안 된다. 커스텀 키(custom-…)는 행이 유일 원천이다.
  */
 export async function renderMailTemplate(
-  key: MailTemplateKey,
+  key: string,
   vars: Record<string, string>,
 ): Promise<{ subject: string; body: string } | null> {
-  const fallback = MAIL_TEMPLATE_DEFAULTS[key];
-  let subject = fallback.subject;
-  let body = fallback.body;
+  const fallback = MAIL_TEMPLATE_DEFAULTS[key] as MailTemplateDefault | undefined;
+  let subject = fallback?.subject ?? null;
+  let body = fallback?.body ?? null;
   try {
     const row = (await getTable("mail-templates")).find((t) => t.key === key);
     if (row) {
@@ -223,6 +224,7 @@ export async function renderMailTemplate(
   } catch (e) {
     console.error(`[Mail] template lookup failed for "${key}" — using default:`, e);
   }
+  if (subject === null || body === null) return null; // 삭제된 커스텀 키 등
   const merged = { ...builtinVars(), ...vars };
   return { subject: interpolate(subject, merged), body: interpolate(body, merged) };
 }

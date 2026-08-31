@@ -10,8 +10,10 @@ import { DateTime, Id } from "./common";
  */
 export const MailTemplateSchema = z.object({
   id: Id,
-  /** 발송 지점과 연결되는 의미 키 (예: "welcome", "seminar-approved") */
+  /** 기본 템플릿 오버라이드 키(예: "welcome") 또는 커스텀 키("custom-…") */
   key: z.string().min(1),
+  /** 커스텀 템플릿의 표시 이름 (기본 템플릿 오버라이드는 빈 문자열) */
+  name: z.string().default(""),
   subject: z.string().min(1),
   body: z.string().min(1),
   enabled: z.boolean(),
