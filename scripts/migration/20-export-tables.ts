@@ -565,12 +565,25 @@ async function main() {
 
   // -------------------------------------------------------------------------
   // app_tables UPSERT — version=1 초기화, version>1 행은 --force 없이 보호
+  //
+  // S9(학기별 등록제) 이후 노션 이주분의 회원·개인정보는 "기록 보관" 테이블로
+  // 간다: members → legacy-members, private-info → legacy-private-info.
+  // 운영 members/private-info는 재가입 승인으로만 채워지는 별개 DB다 —
+  // 여기에 쓰면 운영 데이터를 파괴한다 (2026-08-31 실사고, 즉시 교정됨).
   // -------------------------------------------------------------------------
+  const S9_TARGET: Record<string, string> = {
+    members: "legacy-members",
+    "private-info": "legacy-private-info",
+  };
+  const uploadTables: Record<string, any[]> = Object.fromEntries(
+    Object.entries(tables).map(([name, rows]) => [S9_TARGET[name] ?? name, rows]),
+  );
+  const UPLOAD_NAMES = Object.keys(uploadTables);
   const supa = supabase();
   const { data: existing, error: selErr } = await supa
     .from("app_tables")
     .select("name, version")
-    .in("name", [...TABLE_NAMES]);
+    .in("name", UPLOAD_NAMES);
   if (selErr) throw new Error(`app_tables 조회 실패: ${selErr.message}`);
 
   const protectedRows = (existing ?? []).filter(

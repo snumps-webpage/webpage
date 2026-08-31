@@ -206,20 +206,30 @@ export async function queryAllPages(
   return { dataSourceId, pages };
 }
 
+/**
+ * 비가시 문자 제거 (이주 위생, S7~ 실측): 노션 원본에 soft hyphen(U+00AD)이
+ * 이름 앞에 붙어 온 사례 57건 — 화면에서 "-"로 보이고 검색·비교도 오염시킨다.
+ * zero-width 계열(U+200B~200D)·BOM(U+FEFF)·word joiner(U+2060)도 함께 걷어낸다.
+ * 덤프(00)는 원본 그대로 보존하고, 변환(20)의 문자열 추출에서만 적용한다.
+ */
+export function stripInvisibles(text: string): string {
+  return text.replace(/[\u00ad\u200b-\u200d\ufeff\u2060]/g, "");
+}
+
 /** src/lib/server/notion/utils.ts getPropertyValue의 미러 (import 금지 방침). */
 export function propValue(property: any): any {
   if (!property) return "";
   switch (property.type) {
     case "title":
-      return (property.title || []).map((t: any) => t.plain_text).join("");
+      return stripInvisibles((property.title || []).map((t: any) => t.plain_text).join(""));
     case "rich_text":
-      return (property.rich_text || []).map((t: any) => t.plain_text).join("");
+      return stripInvisibles((property.rich_text || []).map((t: any) => t.plain_text).join(""));
     case "number":
       return property.number ?? 0;
     case "select":
-      return property.select?.name ?? "";
+      return stripInvisibles(property.select?.name ?? "");
     case "multi_select":
-      return (property.multi_select || []).map((s: any) => s.name as string);
+      return (property.multi_select || []).map((s: any) => stripInvisibles(s.name as string));
     case "date":
       return property.date ?? null; // { start, end } | null — 호출부가 해석
     case "checkbox":
