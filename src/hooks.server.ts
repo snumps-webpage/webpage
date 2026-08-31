@@ -102,7 +102,13 @@ const zoneGuard: Handle = async ({ event, resolve }) => {
           throw error(403, "이번 학기 등록 회원만 할 수 있는 작업입니다.");
         }
       }
-      return resolve(event);
+      const response = await resolve(event);
+      // 세션 의존 응답은 절대 공유 캐시에 저장되면 안 된다. 기본 cache-control
+      // (public, max-age=0)에 Vary: Cookie가 없어 Vercel 엣지가 개인화된 HTML을
+      // 캐시해 다른 사용자에게 재생한 실사고가 있었다(/signup/edit에 타인 신청서
+      // 노출). 익명 공개 페이지(위 fast path)만 캐시 가능하게 남긴다.
+      response.headers.set("cache-control", "private, no-store");
+      return response;
     }
     case "redirect":
       throw redirect(303, decision.location);
