@@ -6,6 +6,7 @@ import {
 } from "$lib/server/services/membership";
 import { normalizePhoneNumber, parseGoogleName } from "$lib/utils";
 import { AppError } from "$lib/server/core/errors";
+import { stripInvisibles } from "$lib/server/core/strings";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
@@ -39,7 +40,7 @@ export const actions = {
         });
       }
 
-      const studentId = ((data.get("studentId") as string) ?? "").trim();
+      const studentId = stripInvisibles((data.get("studentId") as string) ?? "").trim();
       if (!/^\d{4}-?\d{4,6}$/.test(studentId)) {
         throw new AppError("VALIDATION_FAILED", {
           userMessage: "학번을 2024-12345 형식으로 입력해 주세요.",

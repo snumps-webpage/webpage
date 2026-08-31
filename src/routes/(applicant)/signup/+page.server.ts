@@ -7,6 +7,7 @@ import {
 } from "$lib/server/services/membership";
 import { normalizePhoneNumber, parseGoogleName } from "$lib/utils";
 import { AppError } from "$lib/server/core/errors";
+import { stripInvisibles } from "$lib/server/core/strings";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
@@ -65,7 +66,7 @@ export const actions = {
 
       const data = await request.formData();
       const phone = normalizePhoneNumber(data.get("phone") as string);
-      const studentId = ((data.get("studentId") as string) ?? "").trim();
+      const studentId = stripInvisibles((data.get("studentId") as string) ?? "").trim();
       const background = (data.get("background") as string) ?? "";
       if (!/^\d{4}-?\d{4,6}$/.test(studentId)) {
         throw new AppError("VALIDATION_FAILED", {
