@@ -13,6 +13,11 @@ export const MailVariableSchema = z.object({
   key: z.string().regex(/^[a-zA-Z][a-zA-Z0-9]*$/),
   value: z.string(),
   description: z.string().default(""),
+  /** 직전 버전 스냅숏 — 되돌리기는 현재와 이걸 맞바꾼다 (이력은 1단계만) */
+  previous: z
+    .object({ value: z.string(), description: z.string() })
+    .nullable()
+    .default(null),
   updatedAt: DateTime,
 });
 

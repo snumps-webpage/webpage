@@ -13,6 +13,7 @@ import { RegistrationSchema } from "./registration";
 import { MailTemplateSchema } from "./mail-template";
 import { MailRuleSchema } from "./mail-rule";
 import { MailVariableSchema } from "./mail-variable";
+import { MailRuleHistorySchema } from "./mail-rule-history";
 
 /**
  * The table registry — the single source of truth for what lives in S3
@@ -41,6 +42,8 @@ export const TABLES = {
   "mail-rules": MailRuleSchema,
   // S10 확장: 전 템플릿 공용 {{변수}} — 코드 기본값 오버라이드 + 관리자 정의
   "mail-variables": MailVariableSchema,
+  // 이벤트별 규칙의 직전 스냅숏 (되돌리기 1단계)
+  "mail-rule-history": MailRuleHistorySchema,
 } as const;
 
 export type TableName = keyof typeof TABLES;
@@ -70,3 +73,4 @@ export * from "./registration";
 export * from "./mail-template";
 export * from "./mail-rule";
 export * from "./mail-variable";
+export * from "./mail-rule-history";

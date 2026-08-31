@@ -40,6 +40,8 @@ export interface MailTemplateView {
   customized: boolean;
   /** true = 코드 기본값이 없는 커스텀 템플릿 (삭제 가능) */
   isCustom: boolean;
+  /** 직전 버전이 있어 되돌리기 가능 */
+  canRevert: boolean;
   updatedAt: string | null;
 }
 
@@ -59,6 +61,7 @@ export async function listMailTemplates(): Promise<MailTemplateView[]> {
       enabled: row?.enabled ?? true,
       customized: !!row,
       isCustom: false,
+      canRevert: !!row?.previous,
       updatedAt: row?.updatedAt ?? null,
     };
   });
@@ -75,6 +78,7 @@ export async function listMailTemplates(): Promise<MailTemplateView[]> {
       enabled: t.enabled,
       customized: true,
       isCustom: true,
+      canRevert: !!t.previous,
       updatedAt: t.updatedAt,
     }));
 
@@ -101,6 +105,7 @@ export async function saveMailTemplate(input: {
       if (!(input.key in MAIL_TEMPLATE_DEFAULTS)) {
         throw new AppError("NOT_FOUND", { userMessage: "존재하지 않는 템플릿입니다." });
       }
+      const def = MAIL_TEMPLATE_DEFAULTS[input.key];
       rows.push({
         id: newId(),
         key: input.key,
@@ -108,11 +113,42 @@ export async function saveMailTemplate(input: {
         subject,
         body,
         enabled: input.enabled,
+        // 첫 수정의 "직전" = 원본 문구 — 되돌리면 원래 내용으로 돌아간다
+        previous: { subject: def.subject, body: def.body, enabled: true },
         updatedAt: nowKstIso(),
       });
     } else {
-      rows[idx] = { ...rows[idx], subject, body, enabled: input.enabled, updatedAt: nowKstIso() };
+      const cur = rows[idx];
+      rows[idx] = {
+        ...cur,
+        subject,
+        body,
+        enabled: input.enabled,
+        previous: { subject: cur.subject, body: cur.body, enabled: cur.enabled },
+        updatedAt: nowKstIso(),
+      };
     }
+    return rows;
+  });
+}
+
+/** 직전 버전으로 되돌리기 — 현재와 스냅숏을 맞바꾼다 (재실행 시 다시 앞으로). */
+export async function revertMailTemplate(key: string): Promise<void> {
+  await mutate("mail-templates", (rows) => {
+    const idx = rows.findIndex((t) => t.key === key);
+    if (idx === -1 || !rows[idx].previous) {
+      throw new AppError("NOT_FOUND", { userMessage: "되돌릴 직전 버전이 없습니다." });
+    }
+    const cur = rows[idx];
+    const prev = cur.previous!;
+    rows[idx] = {
+      ...cur,
+      subject: prev.subject,
+      body: prev.body,
+      enabled: prev.enabled,
+      previous: { subject: cur.subject, body: cur.body, enabled: cur.enabled },
+      updatedAt: nowKstIso(),
+    };
     return rows;
   });
 }
@@ -134,20 +170,23 @@ export async function createMailTemplate(input: {
   const key = `custom-${newId().toLowerCase()}`;
   await mutate("mail-templates", (rows) => [
     ...rows,
-    { id: newId(), key, name, subject, body, enabled: true, updatedAt: nowKstIso() },
+    { id: newId(), key, name, subject, body, enabled: true, previous: null, updatedAt: nowKstIso() },
   ]);
   return key;
 }
 
-/** 기본값 복원(기본 키: 오버라이드 삭제) / 커스텀 삭제(규칙에 부착돼 있으면 거부). */
-export async function resetMailTemplate(key: string): Promise<void> {
-  if (!(key in MAIL_TEMPLATE_DEFAULTS)) {
-    const referenced = (await getTable("mail-rules")).some((r) => r.templateKey === key);
-    if (referenced) {
-      throw new AppError("CONFLICT", {
-        userMessage: "이 템플릿을 쓰는 발송 규칙이 있습니다. 규칙을 먼저 제거해 주세요.",
-      });
-    }
+/** 커스텀 템플릿 삭제 (기본 템플릿은 삭제 불가 — 되돌리기만; 규칙 부착 시 거부). */
+export async function deleteMailTemplate(key: string): Promise<void> {
+  if (key in MAIL_TEMPLATE_DEFAULTS) {
+    throw new AppError("VALIDATION_FAILED", {
+      userMessage: "기본 템플릿은 삭제할 수 없습니다.",
+    });
+  }
+  const referenced = (await getTable("mail-rules")).some((r) => r.templateKey === key);
+  if (referenced) {
+    throw new AppError("CONFLICT", {
+      userMessage: "이 템플릿을 쓰는 발송 규칙이 있습니다. 규칙을 먼저 제거해 주세요.",
+    });
   }
   await mutate("mail-templates", (rows) => {
     if (!rows.some((t) => t.key === key)) throw new AppError("NOT_FOUND");
@@ -169,10 +208,17 @@ export async function setMailTemplateEnabled(key: string, enabled: boolean): Pro
         subject: def.subject,
         body: def.body,
         enabled,
+        previous: { subject: def.subject, body: def.body, enabled: true },
         updatedAt: nowKstIso(),
       });
     } else {
-      rows[idx] = { ...rows[idx], enabled, updatedAt: nowKstIso() };
+      const cur = rows[idx];
+      rows[idx] = {
+        ...cur,
+        enabled,
+        previous: { subject: cur.subject, body: cur.body, enabled: cur.enabled },
+        updatedAt: nowKstIso(),
+      };
     }
     return rows;
   });
@@ -188,6 +234,8 @@ export interface MailEventView {
   allowedRecipients: { key: RecipientKind; label: string }[];
   /** true = mail-rules에 실체화됨 (관리자가 소유), false = 코드 기본 규칙 표시 중 */
   materialized: boolean;
+  /** 직전 규칙 세트가 있어 되돌리기 가능 */
+  canRevert: boolean;
   rules: {
     id: string | null; // null = 기본 규칙 (미실체화)
     templateKey: string;
@@ -199,9 +247,10 @@ export interface MailEventView {
 }
 
 export async function listMailEvents(): Promise<MailEventView[]> {
-  const [ruleRows, templateRows] = await Promise.all([
+  const [ruleRows, templateRows, history] = await Promise.all([
     getTable("mail-rules"),
     getTable("mail-templates"),
+    getTable("mail-rule-history"),
   ]);
   const templateName = (key: string): string =>
     MAIL_TEMPLATE_DEFAULTS[key]?.name ??
@@ -238,6 +287,7 @@ export async function listMailEvents(): Promise<MailEventView[]> {
         label: RECIPIENTS[key],
       })),
       materialized,
+      canRevert: history.some((h) => h.event === event),
       rules,
     };
   });
@@ -248,6 +298,47 @@ function requireEvent(event: string): MailEventKey {
     throw new AppError("VALIDATION_FAILED", { userMessage: "알 수 없는 이벤트입니다." });
   }
   return event as MailEventKey;
+}
+
+/** 규칙 변경 직전의 이벤트 규칙 세트를 스냅숏으로 저장 (이벤트당 1개, 덮어씀). */
+async function snapshotEventRules(event: MailEventKey): Promise<void> {
+  const current = (await getTable("mail-rules"))
+    .filter((r) => r.event === event)
+    .map((r) => ({ templateKey: r.templateKey, recipient: r.recipient, enabled: r.enabled }));
+  const rules = current.length
+    ? current
+    : MAIL_EVENTS[event].defaultRules.map((r) => ({ ...r, enabled: true }));
+  await mutate("mail-rule-history", (rows) => {
+    const idx = rows.findIndex((h) => h.event === event);
+    const entry = { event, rules, updatedAt: nowKstIso() };
+    if (idx === -1) rows.push(entry);
+    else rows[idx] = entry;
+    return rows;
+  });
+}
+
+/** 이벤트 규칙을 직전 세트로 되돌리기 — 현재 세트와 스냅숏을 맞바꾼다. */
+export async function revertMailEvent(event: string): Promise<void> {
+  const key = requireEvent(event);
+  const history = (await getTable("mail-rule-history")).find((h) => h.event === key);
+  if (!history) {
+    throw new AppError("NOT_FOUND", { userMessage: "되돌릴 직전 규칙이 없습니다." });
+  }
+  await snapshotEventRules(key); // 현재를 스냅숏으로 (스왑)
+  await mutate("mail-rules", (rows) => {
+    const others = rows.filter((r) => r.event !== key);
+    for (const r of history.rules) {
+      others.push({
+        id: newId(),
+        event: key,
+        templateKey: r.templateKey,
+        recipient: r.recipient,
+        enabled: r.enabled,
+        updatedAt: nowKstIso(),
+      });
+    }
+    return others;
+  });
 }
 
 /** 이벤트의 기본 규칙을 행으로 실체화 (이미 실체화됐으면 no-op). */
@@ -287,6 +378,7 @@ export async function addMailRule(input: {
   if (!templateExists) {
     throw new AppError("VALIDATION_FAILED", { userMessage: "존재하지 않는 템플릿입니다." });
   }
+  await snapshotEventRules(event);
   await materializeEvent(event);
   await mutate("mail-rules", (rows) => {
     if (
@@ -319,6 +411,7 @@ export async function removeMailRule(input: {
   recipient?: string;
 }): Promise<void> {
   const event = requireEvent(input.event);
+  await snapshotEventRules(event);
   await materializeEvent(event);
   await mutate("mail-rules", (rows) => {
     const idx = input.ruleId
@@ -344,6 +437,7 @@ export async function setMailRuleEnabled(input: {
   enabled: boolean;
 }): Promise<void> {
   const event = requireEvent(input.event);
+  await snapshotEventRules(event);
   await materializeEvent(event);
   await mutate("mail-rules", (rows) => {
     const idx = input.ruleId
@@ -360,11 +454,7 @@ export async function setMailRuleEnabled(input: {
   });
 }
 
-/** 이벤트를 기본 규칙으로 복원 — 실체화 행 전체 삭제. */
-export async function resetMailEvent(event: string): Promise<void> {
-  const key = requireEvent(event);
-  await mutate("mail-rules", (rows) => rows.filter((r) => r.event !== key));
-}
+
 
 // ---- 공용 변수 ---------------------------------------------------------------
 
@@ -376,6 +466,8 @@ export interface MailVariableView {
   customized: boolean;
   /** true = 코드 기본값이 없는 관리자 정의 변수 (삭제 가능) */
   isCustom: boolean;
+  /** 직전 버전이 있어 되돌리기 가능 */
+  canRevert: boolean;
   updatedAt: string | null;
 }
 
@@ -390,6 +482,7 @@ export async function listMailVariables(): Promise<MailVariableView[]> {
       description: row?.description || def.description,
       customized: !!row,
       isCustom: false,
+      canRevert: !!row?.previous,
       updatedAt: row?.updatedAt ?? null,
     };
   });
@@ -401,6 +494,7 @@ export async function listMailVariables(): Promise<MailVariableView[]> {
       description: r.description,
       customized: true,
       isCustom: true,
+      canRevert: !!r.previous,
       updatedAt: r.updatedAt,
     }));
   return [...defaults, ...customs];
@@ -421,18 +515,23 @@ export async function saveMailVariable(input: {
   await mutate("mail-variables", (rows) => {
     const idx = rows.findIndex((r) => r.key === key);
     if (idx === -1) {
+      const def = MAIL_VARIABLE_DEFAULTS[key];
       rows.push({
         id: newId(),
         key,
         value: input.value,
         description: input.description.trim(),
+        // 기본 변수의 첫 수정: "직전" = 코드 원본 값. 신규 변수: 직전 없음.
+        previous: def ? { value: def.value, description: def.description } : null,
         updatedAt: nowKstIso(),
       });
     } else {
+      const cur = rows[idx];
       rows[idx] = {
-        ...rows[idx],
+        ...cur,
         value: input.value,
         description: input.description.trim(),
+        previous: { value: cur.value, description: cur.description },
         updatedAt: nowKstIso(),
       };
     }
@@ -440,8 +539,33 @@ export async function saveMailVariable(input: {
   });
 }
 
-/** 기본 키: 오버라이드 삭제(코드 기본값 복원). 커스텀 키: 변수 삭제. */
+/** 변수를 직전 버전으로 되돌리기 (스왑). */
+export async function revertMailVariable(key: string): Promise<void> {
+  await mutate("mail-variables", (rows) => {
+    const idx = rows.findIndex((r) => r.key === key);
+    if (idx === -1 || !rows[idx].previous) {
+      throw new AppError("NOT_FOUND", { userMessage: "되돌릴 직전 버전이 없습니다." });
+    }
+    const cur = rows[idx];
+    const prev = cur.previous!;
+    rows[idx] = {
+      ...cur,
+      value: prev.value,
+      description: prev.description,
+      previous: { value: cur.value, description: cur.description },
+      updatedAt: nowKstIso(),
+    };
+    return rows;
+  });
+}
+
+/** 커스텀 변수 삭제 (기본 변수는 삭제 불가 — 되돌리기만). */
 export async function deleteMailVariable(key: string): Promise<void> {
+  if (key in MAIL_VARIABLE_DEFAULTS) {
+    throw new AppError("VALIDATION_FAILED", {
+      userMessage: "기본 변수는 삭제할 수 없습니다.",
+    });
+  }
   await mutate("mail-variables", (rows) => {
     if (!rows.some((r) => r.key === key)) throw new AppError("NOT_FOUND");
     return rows.filter((r) => r.key !== key);

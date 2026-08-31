@@ -17,6 +17,11 @@ export const MailTemplateSchema = z.object({
   subject: z.string().min(1),
   body: z.string().min(1),
   enabled: z.boolean(),
+  /** 직전 버전 스냅숏 — 되돌리기는 현재와 이걸 맞바꾼다 (이력은 1단계만) */
+  previous: z
+    .object({ subject: z.string(), body: z.string(), enabled: z.boolean() })
+    .nullable()
+    .default(null),
   updatedAt: DateTime,
 });
 

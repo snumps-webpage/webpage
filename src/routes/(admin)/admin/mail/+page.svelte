@@ -47,7 +47,8 @@
   <p class="scope-note">
     <strong>발송 규칙</strong>은 "이벤트가 발생하면 → 어떤 템플릿을 → 누구에게" 보낼지를 정합니다.
     이벤트(발생 시점)와 수신자 종류는 시스템에 고정돼 있고, 규칙과 문구는 여기서 자유롭게
-    추가·제거·수정할 수 있습니다. 커스텀 템플릿을 만들어 기존 이벤트에 부착하면 코드 없이
+    추가·제거·수정할 수 있습니다. 수정할 때마다 직전 버전 1개가 보관되어 "직전으로 되돌리기"로
+    복구할 수 있습니다. 커스텀 템플릿을 만들어 기존 이벤트에 부착하면 코드 없이
     새 자동 메일이 생깁니다. 본문의 <code>{"{{변수}}"}</code>는 발송 시 실제 값으로 치환됩니다.
   </p>
 
@@ -119,10 +120,10 @@
             </form>
           {:else}
             <button type="button" class="paper-btn" onclick={() => (openRuleEvent = ev.event)}>규칙 추가</button>
-            {#if ev.materialized}
-              <form method="POST" action="?/resetEvent" use:enhance={submitAndRefresh("기본 규칙으로 복원했습니다")}>
+            {#if ev.canRevert}
+              <form method="POST" action="?/revertEvent" use:enhance={submitAndRefresh("직전 규칙으로 되돌렸습니다")}>
                 <input type="hidden" name="event" value={ev.event} />
-                <button type="submit" class="paper-btn danger">기본 규칙 복원</button>
+                <button type="submit" class="paper-btn">직전으로 되돌리기</button>
               </form>
             {/if}
           {/if}
@@ -193,10 +194,16 @@
               <input type="hidden" name="enabled" value={t.enabled ? "false" : "true"} />
               <button type="submit" class="paper-btn">{t.enabled ? "발송 끄기" : "발송 켜기"}</button>
             </form>
-            {#if t.customized}
-              <form method="POST" action="?/reset" use:enhance={submitAndRefresh(t.isCustom ? `'${t.name}' 삭제됨` : `'${t.name}' 기본값 복원`)}>
+            {#if t.canRevert}
+              <form method="POST" action="?/revertTemplate" use:enhance={submitAndRefresh(`'${t.name}' 직전 버전으로 되돌림`)}>
                 <input type="hidden" name="key" value={t.key} />
-                <button type="submit" class="paper-btn danger">{t.isCustom ? "삭제" : "기본값 복원"}</button>
+                <button type="submit" class="paper-btn">직전으로 되돌리기</button>
+              </form>
+            {/if}
+            {#if t.isCustom}
+              <form method="POST" action="?/deleteTemplate" use:enhance={submitAndRefresh(`'${t.name}' 삭제됨`)}>
+                <input type="hidden" name="key" value={t.key} />
+                <button type="submit" class="paper-btn danger">삭제</button>
               </form>
             {/if}
           </div>
@@ -251,10 +258,16 @@
           <p class="subject-preview"><span class="paper-label">값</span> {v.value}</p>
           <div class="row-actions">
             <button type="button" class="paper-btn" onclick={() => (openVariableKey = v.key)}>편집</button>
-            {#if v.customized}
-              <form method="POST" action="?/deleteVariable" use:enhance={submitAndRefresh(v.isCustom ? `'${v.key}' 삭제됨` : `'${v.key}' 기본값 복원`)}>
+            {#if v.canRevert}
+              <form method="POST" action="?/revertVariable" use:enhance={submitAndRefresh(`'${v.key}' 직전 버전으로 되돌림`)}>
                 <input type="hidden" name="key" value={v.key} />
-                <button type="submit" class="paper-btn danger">{v.isCustom ? "삭제" : "기본값 복원"}</button>
+                <button type="submit" class="paper-btn">직전으로 되돌리기</button>
+              </form>
+            {/if}
+            {#if v.isCustom}
+              <form method="POST" action="?/deleteVariable" use:enhance={submitAndRefresh(`'${v.key}' 삭제됨`)}>
+                <input type="hidden" name="key" value={v.key} />
+                <button type="submit" class="paper-btn danger">삭제</button>
               </form>
             {/if}
           </div>
