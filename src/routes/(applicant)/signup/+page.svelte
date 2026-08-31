@@ -30,7 +30,15 @@
 		</p>
 	{/if}
 
-	{#if data.pending}
+	<!-- 순서 중요: 제출 직후엔 pending도 true가 되므로 완료 안내가 먼저 와야 한다 -->
+	{#if form?.success}
+		<SuccessScreen
+			title="가입 신청이 완료되었습니다!"
+			description="승인 여부는 메일로 안내됩니다."
+			buttonLabel="승인 대기 화면"
+			buttonLink={data.preview ? '/wait?preview=1' : '/wait'}
+		/>
+	{:else if data.pending}
 		<ol class="paper-sections">
 			<li class="paper-section">
 				<h2 class="paper-section-title">Application Status</h2>
@@ -39,6 +47,7 @@
 					<a href={data.preview ? '/wait?preview=1' : '/wait'} class="paper-btn primary">
 						대기 페이지로 이동
 					</a>
+					<a href="/signup/edit" class="paper-btn">신청 내용 수정</a>
 				</div>
 			</li>
 		</ol>
@@ -47,14 +56,6 @@
 			<p class="paper-status-note error">{form.message ?? form.error}</p>
 		{/if}
 
-			{#if form?.success}
-                <SuccessScreen 
-                    title="가입 신청이 완료되었습니다!" 
-                    description="승인 여부는 메일로 안내됩니다." 
-                    buttonLabel="승인 대기 화면"
-                    buttonLink={data.preview ? '/wait?preview=1' : '/wait'}
-                />
-		{:else}
 				<form
 					method="POST"
 				use:enhance={() => {
@@ -84,7 +85,6 @@
 					<a href="/" class="paper-btn secondary">취소</a>
 				</div>
 			</form>
-		{/if}
 	{/if}
 </article>
 
