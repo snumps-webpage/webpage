@@ -14,6 +14,7 @@ import { MailTemplateSchema } from "./mail-template";
 import { MailRuleSchema } from "./mail-rule";
 import { MailVariableSchema } from "./mail-variable";
 import { MailRuleHistorySchema } from "./mail-rule-history";
+import { RoleTitleSchema } from "./role-title";
 
 /**
  * The table registry — the single source of truth for what lives in S3
@@ -44,6 +45,8 @@ export const TABLES = {
   "mail-variables": MailVariableSchema,
   // 이벤트별 규칙의 직전 스냅숏 (되돌리기 1단계)
   "mail-rule-history": MailRuleHistorySchema,
+  // 임원 직위 옵션 (커스텀 추가분 — 기본 직위는 코드)
+  "role-titles": RoleTitleSchema,
 } as const;
 
 export type TableName = keyof typeof TABLES;
@@ -74,3 +77,4 @@ export * from "./mail-template";
 export * from "./mail-rule";
 export * from "./mail-variable";
 export * from "./mail-rule-history";
+export * from "./role-title";

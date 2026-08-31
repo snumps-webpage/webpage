@@ -1,6 +1,7 @@
 <nav class="admin-section-nav" aria-label="관리자 레코드 탐색">
   <a href="/admin">운영 대시보드</a>
   <a href="/admin/members">회원·역할</a>
+  <a href="/admin/executives">임원진</a>
   <a href="/admin/activities">활동 기록</a>
   <a href="/admin/seminars">세미나</a>
   <a href="/admin/studies">스터디</a>
