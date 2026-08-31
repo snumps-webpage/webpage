@@ -29,15 +29,15 @@ export const load: PageServerLoad = async (event) => {
   const user = session!.user!;
   if (!user.email) throw redirect(302, "/");
 
-  // 대기 중 신청이 있어도 리디렉션하지 않는다 — /signup 접근을 가로채면
-  // (관리자 포함) 페이지 자체를 볼 수 없게 된다. 페이지의 pending 상태 UI가
-  // 접수 사실과 대기/수정 링크를 보여주고, 중복 제출은 서비스의 CONFLICT가 막는다.
-  const pending = (await getApplicationForEmail(user.email)) !== null;
+  // The zone guard already bounced members; a pending applicant edits instead.
+  if (await getApplicationForEmail(user.email)) {
+    throw redirect(302, "/signup/edit");
+  }
 
   return {
     user,
     parsedInfo: parseGoogleName(user.name),
-    pending,
+    pending: false,
     preview: false,
   };
 };
