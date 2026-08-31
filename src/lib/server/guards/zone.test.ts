@@ -92,6 +92,7 @@ const REGISTERED: Record<string, Zone> = {
   "/(admin)/admin/seminars": "(admin)",
   "/(admin)/admin/studies": "(admin)",
   "/(admin)/admin/gallery": "(admin)",
+  "/(admin)/admin/mail": "(admin)",
   "/api/admin/applications": "api",
   "/api/admin/seminar-requests": "api",
   "/api/admin/study-requests": "api",

@@ -7,6 +7,7 @@
   <a href="/admin/gallery">갤러리</a>
   <a href="/admin/events/new">이벤트 생성</a>
   <a href="/admin/events/connect">활동 연결</a>
+  <a href="/admin/mail">자동 메일</a>
 </nav>
 
 <style>

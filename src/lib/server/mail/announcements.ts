@@ -2,6 +2,7 @@ import { env } from "$env/dynamic/private";
 import { getTable } from "$lib/server/data/tables";
 import { currentTerm } from "$lib/server/core/semester";
 import { getAdminAccessToken, dispatchEmail } from "./client";
+import { renderMailTemplate } from "./template-store";
 
 /**
  * Data-layer-aware mail (BE-45): all-member announcements and the executive
@@ -48,26 +49,19 @@ export async function sendSeminarAnnouncement(seminar: {
     const recipients = await announcementRecipients();
     if (recipients.length === 0) return true;
 
+    const rendered = await renderMailTemplate("seminar-announcement", {
+      title: seminar.title,
+      description: seminar.description,
+      siteUrl: siteOrigin(),
+      optOutUrl: `${siteOrigin()}/settings/notifications`,
+    });
+    if (!rendered) return true; // 관리자가 이 공지를 꺼 둠 — 승인 흐름은 성공 취급
+
     const accessToken = await getAdminAccessToken();
-    const subject = `[SNUMPS] 새 세미나 안내: ${seminar.title}`;
-    const body = `안녕하세요, 서울대학교 수학문제연구회입니다.
-
-새 세미나가 개설되었습니다.
-
-제목: ${seminar.title}
-
-${seminar.description}
-
-참가 신청은 홈페이지 대시보드에서 할 수 있습니다: ${siteOrigin()}/
-
----
-이 공지 메일을 더 이상 받고 싶지 않으시면 아래에서 수신을 해제할 수 있습니다.
-${siteOrigin()}/settings/notifications`;
-
     let ok = true;
     for (const batch of chunk(recipients, BATCH_SIZE)) {
       try {
-        await dispatchEmail(accessToken, batch, subject, body, { bcc: true });
+        await dispatchEmail(accessToken, batch, rendered.subject, rendered.body, { bcc: true });
       } catch (e) {
         console.error("[Mail] announcement batch failed:", e);
         ok = false; // no retry — an approval re-run must not double-send
@@ -104,20 +98,14 @@ export async function notifyExecutivesOfWithdrawal(memberName: string): Promise<
     }
     if (recipients.length === 0) return false;
 
+    const rendered = await renderMailTemplate("withdrawal-executive-notice", {
+      memberName,
+      adminUrl: `${siteOrigin()}/admin/members`,
+    });
+    if (!rendered) return true; // 꺼짐 — 통지 실패로 취급하지 않는다
+
     const accessToken = await getAdminAccessToken();
-    await dispatchEmail(
-      accessToken,
-      recipients,
-      `[SNUMPS] 회원 탈퇴 신청: ${memberName}`,
-      `안녕하세요, 회장단님.
-
-${memberName} 회원이 탈퇴를 신청했습니다.
-
-신청일로부터 1개월 후 회원의 인적사항이 삭제 대상이 됩니다(현재 자동 삭제는 보류 상태).
-정보 보존이 필요하면 관리자 페이지의 회원 상세에서 보존을 집행해 주세요.
-
-${siteOrigin()}/admin/members`,
-    );
+    await dispatchEmail(accessToken, recipients, rendered.subject, rendered.body);
     return true;
   } catch (e) {
     console.error("[Mail] executive withdrawal notice failed:", e);

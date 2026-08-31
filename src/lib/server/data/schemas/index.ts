@@ -10,6 +10,7 @@ import { StudySchema } from "./study";
 import { SeminarSchema } from "./seminar";
 import { GalleryDinnerSchema } from "./gallery-dinner";
 import { RegistrationSchema } from "./registration";
+import { MailTemplateSchema } from "./mail-template";
 
 /**
  * The table registry — the single source of truth for what lives in S3
@@ -32,6 +33,8 @@ export const TABLES = {
   studies: StudySchema,
   seminars: SeminarSchema,
   "gallery-dinner": GalleryDinnerSchema,
+  // 자동 메일 템플릿 오버라이드 — 관리자 대시보드에서 편집 (기본값은 코드)
+  "mail-templates": MailTemplateSchema,
 } as const;
 
 export type TableName = keyof typeof TABLES;
@@ -58,3 +61,4 @@ export * from "./study";
 export * from "./seminar";
 export * from "./gallery-dinner";
 export * from "./registration";
+export * from "./mail-template";
