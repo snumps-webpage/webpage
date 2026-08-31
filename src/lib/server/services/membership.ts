@@ -1,4 +1,5 @@
 import { AppError, definedOnly } from "$lib/server/core/errors";
+import { stripInvisibles } from "$lib/server/core/strings";
 import { isBootstrapAdminEmail } from "$lib/server/core/admin-bootstrap";
 import { newId } from "$lib/server/core/id";
 import { currentTerm } from "$lib/server/core/semester";
@@ -31,7 +32,12 @@ export async function submitApplication(input: {
 }): Promise<Application> {
   const row: Application = {
     id: newId(),
-    ...input,
+    // 구글 프로필 이름 등으로 비가시 문자가 유입된다 (실측) — 입구에서 제거
+    name: stripInvisibles(input.name),
+    department: stripInvisibles(input.department),
+    phone: stripInvisibles(input.phone),
+    studentId: stripInvisibles(input.studentId),
+    background: stripInvisibles(input.background),
     email: norm(input.email),
     createdAt: nowKstIso(),
   };
@@ -51,7 +57,13 @@ export async function updateOwnApplication(
   await mutate("applications", (rows) => {
     const idx = rows.findIndex((a) => norm(a.email) === norm(email));
     if (idx === -1) throw new AppError("NOT_FOUND");
-    rows[idx] = { ...rows[idx], ...definedOnly(patch) };
+    const clean = Object.fromEntries(
+      Object.entries(definedOnly(patch)).map(([k, v]) => [
+        k,
+        typeof v === "string" ? stripInvisibles(v) : v,
+      ]),
+    );
+    rows[idx] = { ...rows[idx], ...clean };
     return rows;
   });
 }
