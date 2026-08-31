@@ -115,24 +115,31 @@ export async function approveApplication(
       return rows;
     });
   } else {
-    // 신규 — legacy 아카이브에 같은 이메일 이력이 있으면 기록 연결만 남긴다
+    // 신규 — legacy 아카이브에 같은 이메일 이력이 있으면 기록을 연결하고,
+    // 사람의 연속성이 담긴 필드는 상속한다: 가입일(원 가입일 보존 — 재가입일이
+    // 아니다), 임원 이력(역대 회장단 표시가 새 행에 가려지므로), 개인 프로젝트.
+    // 반면 status/isAlumni(회칙 재분류 전 준회원 시작 — §9)와 publicContact
+    // (공개 동의 재확인 원칙)는 상속하지 않는다.
     const legacyInfo = (await getTable("legacy-private-info")).find(
       (i) => norm(i.email) === email,
     );
+    const legacyMember = legacyInfo
+      ? (await getTable("legacy-members")).find((m) => m.id === legacyInfo.memberId)
+      : undefined;
     const member = await ensureCreated("members", id, () => ({
       id: newId(),
       name: app.name,
       department: app.department,
-      joinedAt: nowKstIso().slice(0, 10),
+      joinedAt: legacyMember?.joinedAt ?? nowKstIso().slice(0, 10),
       status: "associate" as const,
       statusChangedAt: nowKstIso(),
       withdrawal: null,
       isAlumni: false,
       alumniRevoked: false,
-      roles: [],
+      roles: legacyMember?.roles ?? [],
       isAdmin: stampAdmin,
       publicContact: null,
-      project: null,
+      project: legacyMember?.project ?? null,
       legacyMemberId: legacyInfo?.memberId ?? null,
       sourceRequestId: id,
     }));

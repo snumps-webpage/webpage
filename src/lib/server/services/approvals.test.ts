@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("$lib/server/data/store", () => import("$lib/server/data/store-memory"));
 
-import { __reset } from "$lib/server/data/store-memory";
+import { __putRawDoc, __reset } from "$lib/server/data/store-memory";
 import { _resetDataLayerForTests, getTable, mutate } from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { newId } from "$lib/server/core/id";
@@ -130,6 +130,46 @@ describe("membership conversion (§7-2 approve)", () => {
     const regs = await getTable("registrations");
     expect(regs.map((r) => r.sourceRequestId).sort()).toEqual([first.id, second.id].sort());
     expect(regs.every((r) => r.memberId === members[0].id)).toBe(true);
+  });
+
+  it("inherits joinedAt/roles/project from the legacy archive on first re-application", async () => {
+    __putRawDoc("table", "legacy-members", {
+      schemaVersion: 1,
+      rows: [
+        {
+          id: "LEG1", name: "김기존", department: "수리과학부", joinedAt: "2022-03-05",
+          status: "associate", statusChangedAt: "2022-03-05T00:00:00+09:00",
+          withdrawal: null, isAlumni: false, alumniRevoked: false,
+          roles: [{ term: "23-1", title: "회장" }], isAdmin: false,
+          publicContact: "010-1234-5678 · old@snu.ac.kr", project: { title: "옛 프로젝트" },
+          legacyMemberId: null, sourceRequestId: null,
+        },
+      ],
+    });
+    __putRawDoc("table", "legacy-private-info", {
+      schemaVersion: 1,
+      rows: [
+        {
+          id: "LEGP1", memberId: "LEG1", email: "old-member@snu.ac.kr", phone: "010-0000-0000",
+          studentId: "", background: "", mailPrefs: { announcements: true }, sourceRequestId: null,
+        },
+      ],
+    });
+    await invalidateCache("table_legacy-members");
+
+    const app = await submitApplication({
+      email: "old-member@snu.ac.kr", name: "김기존", department: "수리과학부",
+      phone: "010-9999-0000", studentId: "2022-54321", background: "재가입",
+    });
+    await approveApplication(app.id);
+
+    const member = (await getTable("members")).find((m) => m.sourceRequestId === app.id)!;
+    expect(member.legacyMemberId).toBe("LEG1");
+    expect(member.joinedAt).toBe("2022-03-05"); // 원 가입일 보존 — 재가입일이 아니다
+    expect(member.roles).toEqual([{ term: "23-1", title: "회장" }]); // 임원 이력 상속
+    expect(member.project).toEqual({ title: "옛 프로젝트" });
+    expect(member.status).toBe("associate"); // 지위는 상속 안 함 (§9 재분류 전)
+    expect(member.publicContact).toBeNull(); // 공개 연락처는 동의 재확인 전 null
   });
 });
 
