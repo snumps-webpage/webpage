@@ -189,12 +189,26 @@ export const MAIL_TEMPLATE_DEFAULTS: Record<string, MailTemplateDefault> = {
 
 export type MailTemplateKey = keyof typeof MAIL_TEMPLATE_DEFAULTS;
 
-/** 발송 지점이 넘기지 않아도 항상 쓸 수 있는 공용 변수. */
-function builtinVars(): Record<string, string> {
-  return {
-    noticeChatLink: CHATROOM_NOTICE_LINK,
-    casualChatLink: CHATROOM_CHAT_LINK,
-  };
+/** 공용 변수의 코드 기본값 — mail-variables 테이블 행이 덮어쓴다. */
+export const MAIL_VARIABLE_DEFAULTS: Record<string, { value: string; description: string }> = {
+  noticeChatLink: { value: CHATROOM_NOTICE_LINK, description: "카카오톡 공지방 초대 링크" },
+  casualChatLink: { value: CHATROOM_CHAT_LINK, description: "카카오톡 잡담방 초대 링크" },
+};
+
+/**
+ * 현행 공용 변수 (기본값 + DB 오버라이드/추가). 조회 실패 시 기본값만 —
+ * 메일이 본 동작을 막으면 안 된다.
+ */
+export async function getGlobalMailVariables(): Promise<Record<string, string>> {
+  const merged: Record<string, string> = Object.fromEntries(
+    Object.entries(MAIL_VARIABLE_DEFAULTS).map(([k, v]) => [k, v.value]),
+  );
+  try {
+    for (const row of await getTable("mail-variables")) merged[row.key] = row.value;
+  } catch (e) {
+    console.error("[Mail] variable lookup failed — using defaults:", e);
+  }
+  return merged;
 }
 
 function interpolate(text: string, vars: Record<string, string>): string {
@@ -225,6 +239,14 @@ export async function renderMailTemplate(
     console.error(`[Mail] template lookup failed for "${key}" — using default:`, e);
   }
   if (subject === null || body === null) return null; // 삭제된 커스텀 키 등
-  const merged = { ...builtinVars(), ...vars };
+  // 공용 변수 < 이벤트 변수 — 키가 겹치면 발송 시점 값이 이긴다
+  const merged = { ...(await getGlobalMailVariables()), ...vars };
   return { subject: interpolate(subject, merged), body: interpolate(body, merged) };
+}
+
+/** 제목+본문에서 실제 사용 중인 {{변수}} 토큰을 추출한다. */
+export function extractVariableTokens(subject: string, body: string): string[] {
+  const found = new Set<string>();
+  for (const m of `${subject}\n${body}`.matchAll(/\{\{\s*(\w+)\s*\}\}/g)) found.add(m[1]);
+  return [...found];
 }

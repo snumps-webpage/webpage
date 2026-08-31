@@ -10,13 +10,18 @@ import { MAIL_TEMPLATE_DEFAULTS, renderMailTemplate } from "./template-store";
 function seedOverrides(rows: unknown[]) {
   __putRawDoc("table", "mail-templates", { schemaVersion: 1, rows });
 }
+function seedVariables(rows: unknown[]) {
+  __putRawDoc("table", "mail-variables", { schemaVersion: 1, rows });
+}
 
 describe("mail template store", () => {
   beforeEach(async () => {
     __reset();
     _resetDataLayerForTests();
     await invalidateCache("table_mail-templates");
+    await invalidateCache("table_mail-variables");
     seedOverrides([]);
+    seedVariables([]);
   });
 
   it("renders the code default with variables when no override exists", async () => {
@@ -71,6 +76,20 @@ describe("mail template store", () => {
     const r = await renderMailTemplate("welcome", { name: "A" });
     expect(r!.subject).toBe("제목");
     expect(r!.body).toBe("본문 A ");
+  });
+
+  it("a DB variable overrides the code default inside any template", async () => {
+    seedVariables([
+      {
+        id: "v1",
+        key: "noticeChatLink",
+        value: "https://new.link/notice",
+        description: "",
+        updatedAt: "2026-08-31T00:00:00+09:00",
+      },
+    ]);
+    const r = await renderMailTemplate("welcome", { name: "A" });
+    expect(r!.body).toContain("https://new.link/notice");
   });
 
   it("every default template's declared variables appear in its text", () => {

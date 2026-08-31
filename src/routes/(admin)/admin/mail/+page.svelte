@@ -8,10 +8,14 @@
   let { data } = $props();
   const events = $derived(data.events);
   const templates = $derived(data.templates);
+  const variables = $derived(data.variables);
 
   let openTemplateKey = $state<string | null>(null);
   let openRuleEvent = $state<string | null>(null);
   let creatingTemplate = $state(false);
+  let openVariableKey = $state<string | null>(null);
+  let creatingVariable = $state(false);
+  let testMode = $state<"template" | "event">("template");
   let notice = $state<string | null>(null);
   let errorMessage = $state<string | null>(null);
 
@@ -24,6 +28,8 @@
           openTemplateKey = null;
           openRuleEvent = null;
           creatingTemplate = false;
+          openVariableKey = null;
+          creatingVariable = false;
           await invalidateAll();
         } else {
           errorMessage = result.data?.message ?? "처리하지 못했습니다.";
@@ -198,6 +204,100 @@
       </li>
     {/each}
   </ul>
+
+  <h2 class="section-title">3. 공용 변수</h2>
+  <p class="scope-note">
+    모든 템플릿에서 <code>{"{{변수}}"}</code>로 쓸 수 있는 고정 값입니다 (카톡 링크 등).
+    이벤트가 발송 시점에 공급하는 변수(<code>{"{{name}}"}</code> 등)와 이름이 겹치면 이벤트 값이 우선합니다.
+  </p>
+  <div class="row-actions section-actions">
+    {#if creatingVariable}
+      <form method="POST" action="?/saveVariable" class="create-form" use:enhance={submitAndRefresh("변수를 추가했습니다")}>
+        <label><span class="paper-label">변수 이름 (영문)</span><input type="text" name="key" required pattern="[a-zA-Z][a-zA-Z0-9]*" placeholder="예: clubRoomLocation" /></label>
+        <label><span class="paper-label">값</span><input type="text" name="value" required /></label>
+        <label><span class="paper-label">설명</span><input type="text" name="description" placeholder="어디에 쓰는 값인지" /></label>
+        <div class="row-actions">
+          <button type="submit" class="paper-btn primary">추가</button>
+          <button type="button" class="paper-btn" onclick={() => (creatingVariable = false)}>닫기</button>
+        </div>
+      </form>
+    {:else}
+      <button type="button" class="paper-btn" onclick={() => (creatingVariable = true)}>변수 추가</button>
+    {/if}
+  </div>
+  <ul class="card-list">
+    {#each variables as v (v.key)}
+      <li>
+        <header>
+          <div>
+            <h3><code>{"{{" + v.key + "}}"}</code></h3>
+            <p class="description">{v.description || "설명 없음"}</p>
+          </div>
+          <div class="badges">
+            {#if v.isCustom}<span class="badge customized">커스텀</span>{:else if v.customized}<span class="badge customized">수정됨</span>{:else}<span class="badge">기본값</span>{/if}
+          </div>
+        </header>
+        {#if openVariableKey === v.key}
+          <form method="POST" action="?/saveVariable" use:enhance={submitAndRefresh(`'${v.key}' 저장됨`)}>
+            <input type="hidden" name="key" value={v.key} />
+            <label><span class="paper-label">값</span><input type="text" name="value" value={v.value} required /></label>
+            <label><span class="paper-label">설명</span><input type="text" name="description" value={v.description} /></label>
+            <div class="row-actions">
+              <button type="submit" class="paper-btn primary">저장</button>
+              <button type="button" class="paper-btn" onclick={() => (openVariableKey = null)}>닫기</button>
+            </div>
+          </form>
+        {:else}
+          <p class="subject-preview"><span class="paper-label">값</span> {v.value}</p>
+          <div class="row-actions">
+            <button type="button" class="paper-btn" onclick={() => (openVariableKey = v.key)}>편집</button>
+            {#if v.customized}
+              <form method="POST" action="?/deleteVariable" use:enhance={submitAndRefresh(v.isCustom ? `'${v.key}' 삭제됨` : `'${v.key}' 기본값 복원`)}>
+                <input type="hidden" name="key" value={v.key} />
+                <button type="submit" class="paper-btn danger">{v.isCustom ? "삭제" : "기본값 복원"}</button>
+              </form>
+            {/if}
+          </div>
+        {/if}
+      </li>
+    {/each}
+  </ul>
+
+  <h2 class="section-title">4. 발송 테스트</h2>
+  <p class="scope-note">
+    실제 메일을 지정 주소로 1회 발송해 문구와 변수 치환을 확인합니다. 변수는 <code>[예시 변수명]</code>으로
+    채워지고 제목에 <strong>[테스트]</strong>가 붙습니다. <strong>이벤트 테스트</strong>는 그 이벤트의 켜진
+    규칙 전부를 — 실제 수신자 대신 — 입력한 주소로만 보냅니다 (회원·관리자에게 나가지 않음).
+  </p>
+  <div class="test-board">
+    <div class="test-mode">
+      <label><input type="radio" name="testMode" value="template" checked={testMode === "template"} onchange={() => (testMode = "template")} /> 템플릿 하나</label>
+      <label><input type="radio" name="testMode" value="event" checked={testMode === "event"} onchange={() => (testMode = "event")} /> 이벤트(규칙 전체)</label>
+    </div>
+    {#if testMode === "template"}
+      <form method="POST" action="?/testTemplate" class="add-rule" use:enhance={submitAndRefresh("테스트 메일을 보냈습니다 — 수신함을 확인하세요")}>
+        <label><span class="paper-label">받는 주소</span><input type="email" name="to" required placeholder="me@snu.ac.kr" /></label>
+        <label>
+          <span class="paper-label">템플릿</span>
+          <select name="templateKey" required>
+            {#each templates as t (t.key)}<option value={t.key}>{t.name}</option>{/each}
+          </select>
+        </label>
+        <button type="submit" class="paper-btn primary">테스트 발송</button>
+      </form>
+    {:else}
+      <form method="POST" action="?/testEvent" class="add-rule" use:enhance={submitAndRefresh("이벤트의 규칙별 테스트 메일을 보냈습니다 — 수신함을 확인하세요")}>
+        <label><span class="paper-label">받는 주소</span><input type="email" name="to" required placeholder="me@snu.ac.kr" /></label>
+        <label>
+          <span class="paper-label">이벤트</span>
+          <select name="event" required>
+            {#each events as ev (ev.event)}<option value={ev.event}>{ev.name}</option>{/each}
+          </select>
+        </label>
+        <button type="submit" class="paper-btn primary">테스트 발송</button>
+      </form>
+    {/if}
+  </div>
 </article>
 
 <style>
@@ -242,4 +342,7 @@
   .create-form label:first-child { margin-top: 0; }
   .paper-btn.small { padding: 0.25rem 0.55rem; font-size: 0.62rem; }
   .paper-btn.danger { border-color: var(--color-danger-text, #b00); color: var(--color-danger-text, #b00); }
+  .test-board { border: 1px solid var(--latex-rule); padding: 0.9rem; }
+  .test-mode { display: flex; gap: 1.2rem; margin-bottom: 0.4rem; font-size: 0.78rem; }
+  .test-mode label { display: flex; align-items: center; gap: 0.35rem; margin: 0; }
 </style>

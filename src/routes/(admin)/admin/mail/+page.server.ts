@@ -2,12 +2,17 @@ import { ensureAdmin, handleAdminAction } from "$lib/server/auth-guards";
 import {
   addMailRule,
   createMailTemplate,
+  deleteMailVariable,
   listMailEvents,
   listMailTemplates,
+  listMailVariables,
   removeMailRule,
   resetMailEvent,
   resetMailTemplate,
   saveMailTemplate,
+  saveMailVariable,
+  sendTestEvent,
+  sendTestTemplate,
   setMailRuleEnabled,
   setMailTemplateEnabled,
 } from "$lib/server/services/mail-admin";
@@ -16,8 +21,12 @@ import type { PageServerLoad } from "./$types";
 /** ADM (S10): 자동 전송 메일 관리 — 이벤트별 발송 규칙 + 템플릿 편집. */
 export const load: PageServerLoad = async ({ locals }) => {
   await ensureAdmin(locals, { silent: true });
-  const [events, templates] = await Promise.all([listMailEvents(), listMailTemplates()]);
-  return { events, templates, generatedAt: new Date().toISOString() };
+  const [events, templates, variables] = await Promise.all([
+    listMailEvents(),
+    listMailTemplates(),
+    listMailVariables(),
+  ]);
+  return { events, templates, variables, generatedAt: new Date().toISOString() };
 };
 
 const str = (data: FormData, name: string) => ((data.get(name) as string) ?? "").trim();
@@ -100,6 +109,42 @@ export const actions = {
         enabled: data.get("enabled") === "true",
       });
       return { operation: "rule-toggled" };
+    });
+  },
+
+  saveVariable: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const data = await request.formData();
+    return handleAdminAction(locals, async () => {
+      await saveMailVariable({
+        key: str(data, "key"),
+        value: (data.get("value") as string) ?? "",
+        description: str(data, "description"),
+      });
+      return { operation: "variable-saved" };
+    });
+  },
+
+  deleteVariable: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const data = await request.formData();
+    return handleAdminAction(locals, async () => {
+      await deleteMailVariable(str(data, "key"));
+      return { operation: "variable-deleted" };
+    });
+  },
+
+  testTemplate: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const data = await request.formData();
+    return handleAdminAction(locals, async () => {
+      await sendTestTemplate(str(data, "to"), str(data, "templateKey"));
+      return { operation: "test-sent" };
+    });
+  },
+
+  testEvent: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+    const data = await request.formData();
+    return handleAdminAction(locals, async () => {
+      const count = await sendTestEvent(str(data, "to"), str(data, "event"));
+      return { operation: "test-sent", count };
     });
   },
 
