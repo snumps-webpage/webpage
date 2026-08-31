@@ -39,6 +39,7 @@
 					<a href={data.preview ? '/wait?preview=1' : '/wait'} class="paper-btn primary">
 						대기 페이지로 이동
 					</a>
+					<a href="/signup/edit" class="paper-btn">신청 내용 수정</a>
 				</div>
 			</li>
 		</ol>
