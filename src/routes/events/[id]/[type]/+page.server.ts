@@ -1,9 +1,5 @@
 import { error } from "@sveltejs/kit";
-import {
-  getEventByPathId,
-  recordAttendance,
-  deleteEvent,
-} from "$lib/server/events";
+import { getEventByPathId, recordAttendance } from "$lib/server/events";
 import {
   getMemberByEmail,
   getMemberById,
@@ -19,14 +15,17 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
   const event = await getEventByPathId(params.id);
   if (!event) throw error(404, "Event not found");
 
-  // Robustness: Verify Notion Page Existence
+  // Verify the linked Notion page still exists. This is a GET, so it must not
+  // mutate: reclaiming stale events is the cron job's responsibility
+  // (`syncEventStatuses`). `checkPageExists` reports every failure — including a
+  // transient Notion outage — as "missing", so deleting here let any member
+  // destroy an event by refreshing at the wrong moment.
   if (event.notionPageId) {
     const exists = await checkPageExists(event.notionPageId);
     if (!exists) {
       console.warn(
-        `Event '${event.title}' accessed but Notion page is missing. Deleting local record.`,
+        `Event '${event.title}' (${event.id}) accessed but Notion page ${event.notionPageId} is missing or unreachable.`,
       );
-      await deleteEvent(event.id);
       throw error(404, "Event not found (Source Removed)");
     }
   }

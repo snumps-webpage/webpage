@@ -1,4 +1,4 @@
-import { fail, redirect, error } from "@sveltejs/kit";
+import { fail, redirect } from "@sveltejs/kit";
 import { env } from "$env/dynamic/private";
 import { createEvent } from "$lib/server/events";
 import {
@@ -6,15 +6,12 @@ import {
   getDatabaseSchema,
   type DatabasePropertySchema,
 } from "$lib/server/notion";
-import { isAdmin } from "$lib/server/admin";
+import { ensureAdmin, requireAdminAction } from "$lib/server/auth-guards";
 import { ACTIVITY_TYPES } from "$lib/constants";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
-  const session = await locals.auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
-    throw error(404, "Not Found");
-  }
+  await ensureAdmin(locals);
 
   const dbId = env.NOTION_DB_ACTIVITIES;
   let activityTypes: string[] = [...ACTIVITY_TYPES];
@@ -36,9 +33,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions = {
   default: async ({ request, locals }) => {
-    const session = await locals.auth();
-    if (!session?.user?.email || !isAdmin(session.user.email))
-      return fail(401, { error: "Unauthorized" });
+    const check = await requireAdminAction(locals);
+    if (!check.allowed) return check.response;
 
     const data = await request.formData();
     const title = data.get("title") as string;

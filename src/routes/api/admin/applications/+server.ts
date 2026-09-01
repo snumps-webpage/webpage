@@ -1,12 +1,10 @@
 import { json } from "@sveltejs/kit";
-import { getApplications, isAdmin } from "$lib/server/admin";
+import { getApplications } from "$lib/server/admin";
+import { ensureAdmin } from "$lib/server/auth-guards";
 import type { RequestHandler } from "./$types";
 
 export const GET: RequestHandler = async ({ locals }) => {
-  const session = await locals.auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
-    return json({ error: "Unauthorized" }, { status: 401 });
-  }
+  await ensureAdmin(locals);
 
   const apps = await getApplications();
   const sortedApps = apps.sort(

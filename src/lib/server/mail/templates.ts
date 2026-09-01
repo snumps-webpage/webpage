@@ -2,19 +2,9 @@
  * Business logic layer for the Mail service.
  * Defines specific notification types and their content.
  */
-import { env } from "$env/dynamic/private";
 import { CHATROOM_NOTICE_LINK, CHATROOM_CHAT_LINK } from "../../constants";
 import { getAdminAccessToken, dispatchEmail } from "./client";
-
-/**
- * Helper to get admin emails from environment.
- */
-function getAdminEmails(): string[] {
-  return (env.ADMINS_EMAILS || "")
-    .split(",")
-    .map((e) => e.trim())
-    .filter(Boolean);
-}
+import { getAdminEmails } from "../admin";
 
 /**
  * Sends an email notification to admins about a new member signup.

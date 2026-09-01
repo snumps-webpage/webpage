@@ -1,3 +1,4 @@
+import { error } from "@sveltejs/kit";
 import type { SeminarRequest } from "$lib/types";
 import {
   getSeminarRequestsFromNotion,
@@ -69,8 +70,58 @@ export async function createSeminarRequest(data: {
   }
 }
 
+/**
+ * Who is attempting to act on a seminar request.
+ *
+ * `memberId` is the Notion Members page id of the signed-in user, or null when
+ * the user has no member record.
+ */
+export interface SeminarRequestActor {
+  memberId: string | null;
+  isAdmin: boolean;
+}
+
+/**
+ * Resolves a seminar request the actor is allowed to edit, or throws.
+ *
+ * Authorization rules:
+ *   - admins may edit any request;
+ *   - otherwise the actor must be listed in `speakerIds`;
+ *   - non-pending requests are not editable through this path.
+ *
+ * A non-owner gets 404, not 403, so that request ids cannot be probed for
+ * existence.
+ */
+export async function requireEditableSeminarRequest(
+  id: string,
+  actor: SeminarRequestActor,
+): Promise<SeminarRequest> {
+  const request = (await getSeminarRequests()).find((r) => r.id === id);
+  if (!request) throw error(404, "Seminar request not found");
+
+  if (actor.isAdmin) return request;
+
+  const speakerIds = Array.isArray(request.speakerIds) ? request.speakerIds : [];
+  if (!actor.memberId || !speakerIds.includes(actor.memberId)) {
+    throw error(404, "Seminar request not found");
+  }
+
+  if (request.status !== "pending") {
+    throw error(403, "이미 처리된 신청은 수정할 수 없습니다.");
+  }
+
+  return request;
+}
+
+/**
+ * Updates a seminar request after verifying the actor may edit it.
+ *
+ * The ownership check lives here rather than in the caller so that no call site
+ * can perform an unauthorized write — see `docs/code-audit` SM-12.
+ */
 export async function updateSeminarRequest(
   id: string,
+  actor: SeminarRequestActor,
   data: {
     title?: string;
     description?: string;
@@ -80,11 +131,13 @@ export async function updateSeminarRequest(
     attachment?: string;
   },
 ) {
+  await requireEditableSeminarRequest(id, actor);
+
   try {
     await updateSeminarRequestInNotion(id, data);
     return { id, ...data };
   } catch (e) {
-    console.error("Failed to update seminar request in Notion:", e);
+    console.error("Failed to persist seminar request update in Notion:", e);
     throw e;
   }
 }
@@ -97,7 +150,7 @@ export async function updateSeminarRequestStatus(
     await updateSeminarRequestStatusInNotion(id, status);
     return { id, status };
   } catch (e) {
-    console.error("Failed to update seminar request in Notion:", e);
+    console.error("Failed to update seminar request status in Notion:", e);
     throw e;
   }
 }

@@ -138,9 +138,71 @@ export async function removeApplication(id: string) {
   }
 }
 
-export function isAdmin(email: string | null | undefined) {
+/**
+ * Single source of truth for the admin roster.
+ *
+ * `ADMINS_EMAILS` is a comma-separated list. It is parsed once per raw value and
+ * kept in two shapes:
+ *   - `addresses`: entries as configured, for addressing outgoing mail.
+ *   - `lookup`: trimmed + lower-cased, for authorization comparisons.
+ *
+ * Authorization MUST use `lookup`. Email domains are case-insensitive and the
+ * local part is treated as such by Google Workspace, so a case difference
+ * between the env value and the session email must not silently revoke access.
+ */
+interface AdminRoster {
+  readonly addresses: readonly string[];
+  readonly lookup: ReadonlySet<string>;
+}
+
+let rosterCache: AdminRoster | null = null;
+let rosterCacheKey: string | null = null;
+
+function parseRoster(raw: string): AdminRoster {
+  const entries = raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  const malformed = entries.filter((entry) => !entry.includes("@"));
+  if (malformed.length > 0) {
+    console.warn(
+      `[Admin] ADMINS_EMAILS contains ${malformed.length} entr${malformed.length === 1 ? "y" : "ies"} without "@"; they can never match a session email.`,
+    );
+  }
+
+  return {
+    addresses: entries,
+    lookup: new Set(entries.map((entry) => entry.toLowerCase())),
+  };
+}
+
+function getRoster(): AdminRoster {
+  const raw = env.ADMINS_EMAILS ?? "";
+  if (rosterCache === null || rosterCacheKey !== raw) {
+    rosterCacheKey = raw;
+    rosterCache = parseRoster(raw);
+  }
+  return rosterCache;
+}
+
+/**
+ * Admin addresses as configured, for use as mail recipients.
+ * Not for authorization — use `isAdmin`.
+ */
+export function getAdminEmails(): readonly string[] {
+  return getRoster().addresses;
+}
+
+/**
+ * The only authorization predicate for admin access.
+ *
+ * Every admin-gated load, action, and endpoint must resolve through this
+ * function (directly, or via `ensureAdmin` / `handleAdminAction`).
+ */
+export function isAdmin(email: string | null | undefined): boolean {
   if (!email) return false;
-  if (dev && email === DEV_PREVIEW_ADMIN_EMAIL) return true;
-  const admins = (env.ADMINS_EMAILS || "").split(",").map((e) => e.trim());
-  return admins.includes(email);
+  const normalized = email.trim().toLowerCase();
+  if (dev && normalized === DEV_PREVIEW_ADMIN_EMAIL) return true;
+  return getRoster().lookup.has(normalized);
 }

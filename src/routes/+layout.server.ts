@@ -1,6 +1,5 @@
 import { isAdmin } from "$lib/server/admin";
 import { getLatestExecutives } from "$lib/server/notion";
-import { resolveDevPreviewRole } from "$lib/server/dev-preview";
 import type { LayoutServerLoad } from "./$types";
 
 /**
@@ -9,11 +8,11 @@ import type { LayoutServerLoad } from "./$types";
  */
 export const load: LayoutServerLoad = async (event) => {
   const session = await event.locals.auth();
-  const devPreviewRole = resolveDevPreviewRole(event.url, event.cookies);
 
-  const isUserAdmin =
-    devPreviewRole === "admin" ||
-    (session?.user?.email ? isAdmin(session.user.email) : false);
+  // Single derivation. `isAdmin` already covers the dev-preview admin, because
+  // `devPreviewHandle` installs a session whose email is DEV_PREVIEW_ADMIN_EMAIL.
+  // Do not add a second condition here — see `docs/code-audit` AD-16.
+  const isUserAdmin = isAdmin(session?.user?.email);
 
   return {
     session,

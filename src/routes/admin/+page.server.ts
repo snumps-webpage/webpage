@@ -35,7 +35,7 @@ import { normalizePhoneNumber, getKSTDate } from "$lib/utils";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
-  await ensureAdmin(event.locals, { silent: true });
+  await ensureAdmin(event.locals);
   const skipCache = event.url.searchParams.has("refresh");
 
   return {

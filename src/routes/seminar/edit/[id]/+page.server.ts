@@ -1,43 +1,47 @@
-import { redirect } from "@sveltejs/kit";
 import {
-  getSeminarRequests,
+  requireEditableSeminarRequest,
   updateSeminarRequest,
   parseSpeakerIds,
+  type SeminarRequestActor,
 } from "$lib/server/seminars";
 import {
   getSearchableMembers,
   resolveActualName,
+  isAdmin,
   type SearchableMember,
 } from "$lib/server/admin";
 import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
 import { getMemberByEmail } from "$lib/server/notion";
 import { parseGoogleName } from "$lib/utils";
 import type { PageServerLoad, Actions } from "./$types";
+import type { AuthenticatedSession } from "$lib/server/auth-guards";
+
+/**
+ * Resolves who is acting, for the ownership check in
+ * `requireEditableSeminarRequest`. A member lookup failure yields
+ * `memberId: null`, which denies rather than allows.
+ */
+async function resolveActor(
+  session: AuthenticatedSession,
+): Promise<SeminarRequestActor> {
+  const member = await getMemberByEmail(session.user.email).catch((e) => {
+    console.error("[Seminar Edit] Member lookup failed; denying edit.", e);
+    return null;
+  });
+  return {
+    memberId: member?.memberId ?? null,
+    isAdmin: isAdmin(session.user.email),
+  };
+}
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
   const session = await ensureSession(locals, url);
 
-  const requestId = params.id;
-  let requests = [];
-  try {
-    requests = await getSeminarRequests();
-  } catch (error) {
-    console.error(
-      "[Seminar Edit] Failed to load seminar requests. Redirecting to home.",
-      error,
-    );
-    throw redirect(302, "/");
-  }
-  const request = requests.find((r) => r.id === requestId);
-
-  if (!request) {
-    throw redirect(302, "/");
-  }
-
-  // Check if pending. Only pending requests should be editable.
-  if (request.status !== "pending") {
-    throw redirect(302, "/");
-  }
+  // Authorization: 404 for anyone who is not a speaker on this request.
+  const request = await requireEditableSeminarRequest(
+    params.id,
+    await resolveActor(session),
+  );
 
   let memberDirectoryUnavailable = false;
   let searchableMembers: SearchableMember[] = [];
@@ -87,17 +91,19 @@ export const actions: Actions = {
         const speakerIdsRaw = data.get("speakerIds") as string;
         const attachment = data.get("attachment") as string;
 
-        const requestId = params.id;
         if (!title || !description)
           throw new Error("필수 항목을 입력해주세요.");
 
+        // Re-checked inside updateSeminarRequest; the load gate does not
+        // protect this action because a form POST never runs `load`.
+        const actor = await resolveActor(session);
+
         let speakerIds = parseSpeakerIds(speakerIdsRaw);
-        if (speakerIds.length === 0) {
-          const member = await getMemberByEmail(session.user.email);
-          if (member) speakerIds = [member.memberId];
+        if (speakerIds.length === 0 && actor.memberId) {
+          speakerIds = [actor.memberId];
         }
 
-        await updateSeminarRequest(requestId, {
+        await updateSeminarRequest(params.id, actor, {
           title,
           description,
           prerequisites,

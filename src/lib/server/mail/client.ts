@@ -52,7 +52,7 @@ export async function getAdminAccessToken(): Promise<string> {
  */
 export async function dispatchEmail(
   accessToken: string,
-  recipients: string[],
+  recipients: readonly string[],
   subject: string,
   body: string,
 ) {

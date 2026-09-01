@@ -1,14 +1,12 @@
 import { json } from "@sveltejs/kit";
-import { isAdmin } from "$lib/server/admin";
+
 import { getSeminarRequests } from "$lib/server/seminars";
 import { getAllMembers } from "$lib/server/notion";
+import { ensureAdmin } from "$lib/server/auth-guards";
 import type { RequestHandler } from "./$types";
 
 export const GET: RequestHandler = async ({ locals }) => {
-  const session = await locals.auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
-    return json({ error: "Unauthorized" }, { status: 401 });
-  }
+  await ensureAdmin(locals);
 
   const [seminarRequests, members] = await Promise.all([
     getSeminarRequests(),

@@ -1,4 +1,12 @@
-import { redirect, error, type ActionFailure } from "@sveltejs/kit";
+import {
+  redirect,
+  error,
+  fail,
+  isRedirect,
+  isHttpError,
+  isActionFailure,
+  type ActionFailure,
+} from "@sveltejs/kit";
 import { isAdmin as checkIsAdmin } from "./admin";
 
 export interface AuthenticatedSession {
@@ -28,19 +36,24 @@ export async function ensureSession(
 }
 
 /**
- * Ensures the user is an admin.
- * Throws 404 if not (Security by Obscurity).
+ * Ensures the user is an admin, for use in `load`.
+ *
+ * Answers 404 by default so that an admin-only path is indistinguishable from a
+ * path that does not exist. Pass `{ onDenied: "redirect" }` only where the
+ * existence of the route is already public knowledge.
+ *
+ * This is the ONLY admin gate for `load` functions. Do not re-implement
+ * `isAdmin(...)` checks inline — see `docs/code-audit` AD-2.
  */
 export async function ensureAdmin(
   locals: App.Locals,
-  options: { silent?: boolean } = {},
+  options: { onDenied?: "notFound" | "redirect" } = {},
 ): Promise<AuthenticatedSession> {
   const session = await locals.auth();
-  const isAdmin = checkIsAdmin(session?.user?.email);
 
-  if (!session?.user?.email || !isAdmin) {
-    if (options.silent) throw error(404, "Not Found");
-    throw redirect(302, "/");
+  if (!session?.user?.email || !checkIsAdmin(session.user.email)) {
+    if (options.onDenied === "redirect") throw redirect(302, "/");
+    throw error(404, "Not Found");
   }
 
   return session as AuthenticatedSession;
@@ -49,10 +62,19 @@ export async function ensureAdmin(
 /**
  * Helper for form actions to verify admin status.
  */
-export async function requireAdminAction(locals: App.Locals) {
+export type AdminCheck =
+  | { allowed: true; session: AuthenticatedSession; response?: undefined }
+  | {
+      allowed: false;
+      session?: undefined;
+      response: ActionFailure<{ error: string }>;
+    };
+
+export async function requireAdminAction(
+  locals: App.Locals,
+): Promise<AdminCheck> {
   const session = await locals.auth();
   if (!session?.user?.email || !checkIsAdmin(session.user.email)) {
-    const { fail } = await import("@sveltejs/kit");
     return {
       allowed: false,
       response: fail(403, {
@@ -82,23 +104,18 @@ export async function handleUserAction<T extends Record<string, unknown>>(
   try {
     session = await ensureSession(locals);
   } catch (e) {
-    const { fail } = await import("@sveltejs/kit");
-    return fail(401, {
-      error: (e as Error).message || "Authentication required",
-    });
+    if (isRedirect(e)) throw e;
+    console.error(`[Action Auth Error]`, e);
+    return fail(401, { error: "Authentication required" });
   }
 
   try {
     const result = await logic(session);
 
-    if (
-      result &&
-      typeof result === "object" &&
-      "status" in result &&
-      typeof result.status === "number" &&
-      result.status >= 400
-    ) {
-      return result as ActionFailure<Record<string, unknown>>;
+    if (isActionFailure(result)) {
+      // `isActionFailure` narrows to ActionFailure<undefined>; the failure built
+      // by `logic` carries its own data shape, which we pass through untouched.
+      return result as unknown as ActionFailure<Record<string, unknown>>;
     }
 
     if (options.invalidate) {
@@ -106,7 +123,7 @@ export async function handleUserAction<T extends Record<string, unknown>>(
       const keys = Array.isArray(options.invalidate)
         ? options.invalidate
         : [options.invalidate];
-      keys.forEach((key) => invalidateCache(key));
+      await Promise.all(keys.map((key) => invalidateCache(key)));
     }
 
     if (result && typeof result === "object") {
@@ -115,16 +132,14 @@ export async function handleUserAction<T extends Record<string, unknown>>(
 
     return { success: true };
   } catch (e) {
-    if (
-      e &&
-      typeof e === "object" &&
-      "status" in e &&
-      (e as { status: number }).status >= 300 &&
-      (e as { status: number }).status < 400
-    )
-      throw e;
+    // Control-flow throws must not be flattened into a 500.
+    if (isRedirect(e)) throw e;
+    if (isHttpError(e)) {
+      // Preserve the status a deliberate `error(4xx)` chose, instead of
+      // flattening every thrown control-flow error into a 500.
+      return fail(e.status, { error: e.body.message });
+    }
     console.error(`[Action Error]`, e);
-    const { fail } = await import("@sveltejs/kit");
     return fail(500, { error: (e as Error).message || "Action failed" });
   }
 }
@@ -144,20 +159,17 @@ export async function handleAdminAction<T extends Record<string, unknown>>(
   | (T & { success: true })
   | { success: true }
 > {
-  const { allowed, response, session } = await requireAdminAction(locals);
-  if (!allowed || !session) return response!;
+  const check = await requireAdminAction(locals);
+  if (!check.allowed) return check.response;
+  const session = check.session;
 
   try {
     const result = await logic(session);
 
-    if (
-      result &&
-      typeof result === "object" &&
-      "status" in result &&
-      typeof result.status === "number" &&
-      result.status >= 400
-    ) {
-      return result as ActionFailure<Record<string, unknown>>;
+    if (isActionFailure(result)) {
+      // `isActionFailure` narrows to ActionFailure<undefined>; the failure built
+      // by `logic` carries its own data shape, which we pass through untouched.
+      return result as unknown as ActionFailure<Record<string, unknown>>;
     }
 
     if (options.invalidate) {
@@ -165,7 +177,7 @@ export async function handleAdminAction<T extends Record<string, unknown>>(
       const keys = Array.isArray(options.invalidate)
         ? options.invalidate
         : [options.invalidate];
-      keys.forEach((key) => invalidateCache(key));
+      await Promise.all(keys.map((key) => invalidateCache(key)));
     }
 
     if (result && typeof result === "object") {
@@ -173,18 +185,14 @@ export async function handleAdminAction<T extends Record<string, unknown>>(
     }
     return { success: true };
   } catch (e) {
-    if (
-      e &&
-      typeof e === "object" &&
-      "status" in e &&
-      (e as { status: number }).status >= 300 &&
-      (e as { status: number }).status < 400
-    )
-      throw e;
+    // Control-flow throws must not be flattened into a 500.
+    if (isRedirect(e)) throw e;
+    if (isHttpError(e)) {
+      // Preserve the status a deliberate `error(4xx)` chose, instead of
+      // flattening every thrown control-flow error into a 500.
+      return fail(e.status, { error: e.body.message });
+    }
     console.error(`[Action Error]`, e);
-    const { fail } = await import("@sveltejs/kit");
-    return fail(500, {
-      error: (e as Error).message || "Internal server error",
-    });
+    return fail(500, { error: (e as Error).message || "Internal server error" });
   }
 }
