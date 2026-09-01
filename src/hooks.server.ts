@@ -82,8 +82,11 @@ const zoneGuard: Handle = async ({ event, resolve }) => {
   const member = event.locals.member;
   const hasSession = member !== null || !!email;
   // S9: 미등록 회원(재가입 대기)도 신청 여부가 판정에 필요하다 — 비회원과 동일 조건.
+  // 루트(하이브리드 랜딩)는 공개 존이지만 AUTH-03 리디렉션 분기에 신청 여부가 필요하다.
   const needsApplicationLookup =
-    email !== null && zone !== "(public)" && (!member || !member.registered);
+    email !== null &&
+    (zone !== "(public)" || needsMemberResolution(routeId)) &&
+    (!member || !member.registered);
   const application = needsApplicationLookup ? await hasApplication(email) : false;
 
   const decision = decide(routeId, {

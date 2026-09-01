@@ -194,6 +194,8 @@ const MATRIX: Array<[routeId: string, expectations: Record<string, Expect>]> = [
     "/(public)", // hybrid landing/dashboard
     {
       guest: "allow",
+      newcomer: "redirect:/signup", // AUTH-03: 로그인했지만 미가입
+      applicant: "redirect:/wait",
       member: "allow",
       admin: "allow",
       withdrawn: "redirect:/withdraw/pending",

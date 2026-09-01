@@ -94,9 +94,19 @@ export function decide(routeId: string, ctx: GuardContext): GuardDecision {
       return { type: "allow" };
 
     case "(public)":
-      // Hybrid `/`: a withdrawn member must land on the pending page, not the dashboard.
-      if (routeId === ROOT_PAGE_ID && ctx.member?.status === "withdrawn") {
-        return { type: "redirect", location: WITHDRAW_PENDING };
+      if (routeId === ROOT_PAGE_ID) {
+        // Hybrid `/`: a withdrawn member must land on the pending page, not the dashboard.
+        if (ctx.member?.status === "withdrawn") {
+          return { type: "redirect", location: WITHDRAW_PENDING };
+        }
+        // AUTH-03: 로그인했지만 회원이 아니면 랜딩 대신 가입 흐름으로 —
+        // 미가입 → /signup, 신청 대기 중 → /wait. (다른 공개 페이지 열람은 자유.)
+        if (ctx.hasSession && !ctx.member) {
+          return {
+            type: "redirect",
+            location: ctx.hasApplication ? "/wait" : "/signup",
+          };
+        }
       }
       return { type: "allow" };
 
