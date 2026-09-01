@@ -56,7 +56,7 @@ async function seedFixture() {
       id: "m1", name: "김수학", department: "수리과학부", joinedAt: "2024-03-01",
       status: "regular" as const, statusChangedAt: nowKstIso(), withdrawal: null,
       isAlumni: true, alumniRevoked: false,
-      roles: [{ term, title: "기획부장" }, { term, title: "회장" }],
+      roles: [{ term, title: "기획부장" }, { term, title: "회장" }, { term: "23-1", title: "부회장" }],
       isAdmin: true, publicContact: "snumps0@gmail.com",
       project: { title: "정수론 시각화", url: "https://example.com" },
       legacyMemberId: null, sourceRequestId: "src-1",
@@ -165,27 +165,10 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
   });
 
   it("never exposes a phone for a past-term executive", async () => {
-    const past = "24-1"; // currentTerm() 픽스처와 다른 과거 학기
-    await mutate("members", (rows) => [
-      ...rows,
-      {
-        id: "m-past", name: "옛회장", department: "수리과학부", joinedAt: "2023-03-01",
-        status: "regular" as const, statusChangedAt: nowKstIso(), withdrawal: null,
-        isAlumni: false, alumniRevoked: false, roles: [{ term: past, title: "회장" }],
-        isAdmin: false, publicContact: null, project: null,
-        legacyMemberId: null, sourceRequestId: null,
-      },
-    ]);
-    await mutate("private-info", (rows) => [
-      ...rows,
-      {
-        id: "p-past", memberId: "m-past", email: "past@snu.ac.kr", phone: "010-9999-9999",
-        studentId: "", background: "", mailPrefs: { announcements: true }, hidePublicPhone: false, sourceRequestId: null,
-      },
-    ]);
+    // m1은 현재 학기 회장이자 23-1 부회장(실이력) — 과거 학기 섹션엔 연락처 없음.
     const board = await getPublicExecutives();
-    const pastTerm = board.find((t) => t.term === past);
-    expect(pastTerm?.holders.every((h) => h.contact === null)).toBe(true);
+    const past = board.find((t) => t.term === "23-1");
+    expect(past?.holders.every((h) => h.contact === null)).toBe(true);
   });
 
   it("publishes the calendar without attendee lists", async () => {
