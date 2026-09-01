@@ -35,15 +35,35 @@ export async function getPublicMembers() {
 }
 
 /**
- * PUB-01/05: executives derived from roles + the consented public contact (D4).
- * 공개 회장단은 회장·부회장 두 직책만, 회장 먼저 노출한다 (부장 등 다른 직책은
- * 관리자 화면에만). 한 학기에 같은 직책이 여럿이면 전원 표시.
+ * PUB-01/05: executives derived from roles. 공개 회장단은 회장·부회장 두 직책만,
+ * 회장 먼저 노출한다 (부장 등은 관리자 화면에만). 한 학기 같은 직책 복수면 전원.
+ *
+ * 연락처: **현재 학기 회장·부회장의 개인정보 전화번호를 자동 공개**한다 (운영자
+ * 결정, 2026-09-01). private-info는 원칙상 공개 로드에 나가지 않지만(§3), 현
+ * 회장단의 전화번호는 이 예외로 노출한다 — 대상은 현재 학기 회장/부회장, 필드는
+ * 전화번호로 한정. 과거 학기·다른 직책·다른 필드는 절대 노출하지 않는다.
  */
 const PUBLIC_EXECUTIVE_ORDER = ["회장", "부회장"] as const;
 
 export async function getPublicExecutives() {
   const term = currentTerm();
-  const members = await getMemberDirectory();
+  const [members, infos, legacyInfos] = await Promise.all([
+    getMemberDirectory(),
+    getTable("private-info"),
+    getTable("legacy-private-info"),
+  ]);
+  // memberId → phone (운영 우선, 없으면 legacy). 현 회장단 전화 조회 전용.
+  const phoneByMemberId = new Map<string, string>();
+  for (const i of legacyInfos) if (i.phone) phoneByMemberId.set(i.memberId, i.phone);
+  for (const i of infos) if (i.phone) phoneByMemberId.set(i.memberId, i.phone);
+
+  const contactFor = (m: (typeof members)[number]): string | null => {
+    const phone =
+      phoneByMemberId.get(m.id) ??
+      (m.legacyMemberId ? phoneByMemberId.get(m.legacyMemberId) : undefined);
+    return phone || null;
+  };
+
   const byTerm = new Map<string, { term: string; title: string; name: string; contact: string | null }[]>();
   for (const m of members) {
     for (const r of m.roles) {
@@ -53,8 +73,8 @@ export async function getPublicExecutives() {
         term: r.term,
         title: r.title,
         name: m.name,
-        // publicContact is the ONE sanctioned public contact field (§3).
-        contact: r.term === term ? m.publicContact : null,
+        // 현재 학기 회장/부회장만 전화 자동 공개 — 그 외는 null
+        contact: r.term === term ? contactFor(m) : null,
       });
       byTerm.set(r.term, list);
     }

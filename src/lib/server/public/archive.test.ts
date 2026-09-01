@@ -140,12 +140,12 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
     expect(projects.map((p) => p.project.title)).toEqual(["정수론 시각화"]);
   });
 
-  it("exposes the consented publicContact for the current term only", async () => {
+  it("auto-publishes the current-term executive's private-info phone as contact", async () => {
     const [latest] = await getPublicExecutives();
     expect(latest.holders[0]).toMatchObject({
       name: "김수학",
       title: "회장",
-      contact: "snumps0@gmail.com",
+      contact: "010-0000-0000", // 현재 학기 회장/부회장 전화 자동 공개
     });
   });
 
@@ -153,6 +153,30 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
     const [latest] = await getPublicExecutives();
     expect(latest.holders.map((h) => h.title)).not.toContain("기획부장");
     expect(latest.holders.every((h) => ["회장", "부회장"].includes(h.title))).toBe(true);
+  });
+
+  it("never exposes a phone for a past-term executive", async () => {
+    const past = "24-1"; // currentTerm() 픽스처와 다른 과거 학기
+    await mutate("members", (rows) => [
+      ...rows,
+      {
+        id: "m-past", name: "옛회장", department: "수리과학부", joinedAt: "2023-03-01",
+        status: "regular" as const, statusChangedAt: nowKstIso(), withdrawal: null,
+        isAlumni: false, alumniRevoked: false, roles: [{ term: past, title: "회장" }],
+        isAdmin: false, publicContact: null, project: null,
+        legacyMemberId: null, sourceRequestId: null,
+      },
+    ]);
+    await mutate("private-info", (rows) => [
+      ...rows,
+      {
+        id: "p-past", memberId: "m-past", email: "past@snu.ac.kr", phone: "010-9999-9999",
+        studentId: "", background: "", mailPrefs: { announcements: true }, sourceRequestId: null,
+      },
+    ]);
+    const board = await getPublicExecutives();
+    const pastTerm = board.find((t) => t.term === past);
+    expect(pastTerm?.holders.every((h) => h.contact === null)).toBe(true);
   });
 
   it("publishes the calendar without attendee lists", async () => {
