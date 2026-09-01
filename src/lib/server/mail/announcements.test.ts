@@ -27,7 +27,7 @@ async function seedInfo(email: string, announcements: boolean) {
     ...rows,
     {
       id: newId(), memberId: newId(), email, phone: "", studentId: "", background: "",
-      mailPrefs: { announcements }, sourceRequestId: null,
+      mailPrefs: { announcements }, hidePublicPhone: false, sourceRequestId: null,
     },
   ]);
 }

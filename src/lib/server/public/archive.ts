@@ -53,9 +53,13 @@ export async function getPublicExecutives() {
     getTable("legacy-private-info"),
   ]);
   // memberId → phone (운영 우선, 없으면 legacy). 현 회장단 전화 조회 전용.
+  // hidePublicPhone=true인 회원은 애초에 맵에 넣지 않는다 (거부 존중).
   const phoneByMemberId = new Map<string, string>();
-  for (const i of legacyInfos) if (i.phone) phoneByMemberId.set(i.memberId, i.phone);
-  for (const i of infos) if (i.phone) phoneByMemberId.set(i.memberId, i.phone);
+  for (const i of legacyInfos) if (i.phone && !i.hidePublicPhone) phoneByMemberId.set(i.memberId, i.phone);
+  for (const i of infos) {
+    if (i.hidePublicPhone) phoneByMemberId.delete(i.memberId); // 운영 행이 legacy를 덮는다
+    else if (i.phone) phoneByMemberId.set(i.memberId, i.phone);
+  }
 
   const contactFor = (m: (typeof members)[number]): string | null => {
     const phone =

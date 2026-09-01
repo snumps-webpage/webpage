@@ -14,6 +14,8 @@ export const PrivateInfoSchema = z.object({
   studentId: z.string().default(""),
   // Per-type mail preferences; one key today, more types add keys (not a migration).
   mailPrefs: z.object({ announcements: z.boolean() }),
+  // 현 회장/부회장일 때 전화번호 공개 거부 (기본: 공개). 마이페이지에서 토글.
+  hidePublicPhone: z.boolean().default(false),
   sourceRequestId: SourceRequestId,
 });
 

@@ -77,6 +77,7 @@ async function seedFixture() {
     {
       id: newId(), memberId: "m1", email: "secret@snu.ac.kr", phone: "010-0000-0000",
       studentId: "2020-00000", background: "비밀", mailPrefs: { announcements: true },
+      hidePublicPhone: false,
       sourceRequestId: null,
     },
   ]);
@@ -149,6 +150,14 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
     });
   });
 
+  it("suppresses the phone when the executive opted out (hidePublicPhone)", async () => {
+    await mutate("private-info", (rows) =>
+      rows.map((p) => (p.memberId === "m1" ? { ...p, hidePublicPhone: true } : p)),
+    );
+    const [latest] = await getPublicExecutives();
+    expect(latest.holders[0].contact).toBeNull();
+  });
+
   it("keeps only 회장/부회장 and drops other roles from the public roster", async () => {
     const [latest] = await getPublicExecutives();
     expect(latest.holders.map((h) => h.title)).not.toContain("기획부장");
@@ -171,7 +180,7 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
       ...rows,
       {
         id: "p-past", memberId: "m-past", email: "past@snu.ac.kr", phone: "010-9999-9999",
-        studentId: "", background: "", mailPrefs: { announcements: true }, sourceRequestId: null,
+        studentId: "", background: "", mailPrefs: { announcements: true }, hidePublicPhone: false, sourceRequestId: null,
       },
     ]);
     const board = await getPublicExecutives();

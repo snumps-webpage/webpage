@@ -158,6 +158,7 @@ const privateInfo = members.map((m, i) => ({
   studentId: `2024-1234${i + 1}`,
   background: `시드 데이터 — ${m.name} (${m.department})`,
   mailPrefs: { announcements: true },
+  hidePublicPhone: false,
   sourceRequestId: null,
 }));
 

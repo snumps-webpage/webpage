@@ -64,6 +64,40 @@
     </div>
   </section>
 
+  {#if data.isCurrentExecutive}
+    <section class="preference-card" aria-labelledby="phone-heading">
+      <div class="preference-copy">
+        <p class="section-index">02 · Public Contact</p>
+        <h1 id="phone-heading">회장단 전화 공개</h1>
+        <p>
+          현 회장·부회장의 전화번호는 역대 회장단 페이지와 사이트 하단에 자동 공개됩니다
+          ({data.phone || "번호 없음"}). 공개를 원치 않으면 아래에서 끌 수 있습니다.
+        </p>
+      </div>
+      <div class="preference-control">
+        <span class:enabled={!data.hidePublicPhone} class="status-mark">
+          {data.hidePublicPhone ? "비공개" : "공개 중"}
+        </span>
+        <form
+          method="POST"
+          action="?/setPhonePublic"
+          use:enhance={() => {
+            saving = true;
+            return async ({ update }) => {
+              await update();
+              saving = false;
+            };
+          }}
+        >
+          <input type="hidden" name="hide" value={data.hidePublicPhone ? "false" : "true"} />
+          <button class="paper-btn" disabled={saving}>
+            {saving ? "저장 중…" : data.hidePublicPhone ? "전화번호 공개하기" : "전화번호 공개 중지"}
+          </button>
+        </form>
+      </div>
+    </section>
+  {/if}
+
   <dl class="policy-grid">
     <div><dt>수신 주소</dt><dd>{data.email}</dd></div>
     <div><dt>적용 범위</dt><dd>전 회원 공지</dd></div>

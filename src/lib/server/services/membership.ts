@@ -165,6 +165,7 @@ export async function approveApplication(
       studentId: app.studentId,
       background: app.background,
       mailPrefs: { announcements: true },
+      hidePublicPhone: false,
       sourceRequestId: id,
     }));
   }
