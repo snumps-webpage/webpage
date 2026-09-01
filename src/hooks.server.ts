@@ -1,7 +1,7 @@
 import { env } from "$env/dynamic/private";
 import { building } from "$app/environment";
 import { sequence } from "@sveltejs/kit/hooks";
-import { error, redirect, type Handle } from "@sveltejs/kit";
+import { error, type Handle } from "@sveltejs/kit";
 import { handle as authHandle } from "./auth";
 import {
   buildDevPreviewSession,
@@ -19,6 +19,24 @@ import { capabilitiesFor } from "$lib/server/core/capabilities";
 if (!building && !env.AUTH_SECRET) {
   console.error("FATAL: AUTH_SECRET is not set. Authentication will fail.");
 }
+
+/**
+ * 캐시 실드 (2026-09-01 실사고 — 최외곽 핸들).
+ * prod 엣지가 쿠키·쿼리·cache-control과 무관하게 경로 단위로 SSR 응답을
+ * 재생하는 것이 실측됐다(무작위 쿼리에도 HIT, no-store 응답도 HIT) — 그 결과
+ * A에게 렌더된 개인화 페이지가 B에게 서빙되는 교차 유출이 발생했다.
+ * 모든 SSR 응답에 브라우저·CDN 캐시를 전면 금지한다. Vercel CDN은
+ * Vercel-CDN-Cache-Control을 최우선으로 존중한다. 정적 자산(/_app 등)은
+ * 훅을 거치지 않으므로 영향 없다. 공개 페이지 캐시 재도입은 유출 원인의
+ * 플랫폼 측 규명 이후에만 검토한다.
+ */
+const cacheShield: Handle = async ({ event, resolve }) => {
+  const response = await resolve(event);
+  response.headers.set("cache-control", "private, no-store");
+  response.headers.set("vercel-cdn-cache-control", "no-store");
+  response.headers.set("cdn-cache-control", "no-store");
+  return response;
+};
 
 const devPreviewHandle: Handle = async ({ event, resolve }) => {
   const devPreviewRole = resolveDevPreviewRole(event.url, event.cookies);
@@ -105,16 +123,19 @@ const zoneGuard: Handle = async ({ event, resolve }) => {
           throw error(403, "이번 학기 등록 회원만 할 수 있는 작업입니다.");
         }
       }
-      const response = await resolve(event);
-      // 세션 의존 응답은 절대 공유 캐시에 저장되면 안 된다. 기본 cache-control
-      // (public, max-age=0)에 Vary: Cookie가 없어 Vercel 엣지가 개인화된 HTML을
-      // 캐시해 다른 사용자에게 재생한 실사고가 있었다(/signup/edit에 타인 신청서
-      // 노출). 익명 공개 페이지(위 fast path)만 캐시 가능하게 남긴다.
-      response.headers.set("cache-control", "private, no-store");
-      return response;
+      return resolve(event); // 캐시 금지는 최외곽 cacheShield가 전 응답에 부착
     }
     case "redirect":
-      throw redirect(303, decision.location);
+      // throw 하면 실드 핸들을 우회한다 — 캐시 금지 헤더를 직접 부착해 반환.
+      return new Response(null, {
+        status: 303,
+        headers: {
+          location: decision.location,
+          "cache-control": "private, no-store",
+          "vercel-cdn-cache-control": "no-store",
+          "cdn-cache-control": "no-store",
+        },
+      });
     case "notFound":
       throw error(404, "Not Found");
     case "misconfigured":
@@ -123,4 +144,4 @@ const zoneGuard: Handle = async ({ event, resolve }) => {
   }
 };
 
-export const handle = sequence(authHandle, devPreviewHandle, zoneGuard);
+export const handle = sequence(cacheShield, authHandle, devPreviewHandle, zoneGuard);
