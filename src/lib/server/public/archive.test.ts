@@ -56,7 +56,7 @@ async function seedFixture() {
       id: "m1", name: "김수학", department: "수리과학부", joinedAt: "2024-03-01",
       status: "regular" as const, statusChangedAt: nowKstIso(), withdrawal: null,
       isAlumni: true, alumniRevoked: false,
-      roles: [{ term, title: "회장" }],
+      roles: [{ term, title: "기획부장" }, { term, title: "회장" }],
       isAdmin: true, publicContact: "snumps0@gmail.com",
       project: { title: "정수론 시각화", url: "https://example.com" },
       legacyMemberId: null, sourceRequestId: "src-1",
@@ -147,6 +147,12 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
       title: "회장",
       contact: "snumps0@gmail.com",
     });
+  });
+
+  it("keeps only 회장/부회장 and drops other roles from the public roster", async () => {
+    const [latest] = await getPublicExecutives();
+    expect(latest.holders.map((h) => h.title)).not.toContain("기획부장");
+    expect(latest.holders.every((h) => ["회장", "부회장"].includes(h.title))).toBe(true);
   });
 
   it("publishes the calendar without attendee lists", async () => {

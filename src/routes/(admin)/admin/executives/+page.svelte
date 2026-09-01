@@ -160,7 +160,7 @@
       <ul class="candidates">
         {#each candidates as c (c.id)}
           <li>
-            <span>{c.name} <small>{c.department}</small>{#if !c.registered}<small class="unreg">미등록</small>{/if}</span>
+            <span>{c.name} <small>{c.department}</small>{#if !c.registered}<small class="unreg">{term} 미등록</small>{/if}</span>
             <form method="POST" action="?/assign" use:enhance={submitAndRefresh(`${c.name} — ${selectedTitle} 배정`)}>
               <input type="hidden" name="memberId" value={c.id} />
               <input type="hidden" name="term" value={term} />

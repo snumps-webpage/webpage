@@ -34,13 +34,20 @@ export async function getPublicMembers() {
     .sort((a, b) => a.name.localeCompare(b.name, "ko"));
 }
 
-/** PUB-01/05: executives derived from roles + the consented public contact (D4). */
+/**
+ * PUB-01/05: executives derived from roles + the consented public contact (D4).
+ * 공개 회장단은 회장·부회장 두 직책만, 회장 먼저 노출한다 (부장 등 다른 직책은
+ * 관리자 화면에만). 한 학기에 같은 직책이 여럿이면 전원 표시.
+ */
+const PUBLIC_EXECUTIVE_ORDER = ["회장", "부회장"] as const;
+
 export async function getPublicExecutives() {
   const term = currentTerm();
   const members = await getMemberDirectory();
   const byTerm = new Map<string, { term: string; title: string; name: string; contact: string | null }[]>();
   for (const m of members) {
     for (const r of m.roles) {
+      if (!(PUBLIC_EXECUTIVE_ORDER as readonly string[]).includes(r.title)) continue;
       const list = byTerm.get(r.term) ?? [];
       list.push({
         term: r.term,
@@ -52,9 +59,13 @@ export async function getPublicExecutives() {
       byTerm.set(r.term, list);
     }
   }
+  const rank = (title: string) => PUBLIC_EXECUTIVE_ORDER.indexOf(title as "회장");
   return [...byTerm.entries()]
     .sort(([a], [b]) => b.localeCompare(a))
-    .map(([t, holders]) => ({ term: t, holders }));
+    .map(([t, holders]) => ({
+      term: t,
+      holders: holders.sort((x, y) => rank(x.title) - rank(y.title)),
+    }));
 }
 
 /** PUB-09: seminar archive grouped by term, files resolved to CDN URLs. */
