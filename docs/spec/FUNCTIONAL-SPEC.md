@@ -333,6 +333,12 @@ Notion 공개 사이트 22노드를 앱 라우트로 이전. 세션 미의존 �
 
 - **기존 세미나 `Presenters` 백필** — 후순위로 미룸
 - **회칙 콘텐츠 정비** — 현행본은 구버전. 차후 개정본으로 갱신 예정 (제8조 부재 이슈 포함)
+- **가입 대상 학기 설정** — 현재는 승인 시점의 `currentTerm()`으로 `registrations.term`이
+  고정된다(S9). 관리자가 "이번 가입은 어느 학기 등록으로 처리할지"를 명시 선택하는 기능
+  (예: 26-2 학기 말에 미리 27-1 등록으로 받기)은 **명시적 보류**. 구현 시 손볼 지점:
+  ① `approveApplication`의 `currentTerm()` 하드코딩 → 설정값 주입 ② 대상 학기 설정 UI
+  (관리자 대시보드) + 저장소 ③ `/signup` 안내 문구에 대상 학기 노출. 앵커:
+  `src/lib/server/services/membership.ts`의 `// DEFER(signup-target-term)` 주석.
 
 ### 확정된 사항
 

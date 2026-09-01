@@ -170,6 +170,9 @@ export async function approveApplication(
   }
 
   // S9: 이번 학기 등록 — 자격 행사 권한의 원천
+  // DEFER(signup-target-term): 대상 학기를 currentTerm()으로 고정한다. 관리자가
+  // 가입 대상 학기를 명시 선택하는 기능은 보류 (FUNCTIONAL-SPEC "보류" 절).
+  // 구현 시 이 currentTerm()을 설정값으로 대체.
   await ensureCreated("registrations", id, () => ({
     id: newId(),
     memberId,
