@@ -1,0 +1,5 @@
+# 기타 활동 자료
+
+- [자연대 Integration Bee](/archive/misc/integration-bee)
+- [문제 창작 활동](/archive/problems)
+- [채팅방 논의 모음](/archive/discussions)

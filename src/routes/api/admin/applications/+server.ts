@@ -1,18 +1,25 @@
 import { json } from "@sveltejs/kit";
-import { getApplications, isAdmin } from "$lib/server/admin";
+import { requireAdminAction } from "$lib/server/auth-guards";
+import { getTable } from "$lib/server/data/tables";
 import type { RequestHandler } from "./$types";
 
+/** Admin polling: pending membership applications (§8-3). */
 export const GET: RequestHandler = async ({ locals }) => {
-  const session = await locals.auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
-    return json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { allowed } = await requireAdminAction(locals);
+  if (!allowed) return json({ error: "FORBIDDEN" }, { status: 403 });
 
-  const apps = await getApplications();
-  const sortedApps = apps.sort(
-    (a, b) =>
-      new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime(),
+  const apps = await getTable("applications");
+  const { applicationView } = await import("$lib/server/data/views");
+  const { adminApplicationItem } = await import("$lib/server/data/admin-queue-views");
+  const { nowKstIso } = await import("$lib/server/core/time");
+  const sorted = [...apps].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
-
-  return json(sortedApps);
+  return json({
+    applications: sorted.map(applicationView),
+    // Shared queue envelope for the admin poller (client/api.ts).
+    success: true,
+    items: sorted.map(adminApplicationItem),
+    generatedAt: nowKstIso(),
+  });
 };

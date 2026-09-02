@@ -1,14 +1,17 @@
 <script lang="ts">
     import SeminarPosterDownloadPanel from './SeminarPosterDownloadPanel.svelte';
-    import type { SeminarSpeaker } from '$lib/types';
+    import PosterUploadField from './PosterUploadField.svelte';
+    import type { MemberPickerItem } from '$lib/domain/seminars';
 
-    let { 
-        seminarTitle = '', 
-        seminarDescription = '', 
-        seminarPrerequisites = '', 
-        selectedSpeakers = [] as SeminarSpeaker[],
-        actualName = ''
+    let {
+        seminarTitle = '',
+        seminarDescription = '',
+        seminarPrerequisites = '',
+        selectedSpeakers = [] as MemberPickerItem[]
     } = $props();
+
+    // 포스터 방식: 자동 생성 미리보기 vs 직접 업로드(PNG/JPEG)
+    let posterMode = $state<'auto' | 'upload'>('auto');
 
     let posterDateInput = $state('');
     let posterPlaceInput = $state('');
@@ -24,11 +27,22 @@
     let posterSpeaker = $derived(
         selectedSpeakers.length > 0
             ? `발표: ${selectedSpeakers[0].name}${selectedSpeakers.length > 1 ? ` 외 ${selectedSpeakers.length - 1}명` : ''}`
-            : `발표: ${actualName || '미정'}`
+            : '발표: 미정'
     );
 </script>
 
 <div class="poster-logic-container">
+    <div class="mode-toggle" role="radiogroup" aria-label="포스터 방식">
+        <button type="button" class="paper-btn small" class:active={posterMode === 'auto'} aria-pressed={posterMode === 'auto'} onclick={() => (posterMode = 'auto')}>자동 생성</button>
+        <button type="button" class="paper-btn small" class:active={posterMode === 'upload'} aria-pressed={posterMode === 'upload'} onclick={() => (posterMode = 'upload')}>직접 업로드 (PNG/JPEG)</button>
+    </div>
+
+    {#if posterMode === 'upload'}
+        <div class="poster-upload-wrap">
+            <PosterUploadField />
+            <p class="paper-hint">직접 올린 포스터는 승인 후 세미나에 사용됩니다. 자동 생성 포스터 대신 쓰입니다.</p>
+        </div>
+    {:else}
     <div class="label-row">
         <span class="paper-label">포스터 미리보기 도움말 (Poster Helper)</span>
         <button type="button" class="paper-btn small" onclick={() => posterHelperOpen = !posterHelperOpen}>
@@ -50,7 +64,7 @@
         </div>
     {/if}
 
-    <SeminarPosterDownloadPanel 
+    <SeminarPosterDownloadPanel
         title={posterTitle}
         speaker={posterSpeaker}
         abstract={posterAbstract}
@@ -58,9 +72,13 @@
         place={posterPlace}
         prerequisite={posterPrerequisite}
     />
+    {/if}
 </div>
 
 <style>
+    .mode-toggle { display: flex; gap: 0.4rem; }
+    .mode-toggle .active { background: var(--latex-text); color: var(--latex-bg); }
+    .poster-upload-wrap { display: grid; gap: 0.5rem; padding: 1rem; border: 1px solid var(--latex-rule); }
     .poster-logic-container {
         display: grid;
         gap: 0.85rem;

@@ -7,9 +7,9 @@ declare global {
   namespace App {
     interface Locals {
       auth: () => Promise<Session | null>;
-      /** Request-level cache for member info */
-      member?: { privateInfoId: string; memberId: string } | null;
-      /** Request-level cache for application info */
+      /** Resolved by the zone guard: undefined = not resolved, null = not a member */
+      member?: import("./lib/server/guards/zone").MemberContext | null;
+      /** Request-level cache for application info (legacy — removed at M3) */
       userApplication?: import("./lib/server/admin").Application | null;
     }
     interface PageData {

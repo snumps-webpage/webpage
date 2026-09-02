@@ -1,0 +1,16 @@
+import { z } from "zod";
+import { DateTime, Id, Semester } from "./common";
+import { RequestStatus } from "./seminar-request";
+
+export const StudyRequestSchema = z.object({
+  id: Id,
+  title: z.string().min(1), // 분야명
+  textbook: z.string(),
+  description: z.string(),
+  semester: Semester,
+  requesterId: Id, // becomes the organizer on approval
+  status: RequestStatus,
+  createdAt: DateTime,
+});
+
+export type StudyRequest = z.infer<typeof StudyRequestSchema>;

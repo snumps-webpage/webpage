@@ -1,45 +1,19 @@
 # Authentication & Authorization Variables
 
-This document describes the purpose and usage of key environment variables used for managing access and notifications within the SNUMPS Webpage system.
+## Authorization source
 
-## 1. ADMINS_EMAILS
+관리자 권한의 단일 원천은 AWS의 `members.isAdmin`이다. 이메일 allowlist 또는 환경변수로
+관리자 권한을 부여하지 않는다. 세션 이메일은 `private-info.email`로 회원을 찾는 데만 사용한다.
 
-**Description**: A comma-separated list of email addresses that have full administrative access to the application.
+## Environment variables
 
-### Key Uses:
+| 변수                                       | 용도                                                      |
+| ------------------------------------------ | --------------------------------------------------------- |
+| `AUTH_SECRET`                              | Auth.js 세션 서명                                         |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google OAuth와 Gmail token 갱신                           |
+| `ADMIN_REFRESH_TOKEN`                      | Gmail API 발송 계정 refresh token                         |
+| `ADMINS_EMAILS`                            | 신규 신청·출석 등 운영 알림 수신 주소. 관리자 권한과 무관 |
+| `CRON_SECRET`                              | `/api/cron/sync-events` Bearer 인증                       |
 
-- **Route Authorization**: Restricts access to all `/admin/*` routes. Any user not in this list attempting to access admin pages will receive a `404 Not Found` (by design for security through obscurity).
-- **Action Protection**: Server-side actions (like approving members, creating events, or managing seminars) verify the user's email against this list before execution.
-- **Admin Notifications**: Used by the mailing service (`src/lib/server/mail.ts`) to determine which accounts should receive automated alerts for:
-  - New membership applications.
-  - New seminar proposals.
-  - Pending attendance approval requests.
-
----
-
-## 2. AUTHORIZED_USERS
-
-**Description**: A variable found in the environment configuration (`.env`), typically containing a list of specific user emails.
-
-### Current Status:
-
-- **Not Currently Active**: As of the current version, this variable is present in the environment but is **not referenced** in the source code.
-
-### Intended / Potential Uses:
-
-While not currently implemented, this variable is reserved for the following potential features:
-
-- **Whitelist Access**: Restricting the entire application to a specific list of individuals, even if they possess a valid `@snu.ac.kr` email.
-- **Beta / Early Access**: Granting specific members access to new features or pages before a full rollout.
-- **Secondary Privilege Level**: Defining a set of "Staff" or "Moderator" users who have more permissions than standard members but fewer than full Admins.
-
----
-
-## Configuration Example
-
-In your `.env` file:
-
-```env
-ADMINS_EMAILS="admin1@snu.ac.kr,admin2@snu.ac.kr"
-AUTHORIZED_USERS="user1@snu.ac.kr,user2@snu.ac.kr"
-```
+`AUTHORIZED_USERS`와 기존 관리자 이메일 권한 목록은 사용하지 않는다. 새 권한은 관리자 회원
+상세 화면의 `setAdmin` 액션으로만 변경하고 감사 로그를 남긴다.

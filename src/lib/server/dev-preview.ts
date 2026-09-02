@@ -4,6 +4,8 @@ import type { Cookies } from "@sveltejs/kit";
 export const DEV_PREVIEW_COOKIE = "snumps_dev_preview";
 export const DEV_PREVIEW_MEMBER_EMAIL = "dev-member@snu.ac.kr";
 export const DEV_PREVIEW_ADMIN_EMAIL = "dev-admin@snu.ac.kr";
+export const DEV_PREVIEW_APPLICANT_EMAIL = "preview-applicant@snu.ac.kr";
+export const DEV_PREVIEW_APPLICANT_NAME = "홍길동 / 학부생 / 수리과학부";
 
 export type DevPreviewRole = "member" | "admin";
 

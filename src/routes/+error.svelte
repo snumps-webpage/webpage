@@ -63,10 +63,6 @@
 		box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
 	}
 
-	.dark .error-paper {
-		box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3);
-	}
-
 	.error-header {
 		margin-bottom: 2rem;
 	}

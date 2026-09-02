@@ -27,8 +27,7 @@ vite.config.ts.timestamp-*
 .oauth_client.json
 *-oauthclient.json
 
-# Lockfiles
-package-lock.json
+# Alternative package manager lockfile
 pnpm-lock.yaml
 
 # Tools & Local Scripts
@@ -53,3 +52,9 @@ analyze.ts
 *.backup*
 
 static/posters/exports
+
+# Migration script output (PII-laden Notion dumps and manifests — never commit)
+scripts/migration/out/
+
+# Supabase CLI local state
+supabase/.temp/
