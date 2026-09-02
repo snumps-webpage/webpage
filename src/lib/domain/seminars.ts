@@ -5,18 +5,36 @@ export const SEMINAR_KINDS = ["regular", "irregular"] as const;
 export type SeminarKind = (typeof SEMINAR_KINDS)[number];
 
 /**
- * 선호 세미나 시점 (대략적 텍스트 선택지 — 구체 날짜 아님). 신청 폼과 서버
- * 검증이 공유하는 단일 소스. 옵션 추가는 이 배열에만.
+ * 선호 세미나 시점 — 학기 중 활동 월을 초·중반·말로 쪼갠 텍스트 선택지 (날짜 아님).
+ * 방학(1·2월 겨울, 7·8월 여름)은 세미나를 진행하지 않으므로 제외한다.
+ *   - 1학기(YY-1) 활동월: 3·4·5·6월
+ *   - 2학기(YY-2) 활동월: 9·10·11·12월
+ * 폼은 현재 학기의 월만 노출하고(seminarTimingOptions), 서버 검증은 두 학기
+ * 전체 활동월을 닫힌 집합(SEMINAR_TIMING_OPTIONS)으로 받아 학기 경계에서도 안전.
  */
+const SPRING_MONTHS = [3, 4, 5, 6] as const;
+const FALL_MONTHS = [9, 10, 11, 12] as const;
+const TIMING_SEGMENTS = ["초", "중반", "말"] as const;
+const NEGOTIATE = "협의 후 결정";
+
+function monthsForTerm(term: string): readonly number[] {
+  return term.endsWith("-1") ? SPRING_MONTHS : FALL_MONTHS;
+}
+
+/** 현재 학기의 활동월 선택지 (폼 노출용). */
+export function seminarTimingOptions(term: string): string[] {
+  return [
+    ...monthsForTerm(term).flatMap((m) => TIMING_SEGMENTS.map((s) => `${m}월 ${s}`)),
+    NEGOTIATE,
+  ];
+}
+
+/** 두 학기 전체 활동월 — 서버 검증용 닫힌 집합 (학기 무관). */
 export const SEMINAR_TIMING_OPTIONS = [
-  "평일 오전",
-  "평일 오후",
-  "평일 저녁",
-  "주말 오전",
-  "주말 오후",
-  "주말 저녁",
-  "방학 중",
-  "협의 후 결정",
+  ...[...SPRING_MONTHS, ...FALL_MONTHS].flatMap((m) =>
+    TIMING_SEGMENTS.map((s) => `${m}월 ${s}`),
+  ),
+  NEGOTIATE,
 ] as const;
 
 export type SeminarRequestStatus =
@@ -77,7 +95,12 @@ export const seminarRequestInputSchema = z.object({
     .trim()
     .min(1, "예상 소요 시간을 입력해 주세요.")
     .max(80, "예상 소요 시간은 80자 이하로 입력해 주세요."),
-  preferredTiming: z.union([z.literal(""), z.enum(SEMINAR_TIMING_OPTIONS)]),
+  preferredTiming: z
+    .string()
+    .refine(
+      (v) => v === "" || (SEMINAR_TIMING_OPTIONS as readonly string[]).includes(v),
+      "선택지에 없는 시점입니다.",
+    ),
   attachmentUrl: z.union([z.literal(""), httpsUrl]),
   presenterIds: z
     .array(z.string().trim().min(1))

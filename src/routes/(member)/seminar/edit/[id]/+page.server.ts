@@ -9,6 +9,8 @@ import {
 import { AppError } from "$lib/server/core/errors";
 import { seminarRequestView } from "$lib/server/data/views";
 import { parseGoogleName } from "$lib/utils";
+import { currentTerm } from "$lib/server/core/semester";
+import { seminarTimingOptions } from "$lib/domain/seminars";
 import type { PageServerLoad, Actions } from "./$types";
 
 function parsePresenterIds(raw: string | null): string[] {
@@ -45,6 +47,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     actualName: locals.member?.name || parseGoogleName(session.user.name).name,
     members: searchableMembers,
     memberDirectoryUnavailable,
+    timingOptions: seminarTimingOptions(currentTerm()),
     request: {
       ...seminarRequestView(request),
       initialSpeakers,

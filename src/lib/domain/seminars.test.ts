@@ -12,7 +12,7 @@ describe("seminarRequestInputSchema", () => {
       description: "기본군과 피복공간을 소개합니다.",
       prerequisites: "점집합 위상수학",
       duration: "90분",
-      preferredTiming: "평일 저녁",
+      preferredTiming: "9월 중반",
       attachmentUrl: "https://drive.google.com/example",
       presenterIds: ["member-1"],
     });

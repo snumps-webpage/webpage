@@ -5,7 +5,6 @@
   import SpeakerSelector from "$lib/components/poster/SpeakerSelector.svelte";
   import Skeleton from "$lib/components/Skeleton.svelte";
   import SuccessScreen from "$lib/components/SuccessScreen.svelte";
-  import { SEMINAR_TIMING_OPTIONS } from "$lib/domain/seminars";
   import type {
     MemberPickerItem,
     SeminarFormIssues,
@@ -28,6 +27,8 @@
     memberDirectoryUnavailable?: boolean;
     initialValues?: Partial<SeminarRequestFormValues>;
     initialPresenters?: MemberPickerItem[];
+    /** 현재 학기 활동월 선택지 (서버 계산 — 방학 제외) */
+    timingOptions?: string[];
     form?: ActionState | null;
   }
 
@@ -37,6 +38,7 @@
     memberDirectoryUnavailable = false,
     initialValues = {},
     initialPresenters = [],
+    timingOptions = [],
     form = null,
   }: Props = $props();
 
@@ -309,7 +311,7 @@
           <label for="preferredTiming" class="paper-label">선호 세미나 시점</label>
           <select id="preferredTiming" name="preferredTiming" bind:value={preferredTiming}>
             <option value="">선택 안 함</option>
-            {#each SEMINAR_TIMING_OPTIONS as opt (opt)}
+            {#each timingOptions as opt (opt)}
               <option value={opt}>{opt}</option>
             {/each}
           </select>

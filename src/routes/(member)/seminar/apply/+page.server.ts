@@ -3,6 +3,8 @@ import { memberPickers } from "$lib/server/data/repos";
 import { submitSeminarRequest } from "$lib/server/services/seminar-requests";
 import { AppError } from "$lib/server/core/errors";
 import { parseGoogleName } from "$lib/utils";
+import { currentTerm } from "$lib/server/core/semester";
+import { seminarTimingOptions } from "$lib/domain/seminars";
 import type { PageServerLoad, Actions } from "./$types";
 
 function parsePresenterIds(raw: string | null): string[] {
@@ -28,6 +30,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     actualName: locals.member?.name || parseGoogleName(session.user.name).name,
     members: searchableMembers,
     memberDirectoryUnavailable,
+    timingOptions: seminarTimingOptions(currentTerm()),
   };
 };
 

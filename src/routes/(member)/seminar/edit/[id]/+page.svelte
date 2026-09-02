@@ -21,6 +21,7 @@
   <SeminarRequestForm
     mode="edit"
     members={data.members}
+    timingOptions={data.timingOptions}
     memberDirectoryUnavailable={data.memberDirectoryUnavailable}
     initialValues={{
       title: data.request.title,

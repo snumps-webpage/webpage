@@ -21,6 +21,7 @@
   <SeminarRequestForm
     mode="create"
     members={data.members}
+    timingOptions={data.timingOptions}
     memberDirectoryUnavailable={data.memberDirectoryUnavailable}
     {form}
   />
