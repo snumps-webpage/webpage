@@ -86,6 +86,14 @@
       {#if request.attachmentUrl}
         <a href={request.attachmentUrl} target="_blank" rel="noreferrer">외부 자료 열기 ↗</a>
       {/if}
+      {#if request.posterUrl}
+        <div class="poster-preview">
+          <strong>직접 업로드 포스터</strong>
+          <a href={request.posterUrl} target="_blank" rel="noreferrer">
+            <img src={request.posterUrl} alt="{request.title} 포스터" loading="lazy" />
+          </a>
+        </div>
+      {/if}
     </div>
   </details>
 
@@ -135,6 +143,8 @@
 </article>
 
 <style>
+  .poster-preview { display: grid; gap: 0.4rem; margin-top: 0.6rem; }
+  .poster-preview img { max-width: 220px; border: 1px solid var(--latex-rule); }
   .review-card {
     display: grid;
     gap: 0.85rem;

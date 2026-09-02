@@ -7,6 +7,7 @@ import type {
 import type { AdminMembershipApplicationItem } from "$lib/domain/admin-dashboard";
 import type { AdminSeminarRequestItem } from "$lib/domain/admin-seminars";
 import type { AdminStudyRequestItem } from "$lib/domain/studies";
+import { assetUrl } from "$lib/server/public/archive";
 
 /**
  * Admin queue projections shared by the dashboard load, the per-domain
@@ -73,6 +74,7 @@ export function adminSeminarRequestItem(
     prerequisites: r.prerequisites,
     duration: r.duration,
     attachmentUrl: r.attachment || null,
+    posterUrl: r.posterKey ? assetUrl(r.posterKey) : null,
     presenters: r.presenterIds.map(
       (id) => members.get(id) ?? { ...UNKNOWN_MEMBER, id },
     ),

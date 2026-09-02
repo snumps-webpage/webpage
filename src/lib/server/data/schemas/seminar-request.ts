@@ -12,6 +12,8 @@ export const SeminarRequestSchema = z.object({
   duration: z.string(),
   presenterIds: z.array(Id),
   attachment: z.string(), // external material link (upload path arrives with SYS-03)
+  // 직접 업로드한 포스터의 assets 키 (없으면 빈 문자열 — 자동 생성 포스터 사용)
+  posterKey: z.string().default(""),
   requesterId: Id,
   status: RequestStatus,
   createdAt: DateTime,

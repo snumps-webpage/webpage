@@ -27,6 +27,8 @@ export interface AdminSeminarRequestItem {
   prerequisites: string;
   duration: string;
   attachmentUrl: string | null;
+  /** 직접 업로드한 포스터 공개 URL (없으면 null — 자동 생성 포스터 사용) */
+  posterUrl: string | null;
   presenters: MemberPickerItem[];
   requester: SeminarRequesterSummary;
   createdAt: string;

@@ -280,6 +280,7 @@ const seminarRequests = [
     duration: "2시간",
     presenterIds: [regularId],
     attachment: "",
+    posterKey: "",
     requesterId: regularId,
     status: "pending",
     createdAt: nowISO,

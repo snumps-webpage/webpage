@@ -56,6 +56,7 @@ export const actions: Actions = {
         duration: (data.get("duration") as string) || "",
         presenterIds,
         attachment: (data.get("attachment") as string) || "",
+        posterPendingKey: (data.get("posterPendingKey") as string) || "",
         requesterId: member.memberId,
       });
 

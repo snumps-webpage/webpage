@@ -37,6 +37,7 @@ export interface QueueResponse<T> {
 export const UPLOAD_PURPOSES = [
   "seminar-material",
   "seminar-photo",
+  "seminar-poster",
   "study-photo",
   "gallery-photo",
 ] as const;

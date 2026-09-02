@@ -81,6 +81,7 @@ export const actions: Actions = {
           presenterIds,
           attachment: (data.get("attachment") as string) || "",
         },
+        (data.get("posterPendingKey") as string) || "",
       );
     });
   },

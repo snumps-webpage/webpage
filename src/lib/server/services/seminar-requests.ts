@@ -4,9 +4,23 @@ import { nowKstIso } from "$lib/server/core/time";
 import { currentTerm } from "$lib/server/core/semester";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { ensureCreated } from "$lib/server/data/idempotency";
+import { promotePendingUpload } from "$lib/server/services/uploads";
 import type { SeminarRequest } from "$lib/server/data/schemas";
 
 /** Seminar proposal lifecycle (API-SPEC §5-1, §5-2, §7-2). */
+
+/**
+ * 직접 업로드 포스터: staging의 pending 키를 assets로 승격해 최종 키를 반환.
+ * 빈 값이면 자동 생성 포스터를 쓰는 것이므로 그대로 빈 문자열.
+ */
+async function promotePosterIfAny(pendingKey: string): Promise<string> {
+  const key = pendingKey.trim();
+  if (!key) return "";
+  if (!key.startsWith("pending/seminar-poster/")) {
+    throw new AppError("VALIDATION_FAILED", { userMessage: "포스터 업로드 정보가 올바르지 않습니다." });
+  }
+  return promotePendingUpload(key, "seminar-poster", newId());
+}
 
 export async function submitSeminarRequest(input: {
   title: string;
@@ -15,11 +29,14 @@ export async function submitSeminarRequest(input: {
   duration: string;
   presenterIds: string[];
   attachment: string;
+  posterPendingKey?: string;
   requesterId: string;
 }): Promise<SeminarRequest> {
+  const { posterPendingKey = "", ...rest } = input;
   const row: SeminarRequest = {
     id: newId(),
-    ...input,
+    ...rest,
+    posterKey: await promotePosterIfAny(posterPendingKey),
     status: "pending",
     createdAt: nowKstIso(),
   };
@@ -36,7 +53,10 @@ export async function updateSeminarRequest(
       "title" | "description" | "prerequisites" | "duration" | "presenterIds" | "attachment"
     >
   >,
+  posterPendingKey = "",
 ): Promise<void> {
+  // 새 포스터를 올렸으면 승격해 교체 — mutate 밖에서(외부 I/O). 없으면 유지.
+  const promotedPoster = posterPendingKey ? await promotePosterIfAny(posterPendingKey) : null;
   await mutate("seminar-requests", (rows) => {
     const idx = rows.findIndex((r) => r.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
@@ -45,7 +65,7 @@ export async function updateSeminarRequest(
       throw new AppError("FORBIDDEN");
     }
     if (row.status !== "pending") throw new AppError("CONFLICT");
-    rows[idx] = { ...row, ...patch };
+    rows[idx] = { ...row, ...patch, ...(promotedPoster !== null ? { posterKey: promotedPoster } : {}) };
     return rows;
   });
 }

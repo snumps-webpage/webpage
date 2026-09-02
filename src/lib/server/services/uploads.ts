@@ -23,6 +23,8 @@ const IMG = ["image/jpeg", "image/png", "image/webp"];
 export const PURPOSES = {
   "seminar-material": { prefix: "seminars", types: ["application/pdf"], maxBytes: 50_000_000 },
   "seminar-photo": { prefix: "seminars", types: IMG, maxBytes: 10_000_000 },
+  // 직접 업로드 포스터 — PNG/JPEG만 (자동 생성 포스터의 대안)
+  "seminar-poster": { prefix: "seminars/posters", types: ["image/png", "image/jpeg"], maxBytes: 15_000_000 },
   "study-photo": { prefix: "studies", types: IMG, maxBytes: 10_000_000 },
   "gallery-photo": { prefix: "gallery", types: IMG, maxBytes: 10_000_000 },
 } as const;
