@@ -245,6 +245,7 @@ const seminars = [
     materials: [],
     photos: [],
     posterKey: "",
+    preferredTiming: "주말 오후",
     activityId: null,
     sourceRequestId: null,
   },

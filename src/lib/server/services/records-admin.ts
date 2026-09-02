@@ -85,6 +85,7 @@ export async function createSeminar(
     photos: [],
     // 신청 흐름과 동일한 단일 소스 헬퍼 — 포스터 처리가 루트마다 갈라지지 않는다
     posterKey: await promoteSeminarPoster(posterPendingKey),
+    preferredTiming: "",
     activityId: null,
     sourceRequestId: null,
   };

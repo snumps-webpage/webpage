@@ -44,6 +44,8 @@ export interface AdminSeminarRecord {
   description: string;
   prerequisites: string;
   durationMinutes: number;
+  /** 신청자 선호 세미나 시점 (빈 문자열이면 미선택) */
+  preferredTiming: string;
   presenterIds: string[];
   presenterNames: string[];
   scheduledAt: string | null;

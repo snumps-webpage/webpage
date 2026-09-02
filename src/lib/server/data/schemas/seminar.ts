@@ -13,6 +13,8 @@ export const SeminarSchema = z.object({
   // 세미나가 소유하는 포스터의 assets 키 (직접 업로드분). 빈 값이면 자동 생성
   // 포스터를 쓴다. 파일 바이트는 assets 버킷, 여기엔 참조 키만.
   posterKey: z.string().default(""),
+  // 신청자 선호 세미나 시점 (승인 시 신청서에서 이관 — 조율 참고 기록)
+  preferredTiming: z.string().default(""),
   activityId: Id.nullable(), // archive↔activity link, stamped at approval
   sourceRequestId: SourceRequestId,
 });

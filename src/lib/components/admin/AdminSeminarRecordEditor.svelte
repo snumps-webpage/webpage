@@ -262,6 +262,11 @@
                   max="600"
                   value={record.durationMinutes}
                 /></label
+              ><label
+                ><span class="paper-label">선호 시점 (신청자 제출)</span><input
+                  value={record.preferredTiming || "미선택"}
+                  readonly
+                /></label
               ><label class="wide"
                 ><span class="paper-label">설명</span><textarea
                   name="note"

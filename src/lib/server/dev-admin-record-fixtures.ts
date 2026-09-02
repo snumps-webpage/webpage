@@ -51,6 +51,7 @@ let seminars: AdminSeminarRecord[] = getDevPublicArchive().seminars.map(
   (record, index) => ({
     ...record,
     durationMinutes: record.durationMinutes ?? 60,
+    preferredTiming: "",
     sourceRequestId: null,
     kind: index === 1 ? "irregular" : "regular",
     presenterIds:
@@ -78,6 +79,7 @@ seminars = [
       "기본군의 계산과 피복공간의 분류 정리를 구체적인 예제와 함께 살펴봅니다.",
     prerequisites: "점집합 위상수학",
     durationMinutes: 90,
+    preferredTiming: "평일 저녁",
     presenterIds: ["member-president"],
     presenterNames: ["김회장"],
     scheduledAt: null,
@@ -96,6 +98,7 @@ seminars = [
     description: "산술적 함수의 예와 푸리에 해석을 연결합니다.",
     prerequisites: "복소해석학",
     durationMinutes: 75,
+    preferredTiming: "주말 오후",
     presenterIds: ["member-editor"],
     presenterNames: ["이편집"],
     scheduledAt: "2026-09-12T16:00:00+09:00",
@@ -320,6 +323,7 @@ export function createDevAdminSeminarRecord(input: {
     description: input.description,
     prerequisites: input.prerequisites,
     durationMinutes: input.durationMinutes,
+    preferredTiming: "",
     presenterIds: [...new Set(input.presenterIds)],
     presenterNames: [...input.presenterNames],
     scheduledAt: null,

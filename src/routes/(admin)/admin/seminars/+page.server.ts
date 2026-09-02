@@ -82,6 +82,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       description: s.note,
       prerequisites: request?.prerequisites ?? "",
       durationMinutes: Number.parseInt(request?.duration ?? "", 10) || 60,
+      preferredTiming: s.preferredTiming,
       presenterIds: s.presenterIds,
       presenterNames: s.presenterIds.map((id) => presenterOf(id).name),
       scheduledAt: event?.date.start ?? null,
