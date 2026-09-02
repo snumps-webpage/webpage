@@ -54,6 +54,7 @@ export const actions: Actions = {
         description,
         prerequisites: (data.get("prerequisites") as string) || "",
         duration: (data.get("duration") as string) || "",
+        preferredTiming: (data.get("preferredTiming") as string) || "",
         presenterIds,
         attachment: (data.get("attachment") as string) || "",
         posterPendingKey: (data.get("posterPendingKey") as string) || "",

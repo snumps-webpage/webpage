@@ -5,6 +5,7 @@
   import SpeakerSelector from "$lib/components/poster/SpeakerSelector.svelte";
   import Skeleton from "$lib/components/Skeleton.svelte";
   import SuccessScreen from "$lib/components/SuccessScreen.svelte";
+  import { SEMINAR_TIMING_OPTIONS } from "$lib/domain/seminars";
   import type {
     MemberPickerItem,
     SeminarFormIssues,
@@ -58,6 +59,7 @@
   let description = $state(startingValues.description ?? "");
   let prerequisites = $state(startingValues.prerequisites ?? "");
   let duration = $state(startingValues.duration ?? "");
+  let preferredTiming = $state(startingValues.preferredTiming ?? "");
   let attachmentUrl = $state(startingValues.attachmentUrl ?? "");
   let selectedPresenters = $state<MemberPickerItem[]>(startingPresenters);
   let showSearch = $state(false);
@@ -301,6 +303,17 @@
           {:else}
             <p class="paper-hint" id="duration-hint">날짜·시간·장소는 승인 후 운영진과 조율합니다.</p>
           {/if}
+        </div>
+
+        <div class="paper-field">
+          <label for="preferredTiming" class="paper-label">선호 세미나 시점</label>
+          <select id="preferredTiming" name="preferredTiming" bind:value={preferredTiming}>
+            <option value="">선택 안 함</option>
+            {#each SEMINAR_TIMING_OPTIONS as opt (opt)}
+              <option value={opt}>{opt}</option>
+            {/each}
+          </select>
+          <p class="paper-hint">대략적인 선호 시점입니다. 구체 일정은 승인 후 조율합니다.</p>
         </div>
 
         <div class="paper-field">

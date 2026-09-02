@@ -38,6 +38,7 @@ describe("dev admin seminar request queue", () => {
         description: "설명",
         prerequisites: "",
         duration: "60분",
+        preferredTiming: "협의 후 결정",
         attachmentUrl: "https://example.com/plan.pdf",
         presenterIds: [requester.id],
       },

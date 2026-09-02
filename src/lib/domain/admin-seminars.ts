@@ -26,6 +26,8 @@ export interface AdminSeminarRequestItem {
   description: string;
   prerequisites: string;
   duration: string;
+  /** 신청자 선호 세미나 시점 (빈 문자열이면 미선택) */
+  preferredTiming: string;
   attachmentUrl: string | null;
   /** 직접 업로드한 포스터 공개 URL (없으면 null — 자동 생성 포스터 사용) */
   posterUrl: string | null;

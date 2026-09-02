@@ -73,6 +73,7 @@ export function adminSeminarRequestItem(
     description: r.description,
     prerequisites: r.prerequisites,
     duration: r.duration,
+    preferredTiming: r.preferredTiming,
     attachmentUrl: r.attachment || null,
     posterUrl: r.posterKey ? assetUrl(r.posterKey) : null,
     presenters: r.presenterIds.map(

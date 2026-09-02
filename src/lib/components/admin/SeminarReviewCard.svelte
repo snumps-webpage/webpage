@@ -73,6 +73,10 @@
       <dd>{request.duration}</dd>
     </div>
     <div>
+      <dt>선호 시점</dt>
+      <dd>{request.preferredTiming || "미선택"}</dd>
+    </div>
+    <div>
       <dt>신청일</dt>
       <dd>{new Date(request.createdAt).toLocaleDateString("ko-KR")}</dd>
     </div>

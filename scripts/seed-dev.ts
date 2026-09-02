@@ -279,6 +279,7 @@ const seminarRequests = [
     description: "하스켈 맛보기 세미나 제안",
     prerequisites: "없음",
     duration: "2시간",
+    preferredTiming: "주말 오후",
     presenterIds: [regularId],
     attachment: "",
     posterKey: "",

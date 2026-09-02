@@ -4,6 +4,21 @@ export const SEMINAR_KINDS = ["regular", "irregular"] as const;
 
 export type SeminarKind = (typeof SEMINAR_KINDS)[number];
 
+/**
+ * 선호 세미나 시점 (대략적 텍스트 선택지 — 구체 날짜 아님). 신청 폼과 서버
+ * 검증이 공유하는 단일 소스. 옵션 추가는 이 배열에만.
+ */
+export const SEMINAR_TIMING_OPTIONS = [
+  "평일 오전",
+  "평일 오후",
+  "평일 저녁",
+  "주말 오전",
+  "주말 오후",
+  "주말 저녁",
+  "방학 중",
+  "협의 후 결정",
+] as const;
+
 export type SeminarRequestStatus =
   "pending" | "approved" | "rejected" | "withdrawn";
 
@@ -62,6 +77,7 @@ export const seminarRequestInputSchema = z.object({
     .trim()
     .min(1, "예상 소요 시간을 입력해 주세요.")
     .max(80, "예상 소요 시간은 80자 이하로 입력해 주세요."),
+  preferredTiming: z.union([z.literal(""), z.enum(SEMINAR_TIMING_OPTIONS)]),
   attachmentUrl: z.union([z.literal(""), httpsUrl]),
   presenterIds: z
     .array(z.string().trim().min(1))
@@ -76,6 +92,7 @@ export interface SeminarRequestFormValues {
   description: string;
   prerequisites: string;
   duration: string;
+  preferredTiming: string;
   attachmentUrl: string;
   presenterIds: string[];
 }
@@ -113,6 +130,7 @@ export function seminarRequestValuesFromFormData(
     description: value("description"),
     prerequisites: value("prerequisites"),
     duration: value("duration"),
+    preferredTiming: value("preferredTiming"),
     attachmentUrl: value("attachmentUrl"),
     presenterIds: parsePresenterIds(formData.get("presenterIds")),
   };

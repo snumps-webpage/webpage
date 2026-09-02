@@ -12,6 +12,7 @@ describe("seminarRequestInputSchema", () => {
       description: "기본군과 피복공간을 소개합니다.",
       prerequisites: "점집합 위상수학",
       duration: "90분",
+      preferredTiming: "평일 저녁",
       attachmentUrl: "https://drive.google.com/example",
       presenterIds: ["member-1"],
     });
@@ -26,6 +27,7 @@ describe("seminarRequestInputSchema", () => {
       description: "설명",
       prerequisites: "",
       duration: "60분",
+      preferredTiming: "",
       attachmentUrl: "http://example.com/notes.pdf",
       presenterIds: ["member-1"],
     });
@@ -43,6 +45,7 @@ describe("seminarRequestInputSchema", () => {
       description: "설명",
       prerequisites: "",
       duration: "60분",
+      preferredTiming: "",
       attachmentUrl: "not-a-url",
       presenterIds: ["member-1"],
     };

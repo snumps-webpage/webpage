@@ -181,7 +181,7 @@ describe("seminar approval chain (§7-2 approveSeminar)", () => {
       prerequisites: "",
       duration: "1h",
       presenterIds: ["m-presenter"],
-      attachment: "",
+      attachment: "", preferredTiming: "",
       requesterId: "m-presenter",
     });
 
