@@ -84,6 +84,22 @@ export async function stagedInfo(path: string): Promise<StagedObjectInfo | null>
 }
 
 /**
+ * 스테이징 객체의 앞부분 바이트 — 매직 바이트(파일 시그니처) 검증용.
+ * Content-Type은 브라우저가 서명 없이 보내므로 신뢰 불가 → 실제 바이트로 확인.
+ * Supabase JS는 range download가 없어 전체를 받아 앞부분만 취한다(포스터 ≤15MB).
+ */
+export async function readStagedHead(path: string, maxBytes: number): Promise<Uint8Array | null> {
+  if (isMemoryBackend()) return memory.readStagedHead(path, maxBytes);
+  const { data, error } = await getSupabase().storage.from(stagingBucket()).download(path);
+  if (error) {
+    if (isNotFound(error)) return null;
+    throw new Error(`readStagedHead(${path}) failed: ${error.message}`);
+  }
+  const buf = new Uint8Array(await data.arrayBuffer());
+  return buf.subarray(0, maxBytes);
+}
+
+/**
  * Cross-bucket move staging → assets. Supabase does not claim atomicity here
  * (spec §4-2); leftovers from a failed move are the cleanup job's problem.
  */

@@ -121,7 +121,7 @@ export const actions = {
         note: (data.get("note") as string) ?? "",
         presenterIds: parseIds(data.get("presenterIds") as string),
         externalPresenters: (data.get("externalPresenters") as string) ?? "",
-      });
+      }, (data.get("posterPendingKey") as string) || "");
       return { operation: "seminarRecordCreated" };
     });
   },
@@ -137,7 +137,7 @@ export const actions = {
           ? parseIds(data.get("presenterIds") as string)
           : undefined,
         externalPresenters: (data.get("externalPresenters") as string) ?? undefined,
-      });
+      }, (data.get("posterPendingKey") as string) || "");
       return { operation: "seminarRecordUpdated" };
     });
   },

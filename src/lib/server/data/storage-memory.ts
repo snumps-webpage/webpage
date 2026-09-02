@@ -4,7 +4,7 @@
  * Three virtual buckets keyed as `bucket/path`.
  */
 
-type StoredObject = { bytes: number; contentType: string; createdAt: string };
+type StoredObject = { bytes: number; contentType: string; createdAt: string; head?: Uint8Array };
 
 const objects = new Map<string, StoredObject>();
 const issuedUrls = new Set<string>();
@@ -109,8 +109,16 @@ export function __stage(
   size: number,
   contentType: string,
   createdAt = new Date().toISOString(),
+  head?: Uint8Array,
 ): void {
-  objects.set(keyOf(STAGING, path), { bytes: size, contentType, createdAt });
+  objects.set(keyOf(STAGING, path), { bytes: size, contentType, createdAt, head });
+}
+
+/** Head bytes of a staged object (magic-byte verification in tests). */
+export async function readStagedHead(path: string, _max: number): Promise<Uint8Array | null> {
+  const obj = objects.get(keyOf(STAGING, path));
+  if (!obj) return null;
+  return obj.head ?? new Uint8Array();
 }
 
 export function __exists(bucket: string, path: string): boolean {

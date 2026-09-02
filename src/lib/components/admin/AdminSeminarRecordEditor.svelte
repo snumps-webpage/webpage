@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { AdminSeminarRecord } from "$lib/domain/admin-records";
   import AdminDirectUploadForm from "$lib/components/admin/AdminDirectUploadForm.svelte";
+  import PosterUploadField from "$lib/components/poster/PosterUploadField.svelte";
 
   export interface SeminarRecordFormState {
     success?: boolean;
@@ -187,6 +188,10 @@
             >{createIssues.presenterIds}</small
           >{/if}
       </fieldset>
+      <div class="poster-field">
+        <span class="paper-label">포스터 (선택 · PNG/JPEG)</span>
+        <PosterUploadField label="포스터 파일 (선택 · 최대 15MB)" />
+      </div>
       <button class="paper-btn primary" type="submit">레코드 생성</button>
     </form>
   </details>

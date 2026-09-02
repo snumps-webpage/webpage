@@ -43,7 +43,7 @@ describe("promotion — the real enforcement point (review §8-2)", () => {
     const { s3Key } = await createPresignedUpload({
       purpose: "seminar-photo", filename: "p.png", contentType: "image/png", size: 500,
     });
-    __stage(s3Key, 500, "image/png");
+    __stage(s3Key, 500, "image/png", undefined, new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
 
     const finalKey = await promotePendingUpload(s3Key, "seminar-photo", "rec-1");
     expect(finalKey).toMatch(/^seminars\/rec-1\/[a-z0-9]{8}-.+\.png$/);
@@ -73,7 +73,7 @@ describe("promotion — the real enforcement point (review §8-2)", () => {
     const { s3Key } = await createPresignedUpload({
       purpose: "gallery-photo", filename: "p.png", contentType: "image/png", size: 500,
     });
-    __stage(s3Key, 11_000_000, "image/png"); // lied about the size
+    __stage(s3Key, 11_000_000, "image/png", undefined, new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])); // lied about the size
     await expect(promotePendingUpload(s3Key, "gallery-photo", "rec")).rejects.toSatisfy(
       (e) => e instanceof AppError && e.code === "VALIDATION_FAILED",
     );
@@ -85,6 +85,26 @@ describe("promotion — the real enforcement point (review §8-2)", () => {
     await expect(
       promotePendingUpload(second.s3Key, "gallery-photo", "rec"),
     ).rejects.toSatisfy((e) => e instanceof AppError && e.code === "VALIDATION_FAILED");
+  });
+
+  it("rejects a fake image: correct Content-Type but non-image bytes (magic-byte check)", async () => {
+    const { s3Key } = await createPresignedUpload({
+      purpose: "seminar-poster", filename: "evil.png", contentType: "image/png", size: 500,
+    });
+    // 확장자·Content-Type은 png인데 실제 바이트는 HTML ("<!DOCTYPE…")
+    __stage(s3Key, 500, "image/png", undefined, new Uint8Array([0x3c, 0x21, 0x44, 0x4f, 0x43]));
+    await expect(promotePendingUpload(s3Key, "seminar-poster", "rec")).rejects.toSatisfy(
+      (e) => e instanceof AppError && e.code === "VALIDATION_FAILED",
+    );
+  });
+
+  it("accepts a real JPEG by signature", async () => {
+    const { s3Key } = await createPresignedUpload({
+      purpose: "seminar-poster", filename: "real.jpg", contentType: "image/jpeg", size: 500,
+    });
+    __stage(s3Key, 500, "image/jpeg", undefined, new Uint8Array([0xff, 0xd8, 0xff, 0xe0]));
+    const finalKey = await promotePendingUpload(s3Key, "seminar-poster", "rec");
+    expect(__exists("assets", finalKey)).toBe(true);
   });
 });
 

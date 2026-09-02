@@ -1,6 +1,6 @@
 <script lang="ts">
     import SeminarPosterDownloadPanel from './SeminarPosterDownloadPanel.svelte';
-    import { uploadAdminFile } from '$lib/client/api';
+    import PosterUploadField from './PosterUploadField.svelte';
     import type { MemberPickerItem } from '$lib/domain/seminars';
 
     let {
@@ -12,40 +12,6 @@
 
     // 포스터 방식: 자동 생성 미리보기 vs 직접 업로드(PNG/JPEG)
     let posterMode = $state<'auto' | 'upload'>('auto');
-    let uploading = $state(false);
-    let uploadError = $state('');
-    let uploadedName = $state('');
-    // 폼과 함께 전송되는 승격 대상 staging 키 (서버가 승인 시 assets로 승격)
-    let posterPendingKey = $state('');
-
-    async function handlePosterFile(event: Event) {
-        const input = event.target as HTMLInputElement;
-        const file = input.files?.[0];
-        if (!file) return;
-        uploadError = '';
-        if (!['image/png', 'image/jpeg'].includes(file.type)) {
-            uploadError = 'PNG 또는 JPEG 파일만 올릴 수 있습니다.';
-            input.value = '';
-            return;
-        }
-        if (file.size > 15_000_000) {
-            uploadError = '포스터 파일은 15MB 이하여야 합니다.';
-            input.value = '';
-            return;
-        }
-        uploading = true;
-        try {
-            const result = await uploadAdminFile(file, 'seminar-poster', crypto.randomUUID());
-            posterPendingKey = result.s3Key;
-            uploadedName = file.name;
-        } catch (e) {
-            uploadError = '포스터 업로드에 실패했습니다. 잠시 후 다시 시도해 주세요.';
-            posterPendingKey = '';
-            uploadedName = '';
-        } finally {
-            uploading = false;
-        }
-    }
 
     let posterDateInput = $state('');
     let posterPlaceInput = $state('');
@@ -66,21 +32,14 @@
 </script>
 
 <div class="poster-logic-container">
-    <!-- 폼 제출에 함께 실리는 업로드 포스터 키 (자동 모드면 빈 값) -->
-    <input type="hidden" name="posterPendingKey" value={posterMode === 'upload' ? posterPendingKey : ''} />
-
     <div class="mode-toggle" role="radiogroup" aria-label="포스터 방식">
         <button type="button" class="paper-btn small" class:active={posterMode === 'auto'} aria-pressed={posterMode === 'auto'} onclick={() => (posterMode = 'auto')}>자동 생성</button>
         <button type="button" class="paper-btn small" class:active={posterMode === 'upload'} aria-pressed={posterMode === 'upload'} onclick={() => (posterMode = 'upload')}>직접 업로드 (PNG/JPEG)</button>
     </div>
 
     {#if posterMode === 'upload'}
-        <div class="poster-upload">
-            <label for="poster-file" class="paper-label">포스터 파일 (PNG · JPEG, 최대 15MB)</label>
-            <input id="poster-file" type="file" accept="image/png,image/jpeg" onchange={handlePosterFile} disabled={uploading} />
-            {#if uploading}<p class="paper-hint">업로드 중…</p>{/if}
-            {#if uploadedName}<p class="paper-hint">✓ 업로드됨: {uploadedName}</p>{/if}
-            {#if uploadError}<p class="upload-error">{uploadError}</p>{/if}
+        <div class="poster-upload-wrap">
+            <PosterUploadField />
             <p class="paper-hint">직접 올린 포스터는 승인 후 세미나에 사용됩니다. 자동 생성 포스터 대신 쓰입니다.</p>
         </div>
     {:else}
@@ -119,9 +78,7 @@
 <style>
     .mode-toggle { display: flex; gap: 0.4rem; }
     .mode-toggle .active { background: var(--latex-text); color: var(--latex-bg); }
-    .poster-upload { display: grid; gap: 0.5rem; padding: 1rem; border: 1px solid var(--latex-rule); }
-    .poster-upload input[type="file"] { font-size: 0.8rem; }
-    .upload-error { margin: 0; color: var(--color-danger-text, #b00); font-size: 0.78rem; }
+    .poster-upload-wrap { display: grid; gap: 0.5rem; padding: 1rem; border: 1px solid var(--latex-rule); }
     .poster-logic-container {
         display: grid;
         gap: 0.85rem;

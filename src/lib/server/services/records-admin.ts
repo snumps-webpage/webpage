@@ -4,6 +4,7 @@ import { nowKstIso } from "$lib/server/core/time";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { audit } from "$lib/server/data/audit";
 import { invalidateAttendanceCaches } from "$lib/server/attendance";
+import { promoteSeminarPoster } from "$lib/server/services/uploads";
 import type {
   Activity,
   GalleryDinner,
@@ -75,13 +76,15 @@ export async function setAttendees(id: string, attendeeIds: string[]): Promise<v
 
 export async function createSeminar(
   input: Pick<Seminar, "title" | "semester" | "note" | "presenterIds" | "externalPresenters">,
+  posterPendingKey = "",
 ): Promise<Seminar> {
   const row: Seminar = {
     id: newId(),
     ...input,
     materials: [],
     photos: [],
-    posterKey: "",
+    // 신청 흐름과 동일한 단일 소스 헬퍼 — 포스터 처리가 루트마다 갈라지지 않는다
+    posterKey: await promoteSeminarPoster(posterPendingKey),
     activityId: null,
     sourceRequestId: null,
   };
@@ -94,11 +97,17 @@ export async function updateSeminar(
   patch: Partial<
     Pick<Seminar, "title" | "semester" | "note" | "presenterIds" | "externalPresenters" | "activityId">
   >,
+  posterPendingKey = "",
 ): Promise<void> {
+  const promotedPoster = posterPendingKey ? await promoteSeminarPoster(posterPendingKey) : null;
   await mutate("seminars", (rows) => {
     const idx = rows.findIndex((s) => s.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
-    rows[idx] = { ...rows[idx], ...definedOnly(patch) };
+    rows[idx] = {
+      ...rows[idx],
+      ...definedOnly(patch),
+      ...(promotedPoster !== null ? { posterKey: promotedPoster } : {}),
+    };
     return rows;
   });
 }
