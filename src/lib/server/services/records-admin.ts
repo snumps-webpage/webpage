@@ -81,6 +81,7 @@ export async function createSeminar(
     ...input,
     materials: [],
     photos: [],
+    posterKey: "",
     activityId: null,
     sourceRequestId: null,
   };

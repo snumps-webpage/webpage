@@ -43,6 +43,11 @@
   <PublicDirectoryNav items={[...ARCHIVE_NAV]} label="활동 아카이브 탐색" />
 
   {#if seminar}
+    {#if seminar.posterUrl}
+      <a href={seminar.posterUrl} target="_blank" rel="noreferrer" class="poster-figure">
+        <img src={seminar.posterUrl} alt="{seminar.title} 포스터" loading="lazy" />
+      </a>
+    {/if}
     <dl class="metadata-grid">
       <div><dt>학기</dt><dd>{formatArchiveTerm(seminar.semester)}</dd></div>
       <div><dt>발표자</dt><dd>{presenterNames.join(", ")}</dd></div>
@@ -93,6 +98,8 @@
 </article>
 
 <style>
+  .poster-figure { display: block; margin: 0 0 1.4rem; }
+  .poster-figure img { display: block; width: 100%; max-width: 480px; margin: 0 auto; border: 1px solid var(--latex-rule); }
   .detail-paper { width: min(100%, 880px); }
   .metadata-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0 0 1.4rem; border-top: 2px solid var(--latex-rule); border-bottom: 2px solid var(--latex-rule); }
   .metadata-grid > div { display: grid; grid-template-columns: 6rem 1fr; padding: 0.62rem 0.7rem; border-bottom: 1px solid var(--latex-rule); }

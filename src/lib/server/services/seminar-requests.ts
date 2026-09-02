@@ -131,6 +131,8 @@ export async function approveSeminar(
     externalPresenters: "",
     materials: [],
     photos: [],
+    // 신청서의 포스터를 세미나가 소유하도록 이관 — 세미나=정보+포스터
+    posterKey: request.posterKey,
     activityId: activity.id,
     sourceRequestId: id,
   }));

@@ -18,6 +18,7 @@ const buildSeminar = (sourceRequestId: string): Seminar => ({
   externalPresenters: "",
   materials: [],
   photos: [],
+  posterKey: "",
   activityId: null,
   sourceRequestId,
 });

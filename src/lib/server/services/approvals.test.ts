@@ -201,6 +201,17 @@ describe("seminar approval chain (§7-2 approveSeminar)", () => {
     expect(requests[0].status).toBe("approved");
   });
 
+  it("carries the request's posterKey onto the approved seminar record", async () => {
+    const req = await submit();
+    // 승인 전 신청서에 포스터가 이미 붙어 있는 상황 (승격 완료 키)
+    await mutate("seminar-requests", (rows) =>
+      rows.map((r) => (r.id === req.id ? { ...r, posterKey: "seminars/posters/x/p.png" } : r)),
+    );
+    await approveSeminar(req.id);
+    const seminars = await getTable("seminars");
+    expect(seminars[0].posterKey).toBe("seminars/posters/x/p.png");
+  });
+
   it("re-run after the activity-only crash creates the missing event and record once", async () => {
     const req = await submit();
     // Simulate: only the activity landed before the crash.

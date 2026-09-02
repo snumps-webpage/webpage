@@ -122,6 +122,7 @@ export async function getPublicSeminar(id: string) {
     externalPresenters: s.externalPresenters,
     materials: s.materials.map(assetUrl),
     photos: s.photos.map(assetUrl),
+    posterUrl: s.posterKey ? assetUrl(s.posterKey) : null,
   };
 }
 

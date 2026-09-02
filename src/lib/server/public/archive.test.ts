@@ -85,7 +85,7 @@ async function seedFixture() {
     {
       id: "sem1", title: "위상수학", semester: "26-2", note: "비고",
       presenterIds: ["m1"], externalPresenters: "", materials: ["seminars/sem1/a.pdf"],
-      photos: ["seminars/sem1/p.png"], activityId: "act1", sourceRequestId: "req1",
+      photos: ["seminars/sem1/p.png"], posterKey: "", activityId: "act1", sourceRequestId: "req1",
     },
   ]);
   await mutate("studies", () => [

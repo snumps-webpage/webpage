@@ -244,6 +244,7 @@ const seminars = [
     externalPresenters: "",
     materials: [],
     photos: [],
+    posterKey: "",
     activityId: null,
     sourceRequestId: null,
   },
