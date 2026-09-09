@@ -10,7 +10,6 @@ export const GET: RequestHandler = async ({ locals }) => {
   if (!allowed) return json({ error: "FORBIDDEN" }, { status: 403 });
 
   const requests = await getTable("seminar-requests");
-  const { seminarRequestView } = await import("$lib/server/data/views");
   const { adminSeminarRequestItem, directorySummaryIndex } =
     await import("$lib/server/data/admin-queue-views");
   const { nowKstIso } = await import("$lib/server/core/time");
@@ -20,8 +19,8 @@ export const GET: RequestHandler = async ({ locals }) => {
   const summaries: MemberSummaryMap =
     pending.length > 0 ? await directorySummaryIndex() : new Map();
   return json({
-    seminarRequests: pending.map(seminarRequestView),
-    // Shared queue envelope for the admin poller (client/api.ts).
+    // The queue envelope — FRONTEND-DECISIONS §3-5 declares these three keys
+    // and no others; the client parses with that schema and strips the rest.
     success: true,
     items: pending.map((r) => adminSeminarRequestItem(r, summaries)),
     generatedAt: nowKstIso(),

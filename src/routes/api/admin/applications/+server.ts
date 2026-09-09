@@ -9,15 +9,15 @@ export const GET: RequestHandler = async ({ locals }) => {
   if (!allowed) return json({ error: "FORBIDDEN" }, { status: 403 });
 
   const apps = await getTable("applications");
-  const { applicationView } = await import("$lib/server/data/views");
-  const { adminApplicationItem } = await import("$lib/server/data/admin-queue-views");
+  const { adminApplicationItem } =
+    await import("$lib/server/data/admin-queue-views");
   const { nowKstIso } = await import("$lib/server/core/time");
   const sorted = [...apps].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
   return json({
-    applications: sorted.map(applicationView),
-    // Shared queue envelope for the admin poller (client/api.ts).
+    // The queue envelope — FRONTEND-DECISIONS §3-5 declares these three keys
+    // and no others; the client parses with that schema and strips the rest.
     success: true,
     items: sorted.map(adminApplicationItem),
     generatedAt: nowKstIso(),

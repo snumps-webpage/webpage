@@ -58,16 +58,16 @@
 | `QA-2`  | ❌   | 철회 — 전제가 거짓이었다                                                                   | ❌ 철회               | `api/admin/applications/+server`     |
 | `QA-3`  | 🟡   | 정적 의존을 동적으로 부른다 — 한 파일에 세 번                                              | 📌 이월               | `api/admin/applications/+server`     |
 | `QA-4`  | 🟡   | 헬퍼가 두 호출 맥락을 하나의 반환형에 섞었다                                               | 📌 이월               | `api/admin/applications/+server`     |
-| `QA-5`  | 🟠   | 응답의 절반이 아무도 읽지 않는 신청자 PII다                                                | P1-1                  | `api/admin/applications/+server`     |
+| `QA-5`  | 🟠   | 응답의 절반이 아무도 읽지 않는 신청자 PII다                                                | ✅ 제거됨             | `api/admin/applications/+server`     |
 | `QA-6`  | 🟡   | 403이 소비자에게서 사라진다                                                                | 📌 이월               | `api/admin/applications/+server`     |
 | `QS-1`  | 🟡   | `study-requests`와 이름만 다른 동일 파일                                                   | 📌 이월               | `api/admin/seminar-requests/+server` |
 | `QS-2`  | 🟡   | 동적 import — 이 파일 3회, 전이적으로 4회                                                  | 📌 이월               | `api/admin/seminar-requests/+server` |
 | `QS-3`  | 🟡   | 403 본문 수기 작성                                                                         | 📌 이월               | `api/admin/seminar-requests/+server` |
 | `QS-4`  | 🟡   | `directorySummaryIndex()`를 대기 건수와 무관하게 매번 부른다                               | ✅ 7f58fdf            | `api/admin/seminar-requests/+server` |
-| `QS-5`  | 🟠   | `seminarRequests:` (20행)는 죽은 페이로드다                                                | P1-1                  | `api/admin/seminar-requests/+server` |
+| `QS-5`  | 🟠   | `seminarRequests:` (20행)는 죽은 페이로드다                                                | ✅ 제거됨             | `api/admin/seminar-requests/+server` |
 | `QD-1`  | 🟡   | `seminar-requests`와 이름만 다른 동일 파일                                                 | 📌 이월               | `api/admin/study-requests/+server`   |
 | `QD-2`  | 🟡   | 동적 import 3회(심볼 4개) · 403 본문 수기 작성                                             | 📌 이월               | `api/admin/study-requests/+server`   |
-| `QD-3`  | 🟠   | `studyRequests:` (20행)는 죽은 페이로드다                                                  | P1-1                  | `api/admin/study-requests/+server`   |
+| `QD-3`  | 🟠   | `studyRequests:` (20행)는 죽은 페이로드다                                                  | ✅ 제거됨             | `api/admin/study-requests/+server`   |
 | `QD-4`  | 🟠   | 이 큐의 item 형태는 세미나 큐와 대칭이 아니다                                              | 📌 이월               | `api/admin/study-requests/+server`   |
 | `QD-5`  | 🟡   | `directorySummaryIndex()`가 이 큐에서는 목적과 무관하다                                    | ✅ 7f58fdf            | `api/admin/study-requests/+server`   |
 | `ZA-1`  | 🟠   | `isAdmin: true`는 리터럴이고, `isMember: true`는 **지금 거짓이다**                         | ✅ `isMember` 제거    | `(admin)/+layout.server`             |
@@ -137,13 +137,14 @@
 
 ### 이미지 서빙 (`REGISTER.md` K절)
 
-| ID          | 내용                                                                                                                                                                 | 상태                           |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| `K-1`       | 포스터가 최적화를 통과하지 않았다 (공개·관리자 2곳)                                                                                                                  | ✅ `0d6b2af`                   |
-| `K-2`       | `ASSETS_CDN_URL` 미설정 시 플레이스홀더 대신 깨진 이미지                                                                                                             | **P5**                         |
-| `ZR-1` 형제 | `/members`·`/about/executives`가 데이터 계층 장애 시 오류 페이지 — 각 로드가 try 없이 읽고 `dataAvailable: true` 리터럴을 반환한다. **배포 상태와 동일한 기존 결함** | **P2-3**                       |
-| 폴백 문구   | 5개 소비자의 else가 "데이터 이관 후 기록이 표시됩니다" — 이관을 말하지 장애를 말하지 않는다                                                                          | 📌                             |
-| 스펙 정합성 | 프리렌더(C-17)·크론 실패 응답·presign 가드·ISR 24곳에서 스펙이 코드를 못 따라갔다                                                                                    | ✅ `API-SPEC` v0.8 외 4개 문서 |
+| ID             | 내용                                                                                                                                                                 | 상태                           |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `K-1`          | 포스터가 최적화를 통과하지 않았다 (공개·관리자 2곳)                                                                                                                  | ✅ `0d6b2af`                   |
+| `K-2`          | `ASSETS_CDN_URL` 미설정 시 플레이스홀더 대신 깨진 이미지                                                                                                             | **P5**                         |
+| `ZR-1` 형제    | `/members`·`/about/executives`가 데이터 계층 장애 시 오류 페이지 — 각 로드가 try 없이 읽고 `dataAvailable: true` 리터럴을 반환한다. **배포 상태와 동일한 기존 결함** | **P2-3**                       |
+| 폴백 문구      | 5개 소비자의 else가 "데이터 이관 후 기록이 표시됩니다" — 이관을 말하지 장애를 말하지 않는다                                                                          | 📌                             |
+| 스펙 정합성    | 프리렌더(C-17)·크론 실패 응답·presign 가드·ISR 24곳에서 스펙이 코드를 못 따라갔다                                                                                    | ✅ `API-SPEC` v0.8 외 4개 문서 |
+| 정렬 계약 편차 | `FRONTEND-DECISIONS` §3-5가 세 큐 공통으로 "오래된 pending 우선" 정렬을 정하는데 `seminar-requests`·`study-requests`는 정렬하지 않는다 (SSR 로드도 동일)             | **P2-5**                       |
 
 ### 결정 대기
 

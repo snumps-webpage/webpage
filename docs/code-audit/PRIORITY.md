@@ -71,21 +71,23 @@ CI에 넣거나, `lint` 스크립트에서 빼서 스크립트와 CI를 일치�
 
 ## P1 — 노출 표면을 줄이는 삭제 (싸고 효과가 크다)
 
-### P1-1 죽은 큐 페이로드 키 3개 — **신청자 PII가 계속 전송된다** (`QA-5` `QS-5` `QD-3`)
+### P1-1 죽은 큐 페이로드 키 3개 ✅ 처리됨
 
-```
-api/admin/applications/+server.ts:19      applications:   sorted.map(applicationView)
-api/admin/seminar-requests/+server.ts:20  seminarRequests: pending.map(seminarRequestView)
-api/admin/study-requests/+server.ts:20    studyRequests:   pending.map(studyRequestView)
-```
+제거 전 **엄격 확인**을 거쳤다. 다섯 갈래 모두 같은 결론이었다.
 
-세 키 모두 `queueResponseEnvelopeSchema`(`domain/api.ts:26-30`)가 파싱 단계에서 버린다.
-소비자는 `.items`만 읽는다. `API-SPEC` §8-3은 **응답 형태를 정의하지 않으므로 계약도 아니다.**
+| 확인            | 결과                                                                                                                                                                  |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **계약**        | `FRONTEND-DECISIONS` §3-5가 봉투를 명시한다 — `{success, items, generatedAt}` **셋뿐**, "세 엔드포인트는 같은 봉투를 사용한다". 즉 죽었을 뿐 아니라 **계약 밖**이었다 |
+| **스키마 실측** | `queueResponseEnvelopeSchema.safeParse`를 실제로 실행해 확인 — 파싱은 성공하고 남는 키는 `['success','items','generatedAt']`, `applications`는 **벗겨진다**           |
+| **반환 경로**   | `fetchAdminQueue`가 `result.data`(파싱 결과)를 반환한다 — 호출자는 여분 키를 **볼 수 없다**                                                                           |
+| **소비자**      | 셋 다 `.items`만 읽는다 (`admin/+page.svelte:67-69` · `seminars:37` · `studies:30`)                                                                                   |
+| **다른 호출자** | 레포 전체에 없다. `scripts/`·`docs/`에도 이 경로를 호출하는 코드 없음                                                                                                 |
 
-`applications:`가 버리는 것은 **신청자 PII 전체** — `email` · `phone` · `studentId` ·
-`background`(`views.ts:41-52`). 30초 폴링 × 폴러 2개로 계속 직렬화되어 전송된다.
+`API-SPEC` §8-3은 응답 형태를 정의하지 않으므로 충돌도 없다.
 
-**한 줄씩 세 곳 삭제.** 가장 값싼 실질 개선이다.
+**view 함수는 남긴다** — `applicationView`는 `(applicant)/+layout.server.ts`가,
+`seminarRequestView`는 `(member)/seminar/edit/[id]`·`(public)/+page.server.ts`가,
+`studyRequestView`는 `(member)/study/apply`가 쓴다. 엔드포인트의 **키와 그 dynamic import만** 지웠다.
 
 ### P1-2 `(admin)/+layout.server.ts`의 `isMember` 리터럴 ✅ 처리됨
 
@@ -149,6 +151,15 @@ C-1(실험 라우트)을 확인 항목으로 되살렸던 것과 **같은 부류
 > **`SPEC-REVIEW.md`는 손대지 않았다** — 그때 무엇을 결정했는지의 기록이므로 역사다.
 > ISR 24곳도 함께 정리했다(같은 문장에 얽혀 있어 분리 불가).
 > 대조 결과: 코드의 `prerender` 0 · `isr` 0 · cacheShield `no-store` 7 — **스펙과 일치.**
+
+### P2-5 큐 정렬이 계약과 다르다
+
+`FRONTEND-DECISIONS` §3-5가 세 큐 공통으로 **"정렬: 오래된 pending 요청 우선"** 을 정한다.
+`applications`만 `createdAt` 오름차순으로 정렬하고 `seminar-requests`·`study-requests`는 **정렬하지 않는다**
+(각자의 SSR 로드도 동일하므로 폴링과 SSR 사이의 드리프트는 아니다).
+
+`QA-2`가 이 비대칭을 "데이터 모델 차이가 강제한 것"으로 판정하며 철회됐는데,
+**정렬 축은 그 판정의 대상이 아니었다** — 필터 축만 봤다. 계약이 명시적으로 요구하므로 편차가 맞다.
 
 ### P2-3 `/members`·`/about/executives`가 장애 시 오류 페이지를 낸다
 
