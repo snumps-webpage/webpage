@@ -115,6 +115,15 @@ api/admin/study-requests/+server.ts:20    studyRequests:   pending.map(studyRequ
 
 ---
 
+### P2-3 `/members`·`/about/executives`가 장애 시 오류 페이지를 낸다
+
+`ZR-1`의 형제다. 두 로드 모두 try/catch 없이 읽고 `dataAvailable: true`를 리터럴로 반환한다
+(`members/+page.server.ts:9` · `about/executives/+page.server.ts:7`).
+**배포 중인 상태와 동일하므로 회귀가 아니고 배포 차단 요소도 아니다.**
+아카이브 레이아웃(`070ac97`)과 같은 3줄 수정으로 닫힌다 — 소비자의 else 분기는 이미 있다.
+
+---
+
 ## P3 — 검증 끝난 단일 소스 통합
 
 두 건 모두 두 에이전트의 반증 시도를 통과했다. 나머지 A 항목은 통합 대상이 **아니다**(REGISTER A 참조).
