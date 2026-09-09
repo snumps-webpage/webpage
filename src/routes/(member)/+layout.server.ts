@@ -7,8 +7,12 @@ import type { LayoutServerLoad } from "./$types";
  * inside this zone.
  */
 export const load: LayoutServerLoad = async (event) => {
+  // `session` deliberately absent: the root layout already resolves it, and in
+  // this zone the guard guarantees a member, so the root's
+  // `member ? locals.auth() : null` is never the null branch here. Re-calling
+  // locals.auth() is a second JWT decode and cookie write per request for a
+  // value the parent already merged in.
   return {
-    session: await event.locals.auth(),
     isMember: true,
     isAdmin: event.locals.member?.isAdmin ?? false,
   };

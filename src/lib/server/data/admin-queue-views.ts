@@ -24,7 +24,7 @@ export function memberSummaryById(members: Member[]) {
   );
 }
 
-type MemberSummaryMap = ReturnType<typeof memberSummaryById>;
+export type MemberSummaryMap = ReturnType<typeof memberSummaryById>;
 
 /**
  * S9: 표시용 이름·학과 맵 — 이주된 요청(seminar-requests 등)의 requester/
@@ -35,7 +35,10 @@ export async function directorySummaryIndex(): Promise<MemberSummaryMap> {
   const { getDirectoryIndex } = await import("./directory");
   const index = await getDirectoryIndex();
   return new Map(
-    [...index].map(([id, m]) => [id, { id, name: m.name, department: m.department }]),
+    [...index].map(([id, m]) => [
+      id,
+      { id, name: m.name, department: m.department },
+    ]),
   );
 }
 
@@ -120,7 +123,9 @@ export function contentFileFromKey(key: string, kind: "pdf" | "image") {
     kind,
     url: null as string | null,
     contentType:
-      kind === "pdf" ? "application/pdf" : `image/${name.split(".").pop() ?? "jpeg"}`,
+      kind === "pdf"
+        ? "application/pdf"
+        : `image/${name.split(".").pop() ?? "jpeg"}`,
     size: 0,
   };
 }
