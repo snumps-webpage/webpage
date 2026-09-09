@@ -45,7 +45,14 @@
   {#if seminar}
     {#if seminar.posterUrl}
       <a href={seminar.posterUrl} target="_blank" rel="noreferrer" class="poster-figure">
-        <img src={seminar.posterUrl} alt="{seminar.title} 포스터" loading="lazy" />
+        <img
+          src={thumbUrl(seminar.posterUrl, 480)}
+          srcset={thumbSrcset(seminar.posterUrl)}
+          sizes="(max-width: 480px) 100vw, 480px"
+          alt="{seminar.title} 포스터"
+          loading="lazy"
+          decoding="async"
+        />
       </a>
     {/if}
     <dl class="metadata-grid">

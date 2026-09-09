@@ -4,6 +4,7 @@
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { AdminSeminarRequestItem } from "$lib/domain/admin-seminars";
   import type { SeminarKind } from "$lib/domain/seminars";
+  import { thumbUrl } from "$lib/image";
 
   interface Props {
     request: AdminSeminarRequestItem;
@@ -94,7 +95,13 @@
         <div class="poster-preview">
           <strong>직접 업로드 포스터</strong>
           <a href={request.posterUrl} target="_blank" rel="noreferrer">
-            <img src={request.posterUrl} alt="{request.title} 포스터" loading="lazy" />
+            <!-- 220px로 렌더된다 — 480이면 2× DPR까지 덮는다. srcset은 불필요. -->
+            <img
+              src={thumbUrl(request.posterUrl, 480)}
+              alt="{request.title} 포스터"
+              loading="lazy"
+              decoding="async"
+            />
           </a>
         </div>
       {/if}

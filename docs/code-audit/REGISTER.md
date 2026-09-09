@@ -211,6 +211,44 @@ SSR과 폴링을 실제로 묶고 있는 것은 둘 다 같은 `adminXItem`을 �
 | `HL-6` 🟡 | 200 본문 `{ok:true}`가 아무것도 증명하지 않는다 — 타임스탬프도 지연시간도 없다                                                                                                        |
 | `ZR-6` 🟠 | 공개 로드가 `seminar-requests` 운영 테이블을 읽는다. 파일 주석이 "no operational state"를 약속하는데 위반이다. **`snapshot.test.ts`가 `prerequisites`만 나온다는 것을 이제 단언한다** |
 
+## K. 이미지 서빙 — 확인 결과 ✅
+
+C-17(프리렌더 제거)이 사진 서빙에 영향을 주는지 점검하면서 함께 봤다.
+
+**인프라는 온전하다.** `svelte.config.js`의 adapter `images`(sizes 480/640/960/1280 · WebP ·
+`minimumCacheTTL` 30일 · 도메인 2개)가 빌드 산출물 `config.json`에 그대로 들어가고,
+`ASSETS_CDN_URL`(`ops-vercel-env-public.sh:13`)이 그 도메인 목록과 일치한다.
+
+**캐시 실드는 이미지에 닿지 않는다.** 빌드 라우팅 표에 `/_vercel/image` 항목이 **없다** —
+플랫폼이 `images` 설정으로 직접 처리하므로 `catchall.func`를, 따라서 `cacheShield`의
+`no-store`를 타지 않는다. `/_app/immutable/.+`도 `public, immutable, max-age=31536000` 유지.
+
+**C-17로 잃은 것 없음.** 프리렌더를 제거한 9페이지 중 사진을 쓰는 페이지가 없고,
+삭제한 `getPublicGallery()`는 `{kind,title,url}`만 반환하는 **더 가난한 투영**이었다 —
+컴포넌트는 이미 레이아웃의 `thumbnailUrl`+`displayUrl` 쪽을 읽고 있었다.
+
+### K-1 ✅ 포스터가 최적화를 통과하지 않았다 — 수정함
+
+| 위치                                             | 표시 폭            | 이전            | 이후                                                   |
+| ------------------------------------------------ | ------------------ | --------------- | ------------------------------------------------------ |
+| `(public)/archive/seminars/[id]/+page.svelte:48` | `max-width: 480px` | 원본(최대 15MB) | `thumbUrl(…, 480)` + srcset 480/640/960 + `sizes`      |
+| `components/admin/SeminarReviewCard.svelte:97`   | `max-width: 220px` | 원본            | `thumbUrl(…, 480)` — 2× DPR까지 덮으므로 srcset 불필요 |
+
+**같은 파일이 33줄 아래에서 활동 사진은 `thumbUrl(photo, 960)`+srcset으로 처리하고 있었다.**
+포스터만 빠져 있었다. `posterUrl`은 `assetUrl(posterKey)`라 CDN URL이고 그대로 태울 수 있다.
+
+**의도적으로 손대지 않은 것**: `components/poster/SeminarPoster.svelte`의 `logoSrc`
+(기본값 `/posters/favicon.svg`). 이 컴포넌트는 `html-to-image`의 `toPng`로 캔버스에 그려지므로
+(`SeminarPosterDownloadPanel.svelte:52`) 교차 출처 URL을 넣으면 캔버스가 오염돼 내보내기가 깨진다.
+나머지 미최적화 `<img>`는 전부 번들된 로컬 SVG(파비콘·인스타그램)라 대상이 아니다.
+
+### K-2 📌 `ASSETS_CDN_URL` 미설정 시 깨진 이미지가 렌더된다
+
+`assetUrl`이 `/assets-unavailable/<key>`를 반환하고, `thumbUrl`은 `startsWith("http")`
+검사에서 걸러 그 문자열을 그대로 돌려준다. 그런데 truthy라서 갤러리의
+`{#if item.thumbnailUrl && item.displayUrl}` 가드를 통과한다 →
+"IMAGE SOURCE PENDING" 플레이스홀더 대신 **깨진 이미지**가 나온다. 기존 결함이다.
+
 ## J. 기타 📌
 
 | 지적       | 요지                                                                                                                                            |
