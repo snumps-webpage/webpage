@@ -45,6 +45,9 @@ analyze.ts
 # Internal/Codex
 .codex/
 
+# Claude Code local state (nested worktrees confuse eslint/prettier)
+.claude/
+
 # Extra
 .extra/
 
