@@ -5,7 +5,10 @@ import type {
 import { thumbUrl } from "$lib/image";
 import { assetUrl } from "$lib/server/public/archive";
 import { getTable } from "$lib/server/data/tables";
-import { getDirectoryIndex, getMemberDirectory } from "$lib/server/data/directory";
+import {
+  getDirectoryIndex,
+  getMemberDirectory,
+} from "$lib/server/data/directory";
 import { termRange } from "$lib/server/core/semester";
 import type { LayoutServerLoad } from "./$types";
 
@@ -21,11 +24,15 @@ const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif"]);
 
 function fileReference(s3Key: string): PublicFileReference {
   const name = decodeURIComponent(s3Key.split("/").pop() ?? s3Key);
-  const extension = name.includes(".") ? (name.split(".").pop() ?? "").toLowerCase() : "";
+  const extension = name.includes(".")
+    ? (name.split(".").pop() ?? "").toLowerCase()
+    : "";
   const kind =
-    extension === "pdf" ? ("pdf" as const)
-    : IMAGE_EXTENSIONS.has(extension) ? ("image" as const)
-    : ("link" as const);
+    extension === "pdf"
+      ? ("pdf" as const)
+      : IMAGE_EXTENSIONS.has(extension)
+        ? ("image" as const)
+        : ("link" as const);
   return { id: s3Key, name, url: assetUrl(s3Key), kind };
 }
 
@@ -45,11 +52,26 @@ function termStartDate(term: string): string {
   }
 }
 
+/** `dataAvailable: false`가 실려 나갈 때의 페이로드 — 소비자의 else 분기가 이걸 받는다. */
+const EMPTY_ARCHIVE: PublicArchiveSnapshot = {
+  seminars: [],
+  studies: [],
+  activities: [],
+  gallery: [],
+  projects: [],
+};
+
 export const load: LayoutServerLoad = async () => {
   // S9: 아카이브는 과거 기록의 legacy id를 이름으로 풀어야 한다 — 이름
   // 해석은 디렉터리 인덱스, 명단(프로젝트)은 병합 디렉터리를 쓴다.
-  const [seminars, studies, dinners, activities, members, directoryIndex, seminarRequests] =
-    await Promise.all([
+  //
+  // 읽기 실패를 여기서 잡는 이유: 이 레이아웃 아래에는 스냅샷을 화면에 쓰지 않는
+  // 공지 페이지들(/archive/problems 등)이 있다. 던지면 그 페이지들까지 500이 된다.
+  // `dataAvailable`은 원래 이 실패를 표현하려고 있던 필드인데 생산자가 없어
+  // 소비자 다섯 곳의 else 분기가 죽은 코드였다 (ZR-1).
+  let tables;
+  try {
+    tables = await Promise.all([
       getTable("seminars"),
       getTable("studies"),
       getTable("gallery-dinner"),
@@ -58,6 +80,23 @@ export const load: LayoutServerLoad = async () => {
       getDirectoryIndex(),
       getTable("seminar-requests"),
     ]);
+  } catch (e) {
+    console.error("[archive] snapshot unavailable:", e);
+    return {
+      archive: EMPTY_ARCHIVE,
+      dataAvailable: false,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+  const [
+    seminars,
+    studies,
+    dinners,
+    activities,
+    members,
+    directoryIndex,
+    seminarRequests,
+  ] = tables;
 
   const nameOf = new Map([...directoryIndex].map(([id, m]) => [id, m.name]));
   const activityStart = new Map(activities.map((a) => [a.id, a.date.start]));
@@ -67,7 +106,9 @@ export const load: LayoutServerLoad = async () => {
     seminars: [...seminars]
       .sort((a, b) => b.semester.localeCompare(a.semester))
       .map((s) => {
-        const request = s.sourceRequestId ? requestOf.get(s.sourceRequestId) : undefined;
+        const request = s.sourceRequestId
+          ? requestOf.get(s.sourceRequestId)
+          : undefined;
         return {
           id: s.id,
           title: s.title,
@@ -79,7 +120,8 @@ export const load: LayoutServerLoad = async () => {
             ...s.presenterIds.map((id) => nameOf.get(id) ?? "Unknown"),
             ...(s.externalPresenters ? [s.externalPresenters] : []),
           ],
-          scheduledAt: (s.activityId && activityStart.get(s.activityId)) || null,
+          scheduledAt:
+            (s.activityId && activityStart.get(s.activityId)) || null,
           location: null,
           files: s.materials.map(fileReference),
         };
@@ -97,7 +139,12 @@ export const load: LayoutServerLoad = async () => {
       })),
     activities: [...activities]
       .sort((a, b) => b.date.start.localeCompare(a.date.start))
-      .map((a) => ({ id: a.id, title: a.title, type: a.type, date: a.date.start })),
+      .map((a) => ({
+        id: a.id,
+        title: a.title,
+        type: a.type,
+        date: a.date.start,
+      })),
     gallery: [
       ...seminars.flatMap((s) =>
         s.photos.map((key, index) => ({
