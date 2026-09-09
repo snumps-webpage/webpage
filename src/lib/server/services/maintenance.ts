@@ -61,15 +61,23 @@ export async function cleanupStaging(now: Date = new Date()): Promise<number> {
 let warnedMissingBackupEnv = false;
 
 /** B2 (spec §7): push the dump to a private GitHub repo via the contents API. */
-async function pushDumpToGitHub(path: string, body: string): Promise<boolean> {
+type PushOutcome = "pushed" | "skipped" | "failed";
+
+async function pushDumpToGitHub(
+  path: string,
+  body: string,
+): Promise<PushOutcome> {
   const repo = env.GITHUB_BACKUP_REPO;
   const token = env.GITHUB_BACKUP_TOKEN;
   if (!repo || !token) {
     if (!warnedMissingBackupEnv) {
       warnedMissingBackupEnv = true;
-      console.warn("[maintenance] GITHUB_BACKUP_REPO/TOKEN not set — skipping B2 push");
+      console.warn(
+        "[maintenance] GITHUB_BACKUP_REPO/TOKEN not set — skipping B2 push",
+      );
     }
-    return false;
+    // Not configured is not a failure — but it must not read as success either.
+    return "skipped";
   }
   const url = `https://api.github.com/repos/${repo}/contents/${path}`;
   const headers = {
@@ -94,12 +102,12 @@ async function pushDumpToGitHub(path: string, body: string): Promise<boolean> {
     });
     if (!res.ok) {
       console.error(`[maintenance] B2 GitHub push failed: HTTP ${res.status}`);
-      return false;
+      return "failed";
     }
-    return true;
+    return "pushed";
   } catch (e) {
     console.error("[maintenance] B2 GitHub push failed:", e);
-    return false;
+    return "failed";
   }
 }
 
@@ -148,10 +156,17 @@ export async function runWeeklyBackup(
   const path = `${DUMPS_PREFIX}/${now.toISOString().slice(0, 10)}.json`;
 
   await uploadToBackups(path, body); // B1
-  const pushed = await pushDumpToGitHub(path, body); // B2 — never throws
+  const push = await pushDumpToGitHub(path, body); // B2 — never throws
   await pruneOldDumps(now); // 8-week rotation — never throws
 
-  return { dumped, pushed };
+  // The off-platform copy is the only recovery path once a paused project
+  // expires (spec §7), so a failed push has to reach the failure census — it
+  // used to return `pushed: false`, which is also the not-configured value.
+  return {
+    dumped,
+    pushed: push === "pushed",
+    ...(push === "failed" ? { backup_push_failed: 1 } : {}),
+  };
 }
 
 /**

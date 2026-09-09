@@ -52,3 +52,17 @@ describe("cronFailures", () => {
     ).toEqual([]);
   });
 });
+
+describe("cronFailures — signals that used to slip through", () => {
+  it("catches a failed off-platform backup push", () => {
+    // `pushed: false` is ALSO the not-configured value, so the push failure has
+    // to arrive under its own key or the weekly backup fails behind a green check.
+    expect(
+      cronFailures({ dumped: 1, pushed: false, backup_push_failed: 1 }),
+    ).toEqual(["backup_push_failed"]);
+  });
+
+  it("does not treat an unconfigured push as a failure", () => {
+    expect(cronFailures({ dumped: 1, pushed: false })).toEqual([]);
+  });
+});

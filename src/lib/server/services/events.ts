@@ -50,12 +50,19 @@ export function presentsEvent(event: Event, memberId: string): boolean {
   return isSeminarType(event.type) && event.presenterIds.includes(memberId);
 }
 
-/** PRES-03: does this member present anything that is still live? */
+/**
+ * PRES-03: does this member present anything at all?
+ *
+ * The invariant is that the nav link is visible exactly when
+ * `getManagedSeminars` has rows, so both use `presentsEvent` and nothing else.
+ * Do NOT add a status filter here: attendance is recorded AFTER the seminar —
+ * `savePresenterAttendance` has no status gate on purpose — so filtering to
+ * `active` would remove the link at midnight on the very night the presenter
+ * needs it, while the page it points at still lists the seminar.
+ */
 export async function hasPresenterEvents(memberId: string): Promise<boolean> {
   const events = await getTable("events");
-  return events.some(
-    (e) => presentsEvent(e, memberId) && effectiveStatus(e) === "active",
-  );
+  return events.some((e) => presentsEvent(e, memberId));
 }
 
 export async function getEventByPath(
