@@ -29,75 +29,75 @@
 
 `상태` 열: ✅ 뒤는 근거 커밋 · `P*`는 [PRIORITY.md](./PRIORITY.md)의 항목 · 📌는 계층 감사 이월.
 
-| ID      | 등급 | 내용                                                                                       | 상태               | 대상                                 |
-| ------- | ---- | ------------------------------------------------------------------------------------------ | ------------------ | ------------------------------------ |
-| `UP-1`  | 🔴   | 회원의 포스터 업로드가 프로덕션에서 항상 403이다                                           | ✅ 54ebf92         | `api/uploads/presign/+server`        |
-| `UP-2`  | 🟡   | 인가 분기 입력이 요청 본문이다 — 구조 문제이지 취약점은 아니다                             | 📌 이월            | `api/uploads/presign/+server`        |
-| `UP-3`  | 🟡   | 요청 스키마가 이미 있는데 실제 전송 형태와 어긋나 있다                                     | 📌 이월            | `api/uploads/presign/+server`        |
-| `UP-4`  | 🟡   | sanctioned accessor를 우회한다                                                             | 📌 이월            | `api/uploads/presign/+server`        |
-| `UP-5`  | 🟡   | 회원 경로에 인증이 없다                                                                    | 📌 이월            | `api/uploads/presign/+server`        |
-| `UP-6`  | 🟡   | 업로드 제약이 서버·클라이언트 두 곳에 하드코딩돼 있다                                      | P3-2               | `api/uploads/presign/+server`        |
-| `CS-1`  | 🟠   | Bearer 검사 블록이 세 엔드포인트에 그대로 복제돼 있다                                      | P3-1               | `api/cron/sync-events/+server`       |
-| `CS-2`  | 🟡   | 시크릿 비교가 상수 시간이 아니다                                                           | P3-1               | `api/cron/sync-events/+server`       |
-| `CS-3`  | 🟠   | 모듈 최상위 등록이 테스트와 프로덕션의 스텝 목록을 갈라놓았다                              | 📌 이월            | `api/cron/sync-events/+server`       |
-| `CS-4`  | 🟡   | 501을 401보다 먼저 반환해 설정 상태를 노출한다                                             | 📌 이월            | `api/cron/sync-events/+server`       |
-| `CS-5`  | 🔴   | 크론이 전부 실패해도 `success: true`를 반환하고 dead-man's switch를 누른다                 | ✅ d9f7bb6         | `api/cron/sync-events/+server`       |
-| `CS-6`  | 🟡   | 스텝 결과 키가 한 평면에서 충돌한다                                                        | P5                 | `api/cron/sync-events/+server`       |
-| `CM-1`  | 🟠   | `sync-events`의 인증 블록 복제본                                                           | P3-1               | `api/cron/maintenance/+server`       |
-| `CM-2`  | 🟡   | 시크릿 비교가 상수 시간이 아니다                                                           | P3-1               | `api/cron/maintenance/+server`       |
-| `CM-3`  | 🟡   | GET이 파괴적·비멱등 부수효과를 낸다                                                        | 📌 이월            | `api/cron/maintenance/+server`       |
-| `CM-4`  | 🔴   | 세 작업이 전부 실패해도 `success: true`를 반환하고 dead-man's switch를 누른다              | ✅ d9f7bb6 030408f | `api/cron/maintenance/+server`       |
-| `CM-5`  | 🟡   | 외부 스케줄러에 주는 응답의 모양이 고정돼 있지 않다                                        | 📌 이월            | `api/cron/maintenance/+server`       |
-| `HL-1`  | 🟠   | 인증 블록 복제본 (셋 중 셋째)                                                              | P3-1               | `api/health/+server`                 |
-| `HL-2`  | 🟡   | 주석이 이 엔드포인트를 실제보다 넓게 부른다                                                | 📌 이월            | `api/health/+server`                 |
-| `HL-3`  | 🟡   | `ok:false` 500이 원인을 구분하지 않는다                                                    | 📌 이월            | `api/health/+server`                 |
-| `HL-4`  | 🟡   | keep-alive가 두 잡에 중복돼 있다                                                           | 📌 이월            | `api/health/+server`                 |
-| `HL-5`  | 🟡   | `keepAliveSelect()`의 반환값이 죽은 신호다                                                 | 📌 이월            | `api/health/+server`                 |
-| `HL-6`  | 🟡   | 200 본문이 아무것도 증명하지 않는다                                                        | 📌 이월            | `api/health/+server`                 |
-| `QA-1`  | 🟡   | 세 엔드포인트가 같은 골격의 복사본이다                                                     | 📌 이월            | `api/admin/applications/+server`     |
-| `QA-2`  | ❌   | 철회 — 전제가 거짓이었다                                                                   | ❌ 철회            | `api/admin/applications/+server`     |
-| `QA-3`  | 🟡   | 정적 의존을 동적으로 부른다 — 한 파일에 세 번                                              | 📌 이월            | `api/admin/applications/+server`     |
-| `QA-4`  | 🟡   | 헬퍼가 두 호출 맥락을 하나의 반환형에 섞었다                                               | 📌 이월            | `api/admin/applications/+server`     |
-| `QA-5`  | 🟠   | 응답의 절반이 아무도 읽지 않는 신청자 PII다                                                | P1-1               | `api/admin/applications/+server`     |
-| `QA-6`  | 🟡   | 403이 소비자에게서 사라진다                                                                | 📌 이월            | `api/admin/applications/+server`     |
-| `QS-1`  | 🟡   | `study-requests`와 이름만 다른 동일 파일                                                   | 📌 이월            | `api/admin/seminar-requests/+server` |
-| `QS-2`  | 🟡   | 동적 import — 이 파일 3회, 전이적으로 4회                                                  | 📌 이월            | `api/admin/seminar-requests/+server` |
-| `QS-3`  | 🟡   | 403 본문 수기 작성                                                                         | 📌 이월            | `api/admin/seminar-requests/+server` |
-| `QS-4`  | 🟡   | `directorySummaryIndex()`를 대기 건수와 무관하게 매번 부른다                               | ✅ 7f58fdf         | `api/admin/seminar-requests/+server` |
-| `QS-5`  | 🟠   | `seminarRequests:` (20행)는 죽은 페이로드다                                                | P1-1               | `api/admin/seminar-requests/+server` |
-| `QD-1`  | 🟡   | `seminar-requests`와 이름만 다른 동일 파일                                                 | 📌 이월            | `api/admin/study-requests/+server`   |
-| `QD-2`  | 🟡   | 동적 import 3회(심볼 4개) · 403 본문 수기 작성                                             | 📌 이월            | `api/admin/study-requests/+server`   |
-| `QD-3`  | 🟠   | `studyRequests:` (20행)는 죽은 페이로드다                                                  | P1-1               | `api/admin/study-requests/+server`   |
-| `QD-4`  | 🟠   | 이 큐의 item 형태는 세미나 큐와 대칭이 아니다                                              | 📌 이월            | `api/admin/study-requests/+server`   |
-| `QD-5`  | 🟡   | `directorySummaryIndex()`가 이 큐에서는 목적과 무관하다                                    | ✅ 7f58fdf         | `api/admin/study-requests/+server`   |
-| `ZA-1`  | 🟠   | `isAdmin: true`는 리터럴이고, `isMember: true`는 **지금 거짓이다**                         | P1-2               | `(admin)/+layout.server`             |
-| `ZA-2`  | 🟡   | → ZA-1에 흡수                                                                              | → ZA-1             | `(admin)/+layout.server`             |
-| `ZA-3`  | 🟠   | 이 파일은 루트 레이아웃과 중복이고, 소비자가 없으며, 유일한 효과가 오답이다                | P1-2               | `(admin)/+layout.server`             |
-| `ZA-4`  | 🟡   | 같은 요청에서 세션을 세 번 해석한다                                                        | P1-2               | `(admin)/+layout.server`             |
-| `ZP-1`  | 🟡   | 같은 요청에서 신청 테이블을 두 번(`/signup`에서는 세 번) 읽는다                            | 📌 이월            | `(applicant)/+layout.server`         |
-| `ZP-2`  | 🟡   | 레이아웃 계층에 오류 처리 규약이 없다                                                      | 📌 이월            | `(applicant)/+layout.server`         |
-| `ZP-3`  | 🟠   | `isMember`가 여섯 곳에서 생산되고 한 곳에서만 소비된다                                     | P2-1               | `(applicant)/+layout.server`         |
-| `ZP-4`  | 🟠   | 재가입 신청자가 자기 대기 페이지에 들어갈 수 없다                                          | P2-1               | `(applicant)/+layout.server`         |
-| `ZP-5`  | 🟡   | 세션과 email을 `locals` 대신 새로 구한다                                                   | 📌 이월            | `(applicant)/+layout.server`         |
-| `ZM-1`  | 🟡   | 회원 페이지 로드마다 events 배열 전체를 훑는다                                             | ✅ 4692ce6         | `(member)/+layout.server`            |
-| `ZM-2`  | 🟠   | 빈 catch가 데이터 계층의 의도적 시끄러움을 취소한다                                        | 📌 이월            | `(member)/+layout.server`            |
-| `ZM-3`  | 🟠   | `isMember: true`가 가드가 보장하지 않는 것을 주장한다                                      | P2-1               | `(member)/+layout.server`            |
-| `ZM-4`  | 🟡   | `memberId` 없음이 조용히 통과한다                                                          | ✅ 4692ce6         | `(member)/+layout.server`            |
-| `ZM-5`  | 🔴   | `isPresenter`를 계산하는 블록 전체가 죽어 있고, 주석은 거짓이다                            | ✅ 4692ce6 030408f | `(member)/+layout.server`            |
-| `ZM-6`  | 🟠   | 발표자 판정식이 서비스에서 복사돼 왔다                                                     | ✅ 4692ce6         | `(member)/+layout.server`            |
-| `ZM-7`  | 🟡   | 상태 필터가 없어 발표자 자격이 만료되지 않는다                                             | ✅ 4692ce6 030408f | `(member)/+layout.server`            |
-| `ZM-8`  | 🟡   | 세션 재해석                                                                                | ✅ 7f58fdf         | `(member)/+layout.server`            |
-| `ZR-1`  | 🟠   | `dataAvailable: true`는 거짓이 될 수 없는 필드다                                           | 📌 이월            | `(public)/archive/+layout.server`    |
-| `ZR-2`  | 🟠   | 갤러리 세 블록이 같은 모양의 복사본이다                                                    | 📌 이월            | `(public)/archive/+layout.server`    |
-| `ZR-3`  | 🟠   | KST 오프셋이 **세 곳**에 있다                                                              | 📌 이월            | `(public)/archive/+layout.server`    |
-| `ZR-4`  | 🟠   | `1970-01-01` 폴백은 데이터 결함이 아니라 **스키마 불일치가 정상 데이터에서 발동**한 것이다 | P2-2               | `(public)/archive/+layout.server`    |
-| `ZR-5`  | 🟡   | 테이블 읽기 9회 / 고유 테이블 7개                                                          | P5                 | `(public)/archive/+layout.server`    |
-| `ZR-6`  | 🟠   | 공개 로드가 `seminar-requests` 운영 테이블을 읽는다                                        | 📌 이월            | `(public)/archive/+layout.server`    |
-| `ZR-7`  | 🔴   | 공개 스냅샷이 프리렌더 정적 HTML에 구워지고, 그것은 캐시 실드 밖이다                       | ✅ d0dbbdd         | `(public)/archive/+layout.server`    |
-| `ZR-8`  | 🔴   | 공개 아카이브의 금지 키 테스트가 실제 렌더 경로를 덮지 않는다                              | ✅ e0def1b         | `(public)/archive/+layout.server`    |
-| `ZR-9`  | ✅   | 탈퇴 필터가 세 이름 표면 중 하나만 덮는다                                                  | ✅ C-16            | `(public)/archive/+layout.server`    |
-| `ZR-10` | 🟡   | 원시 S3 키를 요소 id로 게시한다                                                            | 📌 이월            | `(public)/archive/+layout.server`    |
-| `ZR-11` | 🟡   | `project-${index}`는 불안정한 리스트 키다                                                  | 📌 이월            | `(public)/archive/+layout.server`    |
+| ID      | 등급 | 내용                                                                                       | 상태                  | 대상                                 |
+| ------- | ---- | ------------------------------------------------------------------------------------------ | --------------------- | ------------------------------------ |
+| `UP-1`  | 🔴   | 회원의 포스터 업로드가 프로덕션에서 항상 403이다                                           | ✅ 54ebf92            | `api/uploads/presign/+server`        |
+| `UP-2`  | 🟡   | 인가 분기 입력이 요청 본문이다 — 구조 문제이지 취약점은 아니다                             | 📌 이월               | `api/uploads/presign/+server`        |
+| `UP-3`  | 🟡   | 요청 스키마가 이미 있는데 실제 전송 형태와 어긋나 있다                                     | 📌 이월               | `api/uploads/presign/+server`        |
+| `UP-4`  | 🟡   | sanctioned accessor를 우회한다                                                             | 📌 이월               | `api/uploads/presign/+server`        |
+| `UP-5`  | 🟡   | 회원 경로에 인증이 없다                                                                    | 📌 이월               | `api/uploads/presign/+server`        |
+| `UP-6`  | 🟡   | 업로드 제약이 서버·클라이언트 두 곳에 하드코딩돼 있다                                      | P3-2                  | `api/uploads/presign/+server`        |
+| `CS-1`  | 🟠   | Bearer 검사 블록이 세 엔드포인트에 그대로 복제돼 있다                                      | P3-1                  | `api/cron/sync-events/+server`       |
+| `CS-2`  | 🟡   | 시크릿 비교가 상수 시간이 아니다                                                           | P3-1                  | `api/cron/sync-events/+server`       |
+| `CS-3`  | 🟠   | 모듈 최상위 등록이 테스트와 프로덕션의 스텝 목록을 갈라놓았다                              | 📌 이월               | `api/cron/sync-events/+server`       |
+| `CS-4`  | 🟡   | 501을 401보다 먼저 반환해 설정 상태를 노출한다                                             | 📌 이월               | `api/cron/sync-events/+server`       |
+| `CS-5`  | 🔴   | 크론이 전부 실패해도 `success: true`를 반환하고 dead-man's switch를 누른다                 | ✅ d9f7bb6            | `api/cron/sync-events/+server`       |
+| `CS-6`  | 🟡   | 스텝 결과 키가 한 평면에서 충돌한다                                                        | P5                    | `api/cron/sync-events/+server`       |
+| `CM-1`  | 🟠   | `sync-events`의 인증 블록 복제본                                                           | P3-1                  | `api/cron/maintenance/+server`       |
+| `CM-2`  | 🟡   | 시크릿 비교가 상수 시간이 아니다                                                           | P3-1                  | `api/cron/maintenance/+server`       |
+| `CM-3`  | 🟡   | GET이 파괴적·비멱등 부수효과를 낸다                                                        | 📌 이월               | `api/cron/maintenance/+server`       |
+| `CM-4`  | 🔴   | 세 작업이 전부 실패해도 `success: true`를 반환하고 dead-man's switch를 누른다              | ✅ d9f7bb6 030408f    | `api/cron/maintenance/+server`       |
+| `CM-5`  | 🟡   | 외부 스케줄러에 주는 응답의 모양이 고정돼 있지 않다                                        | 📌 이월               | `api/cron/maintenance/+server`       |
+| `HL-1`  | 🟠   | 인증 블록 복제본 (셋 중 셋째)                                                              | P3-1                  | `api/health/+server`                 |
+| `HL-2`  | 🟡   | 주석이 이 엔드포인트를 실제보다 넓게 부른다                                                | 📌 이월               | `api/health/+server`                 |
+| `HL-3`  | 🟡   | `ok:false` 500이 원인을 구분하지 않는다                                                    | 📌 이월               | `api/health/+server`                 |
+| `HL-4`  | 🟡   | keep-alive가 두 잡에 중복돼 있다                                                           | 📌 이월               | `api/health/+server`                 |
+| `HL-5`  | 🟡   | `keepAliveSelect()`의 반환값이 죽은 신호다                                                 | 📌 이월               | `api/health/+server`                 |
+| `HL-6`  | 🟡   | 200 본문이 아무것도 증명하지 않는다                                                        | 📌 이월               | `api/health/+server`                 |
+| `QA-1`  | 🟡   | 세 엔드포인트가 같은 골격의 복사본이다                                                     | 📌 이월               | `api/admin/applications/+server`     |
+| `QA-2`  | ❌   | 철회 — 전제가 거짓이었다                                                                   | ❌ 철회               | `api/admin/applications/+server`     |
+| `QA-3`  | 🟡   | 정적 의존을 동적으로 부른다 — 한 파일에 세 번                                              | 📌 이월               | `api/admin/applications/+server`     |
+| `QA-4`  | 🟡   | 헬퍼가 두 호출 맥락을 하나의 반환형에 섞었다                                               | 📌 이월               | `api/admin/applications/+server`     |
+| `QA-5`  | 🟠   | 응답의 절반이 아무도 읽지 않는 신청자 PII다                                                | P1-1                  | `api/admin/applications/+server`     |
+| `QA-6`  | 🟡   | 403이 소비자에게서 사라진다                                                                | 📌 이월               | `api/admin/applications/+server`     |
+| `QS-1`  | 🟡   | `study-requests`와 이름만 다른 동일 파일                                                   | 📌 이월               | `api/admin/seminar-requests/+server` |
+| `QS-2`  | 🟡   | 동적 import — 이 파일 3회, 전이적으로 4회                                                  | 📌 이월               | `api/admin/seminar-requests/+server` |
+| `QS-3`  | 🟡   | 403 본문 수기 작성                                                                         | 📌 이월               | `api/admin/seminar-requests/+server` |
+| `QS-4`  | 🟡   | `directorySummaryIndex()`를 대기 건수와 무관하게 매번 부른다                               | ✅ 7f58fdf            | `api/admin/seminar-requests/+server` |
+| `QS-5`  | 🟠   | `seminarRequests:` (20행)는 죽은 페이로드다                                                | P1-1                  | `api/admin/seminar-requests/+server` |
+| `QD-1`  | 🟡   | `seminar-requests`와 이름만 다른 동일 파일                                                 | 📌 이월               | `api/admin/study-requests/+server`   |
+| `QD-2`  | 🟡   | 동적 import 3회(심볼 4개) · 403 본문 수기 작성                                             | 📌 이월               | `api/admin/study-requests/+server`   |
+| `QD-3`  | 🟠   | `studyRequests:` (20행)는 죽은 페이로드다                                                  | P1-1                  | `api/admin/study-requests/+server`   |
+| `QD-4`  | 🟠   | 이 큐의 item 형태는 세미나 큐와 대칭이 아니다                                              | 📌 이월               | `api/admin/study-requests/+server`   |
+| `QD-5`  | 🟡   | `directorySummaryIndex()`가 이 큐에서는 목적과 무관하다                                    | ✅ 7f58fdf            | `api/admin/study-requests/+server`   |
+| `ZA-1`  | 🟠   | `isAdmin: true`는 리터럴이고, `isMember: true`는 **지금 거짓이다**                         | ✅ `isMember` 제거    | `(admin)/+layout.server`             |
+| `ZA-2`  | 🟡   | → ZA-1에 흡수                                                                              | → ZA-1                | `(admin)/+layout.server`             |
+| `ZA-3`  | 🟠   | 이 파일은 루트 레이아웃과 중복이고, 소비자가 없으며, 유일한 효과가 오답이다                | ✅ 파일 유지 결정     | `(admin)/+layout.server`             |
+| `ZA-4`  | 🟡   | 같은 요청에서 세션을 세 번 해석한다                                                        | 📌 무해한 잉여로 수용 | `(admin)/+layout.server`             |
+| `ZP-1`  | 🟡   | 같은 요청에서 신청 테이블을 두 번(`/signup`에서는 세 번) 읽는다                            | 📌 이월               | `(applicant)/+layout.server`         |
+| `ZP-2`  | 🟡   | 레이아웃 계층에 오류 처리 규약이 없다                                                      | 📌 이월               | `(applicant)/+layout.server`         |
+| `ZP-3`  | 🟠   | `isMember`가 여섯 곳에서 생산되고 한 곳에서만 소비된다                                     | P2-1                  | `(applicant)/+layout.server`         |
+| `ZP-4`  | 🟠   | 재가입 신청자가 자기 대기 페이지에 들어갈 수 없다                                          | P2-1                  | `(applicant)/+layout.server`         |
+| `ZP-5`  | 🟡   | 세션과 email을 `locals` 대신 새로 구한다                                                   | 📌 이월               | `(applicant)/+layout.server`         |
+| `ZM-1`  | 🟡   | 회원 페이지 로드마다 events 배열 전체를 훑는다                                             | ✅ 4692ce6            | `(member)/+layout.server`            |
+| `ZM-2`  | 🟠   | 빈 catch가 데이터 계층의 의도적 시끄러움을 취소한다                                        | 📌 이월               | `(member)/+layout.server`            |
+| `ZM-3`  | 🟠   | `isMember: true`가 가드가 보장하지 않는 것을 주장한다                                      | P2-1                  | `(member)/+layout.server`            |
+| `ZM-4`  | 🟡   | `memberId` 없음이 조용히 통과한다                                                          | ✅ 4692ce6            | `(member)/+layout.server`            |
+| `ZM-5`  | 🔴   | `isPresenter`를 계산하는 블록 전체가 죽어 있고, 주석은 거짓이다                            | ✅ 4692ce6 030408f    | `(member)/+layout.server`            |
+| `ZM-6`  | 🟠   | 발표자 판정식이 서비스에서 복사돼 왔다                                                     | ✅ 4692ce6            | `(member)/+layout.server`            |
+| `ZM-7`  | 🟡   | 상태 필터가 없어 발표자 자격이 만료되지 않는다                                             | ✅ 4692ce6 030408f    | `(member)/+layout.server`            |
+| `ZM-8`  | 🟡   | 세션 재해석                                                                                | ✅ 7f58fdf            | `(member)/+layout.server`            |
+| `ZR-1`  | 🟠   | `dataAvailable: true`는 거짓이 될 수 없는 필드다                                           | 📌 이월               | `(public)/archive/+layout.server`    |
+| `ZR-2`  | 🟠   | 갤러리 세 블록이 같은 모양의 복사본이다                                                    | 📌 이월               | `(public)/archive/+layout.server`    |
+| `ZR-3`  | 🟠   | KST 오프셋이 **세 곳**에 있다                                                              | 📌 이월               | `(public)/archive/+layout.server`    |
+| `ZR-4`  | 🟠   | `1970-01-01` 폴백은 데이터 결함이 아니라 **스키마 불일치가 정상 데이터에서 발동**한 것이다 | P2-2                  | `(public)/archive/+layout.server`    |
+| `ZR-5`  | 🟡   | 테이블 읽기 9회 / 고유 테이블 7개                                                          | P5                    | `(public)/archive/+layout.server`    |
+| `ZR-6`  | 🟠   | 공개 로드가 `seminar-requests` 운영 테이블을 읽는다                                        | 📌 이월               | `(public)/archive/+layout.server`    |
+| `ZR-7`  | 🔴   | 공개 스냅샷이 프리렌더 정적 HTML에 구워지고, 그것은 캐시 실드 밖이다                       | ✅ d0dbbdd            | `(public)/archive/+layout.server`    |
+| `ZR-8`  | 🔴   | 공개 아카이브의 금지 키 테스트가 실제 렌더 경로를 덮지 않는다                              | ✅ e0def1b            | `(public)/archive/+layout.server`    |
+| `ZR-9`  | ✅   | 탈퇴 필터가 세 이름 표면 중 하나만 덮는다                                                  | ✅ C-16               | `(public)/archive/+layout.server`    |
+| `ZR-10` | 🟡   | 원시 S3 키를 요소 id로 게시한다                                                            | 📌 이월               | `(public)/archive/+layout.server`    |
+| `ZR-11` | 🟡   | `project-${index}`는 불안정한 리스트 키다                                                  | 📌 이월               | `(public)/archive/+layout.server`    |
 
 ---
 
