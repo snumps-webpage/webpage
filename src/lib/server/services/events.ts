@@ -10,8 +10,15 @@ import {
   mutateQueue,
 } from "$lib/server/data/tables";
 import { getDirectoryIndex } from "$lib/server/data/directory";
-import type { Activity, AttendanceRecord, Event } from "$lib/server/data/schemas";
-import { invalidateAttendanceCaches, mergeAttendees } from "$lib/server/attendance";
+import type {
+  Activity,
+  AttendanceRecord,
+  Event,
+} from "$lib/server/data/schemas";
+import {
+  invalidateAttendanceCaches,
+  mergeAttendees,
+} from "$lib/server/attendance";
 
 /**
  * Event lifecycle + attendance queue (API-SPEC §5-4, §7-2, §8-1).
@@ -20,12 +27,35 @@ import { invalidateAttendanceCaches, mergeAttendees } from "$lib/server/attendan
  */
 
 export function expiryOf(event: Event): Date {
-  return event.date.end ? new Date(event.date.end) : endOfKstDay(event.date.start);
+  return event.date.end
+    ? new Date(event.date.end)
+    : endOfKstDay(event.date.start);
 }
 
-export function effectiveStatus(event: Event, now = new Date()): Event["status"] {
+export function effectiveStatus(
+  event: Event,
+  now = new Date(),
+): Event["status"] {
   if (event.status === "active" && expiryOf(event) < now) return "expired";
   return event.status;
+}
+
+/**
+ * "This member presents this event" — the single owner of that rule (PRES-03).
+ * Both the managed-seminar list and the nav's presenter flag go through it, so
+ * widening the definition (a second seminar type, external presenters) is one
+ * edit rather than two.
+ */
+export function presentsEvent(event: Event, memberId: string): boolean {
+  return isSeminarType(event.type) && event.presenterIds.includes(memberId);
+}
+
+/** PRES-03: does this member present anything that is still live? */
+export async function hasPresenterEvents(memberId: string): Promise<boolean> {
+  const events = await getTable("events");
+  return events.some(
+    (e) => presentsEvent(e, memberId) && effectiveStatus(e) === "active",
+  );
 }
 
 export async function getEventByPath(
@@ -34,7 +64,8 @@ export async function getEventByPath(
 ): Promise<Event | null> {
   const events = await getTable("events");
   return (
-    events.find((e) => e.pathId === pathId && e.attendCode === attendCode) ?? null
+    events.find((e) => e.pathId === pathId && e.attendCode === attendCode) ??
+    null
   );
 }
 
@@ -63,7 +94,9 @@ export async function createEventWithActivity(input: {
 
 /** ADM-05: attach a new attendance session to an existing activity (fields copied). */
 export async function connectActivity(activityId: string): Promise<Event> {
-  const activity = (await getTable("activities")).find((a) => a.id === activityId);
+  const activity = (await getTable("activities")).find(
+    (a) => a.id === activityId,
+  );
   if (!activity) throw new AppError("NOT_FOUND");
   return createSessionForActivity(activity, { status: "active" });
 }
@@ -124,12 +157,16 @@ export async function deleteEventChecked(id: string): Promise<void> {
 
 // ---- check-in (EVT-01 / SEM-05 / STU-03) ------------------------------------
 
-export async function checkIn(event: Event, memberId: string): Promise<AttendanceRecord> {
+export async function checkIn(
+  event: Event,
+  memberId: string,
+): Promise<AttendanceRecord> {
   if (effectiveStatus(event) !== "active") throw new AppError("EVENT_NOT_OPEN");
   const now = nowKstIso();
   let created: AttendanceRecord | undefined;
   await mutateQueue(event.id, (rows) => {
-    if (rows.some((r) => r.memberId === memberId)) throw new AppError("CONFLICT");
+    if (rows.some((r) => r.memberId === memberId))
+      throw new AppError("CONFLICT");
     created = {
       id: newId(),
       memberId,
@@ -152,17 +189,24 @@ export function isSeminarType(type: Event["type"]): boolean {
 }
 
 function assertOpenForApplication(event: Event, now = new Date()): void {
-  if (effectiveStatus(event, now) !== "active") throw new AppError("EVENT_NOT_OPEN");
+  if (effectiveStatus(event, now) !== "active")
+    throw new AppError("EVENT_NOT_OPEN");
   if (new Date(event.date.start) <= now) throw new AppError("EVENT_NOT_OPEN");
 }
 
-export async function applyToEvent(eventId: string, memberId: string): Promise<void> {
+export async function applyToEvent(
+  eventId: string,
+  memberId: string,
+): Promise<void> {
   await mutate("events", (rows) => {
     const idx = rows.findIndex((e) => e.id === eventId);
     if (idx === -1) throw new AppError("NOT_FOUND");
     assertOpenForApplication(rows[idx]);
     if (rows[idx].applicantIds.includes(memberId)) return rows; // idempotent no-op
-    rows[idx] = { ...rows[idx], applicantIds: [...rows[idx].applicantIds, memberId] };
+    rows[idx] = {
+      ...rows[idx],
+      applicantIds: [...rows[idx].applicantIds, memberId],
+    };
     return rows;
   });
 }
@@ -195,7 +239,7 @@ export async function getManagedSeminars(memberId: string) {
   const activityById = new Map(activities.map((a) => [a.id, a]));
 
   return events
-    .filter((e) => isSeminarType(e.type) && e.presenterIds.includes(memberId))
+    .filter((e) => presentsEvent(e, memberId))
     .sort((a, b) => a.date.start.localeCompare(b.date.start))
     .map((e) => {
       const attendees = activityById.get(e.activityId)?.attendeeIds ?? [];
@@ -227,7 +271,8 @@ export async function savePresenterAttendance(
 ): Promise<void> {
   const event = (await getTable("events")).find((e) => e.id === eventId);
   if (!event) throw new AppError("NOT_FOUND");
-  if (!event.presenterIds.includes(presenterId)) throw new AppError("FORBIDDEN");
+  if (!event.presenterIds.includes(presenterId))
+    throw new AppError("FORBIDDEN");
   if (!isSeminarType(event.type)) throw new AppError("VALIDATION_FAILED");
 
   let touched: string[] = [];
@@ -248,13 +293,19 @@ export async function savePresenterAttendance(
 
 // ---- queue administration (ADM-03) ------------------------------------------
 
-async function findQueueRow(eventId: string, queueId: string): Promise<AttendanceRecord> {
+async function findQueueRow(
+  eventId: string,
+  queueId: string,
+): Promise<AttendanceRecord> {
   const row = (await getQueue(eventId)).find((r) => r.id === queueId);
   if (!row) throw new AppError("NOT_FOUND");
   return row;
 }
 
-export async function approveAttendance(eventId: string, queueId: string): Promise<void> {
+export async function approveAttendance(
+  eventId: string,
+  queueId: string,
+): Promise<void> {
   const row = await findQueueRow(eventId, queueId);
   const event = (await getTable("events")).find((e) => e.id === eventId);
   if (!event) throw new AppError("NOT_FOUND");
@@ -263,40 +314,59 @@ export async function approveAttendance(eventId: string, queueId: string): Promi
     const idx = rows.findIndex((a) => a.id === event.activityId);
     if (idx === -1) throw new AppError("NOT_FOUND"); // dangling reference
     if (!rows[idx].attendeeIds.includes(row.memberId)) {
-      rows[idx] = { ...rows[idx], attendeeIds: [...rows[idx].attendeeIds, row.memberId] };
+      rows[idx] = {
+        ...rows[idx],
+        attendeeIds: [...rows[idx].attendeeIds, row.memberId],
+      };
     }
     return rows;
   });
   await mutateQueue(eventId, (rows) =>
-    rows.map((r) => (r.id === queueId ? { ...r, status: "approved" as const } : r)),
+    rows.map((r) =>
+      r.id === queueId ? { ...r, status: "approved" as const } : r,
+    ),
   );
   await invalidateAttendanceCaches([row.memberId]);
 }
 
 /** Rejection/deletion of an APPROVED row reverses the activity merge (§7-2). */
-async function reverseIfApproved(eventId: string, row: AttendanceRecord): Promise<void> {
+async function reverseIfApproved(
+  eventId: string,
+  row: AttendanceRecord,
+): Promise<void> {
   if (row.status !== "approved") return;
   const event = (await getTable("events")).find((e) => e.id === eventId);
   if (!event) return;
   await mutate("activities", (rows) =>
     rows.map((a) =>
       a.id === event.activityId
-        ? { ...a, attendeeIds: a.attendeeIds.filter((id) => id !== row.memberId) }
+        ? {
+            ...a,
+            attendeeIds: a.attendeeIds.filter((id) => id !== row.memberId),
+          }
         : a,
     ),
   );
   await invalidateAttendanceCaches([row.memberId]);
 }
 
-export async function rejectAttendance(eventId: string, queueId: string): Promise<void> {
+export async function rejectAttendance(
+  eventId: string,
+  queueId: string,
+): Promise<void> {
   const row = await findQueueRow(eventId, queueId);
   await reverseIfApproved(eventId, row);
   await mutateQueue(eventId, (rows) =>
-    rows.map((r) => (r.id === queueId ? { ...r, status: "rejected" as const } : r)),
+    rows.map((r) =>
+      r.id === queueId ? { ...r, status: "rejected" as const } : r,
+    ),
   );
 }
 
-export async function deleteAttendanceRecord(eventId: string, queueId: string): Promise<void> {
+export async function deleteAttendanceRecord(
+  eventId: string,
+  queueId: string,
+): Promise<void> {
   const row = await findQueueRow(eventId, queueId);
   await reverseIfApproved(eventId, row);
   await mutateQueue(eventId, (rows) => rows.filter((r) => r.id !== queueId));
@@ -376,5 +446,8 @@ export async function runCron(): Promise<Record<string, number>> {
       results[`${step.name}_failed`] = 1;
     }
   }
+  // The route cannot tell a partial failure from a total one without knowing how
+  // many steps there were — an empty registry and an all-green run look alike.
+  results.steps_total = cronSteps.length;
   return results;
 }
