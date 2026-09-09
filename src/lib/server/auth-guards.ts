@@ -13,17 +13,37 @@ export interface AuthenticatedSession {
   expires: string;
 }
 
+/**
+ * Resolves the caller's member context, lazily.
+ *
+ * The zone guard skips member resolution for the `api` zone (hooks.server.ts) —
+ * `zone.ts` puts endpoint-level auth in each handler — so `locals.member` is
+ * `undefined` there and every /api gate has to resolve it itself. The result is
+ * written back to `locals` so a second gate in the same request is free.
+ */
+async function resolveMemberContext(
+  locals: App.Locals,
+): Promise<{
+  session: AuthenticatedSession;
+  member: MemberContext | null;
+} | null> {
+  const session = await locals.auth();
+  if (!session?.user?.email) return null;
+  const member =
+    locals.member !== undefined
+      ? locals.member
+      : await resolveMember(session.user.email);
+  locals.member = member;
+  return { session: session as AuthenticatedSession, member };
+}
+
 /** Admin truth is the member record (D4). Resolves lazily for /api handlers. */
 async function resolveAdminContext(
   locals: App.Locals,
 ): Promise<{ session: AuthenticatedSession; member: MemberContext } | null> {
-  const session = await locals.auth();
-  if (!session?.user?.email) return null;
-  const member =
-    locals.member !== undefined ? locals.member : await resolveMember(session.user.email);
-  locals.member = member;
-  if (!member?.isAdmin) return null;
-  return { session: session as AuthenticatedSession, member };
+  const ctx = await resolveMemberContext(locals);
+  if (!ctx?.member?.isAdmin) return null;
+  return { session: ctx.session, member: ctx.member };
 }
 
 /**
@@ -147,6 +167,31 @@ export function requireCapability(locals: App.Locals, cap: Capability): void {
       userMessage: "이번 학기 등록 회원만 할 수 있는 작업입니다.",
     });
   }
+}
+
+/**
+ * The capability gate for /api handlers — the async counterpart of
+ * `requireCapability`.
+ *
+ * `requireCapability` reads `locals.member` directly, which is correct inside
+ * the member zone because the guard resolved it there. In the `api` zone the
+ * guard returns early and never resolves it, so reading the field yields
+ * `undefined` and the check silently fails closed for legitimate members.
+ * This helper resolves first, the same way `requireAdminAction` does.
+ */
+export async function requireCapabilityAction(
+  locals: App.Locals,
+  cap: Capability,
+) {
+  const ctx = await resolveMemberContext(locals);
+  if (!hasCapability(ctx?.member?.capabilities, cap)) {
+    return { allowed: false as const };
+  }
+  return {
+    allowed: true as const,
+    session: ctx!.session,
+    member: ctx!.member!,
+  };
 }
 
 export async function handleUserAction<T extends Record<string, unknown>>(
