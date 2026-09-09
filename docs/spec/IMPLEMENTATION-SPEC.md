@@ -38,28 +38,28 @@ infra/
 
 리소스 명세 (리전 `ap-northeast-2`):
 
-| 리소스 | 이름 | 핵심 설정 |
-|---|---|---|
-| `aws_s3_bucket` | `snumps-assets` | 퍼블릭 차단, 버전 관리 on, SSE-S3 |
-| `aws_s3_bucket` | `snumps-data-private` | 퍼블릭 차단, 버전 관리 on, **SSE-KMS**(전용 키, **Bucket Keys on** — KMS 요청 비용 절감) |
-| lifecycle (공통) | | 비현재 버전 90일 삭제 · 미완료 멀티파트 7일 중단 |
-| lifecycle (assets) | | `uploads/pending/` 프리픽스 7일 삭제 (§8-2 고아 정리) |
-| `aws_cloudfront_distribution` | | 오리진 `snumps-assets` + OAC, PriceClass_200, 자동 압축 on |
-| `aws_iam_role` | `snumps-runtime` | Vercel OIDC federation trust. 권한은 아래 **런타임 권한 인벤토리** 전체 |
-| `aws_iam_role` | `snumps-migration` | 사람 실행용. 두 버킷 전권 + `backups/*`. 이주 후 비활성화 |
-| `aws_budgets_budget` | | 월 한도 + 이메일 알림 |
+| 리소스                        | 이름                  | 핵심 설정                                                                                |
+| ----------------------------- | --------------------- | ---------------------------------------------------------------------------------------- |
+| `aws_s3_bucket`               | `snumps-assets`       | 퍼블릭 차단, 버전 관리 on, SSE-S3                                                        |
+| `aws_s3_bucket`               | `snumps-data-private` | 퍼블릭 차단, 버전 관리 on, **SSE-KMS**(전용 키, **Bucket Keys on** — KMS 요청 비용 절감) |
+| lifecycle (공통)              |                       | 비현재 버전 90일 삭제 · 미완료 멀티파트 7일 중단                                         |
+| lifecycle (assets)            |                       | `uploads/pending/` 프리픽스 7일 삭제 (§8-2 고아 정리)                                    |
+| `aws_cloudfront_distribution` |                       | 오리진 `snumps-assets` + OAC, PriceClass_200, 자동 압축 on                               |
+| `aws_iam_role`                | `snumps-runtime`      | Vercel OIDC federation trust. 권한은 아래 **런타임 권한 인벤토리** 전체                  |
+| `aws_iam_role`                | `snumps-migration`    | 사람 실행용. 두 버킷 전권 + `backups/*`. 이주 후 비활성화                                |
+| `aws_budgets_budget`          |                       | 월 한도 + 이메일 알림                                                                    |
 
 **`snumps-runtime` 권한 인벤토리** — 코드가 부르는 S3/KMS API 전수 대응 (누락 시 런타임 403):
 
-| 권한 | 리소스 | 근거 호출 |
-|---|---|---|
-| `s3:GetObject`, `s3:PutObject` | `snumps-data-private/tables/*` | getTable · mutate (If-Match는 양쪽 다 요구) |
-| `s3:PutObject` | `snumps-data-private/audit/*` | audit() — Put만, Get/Delete 없음 |
-| `s3:DeleteObject` | `snumps-data-private/tables/attendance-queue/*` | deleteQueue (deleteEvent) |
-| **`s3:ListBucket`** | `snumps-data-private` (prefix 조건 `tables/*`) | listPendingQueues의 listKeys. **부수 효과 — 이게 없으면 미존재 키 GetObject가 404 대신 403을 반환**해 mutate의 "404 → 신규 봉투 생성" 부트스트랩이 깨진다 |
-| `s3:GetObject`, `s3:PutObject` | `snumps-assets/*` | presign · CopyObject(src/dst) · 파생본 Put · HeadObject 크기 검증 |
-| **`s3:DeleteObject`** | `snumps-assets/uploads/pending/*` | 업로드 승격의 Copy+Delete (BE-52) |
-| **`kms:Decrypt`, `kms:GenerateDataKey`** | data 버킷 전용 KMS 키 | SSE-KMS 버킷의 모든 Get/Put이 요구 |
+| 권한                                     | 리소스                                          | 근거 호출                                                                                                                                                 |
+| ---------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `s3:GetObject`, `s3:PutObject`           | `snumps-data-private/tables/*`                  | getTable · mutate (If-Match는 양쪽 다 요구)                                                                                                               |
+| `s3:PutObject`                           | `snumps-data-private/audit/*`                   | audit() — Put만, Get/Delete 없음                                                                                                                          |
+| `s3:DeleteObject`                        | `snumps-data-private/tables/attendance-queue/*` | deleteQueue (deleteEvent)                                                                                                                                 |
+| **`s3:ListBucket`**                      | `snumps-data-private` (prefix 조건 `tables/*`)  | listPendingQueues의 listKeys. **부수 효과 — 이게 없으면 미존재 키 GetObject가 404 대신 403을 반환**해 mutate의 "404 → 신규 봉투 생성" 부트스트랩이 깨진다 |
+| `s3:GetObject`, `s3:PutObject`           | `snumps-assets/*`                               | presign · CopyObject(src/dst) · 파생본 Put · HeadObject 크기 검증                                                                                         |
+| **`s3:DeleteObject`**                    | `snumps-assets/uploads/pending/*`               | 업로드 승격의 Copy+Delete (BE-52)                                                                                                                         |
+| **`kms:Decrypt`, `kms:GenerateDataKey`** | data 버킷 전용 KMS 키                           | SSE-KMS 버킷의 모든 Get/Put이 요구                                                                                                                        |
 
 위 표 밖의 Delete·정책 변경 권한은 일절 부여하지 않는다.
 
@@ -107,7 +107,12 @@ export const ERR = {
 } as const;
 export type ErrCode = keyof typeof ERR;
 export class AppError extends Error {
-  constructor(public code: ErrCode, public status = 400) { super(code); }
+  constructor(
+    public code: ErrCode,
+    public status = 400,
+  ) {
+    super(code);
+  }
 }
 // 액션 래퍼(handleUserAction/handleAdminAction)가 AppError를 잡아 fail(status, {error: code})로 변환
 
@@ -115,7 +120,7 @@ export class AppError extends Error {
 export function newId(): string;
 
 // semester.ts — API-SPEC §2 단일 정의
-export function termOf(d: Date): string;          // 3~8월 → "YY-1", 9~익2월 → "YY-2"
+export function termOf(d: Date): string; // 3~8월 → "YY-1", 9~익2월 → "YY-2"
 export function currentTerm(now?: Date): string;
 export function termRange(term: string): { start: Date; end: Date };
 ```
@@ -177,31 +182,57 @@ export const envelope = <S extends z.ZodTypeAny>(row: S) =>
 
 ```ts
 // s3.ts — 내부 전용
-export async function getObjectWithEtag(bucket: string, key: string, ifNoneMatch?: string):
-  Promise<{ status: 200; body: Uint8Array; etag: string } | { status: 304 } | { status: 404 }>;
-export async function putObjectIfMatch(bucket: string, key: string, body: Uint8Array,
-  opts: { ifMatch?: string; ifNoneMatch?: "*"; contentType: string; contentEncoding?: string }):
-  Promise<{ etag: string }>;   // 412 → PreconditionFailedError throw
+export async function getObjectWithEtag(
+  bucket: string,
+  key: string,
+  ifNoneMatch?: string,
+): Promise<
+  | { status: 200; body: Uint8Array; etag: string }
+  | { status: 304 }
+  | { status: 404 }
+>;
+export async function putObjectIfMatch(
+  bucket: string,
+  key: string,
+  body: Uint8Array,
+  opts: {
+    ifMatch?: string;
+    ifNoneMatch?: "*";
+    contentType: string;
+    contentEncoding?: string;
+  },
+): Promise<{ etag: string }>; // 412 → PreconditionFailedError throw
 export async function deleteObject(bucket: string, key: string): Promise<void>;
-export async function listKeys(bucket: string, prefix: string): Promise<string[]>;
+export async function listKeys(
+  bucket: string,
+  prefix: string,
+): Promise<string[]>;
 ```
 
 ```ts
 // tables.ts
 const keyOf = (name: TableName) => `tables/${name}.json.gz`;
-const queueKeyOf = (eventId: string) => `tables/attendance-queue/${eventId}.json.gz`;
+const queueKeyOf = (eventId: string) =>
+  `tables/attendance-queue/${eventId}.json.gz`;
 
-export async function getTable<N extends TableName>(name: N): Promise<RowOf<N>[]>;
+export async function getTable<N extends TableName>(
+  name: N,
+): Promise<RowOf<N>[]>;
 export async function mutate<N extends TableName>(
-  name: N, fn: (rows: RowOf<N>[]) => RowOf<N>[] | Promise<RowOf<N>[]>,
+  name: N,
+  fn: (rows: RowOf<N>[]) => RowOf<N>[] | Promise<RowOf<N>[]>,
 ): Promise<RowOf<N>[]>;
 
 // 출석 큐 (이벤트당 객체 — TableName 밖 별도 API)
 export async function getQueue(eventId: string): Promise<AttendanceRecord[]>;
-export async function mutateQueue(eventId: string,
-  fn: (rows: AttendanceRecord[]) => AttendanceRecord[]): Promise<AttendanceRecord[]>;
-export async function deleteQueue(eventId: string): Promise<void>;   // deleteEvent 전용
-export async function listPendingQueues(): Promise<{ eventId: string; rows: AttendanceRecord[] }[]>;
+export async function mutateQueue(
+  eventId: string,
+  fn: (rows: AttendanceRecord[]) => AttendanceRecord[],
+): Promise<AttendanceRecord[]>;
+export async function deleteQueue(eventId: string): Promise<void>; // deleteEvent 전용
+export async function listPendingQueues(): Promise<
+  { eventId: string; rows: AttendanceRecord[] }[]
+>;
 // ^ /admin 대시보드용: listKeys("tables/attendance-queue/") → 병렬 getQueue → pending 필터
 ```
 
@@ -237,18 +268,25 @@ throw new AppError("WRITE_CONFLICT", 503)
 
 ```ts
 export type AuditAction =
-  | "private-info.read" | "private-info.update"
-  | "member.set-status" | "member.set-roles" | "member.set-admin" | "member.revoke-alumni"
+  | "private-info.read"
+  | "private-info.update"
+  | "member.set-status"
+  | "member.set-roles"
+  | "member.set-admin"
+  | "member.revoke-alumni"
   | "study.set-organizer"
-  | "withdrawal.request" | "withdrawal.cancel" | "withdrawal.hold" | "withdrawal.release-hold"
+  | "withdrawal.request"
+  | "withdrawal.cancel"
+  | "withdrawal.hold"
+  | "withdrawal.release-hold"
   | "withdrawal.auto-anonymize";
 
 export async function audit(entry: {
-  actorMemberId: string | "system";   // 크론 = "system"
+  actorMemberId: string | "system"; // 크론 = "system"
   action: AuditAction;
   targetTable: TableName | "attendance-queue";
   targetId: string;
-  detail?: Record<string, unknown>;    // PII 원문 금지 — 변경 필드명만
+  detail?: Record<string, unknown>; // PII 원문 금지 — 변경 필드명만
 }): Promise<void>;
 // 구현: putObject(`audit/${yyyy-mm-dd}/${newId()}.json`) — If 조건 불요 (키 유일)
 // 실패 시: 본 트랜잭션을 깨지 않되 console.error — 단 withdrawal.* 계열은 실패 시 본 액션도 실패 (파기 추적 필수)
@@ -269,12 +307,12 @@ export async function ensureCreated<N extends TableName>(
 
 ### BE-15 검증 (테스트 설계)
 
-| 테스트 | 방법 |
-|---|---|
+| 테스트                | 방법                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------ |
 | `tables.test.ts` 경합 | S3 목(in-memory, ETag 시뮬레이션) 위에서 `Promise.all([mutate A, mutate B])` — 두 변경 모두 잔존 |
-| 큐 버스트 | mutateQueue 20개 동시 — 20행 전부 존재, WRITE_CONFLICT 0 |
-| 봉투 | `schemaVersion: 2` 객체 파싱 시 명시 에러 (조용한 손상 금지) |
-| 재시도 소진 | put이 항상 412 → 5회 후 `WRITE_CONFLICT` |
+| 큐 버스트             | mutateQueue 20개 동시 — 20행 전부 존재, WRITE_CONFLICT 0                                         |
+| 봉투                  | `schemaVersion: 2` 객체 파싱 시 명시 에러 (조용한 손상 금지)                                     |
+| 재시도 소진           | put이 항상 412 → 5회 후 `WRITE_CONFLICT`                                                         |
 
 S3 목: `s3.ts`와 동일 시그니처의 `s3.mock.ts` (Map 기반, ETag = 내용 해시). vitest에서 모듈 목킹.
 
@@ -301,7 +339,7 @@ const zone = event.route.id.split("/")[1];   // "(public)" | "(applicant)" | "(m
 switch (zone) {
   case "(public)":
     // 예외: "/"는 하이브리드 — 세션 있으면 member 해석 + withdrawn 리디렉트 후 대시보드 분기.
-    // 그 외 공개 라우트는 세션 해석 생략 (BE-23, prerender 보장)
+    // 그 외 공개 라우트는 세션 해석 생략 (BE-23). 세션 쿠키가 있으면 해석한다 — 안 그러면 네비가 게스트로 보인다
     return resolve(event);
   case "(applicant)":
     ensureSession 수준;
@@ -325,7 +363,9 @@ switch (zone) {
 - `/` 이중 모드: `(public)/+page.server.ts`가 세션 존재 시 `(member)` 대시보드 데이터로 분기 —
   구현은 **동일 라우트 내 조건 분기가 아니라** `(public)/+page` = 게스트 전용, 세션 있으면 303 `/dashboard`…는
   URL 확정(§9)과 충돌하므로 **분기 방식 채택**: `+page.server.ts`에서 세션 검사 후 게스트/대시보드 데이터 분기,
-  ISR 설정은 걸지 않고 게스트 분기 응답에만 `cache-control` 수동 부여. §Phase 5 참조
+  ISR 설정은 걸지 않는다. ~~게스트 분기 응답에만 `cache-control` 수동 부여~~ →
+  **최외곽 훅이 전 SSR 응답에 `no-store`를 부착하므로 분기별 수동 부여는 필요 없다**
+  (2026-09-01 사고 이후, `API-SPEC` §1-4 v0.8). §Phase 5 참조
 - `ensureAdmin`: 기존 `admin.ts`의 이메일 명단 → **`locals.member.isAdmin`** (D4). `admin.ts` 삭제
 - `ensurePresenter(eventId)` / `ensureOrganizer(studyId)`: 액션 내부 헬퍼 —
   `getTable("events"/"studies")`에서 재조회 후 포함 검사. locals 캐시 불신
@@ -334,7 +374,12 @@ switch (zone) {
 // app.d.ts
 interface Locals {
   auth(): Promise<Session | null>;
-  member: { memberId: string; isAdmin: boolean; status: MemberStatus; name: string } | null;
+  member: {
+    memberId: string;
+    isAdmin: boolean;
+    status: MemberStatus;
+    name: string;
+  } | null;
 }
 ```
 
@@ -350,7 +395,9 @@ async function resolveMember(email: string): Promise<Locals["member"]>;
 
 ```ts
 // src/hooks.guard.test.ts — 테이블 주도
-const MATRIX: Array<[routeId: string, role: Role, expect: "ok" | `redirect:${string}` | "404"]> = [
+const MATRIX: Array<
+  [routeId: string, role: Role, expect: "ok" | `redirect:${string}` | "404"]
+> = [
   ["/(public)/about/charter", "guest", "ok"],
   ["/(member)/study/[id]/manage", "guest", "redirect:/login"],
   ["/(admin)/admin/members", "member", "404"],
@@ -383,15 +430,15 @@ src/lib/server/repositories/
 
 ### BE-31 쓰기 호출부 매핑
 
-| 라우트 | 기존 호출 | 대체 |
-|---|---|---|
-| `signup`, `signup/edit` | `createApplication`/`updateApplication` | `mutate(applications)` |
-| `seminar/apply`, `seminar/edit/[id]` | seminar-request CRUD | `mutate(seminar-requests)` |
-| `events/[id]/[type]` | `recordAttendance` | `mutateQueue(eventId)` |
-| `admin` 11개 액션 | notion 함수 군 | §7-2 알고리즘 (아래) |
-| `admin/events/new`, `connect` | `createEvent`/`publishEvent` | `mutate(activities)`+`mutate(events)` |
-| `api/cron/sync-events` | `syncEventStatuses` | BE-35 |
-| `+page` `updateProfile` | `updatePrivateInfo` | `mutate(private-info)` |
+| 라우트                               | 기존 호출                               | 대체                                  |
+| ------------------------------------ | --------------------------------------- | ------------------------------------- |
+| `signup`, `signup/edit`              | `createApplication`/`updateApplication` | `mutate(applications)`                |
+| `seminar/apply`, `seminar/edit/[id]` | seminar-request CRUD                    | `mutate(seminar-requests)`            |
+| `events/[id]/[type]`                 | `recordAttendance`                      | `mutateQueue(eventId)`                |
+| `admin` 11개 액션                    | notion 함수 군                          | §7-2 알고리즘 (아래)                  |
+| `admin/events/new`, `connect`        | `createEvent`/`publishEvent`            | `mutate(activities)`+`mutate(events)` |
+| `api/cron/sync-events`               | `syncEventStatuses`                     | BE-35                                 |
+| `+page` `updateProfile`              | `updatePrivateInfo`                     | `mutate(private-info)`                |
 
 ### BE-32~33 승인 흐름 알고리즘 (대표: `approveSeminar`)
 
@@ -424,12 +471,20 @@ handleAdminAction(locals, async () => {
 
 ```ts
 // src/lib/server/attendance.ts — 순수 함수 (단위 테스트 대상)
-export function mergeAttendees(current: string[], allowedPool: string[], selected: string[]): string[] {
-  if (!selected.every(id => allowedPool.includes(id))) throw new AppError("VALIDATION_FAILED");
-  const outside = current.filter(id => !allowedPool.includes(id));
+export function mergeAttendees(
+  current: string[],
+  allowedPool: string[],
+  selected: string[],
+): string[] {
+  if (!selected.every((id) => allowedPool.includes(id)))
+    throw new AppError("VALIDATION_FAILED");
+  const outside = current.filter((id) => !allowedPool.includes(id));
   return [...new Set([...outside, ...selected])];
 }
-export function invalidateAttendanceCaches(activityDate: DateRange, memberIds: string[]): void;
+export function invalidateAttendanceCaches(
+  activityDate: DateRange,
+  memberIds: string[],
+): void;
 // activities_${termRange} + user_activities_${id} 전부
 ```
 
@@ -459,10 +514,10 @@ export function invalidateAttendanceCaches(activityDate: DateRange, memberIds: s
 
 **크론 스케줄러 — 확정 (2026-08-28)**: **GitHub Actions 시간당(주) + Vercel 일 1회(백업)** 이중 구성.
 
-| 스케줄러 | 설정 | 역할 |
-|---|---|---|
-| GitHub Actions | `.github/workflows/cron-sync-events.yml` — `17 * * * *` (정각 혼잡 회피), `https://snumps.vercel.app/api/cron/sync-events`에 `Bearer CRON_SECRET` | **주 스케줄러.** Vercel Hobby의 일 1회 상한 우회 |
-| Vercel cron | `vercel.json` `"0 15 * * *"` (일 1회로 조정) | **백업.** public 레포는 60일 무활동 시 Actions 스케줄이 자동 비활성화되므로, 유지보수 정지기에도 일 1회는 보장 |
+| 스케줄러       | 설정                                                                                                                                              | 역할                                                                                                           |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| GitHub Actions | `.github/workflows/cron-sync-events.yml` — `17 * * * *` (정각 혼잡 회피), `https://snumps.vercel.app/api/cron/sync-events`에 `Bearer CRON_SECRET` | **주 스케줄러.** Vercel Hobby의 일 1회 상한 우회                                                               |
+| Vercel cron    | `vercel.json` `"0 15 * * *"` (일 1회로 조정)                                                                                                      | **백업.** public 레포는 60일 무활동 시 Actions 스케줄이 자동 비활성화되므로, 유지보수 정지기에도 일 1회는 보장 |
 
 - 이중 실행은 무해 — 크론 전 단계가 멱등 (§8-1)
 - `CRON_SECRET`은 GitHub Secrets + Vercel env 양쪽 등록. **헤더로만 전달** (URL 쿼리 금지 — 로그 노출)
@@ -476,8 +531,10 @@ export function invalidateAttendanceCaches(activityDate: DateRange, memberIds: s
 
 ```ts
 // src/lib/server/withdrawal.ts
-export async function requestWithdrawal(memberId: string,
-  ack: { info: boolean; dataPolicy: boolean; confirmName: string }): Promise<void>;
+export async function requestWithdrawal(
+  memberId: string,
+  ack: { info: boolean; dataPolicy: boolean; confirmName: string },
+): Promise<void>;
 // 1) 3요소 검증 (confirmName === member.name — trim 후 완전 일치)
 // 2) 주최 스터디 검사: studies.some(s => s.organizerIds.includes(memberId) && s.status !== "finished") → CONFLICT
 // 3) mutate(members): status="withdrawn", withdrawal={requestedAt, previousStatus, holdBy:null, holdAt:null}
@@ -485,8 +542,14 @@ export async function requestWithdrawal(memberId: string,
 // 5) notifyExecutives(member) — 최신 term 회장·부회장의 private-info email로. 실패 → mailFailed
 
 export async function cancelWithdrawal(memberId: string): Promise<void>;
-export async function holdWithdrawal(targetId: string, adminId: string): Promise<void>;
-export async function releaseHold(targetId: string, adminId: string): Promise<void>;  // requestedAt = now 재기산
+export async function holdWithdrawal(
+  targetId: string,
+  adminId: string,
+): Promise<void>;
+export async function releaseHold(
+  targetId: string,
+  adminId: string,
+): Promise<void>; // requestedAt = now 재기산
 
 // 🔶 구현 보류 (2026-08-28, API-SPEC §4-7 보류 블록) — 아래 함수는 작성하지 않는다.
 //    크론에 익명화 단계 미탑재. 유예 경과 후에도 상태 유지, 철회 계속 가능.
@@ -573,16 +636,21 @@ export async function createStudySession(study: Study, date: string,
 ```ts
 // /api/uploads/presign/+server.ts
 const PURPOSES = {
-  "seminar-material": { prefix: "seminars", types: ["application/pdf"], max: 50_000_000 },
-  "seminar-photo":    { prefix: "seminars", types: IMG, max: 10_000_000 },
-  "study-photo":      { prefix: "studies",  types: IMG, max: 10_000_000 },
-  "gallery-photo":    { prefix: "gallery",  types: IMG, max: 10_000_000 },
+  "seminar-material": {
+    prefix: "seminars",
+    types: ["application/pdf"],
+    max: 50_000_000,
+  },
+  "seminar-photo": { prefix: "seminars", types: IMG, max: 10_000_000 },
+  "study-photo": { prefix: "studies", types: IMG, max: 10_000_000 },
+  "gallery-photo": { prefix: "gallery", types: IMG, max: 10_000_000 },
 };
 // s3Key = `uploads/pending/${purpose}/${newId()}-${slug(filename)}.${ext}`   ← lifecycle 7일 대상
 // presigned PUT 600s, Content-Type·Content-Length 조건 서명에 포함
 ```
 
 등록(`?/addFile` 등) 시:
+
 1. 🔴 **`HeadObject`로 실측 검증** — Content-Length가 purpose 상한 초과 또는 Content-Type 불일치 →
    `VALIDATION_FAILED`, 승격 중단 (pending 객체는 수명주기 7일 정리).
    presigned PUT은 크기를 서버측 강제하지 못하므로 **이 단계가 실제 상한 강제 지점**이다
@@ -602,17 +670,18 @@ const PURPOSES = {
 
 ## Phase 5 — 공개 영역
 
-### 렌더 전략 구현 (Vercel 어댑터)
+### 렌더 전략 구현 (Vercel 어댑터) — **2026-09-10 전면 개정**
+
+**공개 페이지에 프리렌더도 ISR도 걸지 않는다.** 아래는 폐기된 원안이다.
 
 ```ts
-// (public)/about/... 등 정적 페이지
-export const prerender = true;
-
-// (public)/archive/..., /members — ISR
-export const config = { isr: { expiration: 60 } };   // adapter-vercel ISR
-
-// `/` — ISR 걸지 않음 (세션 분기). 게스트 분기 응답은 짧은 CDN 캐시도 걸지 않는다 (쿠키 분기 안전 우선)
+// ❌ 폐기 — 2026-09-01 교차 유출 사고(9035cad)와 결정 C-17로 둘 다 제거됐다
+// export const prerender = true;                     // (public)/about/... 등
+// export const config = { isr: { expiration: 60 } }; // (public)/archive/..., /members
 ```
+
+현행: 전 공개 라우트가 SSR이고, 최외곽 훅이 **모든 SSR 응답**에 `no-store`를 부착한다.
+근거와 이력은 `API-SPEC` §1-4 (v0.8). 이미지만 예외로 `/_vercel/image`가 30일 엣지 캐시를 유지한다.
 
 - 공개 로드는 `MemberSchema.pick` 파생 타입만 반환 — **로드 반환부에 원시 row 전달 금지** (lint 규칙 또는 리뷰 체크)
 - BE-64 스냅샷: 각 공개 load를 직접 호출해 `JSON.stringify` 결과에
@@ -644,16 +713,16 @@ scripts/migration/          # tsx로 로컬 실행, snumps-migration 역할 사�
 
 ## Phase 7 — 검증 스위트 배치
 
-| 파일 | 내용 |
-|---|---|
-| `src/lib/server/data/tables.test.ts` | BE-15 전 항목 |
-| `src/lib/server/attendance.test.ts` | mergeAttendees — 외부 보존/부분집합/중복/빈 입력 |
-| `src/hooks.guard.test.ts` | BE-24 매트릭스 |
-| `src/lib/server/withdrawal.test.ts` | 상태 머신: 신청→보존→해제(재기산)→익명화, 철회 복원, 삼중 확인 결여 |
-| `src/lib/server/approvals.test.ts` | 각 승인 흐름 — 단계별 실패 주입 후 재실행, 중복 0 |
-| `src/lib/server/mail/templates.test.ts` | Bcc 헤더, 옵트아웃 제외, 배치 분할 |
-| `src/routes/(public)/public-loads.test.ts` | BE-64 스냅샷 |
-| `src/lib/server/core/semester.test.ts` | 경계: 2/28, 3/1, 8/31, 9/1, 연말연시 |
+| 파일                                       | 내용                                                                |
+| ------------------------------------------ | ------------------------------------------------------------------- |
+| `src/lib/server/data/tables.test.ts`       | BE-15 전 항목                                                       |
+| `src/lib/server/attendance.test.ts`        | mergeAttendees — 외부 보존/부분집합/중복/빈 입력                    |
+| `src/hooks.guard.test.ts`                  | BE-24 매트릭스                                                      |
+| `src/lib/server/withdrawal.test.ts`        | 상태 머신: 신청→보존→해제(재기산)→익명화, 철회 복원, 삼중 확인 결여 |
+| `src/lib/server/approvals.test.ts`         | 각 승인 흐름 — 단계별 실패 주입 후 재실행, 중복 0                   |
+| `src/lib/server/mail/templates.test.ts`    | Bcc 헤더, 옵트아웃 제외, 배치 분할                                  |
+| `src/routes/(public)/public-loads.test.ts` | BE-64 스냅샷                                                        |
+| `src/lib/server/core/semester.test.ts`     | 경계: 2/28, 3/1, 8/31, 9/1, 연말연시                                |
 
 전부 store/storage 인메모리 목 위에서 실행 — 실 Supabase 불요. 통합(실 프로젝트) 검증은 이주 리허설(30-verify)로 갈음.
 

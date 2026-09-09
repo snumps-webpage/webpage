@@ -7,8 +7,13 @@
 >
 > **v0.7**: 저장 형식을 S3 객체에서 Supabase 문서 행으로 개정 — 계약 시그니처는 불변 (2026-09-01, §1-3·§1-5·§8-1·§8-2).
 >
+> **v0.8**: 공개 페이지 캐시 전략을 현행으로 개정 (2026-09-10, §1-4·§3 렌더 열).
+> ISR은 2026-09-01 교차 유출 사고로 제거됐고(`9035cad`), 프리렌더는 결정 C-17로 제거됐다.
+> §8-1 크론 실패 응답과 §8-2 presign 가드도 코드 현실에 맞춰 기술한다.
+>
 > **형식**: 이 앱은 SvelteKit이다. API는 세 층으로 구성된다.
-> 1. **페이지 로드** (`+page.server.ts load`) — 화면 데이터 공급. SSR/prerender/ISR
+>
+> 1. **페이지 로드** (`+page.server.ts load`) — 화면 데이터 공급. **전부 SSR** (§1-4)
 > 2. **폼 액션** (`+page.server.ts actions`) — 상태 변경. `POST /경로?/액션명`
 > 3. **REST 엔드포인트** (`/api/*`) — 크론·폴링·업로드 등 폼 액션이 부적합한 경우만
 
@@ -18,14 +23,14 @@
 
 ### 1-1. 인가 계층
 
-| 가드 | 통과 조건 | 실패 시 |
-|---|---|---|
-| `public` | 없음 (게스트 허용) | — |
-| `ensureSession` | 로그인 세션 존재 | 303 → `/login` |
-| `ensureMember` | 세션 + 승인된 회원 (`locals.member` 존재) | 미가입 303 → `/signup`, 미승인 303 → `/wait` |
-| `ensurePresenter(eventId)` | 회원 + 해당 이벤트 `presenterIds` 포함 (이벤트를 재조회해 판정 — locals 불신) | 403 `FORBIDDEN` |
-| `ensureOrganizer(studyId)` | 회원 + 해당 스터디 `organizerIds` 포함 (재조회 판정) | 403 `FORBIDDEN` |
-| `ensureAdmin` | 회원 + `isAdmin: true` (D4) | 404 (존재 은폐) |
+| 가드                       | 통과 조건                                                                     | 실패 시                                      |
+| -------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------- |
+| `public`                   | 없음 (게스트 허용)                                                            | —                                            |
+| `ensureSession`            | 로그인 세션 존재                                                              | 303 → `/login`                               |
+| `ensureMember`             | 세션 + 승인된 회원 (`locals.member` 존재)                                     | 미가입 303 → `/signup`, 미승인 303 → `/wait` |
+| `ensurePresenter(eventId)` | 회원 + 해당 이벤트 `presenterIds` 포함 (이벤트를 재조회해 판정 — locals 불신) | 403 `FORBIDDEN`                              |
+| `ensureOrganizer(studyId)` | 회원 + 해당 스터디 `organizerIds` 포함 (재조회 판정)                          | 403 `FORBIDDEN`                              |
+| `ensureAdmin`              | 회원 + `isAdmin: true` (D4)                                                   | 404 (존재 은폐)                              |
 
 - 공개 영역 판정은 접두사 매칭이 아니라 **라우트 그룹/명시 목록** 기반
 - 가드 테스트 매트릭스: 전 라우트 × **5역할** {게스트, 신청자, 회원, 발표자/주최자, 관리자} (SYS-07)
@@ -40,15 +45,15 @@
 
 에러 코드:
 
-| 코드 | 의미 |
-|---|---|
-| `VALIDATION_FAILED` | 입력 형식 오류 (자기 자신 전달 등 의미 오류 포함) |
-| `NOT_FOUND` | 대상 레코드 없음 / dangling 참조 |
-| `FORBIDDEN` | 권한 없음 |
-| `CONFLICT` | 상태 충돌 (이미 처리됨, 중복 제안 등) |
-| `WRITE_CONFLICT` | 조건부 쓰기(version CAS) 재시도 소진 |
-| `EVENT_NOT_OPEN` | 이벤트가 신청·출석 가능 상태 아님 (draft/expired/cancelled/시작 후 신청) |
-| `STUDY_NOT_RECRUITING` | 모집 중이 아닌 스터디에 참여 신청 |
+| 코드                   | 의미                                                                     |
+| ---------------------- | ------------------------------------------------------------------------ |
+| `VALIDATION_FAILED`    | 입력 형식 오류 (자기 자신 전달 등 의미 오류 포함)                        |
+| `NOT_FOUND`            | 대상 레코드 없음 / dangling 참조                                         |
+| `FORBIDDEN`            | 권한 없음                                                                |
+| `CONFLICT`             | 상태 충돌 (이미 처리됨, 중복 제안 등)                                    |
+| `WRITE_CONFLICT`       | 조건부 쓰기(version CAS) 재시도 소진                                     |
+| `EVENT_NOT_OPEN`       | 이벤트가 신청·출석 가능 상태 아님 (draft/expired/cancelled/시작 후 신청) |
+| `STUDY_NOT_RECRUITING` | 모집 중이 아닌 스터디에 참여 신청                                        |
 
 ### 1-3. 데이터 계층 계약 (SYS-01)
 
@@ -61,7 +66,7 @@ mutate<T>(name: TableName, fn: (rows: T[]) => T[]): Promise<T[]>
 
 - 저장 형식: **`{ "schemaVersion": 1, "rows": [...] }` 봉투** — 필드 형상 변경 시 리더가 버전 분기
 - 저장: Supabase Postgres `app_tables`/`app_queues` — 테이블당 행 1개, `doc` JSONB에 봉투 그대로(gzip 없음)
-  + `version` bigint (CAS 열). 버킷 버전 관리의 롤백 역할은 백업 계층(SUPABASE-MIGRATION-SPEC §7)이 대체
+  - `version` bigint (CAS 열). 버킷 버전 관리의 롤백 역할은 백업 계층(SUPABASE-MIGRATION-SPEC §7)이 대체
 - `mutate`: 읽기(version) → fn → 조건부 쓰기(`WHERE version = expected`), 조건 실패 시 재읽기 재시도(지수 백오프)
   → `WRITE_CONFLICT`. **재시도 의미 동일** — 구 412/409/404 구분은 "조건부 쓰기 실패" 1종으로 수렴
   (재시도 동작에 무영향). 재시도 상한: 일반 테이블 5회, **출석 큐 10회** (동시 체크인 버스트 대상)
@@ -72,16 +77,28 @@ mutate<T>(name: TableName, fn: (rows: T[]) => T[]): Promise<T[]>
 
 ### 1-4. 캐시
 
-| 키 | 내용 | 무효화 |
-|---|---|---|
-| `table_<name>` | 테이블 전문 | 해당 테이블 `mutate` 성공 시 **자동** (데이터 계층이 수행) |
-| `activities_<start>_<end>` | 기간 조회 파생 | activities 변경 액션이 명시 |
-| `user_activities_<memberId>` | 회원별 이력 | 해당 회원 출석 변경 액션이 명시 |
-| `all_events` | 이벤트 목록 | events 변경 액션이 명시 |
+| 키                           | 내용           | 무효화                                                     |
+| ---------------------------- | -------------- | ---------------------------------------------------------- |
+| `table_<name>`               | 테이블 전문    | 해당 테이블 `mutate` 성공 시 **자동** (데이터 계층이 수행) |
+| `activities_<start>_<end>`   | 기간 조회 파생 | activities 변경 액션이 명시                                |
+| `user_activities_<memberId>` | 회원별 이력    | 해당 회원 출석 변경 액션이 명시                            |
+| `all_events`                 | 이벤트 목록    | events 변경 액션이 명시                                    |
 
 - 원칙: **`mutate(t)` → `table_t` 무효화는 자동.** 아래 액션 명세의 "캐시:" 표기는 파생 키만 적는다
-- **ISR 재검증**: 공개 페이지(§3)는 태그 기반 재검증이 없으므로 **TTL 방식** — 정적(prerender) 제외
-  전 공개 페이지 `revalidate: 60`(초). 회원 편집 직후 공개 페이지 반영은 최대 60초 지연 허용
+- **HTTP 캐시: 전면 금지 (v0.8).** 공개 페이지를 포함한 **모든 SSR 응답**에 최외곽 훅이
+  `cache-control: private, no-store` + `vercel-cdn-cache-control: no-store`를 부여한다
+  (`hooks.server.ts` cacheShield). 따라서 회원 편집은 **다음 요청에 즉시 반영**된다 — 지연 없음.
+
+  |                        | 이전 규약                           | 현재     | 근거                                                                                                         |
+  | ---------------------- | ----------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------ |
+  | ISR (`revalidate: 60`) | 전 공개 페이지                      | **없음** | 2026-09-01 실사고 — 엣지가 경로 단위로 SSR 응답을 재생해 개인화 페이지가 교차 유출됐다 (`dea9879`·`9035cad`) |
+  | prerender              | `/about` 계열, `/archive` 공지 계열 | **없음** | 결정 C-17 (2026-09-10) — 아카이브 레이아웃 스냅샷이 정적 HTML·`__data.json`에 구워져 캐시 실드 밖에 남았다   |
+
+  **데이터 계층 캐시는 별개다** — `getTable`의 `withCache`(Redis 300초 / 로컬 15초)는 그대로다.
+  HTTP 캐시가 아니라 서버 내부 캐시이고 `mutate`가 무효화한다.
+
+  **이미지는 예외** — `/_vercel/image` 최적화 응답은 플랫폼이 처리해 훅을 타지 않으며
+  30일 엣지 캐시를 유지한다 (`svelte.config.js` adapter `images`).
 
 ### 1-5. 감사 로그 (SYS-06)
 
@@ -117,7 +134,7 @@ mutate<T>(name: TableName, fn: (rows: T[]) => T[]): Promise<T[]>
 
 ### 학기(term) 파생 규칙 — 단일 정의
 
-`"<YY>-<1|2>"`. **3월~8월 = 해당 연도 1학기, 9월~익년 2월 = 해당 연도 2학기** (1~2월은 전년도 `-2`).
+`"<YY>-<1|2>"`. **3월~~8월 = 해당 연도 1학기, 9월~~익년 2월 = 해당 연도 2학기** (1~2월은 전년도 `-2`).
 datetime → term 변환은 이 규칙의 단일 유틸만 사용. `activities`/`events`에는 term을 저장하지 않고 파생한다.
 
 ### `members`
@@ -128,18 +145,18 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용. `activities`/
   "name": "string",
   "department": "string",
   "joinedAt": "date",
-  "status": "associate | regular | withdrawn",   // 준회원 | 정회원 | 탈퇴 (MEM-07)
+  "status": "associate | regular | withdrawn", // 준회원 | 정회원 | 탈퇴 (MEM-07)
   "statusChangedAt": "datetime",
-  "withdrawal": null,                   // { "requestedAt": "datetime", "previousStatus": "associate | regular",
-                                        //   "holdBy": "ULID | null", "holdAt": "datetime | null" } | null
-                                        // holdBy 설정 = 보존 집행(ADM-17) — 자동 삭제 중단. previousStatus는 철회 시 복원용
-  "isAlumni": false,                    // 동문 영구 지위
-  "alumniRevoked": false,               // 유고 박탈 이력 — true면 setStatus 승격이 isAlumni를 되살리지 않는다
-  "roles": [ { "term": "26-1", "title": "회장" } ],
+  "withdrawal": null, // { "requestedAt": "datetime", "previousStatus": "associate | regular",
+  //   "holdBy": "ULID | null", "holdAt": "datetime | null" } | null
+  // holdBy 설정 = 보존 집행(ADM-17) — 자동 삭제 중단. previousStatus는 철회 시 복원용
+  "isAlumni": false, // 동문 영구 지위
+  "alumniRevoked": false, // 유고 박탈 이력 — true면 setStatus 승격이 isAlumni를 되살리지 않는다
+  "roles": [{ "term": "26-1", "title": "회장" }],
   "isAdmin": false,
-  "publicContact": null,                // string | null. 본인 동의 하에 공개되는 연락처 (임원용). §3 공개 금지의 유일한 예외
-  "project": null,                      // { "title": "string", "url": "string?" } | null — 개인 프로젝트 보드 내용
-  "sourceRequestId": null               // string | null — 가입 승인 멱등(§1-6)의 실체. 이주 회원은 null
+  "publicContact": null, // string | null. 본인 동의 하에 공개되는 연락처 (임원용). §3 공개 금지의 유일한 예외
+  "project": null, // { "title": "string", "url": "string?" } | null — 개인 프로젝트 보드 내용
+  "sourceRequestId": null, // string | null — 가입 승인 멱등(§1-6)의 실체. 이주 회원은 null
 }
 ```
 
@@ -151,11 +168,11 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용. `activities`/
 {
   "id": "ULID",
   "memberId": "ULID",
-  "email": "string",                    // 로그인 매칭 키 (유일)
+  "email": "string", // 로그인 매칭 키 (유일)
   "phone": "010-XXXX-XXXX",
   "background": "string",
-  "mailPrefs": { "announcements": true },  // 유형별 수신 설정. 현재 키 1개, 유형 추가 시 키 추가
-  "sourceRequestId": null                  // string | null — §1-6
+  "mailPrefs": { "announcements": true }, // 유형별 수신 설정. 현재 키 1개, 유형 추가 시 키 추가
+  "sourceRequestId": null, // string | null — §1-6
 }
 ```
 
@@ -166,9 +183,9 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용. `activities`/
   "id": "ULID",
   "title": "string",
   "date": { "start": "datetime", "end": "datetime | null" },
-  "type": "세미나 | 스터디 | 회의 | 회식 | 기타",   // 닫힌 집합. 'Seminar' 폐기 확정
+  "type": "세미나 | 스터디 | 회의 | 회식 | 기타", // 닫힌 집합. 'Seminar' 폐기 확정
   "attendeeIds": ["ULID"],
-  "sourceRequestId": "string | null"      // §1-6. 승인·회차 생성이 만든 경우 원 신청/회차 근거
+  "sourceRequestId": "string | null", // §1-6. 승인·회차 생성이 만든 경우 원 신청/회차 근거
 }
 ```
 
@@ -179,17 +196,17 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용. `activities`/
   "id": "ULID",
   "title": "string",
   "date": { "start": "datetime", "end": "datetime | null" },
-  "type": "세미나 | 스터디 | 회의 | 회식 | 기타",   // activities.type과 동일 집합
-  "status": "draft | active | expired | cancelled",  // cancelled는 재활성화 불가 (expired만 재활성화 허용)
+  "type": "세미나 | 스터디 | 회의 | 회식 | 기타", // activities.type과 동일 집합
+  "status": "draft | active | expired | cancelled", // cancelled는 재활성화 불가 (expired만 재활성화 허용)
   "pathId": "string",
   "attendCode": "string",
-  "activityId": "ULID",                 // 필수 — 출석이 반영될 활동. null 불허 (생성 시 활동 동시 생성)
+  "activityId": "ULID", // 필수 — 출석이 반영될 활동. null 불허 (생성 시 활동 동시 생성)
   "applicantIds": ["ULID"],
   "presenterIds": ["ULID"],
   "studyId": "ULID | null",
-  "sessionNo": 3,                        // 스터디 회차 번호 (수동·자동 공통: 해당 studyId의 max+1)
+  "sessionNo": 3, // 스터디 회차 번호 (수동·자동 공통: 해당 studyId의 max+1)
   "autoGenerated": false,
-  "sourceRequestId": "string | null"
+  "sourceRequestId": "string | null",
 }
 ```
 
@@ -204,7 +221,7 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용. `activities`/
   "eventId": "ULID",
   "startTime": "datetime",
   "endTime": "datetime | null",
-  "status": "pending | approved | rejected"
+  "status": "pending | approved | rejected",
 }
 ```
 
@@ -212,9 +229,13 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용. `activities`/
 
 ```jsonc
 {
-  "id": "ULID", "name": "string", "email": "string", "phone": "string",
-  "department": "string", "background": "string",
-  "createdAt": "datetime"
+  "id": "ULID",
+  "name": "string",
+  "email": "string",
+  "phone": "string",
+  "department": "string",
+  "background": "string",
+  "createdAt": "datetime",
 }
 ```
 
@@ -225,13 +246,16 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용. `activities`/
 
 ```jsonc
 {
-  "id": "ULID", "title": "string", "description": "string",
-  "prerequisites": "string", "duration": "string",
-  "presenterIds": ["ULID"],             // 'speakerIds' 아님 — 발표자 명칭 전 테이블 통일
-  "attachment": "string",               // 자료 외부 링크 (현행 기능 보존 — 업로드 경로는 SYS-03에서)
+  "id": "ULID",
+  "title": "string",
+  "description": "string",
+  "prerequisites": "string",
+  "duration": "string",
+  "presenterIds": ["ULID"], // 'speakerIds' 아님 — 발표자 명칭 전 테이블 통일
+  "attachment": "string", // 자료 외부 링크 (현행 기능 보존 — 업로드 경로는 SYS-03에서)
   "requesterId": "ULID",
   "status": "pending | approved | rejected | withdrawn",
-  "createdAt": "datetime"
+  "createdAt": "datetime",
 }
 ```
 
@@ -239,11 +263,14 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용. `activities`/
 
 ```jsonc
 {
-  "id": "ULID", "title": "string", "textbook": "string",
-  "description": "string", "semester": "26-1",
+  "id": "ULID",
+  "title": "string",
+  "textbook": "string",
+  "description": "string",
+  "semester": "26-1",
   "requesterId": "ULID",
   "status": "pending | approved | rejected | withdrawn",
-  "createdAt": "datetime"
+  "createdAt": "datetime",
 }
 ```
 
@@ -251,17 +278,23 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용. `activities`/
 
 ```jsonc
 {
-  "id": "ULID", "title": "string", "semester": "26-1",
-  "textbook": "string", "description": "string", "note": "string",
-  "organizerIds": ["ULID"],             // 배열. 현재 불변식은 1명 — 공동 주최 확장 대비
+  "id": "ULID",
+  "title": "string",
+  "semester": "26-1",
+  "textbook": "string",
+  "description": "string",
+  "note": "string",
+  "organizerIds": ["ULID"], // 배열. 현재 불변식은 1명 — 공동 주최 확장 대비
   "participantIds": ["ULID"],
   "pendingParticipantIds": ["ULID"],
-  "pendingTransfer": { "toMemberId": "ULID", "requestedAt": "datetime" },  // | null
-  "schedule": [ { "date": "datetime", "generatedEventId": "ULID | null" } ],
-  "transferHistory": [ { "from": "ULID", "to": "ULID", "at": "datetime", "byAdmin": false } ],
+  "pendingTransfer": { "toMemberId": "ULID", "requestedAt": "datetime" }, // | null
+  "schedule": [{ "date": "datetime", "generatedEventId": "ULID | null" }],
+  "transferHistory": [
+    { "from": "ULID", "to": "ULID", "at": "datetime", "byAdmin": false },
+  ],
   "photos": ["s3Key"],
   "status": "recruiting | ongoing | finished",
-  "sourceRequestId": "string | null"
+  "sourceRequestId": "string | null",
 }
 ```
 
@@ -272,18 +305,28 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
 
 ```jsonc
 {
-  "id": "ULID", "title": "string", "semester": "25-2", "note": "string",
-  "presenterIds": ["ULID"], "externalPresenters": "string",
-  "materials": ["s3Key"], "photos": ["s3Key"],
-  "activityId": "ULID | null",          // 승인 생성 시 기록 — 아카이브↔활동 연결
-  "sourceRequestId": "string | null"
+  "id": "ULID",
+  "title": "string",
+  "semester": "25-2",
+  "note": "string",
+  "presenterIds": ["ULID"],
+  "externalPresenters": "string",
+  "materials": ["s3Key"],
+  "photos": ["s3Key"],
+  "activityId": "ULID | null", // 승인 생성 시 기록 — 아카이브↔활동 연결
+  "sourceRequestId": "string | null",
 }
 ```
 
 ### `gallery-dinner`
 
 ```jsonc
-{ "id": "ULID", "year": "string", "photos": ["s3Key"], "activityId": "ULID | null" }
+{
+  "id": "ULID",
+  "year": "string",
+  "photos": ["s3Key"],
+  "activityId": "ULID | null",
+}
 ```
 
 ---
@@ -296,18 +339,18 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
 운영 필드는 어떤 공개 로드에도 포함 금지. **유일한 예외: `members.publicContact`** — 본인 동의로
 설정된 공개 연락처 필드로, 임원 연락처 표시(PUB-01·05)에 사용한다. §10 스냅샷 테스트가 이 제약을 검증.
 
-| 로드 | 기능 | 데이터 | 렌더 |
-|---|---|---|---|
-| `GET /` (게스트 분기) | PUB-01 | 정적 소개문 + 현 임원 (`members.roles` 최신 term + `publicContact`) | **세션 없는 분기만 ISR(60s).** 세션 있으면 §4-5 대시보드로 분기 — 회원 응답은 캐시 금지 |
-| `GET /about` 계열 (`charter`, `charter/history/[period]`, `elections`, `press`, `finance`) | PUB-02~04·06~08 | 레포 마크다운 + Storage 자산 | prerender |
-| `GET /about/executives` | PUB-05 | `roles` 파생 역대 직책 (임기 내림차순) + `publicContact` | ISR(60s) |
-| `GET /archive/seminars`, `/[id]` | PUB-09 | `seminars` 학기 그룹 / 단건 + 자료·사진 CDN URL | ISR(60s) |
-| `GET /archive/studies` | PUB-10 | `studies` 공개 필드만 (운영 필드 제외) | ISR(60s) |
-| `GET /archive/activities` | PUB-11 | `activities` — attendeeIds 제외 | ISR(60s) |
-| `GET /archive/gallery` | PUB-12 | 3테이블 photos, thumb 파생본 | ISR(60s) |
-| `GET /archive/projects` | PUB-13 | `members` 중 `project != null` — 이름·학과·project 내용 | ISR(60s) |
-| `GET /archive/misc` 계열, `/archive/problems`, `/archive/discussions` | PUB-14 | 마크다운 + Storage PDF | prerender |
-| `GET /members` | PUB-15 | name·department·joinedAt·roles (D2 범위). **`status: withdrawn` 제외** | ISR(60s) |
+| 로드                                                                                       | 기능              | 데이터                                                                 | 렌더                                             |
+| ------------------------------------------------------------------------------------------ | ----------------- | ---------------------------------------------------------------------- | ------------------------------------------------ |
+| `GET /` (게스트 분기)                                                                      | PUB-01            | 정적 소개문 + 현 임원 (`members.roles` 최신 term + `publicContact`)    | SSR · no-store. 세션 있으면 §4-5 대시보드로 분기 |
+| `GET /about` 계열 (`charter`, `charter/history/[period]`, `elections`, `press`, `finance`) | PUB-02~~04·06~~08 | 레포 마크다운 + Storage 자산                                           | SSR · no-store (C-17 이전 prerender)             |
+| `GET /about/executives`                                                                    | PUB-05            | `roles` 파생 역대 직책 (임기 내림차순) + `publicContact`               | SSR · no-store                                   |
+| `GET /archive/seminars`, `/[id]`                                                           | PUB-09            | `seminars` 학기 그룹 / 단건 + 자료·사진 CDN URL                        | SSR · no-store                                   |
+| `GET /archive/studies`                                                                     | PUB-10            | `studies` 공개 필드만 (운영 필드 제외)                                 | SSR · no-store                                   |
+| `GET /archive/activities`                                                                  | PUB-11            | `activities` — attendeeIds 제외                                        | SSR · no-store                                   |
+| `GET /archive/gallery`                                                                     | PUB-12            | 3테이블 photos, thumb 파생본                                           | SSR · no-store                                   |
+| `GET /archive/projects`                                                                    | PUB-13            | `members` 중 `project != null` — 이름·학과·project 내용                | SSR · no-store                                   |
+| `GET /archive/misc` 계열, `/archive/problems`, `/archive/discussions`                      | PUB-14            | 마크다운 + Storage PDF                                                 | SSR · no-store (C-17 이전 prerender)             |
+| `GET /members`                                                                             | PUB-15            | name·department·joinedAt·roles (D2 범위). **`status: withdrawn` 제외** | SSR · no-store                                   |
 
 `sitemap.xml`·`robots.txt` 정적 (PUB-16).
 
@@ -481,15 +524,15 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
 - 가드: `ensureOrganizer`
 - 반환: 신청 대기, 참여자, 회차 목록(자동 생성 표시), 일정, 전달 상태, 스터디 상태
 
-| 액션 | 기능 | 처리 |
-|---|---|---|
-| `?/acceptParticipant` / `?/removeParticipant` | STU-04 | pending→participants / 제거. 멱등 |
-| `?/setStudyStatus` | STU 상태 전이 | `recruiting ↔ ongoing → finished`. finished 전이는 확인 요구 |
-| `?/createSession` | STU-06 수동 | 검증: `status != finished`. ① `activities` 생성(type 스터디, `sourceRequestId` = 회차 근거) ② `events` 생성(`studyId`, `sessionNo` = 해당 스터디 max+1, `activityId` 연결, active) — §1-6 멱등 |
-| `?/registerSchedule` | STU-06 자동 | `schedule` 등록. 생성은 크론(§8-1). `status: finished`면 거부 |
-| `?/updateSession` / `?/cancelSession` | STU-06 | 제목·일시 수정 / **`status: cancelled`** (expired와 구분 — 재활성화 불가) + 일정 항목 해제 |
-| `?/proposeTransfer` | STU-07 | 검증: 대상이 회원 ∧ **본인 아님**(`VALIDATION_FAILED`) ∧ 기존 제안 없음(`CONFLICT`) |
-| `?/cancelTransfer` | STU-07 | `pendingTransfer = null` |
+| 액션                                          | 기능          | 처리                                                                                                                                                                                           |
+| --------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `?/acceptParticipant` / `?/removeParticipant` | STU-04        | pending→participants / 제거. 멱등                                                                                                                                                              |
+| `?/setStudyStatus`                            | STU 상태 전이 | `recruiting ↔ ongoing → finished`. finished 전이는 확인 요구                                                                                                                                   |
+| `?/createSession`                             | STU-06 수동   | 검증: `status != finished`. ① `activities` 생성(type 스터디, `sourceRequestId` = 회차 근거) ② `events` 생성(`studyId`, `sessionNo` = 해당 스터디 max+1, `activityId` 연결, active) — §1-6 멱등 |
+| `?/registerSchedule`                          | STU-06 자동   | `schedule` 등록. 생성은 크론(§8-1). `status: finished`면 거부                                                                                                                                  |
+| `?/updateSession` / `?/cancelSession`         | STU-06        | 제목·일시 수정 / **`status: cancelled`** (expired와 구분 — 재활성화 불가) + 일정 항목 해제                                                                                                     |
+| `?/proposeTransfer`                           | STU-07        | 검증: 대상이 회원 ∧ **본인 아님**(`VALIDATION_FAILED`) ∧ 기존 제안 없음(`CONFLICT`)                                                                                                            |
+| `?/cancelTransfer`                            | STU-07        | `pendingTransfer = null`                                                                                                                                                                       |
 
 캐시: 회차 변경 시 `all_events`, `activities_*`.
 
@@ -519,47 +562,47 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
 
 ### 7-2. `/admin` 액션
 
-| 액션 | 기능 | 처리 |
-|---|---|---|
-| `?/approve` | ADM-01 | ① `private-info` 생성(신청 내용 **전환**) ② `members` 생성(status **associate**) ③ **신청 행 제거**. ①②는 `sourceRequestId` check-before-create — ③ 실패 후 재실행은 기존 레코드를 감지하고 행 제거만 수행. 행이 이미 없으면 `NOT_FOUND` |
-| `?/reject` | ADM-01 | 거절 알림 메일 후 **신청 행 제거** (전환 대상 없음) |
-| `?/approveSeminar` | ADM-02 | ① `activities` ② `events`(active, `presenterIds` = request의 presenterIds, `activityId` 연결) ③ `seminars`(`activityId`·`presenterIds` 기록) ④ request `approved` ⑤ 공지 메일(비전파). 전 단계 `sourceRequestId` |
-| `?/rejectSeminar` / `?/approveStudy` / `?/rejectStudy` | ADM-02·16 | 스터디 승인: `studies` 생성(`organizerIds = [requesterId]`, recruiting, `sourceRequestId`) → request `approved` → 알림 메일 |
-| `?/activateEvent` / `?/expireEvent` / `?/deleteEvent` | ADM-04 | 전이 draft↔active↔expired (cancelled는 불가). **deleteEvent**: 해당 `attendance-queue/<eventId>`에 pending 있으면 `CONFLICT`(먼저 처리 요구), 없으면 큐 객체 함께 삭제 |
-| `?/updateEvent` | ADM-04 | 제목·일시·타입 수정 (오입력 정정) |
-| `?/approveAttendance` | ADM-03 | 입력: **`(eventId, queueId)`** — 저장이 이벤트당 객체라 둘 다 필수 (큐 액션 4종 공통). 검증: 이벤트·활동 실재 (dangling → `NOT_FOUND`). `activities.attendeeIds` 추가 → queue `approved`. 캐시: `activities_*`, `user_activities_<memberId>` |
-| `?/rejectAttendance` / `?/deleteAttendanceRecord` | ADM-03 | 입력 `(eventId, queueId)`. **approved 행에 적용 시 역반영** — `attendeeIds`에서 제거 후 상태 변경/삭제. 캐시 동일 |
-| `?/updateAttendanceTime` | ADM-03 | 입력 `(eventId, queueId, start, end)`. 시각 수정 |
-| `?/holdWithdrawal` / `?/releaseWithdrawalHold` | ADM-17 | §7-3 표 참조 — 진입은 이 대시보드의 탈퇴 유예 목록 |
+| 액션                                                   | 기능      | 처리                                                                                                                                                                                                                                         |
+| ------------------------------------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `?/approve`                                            | ADM-01    | ① `private-info` 생성(신청 내용 **전환**) ② `members` 생성(status **associate**) ③ **신청 행 제거**. ①②는 `sourceRequestId` check-before-create — ③ 실패 후 재실행은 기존 레코드를 감지하고 행 제거만 수행. 행이 이미 없으면 `NOT_FOUND`     |
+| `?/reject`                                             | ADM-01    | 거절 알림 메일 후 **신청 행 제거** (전환 대상 없음)                                                                                                                                                                                          |
+| `?/approveSeminar`                                     | ADM-02    | ① `activities` ② `events`(active, `presenterIds` = request의 presenterIds, `activityId` 연결) ③ `seminars`(`activityId`·`presenterIds` 기록) ④ request `approved` ⑤ 공지 메일(비전파). 전 단계 `sourceRequestId`                             |
+| `?/rejectSeminar` / `?/approveStudy` / `?/rejectStudy` | ADM-02·16 | 스터디 승인: `studies` 생성(`organizerIds = [requesterId]`, recruiting, `sourceRequestId`) → request `approved` → 알림 메일                                                                                                                  |
+| `?/activateEvent` / `?/expireEvent` / `?/deleteEvent`  | ADM-04    | 전이 draft↔active↔expired (cancelled는 불가). **deleteEvent**: 해당 `attendance-queue/<eventId>`에 pending 있으면 `CONFLICT`(먼저 처리 요구), 없으면 큐 객체 함께 삭제                                                                       |
+| `?/updateEvent`                                        | ADM-04    | 제목·일시·타입 수정 (오입력 정정)                                                                                                                                                                                                            |
+| `?/approveAttendance`                                  | ADM-03    | 입력: **`(eventId, queueId)`** — 저장이 이벤트당 객체라 둘 다 필수 (큐 액션 4종 공통). 검증: 이벤트·활동 실재 (dangling → `NOT_FOUND`). `activities.attendeeIds` 추가 → queue `approved`. 캐시: `activities_*`, `user_activities_<memberId>` |
+| `?/rejectAttendance` / `?/deleteAttendanceRecord`      | ADM-03    | 입력 `(eventId, queueId)`. **approved 행에 적용 시 역반영** — `attendeeIds`에서 제거 후 상태 변경/삭제. 캐시 동일                                                                                                                            |
+| `?/updateAttendanceTime`                               | ADM-03    | 입력 `(eventId, queueId, start, end)`. 시각 수정                                                                                                                                                                                             |
+| `?/holdWithdrawal` / `?/releaseWithdrawalHold`         | ADM-17    | §7-3 표 참조 — 진입은 이 대시보드의 탈퇴 유예 목록                                                                                                                                                                                           |
 
 ### 7-3. 회원 편집 — ADM-07·12
 
 `GET /admin/members` — 목록·검색 (이름/학과/status/직책).
 `GET /admin/members/[id]` — 공개 필드 + 개인정보. **열람 자체가 감사 로그** (§1-5).
 
-| 액션 | 처리 | 감사 로그 |
-|---|---|---|
-| `?/updateMember` | name·department·joinedAt·project·**publicContact** | — |
-| `?/setStatus` | associate↔regular. regular 승격 시 `isAlumni: true` — 단 **`alumniRevoked: true`면 자동 부여 안 함** | ✅ |
-| `?/revokeAlumni` | `isAlumni: false` + `alumniRevoked: true`. 사유 필수 | ✅ |
-| `?/setRoles` | 직책 축 갱신 | ✅ |
-| `?/setAdmin` | 부여/회수. 본인 회수 불가 | ✅ |
-| `?/updatePrivateInfo` | phone·background·email | ✅ |
-| `?/holdWithdrawal` | ADM-17 — 탈퇴 유예 중 보존 집행: `withdrawal.holdBy = 본인`, 자동 삭제 중단. 이미 익명화됐으면 `CONFLICT` | ✅ |
-| `?/releaseWithdrawalHold` | 보존 해제 — 해제 시점부터 1개월 재기산 (`requestedAt` 갱신) | ✅ |
+| 액션                      | 처리                                                                                                      | 감사 로그 |
+| ------------------------- | --------------------------------------------------------------------------------------------------------- | --------- |
+| `?/updateMember`          | name·department·joinedAt·project·**publicContact**                                                        | —         |
+| `?/setStatus`             | associate↔regular. regular 승격 시 `isAlumni: true` — 단 **`alumniRevoked: true`면 자동 부여 안 함**      | ✅        |
+| `?/revokeAlumni`          | `isAlumni: false` + `alumniRevoked: true`. 사유 필수                                                      | ✅        |
+| `?/setRoles`              | 직책 축 갱신                                                                                              | ✅        |
+| `?/setAdmin`              | 부여/회수. 본인 회수 불가                                                                                 | ✅        |
+| `?/updatePrivateInfo`     | phone·background·email                                                                                    | ✅        |
+| `?/holdWithdrawal`        | ADM-17 — 탈퇴 유예 중 보존 집행: `withdrawal.holdBy = 본인`, 자동 삭제 중단. 이미 익명화됐으면 `CONFLICT` | ✅        |
+| `?/releaseWithdrawalHold` | 보존 해제 — 해제 시점부터 1개월 재기산 (`requestedAt` 갱신)                                               | ✅        |
 
-캐시: 공개 페이지 반영은 ISR TTL(§1-4).
+캐시: 공개 페이지는 캐시하지 않으므로 **다음 요청에 즉시 반영**된다 (§1-4).
 
 ### 7-4. 레코드 편집 — ADM-08~11
 
 각 라우트 `GET` 로드: 대상 테이블 목록 + 편집 폼 현재값 + (필요 시) 회원 피커 목록.
 
-| 라우트 | 액션 |
-|---|---|
-| `/admin/activities` | `?/create`, `?/update`, `?/delete`, `?/setAttendees` (관리자 전권 덮어쓰기 — 병합 미적용 **명시적 예외**, 확인 다이얼로그) |
-| `/admin/seminars` | `?/create`, `?/update`, `?/delete`, `?/addFile`, `?/removeFile` |
-| `/admin/studies` | `?/create`, `?/update`, `?/delete`, `?/setOrganizer` (직권 전달 — **진행 중 `pendingTransfer` 자동 해제**, `transferHistory`에 `byAdmin: true`, 감사 로그 ✅), `?/addFile`, `?/removeFile` |
-| `/admin/gallery` | `?/create`, `?/update`, `?/delete`, `?/addPhoto`, `?/removePhoto` |
+| 라우트              | 액션                                                                                                                                                                                       |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/admin/activities` | `?/create`, `?/update`, `?/delete`, `?/setAttendees` (관리자 전권 덮어쓰기 — 병합 미적용 **명시적 예외**, 확인 다이얼로그)                                                                 |
+| `/admin/seminars`   | `?/create`, `?/update`, `?/delete`, `?/addFile`, `?/removeFile`                                                                                                                            |
+| `/admin/studies`    | `?/create`, `?/update`, `?/delete`, `?/setOrganizer` (직권 전달 — **진행 중 `pendingTransfer` 자동 해제**, `transferHistory`에 `byAdmin: true`, 감사 로그 ✅), `?/addFile`, `?/removeFile` |
+| `/admin/gallery`    | `?/create`, `?/update`, `?/delete`, `?/addPhoto`, `?/removePhoto`                                                                                                                          |
 
 `?/delete`는 참조 무결성 검증 — 참조하는 이벤트·큐가 있으면 `CONFLICT`.
 
@@ -585,11 +628,27 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
      (activities+events 생성, `sessionNo` = max+1, `autoGenerated: true`). **events 생성 후 schedule에
      `generatedEventId` 기록** — 재실행 시 `generatedEventId` 존재 또는 동일 근거 이벤트 존재로 멱등
   3. 🔶 **탈퇴 익명화 집행 — 구현 보류** (§4-7 보류 블록 참조). 크론에 이 단계를 탑재하지 않는다
-- 응답: `{ success: true, expired: n, generated: n }`
+- 응답 (v0.8):
+  - **성공** — `200 { success: true, steps_total: n, expired: n, generated: n, generation_errors: 0 }`.
+    이때만 dead-man's switch에 ping한다 (`SUPABASE-MIGRATION-SPEC` §5-3)
+  - **실패** — `500 { success: false, failures: [키…], …결과 }`. **ping하지 않는다**
+  - 실패 판정은 결과 맵의 세 표기를 본다: `<스텝>_failed`(스텝이 던짐) ·
+    `<단계>_errors`(스텝이 항목별 실패를 내부에서 삼키고 센 수) · `keptAlive: false`.
+    `services/cron-status.ts`의 `cronFailures()`가 유일한 판정자다
+  - **왜 명시하는가**: `runCron`/`runMaintenance`는 스텝별로 격리해 **던지지 않는다.**
+    따라서 라우트의 try/catch로는 실패를 알 수 없고, 이 규약이 없으면 전 스텝이 실패한 실행도
+    `200 success`로 보고되며 heartbeat까지 눌린다 — 실제로 그랬다 (감사 `CS-5`·`CM-4`)
+  - 같은 규약이 `GET /api/cron/maintenance`에 적용된다 (`backup_push_failed` 포함)
 
 ### 8-2. 업로드 — SYS-03
 
-- `POST /api/uploads/presign` — 가드 `ensureAdmin`
+- `POST /api/uploads/presign` — 가드 **기본 `ensureAdmin`, 단 `purpose === "seminar-poster"`는
+  `PARTICIPATE` capability 보유 회원에게도 허용** (v0.8이 기술을 코드에 맞춤 — 회원 경로 자체는
+  2026-09-02 세미나 포스터 직접 업로드 기능 `b448463`에서 열렸다)
+  - **api 존은 존 가드가 `locals.member`를 해석하지 않는다.** 따라서 이 판정은 핸들러가
+    `requireCapabilityAction`으로 **직접 해석**해야 한다 — `locals.member`를 읽으면 언제나
+    `undefined`라 회원 경로가 통째로 403이 된다 (감사 `UP-1`·`XC-6`)
+  - 스테이징은 private이고 승격 시 `stagedInfo`가 크기·타입을 재검증하므로 서명 URL만으로는 오염 불가
 - 입력: `{ purpose, filename, contentType, size }`. purpose별 타입·크기 상한 (이미지 10MB, PDF 50MB)
 - 응답: `{ uploadUrl, s3Key }` (Supabase signed upload URL — **만료 2시간 고정**(단축 불가), 키에 해시 포함.
   **Content-Type 미서명** — v0.7 개정)
@@ -606,21 +665,21 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
 
 ## 9. 이주 시 데이터 변환 규칙
 
-| 필드 | 초기값 규칙 |
-|---|---|
-| `members.status` | 전원 `associate`. **정회원·동문 간주 금지.** 활동 기록 DB 이주 완료 + 신규 회칙 제공 후 회칙 기준 일괄 재분류 |
-| `members.isAlumni` / `alumniRevoked` | 전원 `false` — 재분류 작업에서 부여 |
-| (경과 조치) | 재분류 전까지 status 축은 접근 권한에 영향 없음 — 회원 판정은 레코드 존재 여부 |
-| `members.roles` | Notion `임원` multi_select 파싱 → `{term, title}` |
-| `members.isAdmin` | 현행 하드코딩 명단 → `true` |
-| `members.publicContact` | 현 임원 중 기존 공개 연락처 보유자만 이전 (동의 재확인 후), 그 외 `null` |
-| `members.project` | `개인 프로젝트` checkbox → 임시 `{ title: "" }` 또는 null — 내용은 추후 입력 |
-| `private-info.mailPrefs` | `{ announcements: true }` |
-| `activities.type` / `events.type` | `Seminar` → `세미나` 통일 |
-| `studies` | `organizerIds` = Notion 주최자 relation, `participantIds: []`, 과거 학기 `finished` |
-| `events.applicantIds/presenterIds` | `[]` — 기존 `Presenters` 백필 보류 |
-| `applications` | **이주 대상 아님** — 기존 9건 전부 처리 완료 상태이므로 전환 방식(§2)에 따라 잔존시키지 않는다. 승인 1건 미연결 이상(정합성 이슈)은 이주 전 정리에서 해소 |
-| 전 테이블 | `{ schemaVersion: 1, rows }` 봉투로 기록 |
+| 필드                                 | 초기값 규칙                                                                                                                                               |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `members.status`                     | 전원 `associate`. **정회원·동문 간주 금지.** 활동 기록 DB 이주 완료 + 신규 회칙 제공 후 회칙 기준 일괄 재분류                                             |
+| `members.isAlumni` / `alumniRevoked` | 전원 `false` — 재분류 작업에서 부여                                                                                                                       |
+| (경과 조치)                          | 재분류 전까지 status 축은 접근 권한에 영향 없음 — 회원 판정은 레코드 존재 여부                                                                            |
+| `members.roles`                      | Notion `임원` multi_select 파싱 → `{term, title}`                                                                                                         |
+| `members.isAdmin`                    | 현행 하드코딩 명단 → `true`                                                                                                                               |
+| `members.publicContact`              | 현 임원 중 기존 공개 연락처 보유자만 이전 (동의 재확인 후), 그 외 `null`                                                                                  |
+| `members.project`                    | `개인 프로젝트` checkbox → 임시 `{ title: "" }` 또는 null — 내용은 추후 입력                                                                              |
+| `private-info.mailPrefs`             | `{ announcements: true }`                                                                                                                                 |
+| `activities.type` / `events.type`    | `Seminar` → `세미나` 통일                                                                                                                                 |
+| `studies`                            | `organizerIds` = Notion 주최자 relation, `participantIds: []`, 과거 학기 `finished`                                                                       |
+| `events.applicantIds/presenterIds`   | `[]` — 기존 `Presenters` 백필 보류                                                                                                                        |
+| `applications`                       | **이주 대상 아님** — 기존 9건 전부 처리 완료 상태이므로 전환 방식(§2)에 따라 잔존시키지 않는다. 승인 1건 미연결 이상(정합성 이슈)은 이주 전 정리에서 해소 |
+| 전 테이블                            | `{ schemaVersion: 1, rows }` 봉투로 기록                                                                                                                  |
 
 ---
 

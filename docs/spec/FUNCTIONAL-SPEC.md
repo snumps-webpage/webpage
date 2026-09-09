@@ -75,7 +75,7 @@
 
 ## 3. 공개 영역 (PUB) — [N] 전체 신설
 
-Notion 공개 사이트 22노드를 앱 라우트로 이전. 세션 미의존 레이아웃, 정적 페이지 prerender, DB 페이지 ISR.
+Notion 공개 사이트 22노드를 앱 라우트로 이전. 세션 미의존 레이아웃, ~~정적 페이지 prerender, DB 페이지 ISR~~ → **전 공개 페이지 SSR·no-store** (2026-09-10 개정, `API-SPEC` §1-4 v0.8 — ISR은 교차 유출 사고로, prerender는 결정 C-17로 제거).
 
 ### 3-1. 동아리 소개 (`/about/*`) — 정적 (레포 마크다운, D1)
 
@@ -370,7 +370,7 @@ Notion 공개 사이트 22노드를 앱 라우트로 이전. 세션 미의존 �
 이 문서 확정 후, 기능 그룹 단위로 API 명세 작성:
 
 1. AUTH + 가드 (세션·역할)
-2. PUB (공개 읽기 API — prerender/ISR 경계 포함)
+2. PUB (공개 읽기 API — 전부 SSR·no-store, `API-SPEC` §1-4 v0.8)
 3. MEM (가입·프로필)
 4. SEM + EVT + PRES + STU (세미나·스터디·이벤트·출석)
 5. ADM (승인 + 편집 CRUD)

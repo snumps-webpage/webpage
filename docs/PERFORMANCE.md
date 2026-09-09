@@ -23,13 +23,13 @@
 
 ### 구성 요소 (수정 지점)
 
-| 파일 | 역할 |
-|---|---|
-| `svelte.config.js` → `adapter({ images: … })` | 최적화 허용 도메인(prod/dev Supabase)·사이즈(480/640/960/1280)·포맷(webp)·캐시 TTL 선언. 빌드 시 `.vercel/output/config.json`의 `images`로 내려간다 |
-| `src/lib/image.ts` | `thumbUrl(src, width, q)` — `/_vercel/image?url=…&w=…&q=…` 래퍼. `thumbSrcset(src)` — 480/640/960 srcset 문자열. **dev에서는 둘 다 원본으로 폴백** (로컬엔 최적화 엔드포인트가 없음) |
-| `src/routes/(public)/archive/+layout.server.ts` | 갤러리 아이템의 `thumbnailUrl`만 `thumbUrl(원본, 640)`으로. `displayUrl`(클릭 대상)은 원본 유지 |
-| `src/routes/(public)/archive/gallery/+page.svelte` | `<img srcset sizes loading="lazy" decoding="async">` — 브라우저가 그리드 칸 폭(3열 33vw / 2열 50vw / 1열 100vw)에 맞는 크기만 받는다 |
-| `src/routes/(public)/archive/seminars/[id]/+page.svelte` | "3. 활동 사진" 섹션 신설 — 960px 변환본 2열 그리드, 클릭 시 원본 새 탭 |
+| 파일                                                     | 역할                                                                                                                                                                                 |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `svelte.config.js` → `adapter({ images: … })`            | 최적화 허용 도메인(prod/dev Supabase)·사이즈(480/640/960/1280)·포맷(webp)·캐시 TTL 선언. 빌드 시 `.vercel/output/config.json`의 `images`로 내려간다                                  |
+| `src/lib/image.ts`                                       | `thumbUrl(src, width, q)` — `/_vercel/image?url=…&w=…&q=…` 래퍼. `thumbSrcset(src)` — 480/640/960 srcset 문자열. **dev에서는 둘 다 원본으로 폴백** (로컬엔 최적화 엔드포인트가 없음) |
+| `src/routes/(public)/archive/+layout.server.ts`          | 갤러리 아이템의 `thumbnailUrl`만 `thumbUrl(원본, 640)`으로. `displayUrl`(클릭 대상)은 원본 유지                                                                                      |
+| `src/routes/(public)/archive/gallery/+page.svelte`       | `<img srcset sizes loading="lazy" decoding="async">` — 브라우저가 그리드 칸 폭(3열 33vw / 2열 50vw / 1열 100vw)에 맞는 크기만 받는다                                                 |
+| `src/routes/(public)/archive/seminars/[id]/+page.svelte` | "3. 활동 사진" 섹션 신설 — 960px 변환본 2열 그리드, 클릭 시 원본 새 탭                                                                                                               |
 
 ### 왜 사전 생성 썸네일이 아니라 이 방식인가
 
@@ -56,5 +56,8 @@
 
 ### 후속 후보 (미적용)
 
-- 공개 페이지 응답 ISR/캐시 (API-SPEC §1-4의 `revalidate: 60` 미구현 상태)
+- ~~공개 페이지 응답 ISR/캐시~~ → **후보에서 제외.** 2026-09-01 교차 유출 사고로 ISR이 제거됐고
+  (`9035cad`), 결정 C-17로 프리렌더도 제거됐다. HTTP 캐시 재도입은 유출 원인의 플랫폼 측 규명
+  이후에만 검토한다 (`API-SPEC` §1-4 v0.8). 대신 남은 지렛대는 **아카이브 레이아웃의 로드 분해** —
+  공지 페이지까지 테이블 9회를 읽는 구조다 (감사 `ZR-5`)
 - 대시보드 로드의 테이블 조회 병렬화·프로젝션 축소
