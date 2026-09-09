@@ -2,6 +2,19 @@
 
 **접두사 `ZM-`** · 회원 존 셸.
 
+> **재검증 CONFIRMED · 수정 완료 (2026-09-10).** `isPresenter` 소비자 0(간접 접근·spread·
+> `parent()`·(member) 그룹 `+layout.svelte` 전부 확인 — 그 그룹엔 `+layout.svelte`가 없다),
+> `hasPresenterEvents`를 재정의하는 자식 로드 없음, `/events/manage`로 가는 다른 UI 경로 없음.
+>
+> **수정 방향이 초판과 다르다.** 이름만 바꾸면 안 된다 — 네비는 **루트** 레이아웃이 모든 라우트에서
+> 렌더하는데 자식 레이아웃 데이터는 그 존 안에서만 부모를 덮으므로, 발표자가 `/`·`/archive`로
+> 이동할 때마다 링크가 깜빡인다. **필드를 소유한 루트에서 계산해야 한다.**
+>
+> **수정**: ① `services/events.ts`가 판정식을 소유하도록 `presentsEvent()` 추출(ZM-6 해소),
+> ② 그 위에 `hasPresenterEvents(memberId)` — `effectiveStatus`로 만료 이벤트 제외(ZM-7 해소),
+> ③ 루트 레이아웃이 그것을 호출하고 TODO 제거, ④ (member) 레이아웃의 죽은 블록 삭제.
+> **파일은 남긴다** — `isMember: true`가 루트를 덮는 문제는 ZM-3의 별건이다.
+
 ## ZM-5 🔴 `isPresenter`를 계산하는 블록 전체가 죽어 있고, 주석은 거짓이다
 
 ```ts

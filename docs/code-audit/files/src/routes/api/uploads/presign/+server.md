@@ -2,6 +2,13 @@
 
 **접두사 `UP-`** · presigned PUT 발급. 관리자 전용이 기본, `seminar-poster` purpose만 등록 회원에게 개방.
 
+> **재검증 CONFIRMED · 수정 완료 (2026-09-10).** 반증 시도가 모든 경로를 확인했다 —
+> 다른 훅·레이아웃 없음, `hasSessionCookie`는 `(public)` 분기에만 OR되므로 api 조기 반환을
+> 막지 못함, 대체 호출 경로 없음, 회원 UI 경로에 게이팅 없음.
+> **수정**: `auth-guards.ts`에 `requireCapabilityAction`을 추가했다 —
+> `resolveAdminContext`와 같은 지연 해석 + `locals` 쓰기백이라, 관리자 폴백 경로가
+> `resolveMember`를 다시 부르지 않는다. `presign:22-24`가 그것을 쓴다.
+
 ## UP-1 🔴 회원의 포스터 업로드가 프로덕션에서 항상 403이다
 
 ```ts

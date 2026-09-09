@@ -3,6 +3,23 @@
 **접두사 `ZR-`** · 아카이브 셸. `/archive` 하위 전 페이지가 쓰는 공개 스냅샷을 만든다.
 위험 우선 묶음에 든 이유: **공개 존에서 회원 데이터를 읽어 내보내는 유일한 로드**다.
 
+> **재검증 CONFIRMED — 실증됨 (2026-09-10).** 스크래치 사본에서 `DATA_BACKEND=memory` +
+> 카나리 회원 1행으로 빌드한 결과, 카나리 이름·학과·프로젝트 URL이 **네 프리렌더 페이지 전부**의
+> HTML과 `__data.json`에 나타났다(`/about/*` 프리렌더에는 없음 — 정확히 이 레이아웃의 서브트리).
+> `@sveltejs/kit@2.70.3` 소스로 확인: `data_serializer.js:85-95`가 `node.data`를 통째로
+> `devalue.uneval`하며 **필드 단위 가지치기가 없다.** `.vercel/output/config.json`의
+> `{"handle":"filesystem"}`이 함수 리라이트보다 앞이라 이 파일들은 훅을 타지 않는다.
+>
+> **좁힘**: 스냅샷의 필드는 어차피 런타임 공개 데이터다(`/archive/projects`가 같은 값을 낸다).
+> 진짜 결함은 **정지성**이다 — 런타임 경로는 요청마다 `status !== "withdrawn"`을 다시 적용하지만
+> 정적 사본은 빌드 시점 결과를 얼려 둔다. **재배포 없이는 탈퇴가 반영되지 않는다.**
+> 교차 사용자 유출(2026-09-01 사고)과는 다른 종류다 — 세션 개인화 페이로드가 아니다.
+>
+> **또한**: 크레덴셜 없이 빌드하면 이 네 페이지가 500으로 빌드를 실패시킨다.
+> 즉 **성공한 프로덕션 배포는 크롤이 실제 Supabase 데이터에 닿았다는 증거다.**
+>
+> ⏸ **수정 보류 — `SCOPE.md` C-17 결정 대기.**
+
 ## ZR-7 🔴 공개 스냅샷이 프리렌더 정적 HTML에 구워지고, 그것은 캐시 실드 밖이다
 
 `prerender = true`인 아카이브 하위 페이지가 넷이다:
@@ -25,6 +42,27 @@
 
 `CROSS-CUTTING.md` XC-2가 기록한 빌드 500(`500 /archive/problems`, `/archive/discussions`)의
 메커니즘도 이것이다 — 프리렌더가 이 레이아웃을 실제로 실행한다.
+
+> **재검증 CONFIRMED-BUT-NARROWER · 수정 완료 (2026-09-10).**
+>
+> **초판이 틀린 곳**: "그 함수들이 아무것도 렌더하지 않는다"는 8개 중 3개에 대해 거짓이다 —
+> `getPublicMembers`(`(public)/members`), `getPublicExecutives`(루트 레이아웃 + `about/executives`),
+> `getPublicSeminar`(`archive/seminars/[id]`)는 살아 있는 렌더 경로다. 5/8에만 해당한다.
+>
+> **그리고 심각도가 뒤집힌다.** "렌더하지 않는다"는 "게시하지 않는다"가 아니다 —
+> SvelteKit은 서버 로드 반환값을 **컴포넌트가 읽든 말든 통째로** SSR HTML에 직렬화한다
+> (`data_serializer.js:85-95`, 필드 가지치기 없음). 즉 그 다섯 죽은 페이로드는
+> **모든 공개 방문자의 브라우저로 실제 전송되고 있었다.** 낭비가 아니라 노출 표면이다.
+>
+> **수정**: ① 실제 렌더 경로를 덮는 테스트를 **먼저** 추가
+> (`(public)/archive/snapshot.test.ts` — 금지 키 + 불투명 `project-N` + 탈퇴 필터 +
+> `seminar-requests`에서 `prerequisites`만 나온다는 ZR-6 단언),
+> ② 죽은 자식 로드 5개 삭제(`archive/seminars/[id]`는 살아 있으므로 유지),
+> ③ `archive.test.ts`는 유지 — 남은 3개 함수가 여전히 렌더 경로다.
+>
+> **후속으로 남김**: 삭제 후 `getPublicSeminars/Studies/Activities/Gallery/Projects` 다섯이
+> 호출부 없는 export가 된다. 지금 지우면 BE-64 스위트를 함께 고쳐 써야 하므로,
+> `public/archive.ts` 파일 리뷰(A-b)에서 한 번에 처리한다.
 
 ## ZR-8 🔴 공개 아카이브의 금지 키 테스트가 실제 렌더 경로를 덮지 않는다
 
@@ -128,12 +166,15 @@ CDN이 흡수하지 않으므로 렌더 자체는 매번 돈다. 레이아웃이
 
 **PII·회원 행 id·참석자/신청자 명단 어느 것도 스냅샷에 닿지 않는다.**
 
-## ZR-9 🟡 탈퇴 필터가 세 이름 표면 중 하나만 덮는다
+## ZR-9 ✅ 탈퇴 필터가 세 이름 표면 중 하나만 덮는다 — **설계 기록 (C-16 결정)**
 
 `nameOf`(62행)는 필터되지 않은 `getDirectoryIndex()`에서 만들어진다.
 따라서 탈퇴 회원의 이름은 `presenterNames`(79행)·`organizerNames`(95행)로 **여전히 공개된다.**
-`lib/server/public/archive.ts:18-21`의 `memberNameMap()`과 일관되므로 사료 보존 의도로 보이나,
-141행만 칭찬하고 이 비대칭을 침묵하는 것은 옳지 않다. **명시적 결정이 필요하다** → `SCOPE.md` C-16
+`lib/server/public/archive.ts:18-21`의 `memberNameMap()`과 일관된다.
+
+**2026-09-10 결정: 의도다.** 발표자·조직자 이름은 **사료**이고, 탈퇴는 앞으로의 참여를 끝내지만
+과거 기록을 지우지 않는다. `projects`만 거르는 것도 의도다 — 프로젝트는 **현재 상태**,
+발표 이력은 **과거 사실**이다. 지적이 아니라 설계 기록으로 남긴다 → `SCOPE.md` C-16
 
 ## ZR-10 🟡 원시 S3 키를 요소 id로 게시한다
 

@@ -5,6 +5,22 @@
 > **검증 반영 (2026-09-09).** 초판 `CS-4`는 사실이 아니었다 — `runCron()`은 스텝별로 삼키고
 > 던지지 않는다. 정정 과정에서 **정반대의 🔴 결함(CS-5)** 이 드러났다. 말미 "정정 기록" 참조.
 
+> **재검증 CONFIRMED · 수정 완료 (2026-09-10).** 스텝·`pingHeartbeat` 모두 catch를 뚫을 수
+> 없고, `handleError` 훅도 없으며, `*_failed`를 읽는 소비자도 없음을 확인했다.
+> **한 가지 좁힘**: `HEALTHCHECKS_PING_URL`이 아직 미등록(`OPERATOR-TODO` 3·5절 ⬜)이라
+> ping은 현재 무동작이다 — HTTP 200이 cron-job.org 실패 경보를 막는 쪽이 지금 살아 있는 결함이고,
+> heartbeat 쪽은 운영 항목이 완료되는 순간 발동한다.
+>
+> **그리고 초판 처방에 구멍이 있었다.** `studySessionCronStep`이 항목별 실패를 자체적으로
+> 삼키고 `{generated}`만 반환하므로(`studies.ts:315-322`), `*_failed` 검사만으로는
+> **전 항목이 실패한 실행도 통과한다.**
+>
+> **수정**: ① `studies.ts`가 삼킨 실패를 `generation_errors`로 표면화,
+> ② `runCron`이 `steps_total`을 붙여 부분/전체 실패를 구별 가능하게,
+> ③ `services/cron-status.ts`의 `cronFailures()`가 세 가지 실패 표기(`_failed`·`_errors`·
+> `keptAlive:false`)를 한 곳에서 판정, ④ 라우트가 실패 시 ping을 건너뛰고 **500**을 반환.
+> **HTTP 상태가 핵심이다** — cron-job.org는 상태로 경보하고, 그것이 현재 설정된 유일한 알람이다.
+
 ## CS-5 🔴 크론이 전부 실패해도 `success: true`를 반환하고 dead-man's switch를 누른다
 
 ```ts
