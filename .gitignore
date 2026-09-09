@@ -58,3 +58,7 @@ scripts/migration/out/
 
 # Supabase CLI local state
 supabase/.temp/
+
+# Playwright run artifacts
+test-results/
+playwright-report/
