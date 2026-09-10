@@ -1,6 +1,7 @@
 # 배포 가능성 점검 — `chore/code-audit-v2` 대 배포 중인 `main`
 
-> 기준일: 2026-09-10 · `main` `76a5cda` 대비 15커밋 · 소스 38파일 (+709 / −1,313)
+> 기준일: 2026-09-10 (2차 검증) · `main` `76a5cda` 대비 26커밋
+> 1차 검증 이후 8커밋이 더 쌓였고 그중 lint 수정이 런타임 코드를 건드려 전면 재검증했다.
 > 방법: 두 브랜치를 **동일 조건으로 빌드해 Vercel 라우팅 표와 정적 산출물을 기계적으로 비교**하고,
 > 그 위에 동작이 바뀐 지점을 하나씩 확인했다.
 
@@ -137,11 +138,67 @@ else 분기가 죽은 코드였다(`ZR-1`). 생산자를 만들면서 셋이 동
 
 ---
 
+## 4-2. 2차 검증 — 실행 비교 (2026-09-10)
+
+1차는 라우팅 표 비교가 중심이었다. 그 뒤 8커밋에서 **lint 수정이 런타임 코드를 건드렸으므로**
+(`$state`+`$effect` → `$derived`, `{#each}` 인덱스 키, 정규식 이스케이프) 양쪽을 **실제로 띄워
+비교**했다.
+
+방법: `main`과 `HEAD`를 각각 `DATA_BACKEND=memory` + **동일한 `.env`** 로 dev 서버에 올리고,
+공개 21 + 관리자 10(`?dev_preview=admin`) + 회원 4(`?dev_preview=member`) = **35개 라우트**를 훑었다.
+
+| 항목             | 결과                                                                     |
+| ---------------- | ------------------------------------------------------------------------ |
+| URL 표면         | 62 → 57. 사라진 것은 실험 라우트 5개뿐(C-1 결정). **새로 생긴 URL 없음** |
+| 상태 코드        | **35개 전부 동일**, 전부 200                                             |
+| `<title>`        | **35개 전부 동일**                                                       |
+| 서버 측 500 처리 | 양쪽 **0건** (dev는 오류 페이지도 200을 내므로 서버 로그로 판정)         |
+
+### 렌더 페이로드 대조 — 차이는 전부 의도한 것
+
+| 라우트                         | 차이                                                                   |
+| ------------------------------ | ---------------------------------------------------------------------- |
+| `/members`·`/archive/problems` | `generatedAt` 타임스탬프 ms 드리프트뿐                                 |
+| `/admin/executives`            | `isMember:true` 제거 — **P1-2 수정**                                   |
+| `/archive/gallery`             | `{type:"data",data:{photos:[]}}` 노드 제거 — **삭제한 죽은 자식 로드** |
+| 전 페이지 공통                 | `node_ids` 인덱스 이동(실험 라우트 5개가 빠져 밀림) · dev 모듈 경로    |
+
+### 관리자 큐 API
+
+```
+main: {"applications":[],"success":true,"items":[],"generatedAt":"…"}
+head: {"success":true,"items":[],"generatedAt":"…"}
+```
+
+죽은 키 3개만 정확히 빠졌다. `items` 생산 코드는 diff상 손대지 않았다.
+
+### `$derived` + `bind:value` — 컴파일러로 증명
+
+SSR 비교로는 클라이언트 상호작용을 증명할 수 없다. 브라우저가 없어 컴파일러에 물었다:
+
+```
+우리 형태  let x = $derived(src)  + bind  → 컴파일 OK, 경고 없음
+대조군    const x = $derived(src) + bind  → 컴파일 실패 constant_binding
+대조군    const x = 1             + bind  → 컴파일 실패 constant_binding
+                                            (svelte 5.56.10)
+```
+
+**컴파일러가 이 부류를 실제로 거부한다.** 따라서 빌드 통과가 공허한 증거가 아니라,
+쓰기 가능한 derived 바인딩으로 승인됐다는 뜻이다.
+
+### 등가성이 별도로 증명된 것
+
+- `stripInvisibles` 정규식 이스케이프 — **변경 전에 작성한 13건**이 변경 후에도 통과
+- `TABLE_NAMES` 런타임 가드 — 가드 로직만 떼어 실행(정상 10 / 누락 / undefined / 낯선 키)
+- 아카이브 레이아웃 try/catch — 데이터 계층이 살아 있을 때 페이로드가 타임스탬프 외 동일
+
+---
+
 ## 5. 검증 상태
 
 ```
-vitest        273 passed | 2 skipped (275)     ← main 258에서 +15
-svelte-check  0 errors, 0 warnings, 895 files
+vitest        286 passed | 2 skipped (288)     ← main 258에서 +28
+svelte-check  0 errors, 0 warnings, 896 files
 vite build    통과 (크레덴셜 없이도 — C-17 이후)
-eslint        14 errors  ← main과 동일. 이 브랜치가 만든 것이 아니다
+eslint        0 errors   ← main은 14. CI 네 검사 전부 통과
 ```
