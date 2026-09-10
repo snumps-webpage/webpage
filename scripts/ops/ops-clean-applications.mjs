@@ -2,7 +2,7 @@
 import { createClient } from "@supabase/supabase-js";
 
 const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
-const strip = (t) => t.replace(/[­​-‍﻿⁠]/g, "");
+const strip = (t) => t.replace(/[\u00AD\u200B-\u200D\uFEFF\u2060]/g, "");
 
 const { data } = await sb
   .from("app_tables")

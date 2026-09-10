@@ -5,5 +5,5 @@
  * 전부 이걸 거친다. scripts/migration/lib.ts stripInvisibles의 앱 측 미러.
  */
 export function stripInvisibles(text: string): string {
-  return text.replace(/[­​-‍﻿⁠]/g, "");
+  return text.replace(/[\u00AD\u200B-\u200D\uFEFF\u2060]/g, "");
 }

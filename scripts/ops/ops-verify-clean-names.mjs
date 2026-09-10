@@ -3,7 +3,7 @@
 import { createClient } from "@supabase/supabase-js";
 
 const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
-const INVISIBLE = /[­​-‍﻿⁠]/;
+const INVISIBLE = /[\u00AD\u200B-\u200D\uFEFF\u2060]/;
 
 const TABLES = [
   "members",

@@ -21,7 +21,35 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install
+
+      # `if: ${{ !cancelled() }}` on every check: a run reports ALL failures at
+      # once instead of stopping at the first. Without it a red Lint step hides
+      # whether the build and types are also broken, which is the state this
+      # workflow was in when the audit found it.
       - name: Lint
+        if: ${{ !cancelled() }}
         run: ./node_modules/.bin/eslint .
+
       - name: Test
+        if: ${{ !cancelled() }}
         run: ./node_modules/.bin/vitest run
+
+      # svelte-check needs the generated .svelte-kit types. `pnpm install` runs
+      # `prepare` → `svelte-kit sync`, but syncing explicitly keeps the step
+      # correct if that hook ever moves.
+      #
+      # This is the check that mattered: the previous audit's worst finding —
+      # a main that did not build — was being caught by svelte-check alone, and
+      # CI has never run it.
+      - name: Typecheck
+        if: ${{ !cancelled() }}
+        run: |
+          ./node_modules/.bin/svelte-kit sync
+          ./node_modules/.bin/svelte-check --tsconfig ./tsconfig.json
+
+      # Runs with no secrets at all. It could not before: the prerendered pages
+      # crawled the data layer at build time and failed without SUPABASE_URL.
+      # Removing prerendering (decision C-17) is what made this step possible.
+      - name: Build
+        if: ${{ !cancelled() }}
+        run: ./node_modules/.bin/vite build
