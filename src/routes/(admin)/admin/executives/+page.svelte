@@ -12,14 +12,12 @@
   const candidates = $derived(data.candidates);
 
   let selectedTitle = $state<string | null>(null);
-  let termInput = $state("");
+  // 쓰기 가능한 $derived: term이 바뀌면 입력칸이 따라가고, 사용자가 직접 고칠 수도 있다.
+  // $state + $effect 조합은 첫 렌더에서 빈 문자열을 한 번 보여준 뒤 덮었다.
+  let termInput = $derived(term);
   let addingTitle = $state(false);
   let notice = $state<string | null>(null);
   let errorMessage = $state<string | null>(null);
-
-  $effect(() => {
-    termInput = term;
-  });
 
   // 학기 빠른 선택: 전 학기 · 현재 · 다음 학기
   const termChips = $derived.by(() => {
@@ -45,6 +43,10 @@
   }
 
   const grouped = $derived.by(() => {
+    // 이 Map은 derived 안에서 새로 만들어져 반환되고 이후 변형되지 않는다 —
+    // 소비처는 아래 {#each [...grouped.entries()]} 읽기뿐이고, 반응성은 derived
+    // 재실행이 준다. SvelteMap은 이득 없이 반응형 프록시 비용만 붙는다.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const map = new Map<string, typeof assignments>();
     for (const a of assignments) {
       map.set(a.title, [...(map.get(a.title) ?? []), a]);
@@ -86,7 +88,7 @@
             else errorMessage = "학기는 YY-1 또는 YY-2 형식으로 입력해 주세요.";
           }}
         >
-          <input type="text" bind:value={termInput} pattern="\d{'{'}2{'}'}-[12]" aria-label="학기 직접 입력" />
+          <input type="text" bind:value={termInput} pattern={"\\d{2}-[12]"} aria-label="학기 직접 입력" />
           <button type="submit" class="paper-btn small">이동</button>
         </form>
       </div>

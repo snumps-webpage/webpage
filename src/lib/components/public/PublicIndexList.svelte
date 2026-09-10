@@ -39,9 +39,10 @@
         <p class="description">{item.description}</p>
         {#if item.metadata.some(Boolean)}
           <ul class="metadata">
-            <!-- 표시용 문자열 목록 — 값 키는 실데이터의 빈/중복 문자열에서 each_key_duplicate로
-                 클라이언트 전체를 죽인다. 순서 고정 표시라 비키 each + 빈 값 필터가 맞다. -->
-            {#each item.metadata.filter(Boolean) as value}<li>{value}</li>{/each}
+            <!-- 표시용 문자열 목록 — 값을 키로 쓰면 실데이터의 빈/중복 문자열에서
+                 each_key_duplicate로 클라이언트 전체가 죽는다. 재정렬이 없는 파생 목록이라
+                 인덱스 키는 비키 each와 의미가 같고, require-each-key도 만족한다. -->
+            {#each item.metadata.filter(Boolean) as value, i (i)}<li>{value}</li>{/each}
           </ul>
         {/if}
       </div>
