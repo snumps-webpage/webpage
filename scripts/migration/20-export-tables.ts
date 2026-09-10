@@ -167,11 +167,15 @@ async function main() {
       if (dump.pages.length !== before) dumps.set(key, dump);
     }
     if (report.length > 0) {
-      console.log(`\n⚠️ --exclude 로 ${report.length}건 차단 (원본 정리 후 제외 없이 재실행할 것):`);
+      console.log(
+        `\n⚠️ --exclude 로 ${report.length}건 차단 (원본 정리 후 제외 없이 재실행할 것):`,
+      );
       console.table(report);
     }
     if (report.length !== raw.length) {
-      console.log(`  (제외 목록 ${raw.length}건 중 덤프에서 발견된 것은 ${report.length}건)`);
+      console.log(
+        `  (제외 목록 ${raw.length}건 중 덤프에서 발견된 것은 ${report.length}건)`,
+      );
     }
   }
   const membersDump = dumps.get("members");
@@ -533,6 +537,23 @@ async function main() {
     "gallery-dinner": galleryDinner,
   };
 
+  // 목록과 리터럴의 일치 검사 — 이 스크립트는 "조용한 드롭 금지"가 원칙인데
+  // 테이블 자체가 누락되는 경로만 조용했다. TABLE_NAMES의 Record<> 타입은
+  // scripts/가 타입체크 프로그램에 없고 tsx가 타입을 검사 없이 벗기므로
+  // 아무 도구도 검증하지 않는다 — 그래서 런타임에서 강제한다.
+  // `name in tables`가 아니라 Array.isArray로 본다 — 키가 undefined로 존재해도
+  // 쓰기에서 조용히 빠지므로, 존재 여부가 아니라 쓸 수 있는 값인지를 물어야 한다.
+  for (const name of TABLE_NAMES) {
+    if (!Array.isArray(tables[name])) {
+      fail(`테이블 누락: ${name} — tables 리터럴에 배열이 없다`);
+    }
+  }
+  for (const name of Object.keys(tables)) {
+    if (!(TABLE_NAMES as readonly string[]).includes(name)) {
+      fail(`알 수 없는 테이블: ${name} — TABLE_NAMES에 없다`);
+    }
+  }
+
   // -------------------------------------------------------------------------
   // 구조 검증 — API-SPEC §2를 손으로 옮긴 근사치 (권위는 앱 Zod 스키마)
   // -------------------------------------------------------------------------
@@ -545,7 +566,12 @@ async function main() {
   // -------------------------------------------------------------------------
   // 산출물 저장 + 오류 시 업로드 전 중단
   // -------------------------------------------------------------------------
-  for (const [name, rows] of Object.entries(tables)) {
+  // 이름 목록에서 돌린다 — Object.entries(tables)로 돌면 키가 빠졌을 때
+  // 9개만 조용히 쓰고 끝난다. 누락은 위에서 이미 fail로 기록됐고, 여기서는
+  // 파일을 만들지 않는다 (오류 게이트가 업로드 전에 중단시킨다).
+  for (const name of TABLE_NAMES) {
+    const rows = tables[name];
+    if (!Array.isArray(rows)) continue;
     writeJson(path.join(OUT_DIR, "tables", `${name}.json`), {
       schemaVersion: 1,
       rows,
@@ -576,7 +602,10 @@ async function main() {
     "private-info": "legacy-private-info",
   };
   const uploadTables: Record<string, any[]> = Object.fromEntries(
-    Object.entries(tables).map(([name, rows]) => [S9_TARGET[name] ?? name, rows]),
+    Object.entries(tables).map(([name, rows]) => [
+      S9_TARGET[name] ?? name,
+      rows,
+    ]),
   );
   const UPLOAD_NAMES = Object.keys(uploadTables);
   const supa = supabase();
@@ -641,7 +670,8 @@ const dateRange: Check = (v) =>
   !!v && dateTime(v.start) && (v.end === null || dateTime(v.end));
 const term: Check = (v) => typeof v === "string" && /^\d{2}-[12]$/.test(v);
 // 기록 학기: 방학 학기(YY-S/YY-W) 포함 — 임원 role term은 위의 정규 학기만.
-const semesterCheck: Check = (v) => typeof v === "string" && /^\d{2}-(?:[12SW])$/.test(v);
+const semesterCheck: Check = (v) =>
+  typeof v === "string" && /^\d{2}-(?:[12SW])$/.test(v);
 const oneOf =
   (...values: string[]): Check =>
   (v) =>
