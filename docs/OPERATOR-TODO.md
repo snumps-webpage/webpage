@@ -118,7 +118,7 @@ Vercel → `snumps` 프로젝트 → Settings → Environment Variables (Product
 | `DATA_BACKEND` | `supabase` | `memory`는 dev 오프라인 보조 플래그 |
 | `CRON_SECRET` | `openssl rand -base64 32`로 생성 | **유지** — cron-job.org 잡 헤더(4절)와 동일 값. Vercel cron은 이 env 존재 시 Bearer 자동 첨부 |
 | `ASSETS_CDN_URL` | `assets` 버킷 공개 URL 베이스 (값 교체) | 예: `https://<prod-ref>.supabase.co/storage/v1/object/public/assets` |
-| `PUBLIC_SITE_ORIGIN` / `REDIS_URL` | 기존 값 유지 | |
+| `SITE_ORIGIN` / `REDIS_URL` | `SITE_ORIGIN`은 **신규 등록**(값은 `https://snumps.vercel.app`), `REDIS_URL`은 기존 값 유지 | 구 `PUBLIC_SITE_ORIGIN`은 **코드가 한 번도 읽지 못했다**(SvelteKit이 private env에서 `PUBLIC_` 키를 제거). 새 이름 등록 후 옛 키는 삭제해도 된다 — 삭제 전후 동작은 같다 |
 
 - **제거**: `AWS_*` 5종 (남아 있으면 삭제).
 - dev 프로젝트의 `SUPABASE_URL`/`SUPABASE_SECRET_KEY`는 로컬 `.env`에만 등록 (`docs/SETUP.md` 로컬 개발 절 참조).

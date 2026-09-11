@@ -33,6 +33,6 @@ add CRON_SECRET "$(cat .env.cronsecret)"
 
 # 3) 고정 비민감 값
 add GITHUB_BACKUP_REPO "snumps-webpage/snumps-backups"
-add PUBLIC_SITE_ORIGIN "https://snumps.vercel.app"
+add SITE_ORIGIN "https://snumps.vercel.app"
 
 echo "== done. HEALTHCHECKS_PING_URL / GITHUB_BACKUP_TOKEN 은 발급 후 별도 등록"

@@ -35,24 +35,38 @@ export async function keepAliveSelect(): Promise<boolean> {
   return true;
 }
 
-/**
- * Storage listings return names that may be prefix-relative (real Supabase
- * `.list(prefix)`) or full paths (memory backend) — normalize to full paths.
- */
+/** Storage listings name entries relative to the listed prefix. */
 function fullPath(prefix: string, name: string): string {
-  return name.startsWith(`${prefix}/`) ? name : `${prefix}/${name}`;
+  return `${prefix}/${name}`;
+}
+
+/**
+ * Every staged file under `prefix`, however deep. Listings are one level deep
+ * (Supabase `.list`) and uploads sit at pending/<purpose>/<file>, so the walk
+ * descends into folder rows — the ones that carry no timestamp.
+ */
+async function listStagedFiles(
+  prefix: string,
+): Promise<{ path: string; createdAt: string }[]> {
+  const files: { path: string; createdAt: string }[] = [];
+  for (const entry of await listStaged(prefix)) {
+    const path = fullPath(prefix, entry.name);
+    if (entry.createdAt === "") files.push(...(await listStagedFiles(path)));
+    else files.push({ path, createdAt: entry.createdAt });
+  }
+  return files;
 }
 
 /** Reap staged uploads older than STAGING_TTL_MS. Returns the removed count. */
 export async function cleanupStaging(now: Date = new Date()): Promise<number> {
   const cutoff = now.getTime() - STAGING_TTL_MS;
-  const entries = await listStaged(STAGING_PREFIX);
-  const stale = entries.filter((e) => {
-    if (e.createdAt === "") return false; // folder placeholder rows — skip
-    const created = Date.parse(e.createdAt);
-    return Number.isFinite(created) && created < cutoff;
-  });
-  const paths = stale.map((e) => fullPath(STAGING_PREFIX, e.name));
+  const files = await listStagedFiles(STAGING_PREFIX);
+  const paths = files
+    .filter((f) => {
+      const created = Date.parse(f.createdAt);
+      return Number.isFinite(created) && created < cutoff;
+    })
+    .map((f) => f.path);
   await removeStaged(paths);
   return paths.length;
 }

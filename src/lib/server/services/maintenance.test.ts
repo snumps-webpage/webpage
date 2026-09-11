@@ -35,20 +35,30 @@ beforeEach(() => {
 });
 
 describe("cleanupStaging", () => {
-  it("removes only entries older than 7 days and skips folder placeholders", async () => {
+  // Uploads land at pending/<purpose>/<file> (uploads.ts), one folder below the
+  // listing prefix — and the storage listing is not recursive.
+  it("reaches files inside every purpose folder and removes only those older than 7 days", async () => {
     const now = MONDAY_KST;
     const oldIso = new Date(now.getTime() - STAGING_TTL_MS - DAY_MS).toISOString();
     const freshIso = new Date(now.getTime() - DAY_MS).toISOString();
     __stage("pending/seminar-photo/old.png", 100, "image/png", oldIso);
     __stage("pending/seminar-photo/fresh.png", 100, "image/png", freshIso);
-    __stage("pending/seminar-photo", 0, "application/octet-stream", ""); // placeholder
+    __stage("pending/gallery-photo/old.jpg", 100, "image/jpeg", oldIso);
 
     const removed = await cleanupStaging(now);
 
-    expect(removed).toBe(1);
+    expect(removed).toBe(2);
     expect(__exists("staging", "pending/seminar-photo/old.png")).toBe(false);
+    expect(__exists("staging", "pending/gallery-photo/old.jpg")).toBe(false);
     expect(__exists("staging", "pending/seminar-photo/fresh.png")).toBe(true);
-    expect(__exists("staging", "pending/seminar-photo")).toBe(true);
+  });
+
+  it("leaves staged files outside pending/ alone", async () => {
+    const oldIso = new Date(MONDAY_KST.getTime() - STAGING_TTL_MS - DAY_MS).toISOString();
+    __stage("other/old.png", 100, "image/png", oldIso);
+
+    expect(await cleanupStaging(MONDAY_KST)).toBe(0);
+    expect(__exists("staging", "other/old.png")).toBe(true);
   });
 
   it("returns 0 on an empty staging area", async () => {

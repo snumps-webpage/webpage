@@ -61,16 +61,34 @@ export async function removeStaged(paths: string[]): Promise<void> {
   for (const path of paths) objects.delete(keyOf(STAGING, path));
 }
 
+/**
+ * Mirrors Supabase `.list(prefix)`: direct children only, names relative to
+ * the prefix, sub-folders as rows with an empty timestamp (the real API gives
+ * `created_at: null`), sorted by name. Service tests run against this, so it
+ * must not be more capable than the real listing.
+ */
+function listLevel(bucket: string, prefix: string): { name: string; createdAt: string }[] {
+  const base = prefix === "" ? "" : `${prefix.replace(/\/$/, "")}/`;
+  const files: { name: string; createdAt: string }[] = [];
+  const folders = new Set<string>();
+  for (const [key, obj] of objects) {
+    if (!key.startsWith(`${bucket}/`)) continue;
+    const path = key.slice(bucket.length + 1);
+    if (!path.startsWith(base)) continue;
+    const rest = path.slice(base.length);
+    const slash = rest.indexOf("/");
+    if (slash === -1) files.push({ name: rest, createdAt: obj.createdAt });
+    else folders.add(rest.slice(0, slash));
+  }
+  return [...[...folders].map((name) => ({ name, createdAt: "" })), ...files].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+}
+
 export async function listStaged(
   prefix: string,
 ): Promise<{ name: string; createdAt: string }[]> {
-  const out: { name: string; createdAt: string }[] = [];
-  for (const [key, obj] of objects) {
-    if (!key.startsWith(`${STAGING}/`)) continue;
-    const path = key.slice(STAGING.length + 1);
-    if (path.startsWith(prefix)) out.push({ name: path, createdAt: obj.createdAt });
-  }
-  return out;
+  return listLevel(STAGING, prefix);
 }
 
 export async function uploadToBackups(path: string, body: string): Promise<void> {
@@ -84,13 +102,7 @@ export async function uploadToBackups(path: string, body: string): Promise<void>
 export async function listBackups(
   prefix: string,
 ): Promise<{ name: string; createdAt: string }[]> {
-  const out: { name: string; createdAt: string }[] = [];
-  for (const [key, obj] of objects) {
-    if (!key.startsWith(`${BACKUPS}/`)) continue;
-    const path = key.slice(BACKUPS.length + 1);
-    if (path.startsWith(prefix)) out.push({ name: path, createdAt: obj.createdAt });
-  }
-  return out;
+  return listLevel(BACKUPS, prefix);
 }
 
 export async function removeBackups(paths: string[]): Promise<void> {

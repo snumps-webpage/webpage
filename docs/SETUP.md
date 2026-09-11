@@ -61,7 +61,7 @@ DATA_BACKEND=supabase    # supabase | memory (memory = dev 오프라인 보조, 
 
 CRON_SECRET=             # required — /api/cron/* returns 501 when unset
 REDIS_URL=               # optional — memory-only cache without it
-PUBLIC_SITE_ORIGIN=https://snumps.vercel.app   # links inside outgoing mail
+SITE_ORIGIN=https://snumps.vercel.app          # links inside outgoing mail (no PUBLIC_ prefix — Kit strips it from private env)
 ```
 
 > **vercel.json의 일 1회 크론은 의도적으로 존치한다** — cron-job.org 3잡이 공통 모드(배포 사고 등)로

@@ -138,16 +138,36 @@ export async function removeStaged(paths: string[]): Promise<void> {
   if (error) throw new Error(`removeStaged(${paths.length} paths) failed: ${error.message}`);
 }
 
+const LIST_PAGE_SIZE = 1000;
+
+/**
+ * One level of `.list(prefix)`, every page of it. A single call returns at
+ * most `limit` rows, so without paging a large folder is silently truncated.
+ * Folder rows carry `created_at: null` — surfaced as "" (callers descend into
+ * them; the listing itself is not recursive).
+ */
+async function listAll(
+  bucket: string,
+  prefix: string,
+  label: string,
+): Promise<{ name: string; createdAt: string }[]> {
+  const out: { name: string; createdAt: string }[] = [];
+  for (let offset = 0; ; offset += LIST_PAGE_SIZE) {
+    const { data, error } = await getSupabase()
+      .storage.from(bucket)
+      .list(prefix, { limit: LIST_PAGE_SIZE, offset });
+    if (error) throw new Error(`${label}(${prefix}) failed: ${error.message}`);
+    const page = data ?? [];
+    for (const f of page) out.push({ name: f.name, createdAt: f.created_at ?? "" });
+    if (page.length < LIST_PAGE_SIZE) return out;
+  }
+}
+
 export async function listStaged(
   prefix: string,
 ): Promise<{ name: string; createdAt: string }[]> {
   if (isMemoryBackend()) return memory.listStaged(prefix);
-  const { data, error } = await getSupabase()
-    .storage.from(stagingBucket())
-    .list(prefix, { limit: 1000 });
-  if (error) throw new Error(`listStaged(${prefix}) failed: ${error.message}`);
-  // created_at is null on folder placeholder rows — surface those as "".
-  return (data ?? []).map((f) => ({ name: f.name, createdAt: f.created_at ?? "" }));
+  return listAll(stagingBucket(), prefix, "listStaged");
 }
 
 // ---- backups bucket (B1 weekly dumps, spec §7 — used by services/maintenance) --
@@ -166,11 +186,7 @@ export async function listBackups(
   prefix: string,
 ): Promise<{ name: string; createdAt: string }[]> {
   if (isMemoryBackend()) return memory.listBackups(prefix);
-  const { data, error } = await getSupabase()
-    .storage.from(backupsBucket())
-    .list(prefix, { limit: 1000 });
-  if (error) throw new Error(`listBackups(${prefix}) failed: ${error.message}`);
-  return (data ?? []).map((f) => ({ name: f.name, createdAt: f.created_at ?? "" }));
+  return listAll(backupsBucket(), prefix, "listBackups");
 }
 
 /** B1 8-week rotation: remove old dump objects from the backups bucket. */

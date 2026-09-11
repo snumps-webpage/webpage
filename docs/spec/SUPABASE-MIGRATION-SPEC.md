@@ -204,7 +204,7 @@ HEALTHCHECKS_PING_URL=
 GITHUB_BACKUP_REPO=snumps-webpage/snumps-backups   # §7
 GITHUB_BACKUP_TOKEN=              # fine-grained PAT, 해당 repo contents:write 한정
 DATA_BACKEND=supabase             # supabase | memory (S4 보조 — dev 오프라인용)
-# 유지: ASSETS_CDN_URL(값 교체), CRON_SECRET, PUBLIC_SITE_ORIGIN, REDIS_URL
+# 유지: ASSETS_CDN_URL(값 교체), CRON_SECRET, SITE_ORIGIN(구 PUBLIC_SITE_ORIGIN — 2026-09-11 개명), REDIS_URL
 ```
 
 **명시적 보안 트레이드오프 (구 설계 대비 후퇴 — 수용 기록):**

@@ -9,7 +9,7 @@ if ! grep -q "^AUTH_SECRET=" .env; then
     echo "AUTH_SECRET=$(openssl rand -base64 32 | tr -d '\n')"
     echo "GOOGLE_CLIENT_ID=dev-placeholder"
     echo "GOOGLE_CLIENT_SECRET=dev-placeholder"
-    echo "PUBLIC_SITE_ORIGIN=http://localhost:5199"
+    echo "SITE_ORIGIN=http://localhost:5199"
   } >> .env
   echo "added AUTH_SECRET + placeholders"
 else

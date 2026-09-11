@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const testEnv = vi.hoisted(() => ({}) as Record<string, string | undefined>);
+vi.mock("$env/dynamic/private", () => ({ env: testEnv }));
 vi.mock("$lib/server/data/store", () => import("$lib/server/data/store-memory"));
 
 const sent: Array<{ recipients: string[]; bcc: boolean; body: string }> = [];
@@ -36,7 +38,27 @@ beforeEach(async () => {
   __reset();
   _resetDataLayerForTests({ backoffBaseMs: 1 });
   sent.length = 0;
+  for (const key of Object.keys(testEnv)) delete testEnv[key];
   await invalidateCache("table_private-info");
+});
+
+describe("site origin in mail links", () => {
+  it("uses SITE_ORIGIN when it is set", async () => {
+    testEnv.SITE_ORIGIN = "https://mps.example";
+    await seedInfo("a@snu.ac.kr", true);
+
+    await sendSeminarAnnouncement({ title: "T", description: "D" });
+
+    expect(sent[0].body).toContain("https://mps.example/settings/notifications");
+  });
+
+  it("falls back to the production origin when SITE_ORIGIN is unset", async () => {
+    await seedInfo("a@snu.ac.kr", true);
+
+    await sendSeminarAnnouncement({ title: "T", description: "D" });
+
+    expect(sent[0].body).toContain("https://snumps.vercel.app/settings/notifications");
+  });
 });
 
 describe("seminar announcement (SEM-04 / BE-45)", () => {

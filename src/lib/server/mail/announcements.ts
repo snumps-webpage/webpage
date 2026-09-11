@@ -7,8 +7,10 @@ import { emitMailEvent } from "./dispatch";
  * 담당한다. 반환 계약(boolean)은 그대로 — 승인 흐름은 메일에 의존하지 않는다.
  */
 
+// Not PUBLIC_-prefixed: SvelteKit strips those keys from the private env, so
+// the old PUBLIC_SITE_ORIGIN read here was always undefined (env-prefix.test.ts).
 function siteOrigin(): string {
-  return env.PUBLIC_SITE_ORIGIN || "https://snumps.vercel.app";
+  return env.SITE_ORIGIN || "https://snumps.vercel.app";
 }
 
 /** 테스트·유틸 호환용 (dispatch의 배치 크기와 동일 규칙). */
