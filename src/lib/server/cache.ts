@@ -43,11 +43,16 @@ const MAX_LOCAL_SIZE = 1000;
 // other warm instances would serve stale data for the full TTL. Capping the
 // LOCAL tier for table_ keys bounds that staleness to 15s; Redis keeps the
 // full TTL and stays consistent because every mutation deletes the Redis key.
+//
+// The cap is a default, not a law: a caller that knows its key cannot go stale
+// — a table with no in-app write path — passes its own localTtlMs and opts out.
+// Callers do that because the table list lives in the data layer, not here.
 const LOCAL_TTL_CAPS: Array<{ prefix: string; capMs: number }> = [
   { prefix: "table_", capMs: 15_000 },
 ];
 
-function localTtl(key: string, ttlMs: number): number {
+function localTtl(key: string, ttlMs: number, override?: number): number {
+  if (override !== undefined) return Math.min(ttlMs, override);
   const cap = LOCAL_TTL_CAPS.find((c) => key.startsWith(c.prefix));
   return cap ? Math.min(ttlMs, cap.capMs) : ttlMs;
 }
@@ -81,7 +86,7 @@ export async function withCache<T>(
   key: string,
   ttlMs: number,
   fetcher: () => Promise<T>,
-  options?: { skipCache?: boolean },
+  options?: { skipCache?: boolean; localTtlMs?: number },
 ): Promise<T> {
   const now = Date.now();
 
@@ -99,7 +104,10 @@ export async function withCache<T>(
         if (cached) {
           const data = JSON.parse(cached);
           // Back-fill local cache for faster subsequent hits in this instance
-          localCache.set(key, { data, expiry: now + localTtl(key, Math.min(ttlMs, 60000)) });
+          localCache.set(key, {
+            data,
+            expiry: now + localTtl(key, Math.min(ttlMs, 60000), options?.localTtlMs),
+          });
           return data as T;
         }
       } catch {
@@ -112,7 +120,7 @@ export async function withCache<T>(
   const data = await fetcher();
 
   // Populate local cache
-  localCache.set(key, { data, expiry: now + localTtl(key, ttlMs) });
+  localCache.set(key, { data, expiry: now + localTtl(key, ttlMs, options?.localTtlMs) });
 
   // Populate Redis (if available)
   if (redis && !options?.skipCache) {

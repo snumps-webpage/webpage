@@ -28,6 +28,26 @@ import {
  */
 
 const TTL_TABLE_MS = 300_000;
+
+/**
+ * Local-tier TTL for tables the app never writes. `invalidateCache` reaches
+ * only the instance that wrote plus Redis, so the local TTL bounds how long a
+ * DIFFERENT warm instance keeps serving rows from before a write — which is
+ * why cache.ts caps `table_` keys at 15s. These two have no in-app write path
+ * at all (schemas/index.ts: "운영 로직은 절대 쓰지(write) 않는다"), so there is
+ * no write for anyone to miss and the bound buys nothing. They are also read
+ * twice each by the archive layout and once each by the root layout footer,
+ * on every request, with HTTP caching disabled everywhere.
+ *
+ * Deliberately NOT extended to gallery-dinner, seminars, studies or
+ * activities: admin edits and attendance approvals write those, and the author
+ * of the change would watch it take up to two minutes to appear.
+ */
+const LOCAL_TTL_FROZEN_MS = 120_000;
+const FROZEN_TABLES: ReadonlySet<TableName> = new Set<TableName>([
+  "legacy-members",
+  "legacy-private-info",
+]);
 const TABLE_ATTEMPTS = 5;
 const QUEUE_ATTEMPTS = 10; // check-in bursts contend on one document
 
@@ -123,8 +143,11 @@ async function mutateObject<S extends z.ZodTypeAny>(
 // ---- tables ----------------------------------------------------------------
 
 export async function getTable<N extends TableName>(name: N): Promise<RowOf<N>[]> {
-  return withCache(`table_${name}`, TTL_TABLE_MS, () =>
-    fetchRows("table", tableKey(name), TABLES[name]),
+  return withCache(
+    `table_${name}`,
+    TTL_TABLE_MS,
+    () => fetchRows("table", tableKey(name), TABLES[name]),
+    FROZEN_TABLES.has(name) ? { localTtlMs: LOCAL_TTL_FROZEN_MS } : undefined,
   ) as Promise<RowOf<N>[]>;
 }
 
