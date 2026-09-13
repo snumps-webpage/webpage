@@ -30,6 +30,14 @@ export const load: LayoutServerLoad = async ({ locals }) => {
     application: null,
     // Never let this fetch break a render or a prerender pass — the footer
     // degrades to no-contact instead. Prerender builds skip it entirely.
-    executives: building ? null : getPublicExecutives().catch(() => null),
+    //
+    // AWAITED ON PURPOSE (W-1). An unawaited promise here makes EVERY page a
+    // streamed response, and Kit's streaming branch constructs its Response
+    // without a status (kit#12533, kit#12987) — so unmatched routes and failed
+    // loads both answered 200 while rendering the 404/500 page. This load runs
+    // for error pages too, so the leak was total. Cost: the footer lookup now
+    // precedes the first byte; it reads four cached tables, two of which are
+    // the frozen ones on the 120s local TTL (W-19).
+    executives: building ? null : await getPublicExecutives().catch(() => null),
   };
 };
