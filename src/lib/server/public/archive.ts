@@ -10,9 +10,26 @@ import { currentTerm } from "$lib/server/core/semester";
  * roster. The BE-64 snapshot suite enforces that contract.
  */
 
+let warnedMissingCdn = false;
+
+/**
+ * Public URL for an asset key, or "" when ASSETS_CDN_URL is unset (W-8).
+ *
+ * It used to return "/assets-unavailable/<key>" — a diagnostic string standing
+ * where a URL belongs. Nothing serves that path, and consumers guard with
+ * `{#if url}`, so a non-empty value skipped the placeholder branch and the
+ * browser drew a broken image instead. Diagnosis belongs in the log.
+ */
 export function assetUrl(s3Key: string): string {
   const cdn = env.ASSETS_CDN_URL;
-  return cdn ? `${cdn.replace(/\/$/, "")}/${s3Key}` : `/assets-unavailable/${s3Key}`;
+  if (!cdn) {
+    if (!warnedMissingCdn) {
+      warnedMissingCdn = true;
+      console.warn("[assets] ASSETS_CDN_URL is not set — asset URLs resolve to empty");
+    }
+    return "";
+  }
+  return `${cdn.replace(/\/$/, "")}/${s3Key}`;
 }
 
 async function memberNameMap(): Promise<Map<string, string>> {

@@ -22,7 +22,7 @@
   {#if data.dataAvailable}
     <PublicIndexList {items} searchLabel="세미나 검색" emptyLabel="검색 조건에 맞는 세미나가 없습니다." />
   {:else}
-    <p class="empty">데이터 이관 후 기록이 표시됩니다.</p>
+    <p class="empty">기록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p>
   {/if}
 </article>
 

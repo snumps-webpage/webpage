@@ -7,7 +7,9 @@
   let { data } = $props();
 
   const categoryLabel = { seminar: "세미나", study: "스터디", dinner: "회식" } as const;
-  function dateLabel(value: string) {
+  function dateLabel(value: string | null) {
+    // A record with no derivable date says so; it used to say 1970-01-01.
+    if (!value) return "날짜 미상";
     // value may be a full ISO datetime, a bare date, or a bare year.
     const parsed = new Date(value.includes("T") ? value : `${value}T00:00:00+09:00`);
     if (Number.isNaN(parsed.getTime())) return value;
@@ -41,7 +43,7 @@
         </figure>
       {:else}<p class="empty">공개된 갤러리 자료가 없습니다.</p>{/each}
     </div>
-  {:else}<p class="empty">데이터 이관 후 사진이 표시됩니다.</p>{/if}
+  {:else}<p class="empty">사진을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p>{/if}
 </article>
 
 <style>

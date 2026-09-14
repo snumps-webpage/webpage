@@ -10,10 +10,12 @@ export const GET: RequestHandler = async ({ locals }) => {
   if (denied) return denied;
 
   const requests = await getTable("seminar-requests");
-  const { adminSeminarRequestItem, directorySummaryIndex } =
+  const { adminSeminarRequestItem, byCreatedAtAsc, directorySummaryIndex } =
     await import("$lib/server/data/admin-queue-views");
   const { nowKstIso } = await import("$lib/server/core/time");
-  const pending = requests.filter((r) => r.status === "pending");
+  const pending = requests
+    .filter((r) => r.status === "pending")
+    .sort(byCreatedAtAsc);
   // Polled every 30s by two dashboards; with an empty queue the index has
   // nothing to resolve, and building it reads the legacy archive as well.
   const summaries: MemberSummaryMap =

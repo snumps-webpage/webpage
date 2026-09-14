@@ -63,6 +63,19 @@ export function adminApplicationItem(
   };
 }
 
+/**
+ * The queue order all three admin queues owe (FRONTEND-DECISIONS §3-5):
+ * oldest pending request first. Compares instants — `createdAt` carries an
+ * offset, so a string compare can put a +09:00 row after a +00:00 one that is
+ * actually later.
+ */
+export function byCreatedAtAsc(
+  a: { createdAt: string },
+  b: { createdAt: string },
+): number {
+  return Date.parse(a.createdAt) - Date.parse(b.createdAt);
+}
+
 export function adminSeminarRequestItem(
   r: SeminarRequest,
   members: MemberSummaryMap,

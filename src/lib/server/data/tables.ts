@@ -60,6 +60,17 @@ const queueKey = (eventId: string) => eventId;
 const versionCache = new Map<string, { version: number; rows: unknown[] }>();
 const versionCacheKey = (kind: DocKind, key: string) => `${kind}:${key}`;
 
+/** Wraps a store read so an unreachable data layer carries its own code. */
+async function unavailable<T>(read: () => Promise<T>): Promise<T> {
+  try {
+    return await read();
+  } catch (e) {
+    if (e instanceof AppError) throw e;
+    console.error("[data] store read failed:", e);
+    throw new AppError("SERVICE_UNAVAILABLE");
+  }
+}
+
 function decode<S extends z.ZodTypeAny>(schema: S, doc: unknown): z.infer<S>[] {
   const parsed = envelope(schema).safeParse(doc);
   if (!parsed.success) {
@@ -76,14 +87,17 @@ async function fetchRows<S extends z.ZodTypeAny>(
 ): Promise<z.infer<S>[]> {
   const cacheKey = versionCacheKey(kind, key);
   const known = versionCache.get(cacheKey);
-  const version = await readVersion(kind, key);
+  // A store that cannot answer is an availability fact, not a bug: it becomes
+  // SERVICE_UNAVAILABLE (503, retryable) instead of a bare 500 (W-5). Envelope
+  // decoding stays outside this guard — invalid stored data IS a 500.
+  const version = await unavailable(() => readVersion(kind, key));
   if (version === null) {
     // Deleted (or never created) — distinct from "unchanged" (review R1-4).
     versionCache.delete(cacheKey);
     return [];
   }
   if (known && version === known.version) return known.rows as z.infer<S>[];
-  const stored = await readDoc(kind, key);
+  const stored = await unavailable(() => readDoc(kind, key));
   if (!stored) {
     versionCache.delete(cacheKey);
     return [];

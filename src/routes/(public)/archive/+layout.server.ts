@@ -9,7 +9,10 @@ import {
   getDirectoryIndex,
   getMemberDirectory,
 } from "$lib/server/data/directory";
-import { termRange } from "$lib/server/core/semester";
+import {
+  compareSemesters,
+  termStartDateOrNull,
+} from "$lib/server/core/semester";
 import type { LayoutServerLoad } from "./$types";
 
 /**
@@ -19,7 +22,6 @@ import type { LayoutServerLoad } from "./$types";
  * attendee/applicant lists, no member ids, no operational state.
  */
 
-const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif"]);
 
 function fileReference(s3Key: string): PublicFileReference {
@@ -39,17 +41,6 @@ function fileReference(s3Key: string): PublicFileReference {
 /** "YYYY-MM-DD" from a stored KST-offset instant. */
 function dateOnly(iso: string | null | undefined): string | null {
   return iso ? iso.slice(0, 10) : null;
-}
-
-/** KST first day of a term — coarse but real fallback for undated photos. */
-function termStartDate(term: string): string {
-  try {
-    return new Date(termRange(term).start.getTime() + KST_OFFSET_MS)
-      .toISOString()
-      .slice(0, 10);
-  } catch {
-    return "1970-01-01";
-  }
 }
 
 /** `dataAvailable: false`가 실려 나갈 때의 페이로드 — 소비자의 else 분기가 이걸 받는다. */
@@ -104,7 +95,7 @@ export const load: LayoutServerLoad = async () => {
 
   const archive: PublicArchiveSnapshot = {
     seminars: [...seminars]
-      .sort((a, b) => b.semester.localeCompare(a.semester))
+      .sort((a, b) => compareSemesters(b.semester, a.semester))
       .map((s) => {
         const request = s.sourceRequestId
           ? requestOf.get(s.sourceRequestId)
@@ -127,7 +118,7 @@ export const load: LayoutServerLoad = async () => {
         };
       }),
     studies: [...studies]
-      .sort((a, b) => b.semester.localeCompare(a.semester))
+      .sort((a, b) => compareSemesters(b.semester, a.semester))
       .map((s) => ({
         id: s.id,
         title: s.title,
@@ -153,7 +144,7 @@ export const load: LayoutServerLoad = async () => {
           category: "seminar" as const,
           date:
             dateOnly(s.activityId ? activityStart.get(s.activityId) : null) ??
-            termStartDate(s.semester),
+            termStartDateOrNull(s.semester),
           thumbnailUrl: thumbUrl(assetUrl(key), 640),
           displayUrl: assetUrl(key),
           alt: `${s.title} 활동 사진`,
@@ -164,7 +155,8 @@ export const load: LayoutServerLoad = async () => {
           id: `study-${s.id}-${index}`,
           title: s.title,
           category: "study" as const,
-          date: dateOnly(s.schedule[0]?.date) ?? termStartDate(s.semester),
+          date:
+            dateOnly(s.schedule[0]?.date) ?? termStartDateOrNull(s.semester),
           thumbnailUrl: thumbUrl(assetUrl(key), 640),
           displayUrl: assetUrl(key),
           alt: `${s.title} 활동 사진`,
@@ -177,7 +169,7 @@ export const load: LayoutServerLoad = async () => {
           category: "dinner" as const,
           date:
             dateOnly(g.activityId ? activityStart.get(g.activityId) : null) ??
-            (/^\d{4}$/.test(g.year) ? `${g.year}-01-01` : "1970-01-01"),
+            (/^\d{4}$/.test(g.year) ? `${g.year}-01-01` : null),
           thumbnailUrl: thumbUrl(assetUrl(key), 640),
           displayUrl: assetUrl(key),
           alt: `${g.year} 회식 사진`,

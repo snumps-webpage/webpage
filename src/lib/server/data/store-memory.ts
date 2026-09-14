@@ -11,6 +11,8 @@ const tableDocs = new Map<string, { doc: unknown; version: number }>();
 const queueDocs = new Map<string, { doc: unknown; version: number }>();
 const auditRows: AuditRow[] = [];
 let alwaysConflict = false;
+/** Simulates an unreachable data layer — the failure mode the app must survive. */
+let readsFail = false;
 let maxJitterMs = 3;
 
 const docsOf = (kind: DocKind) => (kind === "table" ? tableDocs : queueDocs);
@@ -20,6 +22,7 @@ const jitter = () => sleep(Math.random() * maxJitterMs);
 
 export async function readDoc(kind: DocKind, key: string): Promise<StoredDoc | null> {
   await jitter();
+  if (readsFail) throw new Error("memory store: reads disabled for this test");
   const entry = docsOf(kind).get(key);
   if (!entry) return null;
   return { doc: structuredClone(entry.doc), version: entry.version };
@@ -27,6 +30,7 @@ export async function readDoc(kind: DocKind, key: string): Promise<StoredDoc | n
 
 export async function readVersion(kind: DocKind, key: string): Promise<number | null> {
   await jitter();
+  if (readsFail) throw new Error("memory store: reads disabled for this test");
   return docsOf(kind).get(key)?.version ?? null;
 }
 
@@ -68,8 +72,13 @@ export function __reset(): void {
   queueDocs.clear();
   auditRows.length = 0;
   alwaysConflict = false;
+  readsFail = false;
   maxJitterMs = 3;
 }
+export function __setReadsFail(v: boolean): void {
+  readsFail = v;
+}
+
 export function __setAlwaysConflict(v: boolean): void {
   alwaysConflict = v;
 }

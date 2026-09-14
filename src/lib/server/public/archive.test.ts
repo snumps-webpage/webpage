@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const testEnv = vi.hoisted(() => ({}) as Record<string, string | undefined>);
+vi.mock("$env/dynamic/private", () => ({ env: testEnv }));
 vi.mock("$lib/server/data/store", () => import("$lib/server/data/store-memory"));
 
 import { __reset } from "$lib/server/data/store-memory";
@@ -181,9 +183,22 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
   });
 
   it("resolves asset keys to URLs, never raw keys alone", async () => {
+    testEnv.ASSETS_CDN_URL = "https://cdn.example/assets";
+
     const seminar = await getPublicSeminar("sem1");
-    expect(seminar!.materials[0]).toMatch(/seminars\/sem1\/a\.pdf$/);
+    expect(seminar!.materials[0]).toBe("https://cdn.example/assets/seminars/sem1/a.pdf");
     const gallery = await getPublicGallery();
     expect(gallery).toHaveLength(3); // seminar + study + dinner photos
+  });
+
+  // W-8: with no CDN the payload must carry nothing usable — and nothing that
+  // looks usable either, or the consumer's `{#if url}` guard renders a broken
+  // image instead of its placeholder.
+  it("emits empty strings, not raw keys, when no CDN is configured", async () => {
+    delete testEnv.ASSETS_CDN_URL;
+
+    const seminar = await getPublicSeminar("sem1");
+    expect(seminar!.materials[0]).toBe("");
+    expect(JSON.stringify(await getPublicGallery())).not.toContain("seminars/sem1");
   });
 });

@@ -74,3 +74,43 @@ describe("cron authentication (C-20)", () => {
     });
   }
 });
+
+describe("queue order (W-6 · FRONTEND-DECISIONS §3-5)", () => {
+  const admin = {
+    member: { memberId: "a1", isAdmin: true, status: "active" },
+    auth: async () => ({ user: { email: "admin@snu.ac.kr" } }),
+  };
+
+  it("seminar-requests answers oldest pending first", async () => {
+    const { mutate } = await import("$lib/server/data/tables");
+    const { newId } = await import("$lib/server/core/id");
+    const at = (iso: string) => ({
+      id: newId(),
+      title: `t-${iso}`,
+      description: "d",
+      prerequisites: "",
+      duration: "",
+      preferredTiming: "",
+      presenterIds: [],
+      attachment: "",
+      posterKey: "",
+      requesterId: newId(),
+      status: "pending" as const,
+      createdAt: iso,
+    });
+    await mutate("seminar-requests", () => [
+      at("2026-09-03T10:00:00+09:00"),
+      at("2026-09-01T10:00:00+09:00"),
+      at("2026-09-02T10:00:00+09:00"),
+    ]);
+
+    const res = await seminarRequests(event(admin));
+    const body = (await res.json()) as { items: { title: string }[] };
+
+    expect(body.items.map((i) => i.title)).toEqual([
+      "t-2026-09-01T10:00:00+09:00",
+      "t-2026-09-02T10:00:00+09:00",
+      "t-2026-09-03T10:00:00+09:00",
+    ]);
+  });
+});

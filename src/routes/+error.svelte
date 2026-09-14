@@ -11,6 +11,10 @@
 					NOT FOUND
 				{:else if page.status === 403}
 					FORBIDDEN
+				{:else if page.status === 401}
+					SIGN IN REQUIRED
+				{:else if page.status === 503}
+					TEMPORARILY UNAVAILABLE
 				{:else}
 					INTERNAL ERROR
 				{/if}
@@ -20,6 +24,10 @@
 					THE REQUESTED RESOURCE DOES NOT EXIST.
 				{:else if page.status === 403}
 					ACCESS TO THIS RESOURCE IS RESTRICTED.
+				{:else if page.status === 401}
+					THIS PAGE NEEDS A SIGNED-IN SESSION.
+				{:else if page.status === 503}
+					THE RECORDS COULD NOT BE REACHED. PLEASE TRY AGAIN SHORTLY.
 				{:else}
 					AN UNEXPECTED ANOMALY HAS OCCURRED.
 				{/if}

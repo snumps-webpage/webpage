@@ -26,6 +26,7 @@ import {
   adminSeminarRequestItem,
   adminStudyRequestItem,
   directorySummaryIndex,
+  byCreatedAtAsc,
 } from "$lib/server/data/admin-queue-views";
 import {
   adminAttendanceCapabilities,
@@ -67,12 +68,7 @@ export const load: PageServerLoad = async (event) => {
     streamed: await settle({
       applications: (async () => {
         const apps = await getTable("applications");
-        return [...apps]
-          .sort(
-            (a, b) =>
-              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-          )
-          .map(adminApplicationItem);
+        return [...apps].sort(byCreatedAtAsc).map(adminApplicationItem);
       })(),
       events: (async () => {
         const [events, pending] = await Promise.all([
@@ -147,6 +143,7 @@ export const load: PageServerLoad = async (event) => {
         ]);
         return requests
           .filter((r) => r.status === "pending")
+          .sort(byCreatedAtAsc)
           .map((r) => adminSeminarRequestItem(r, summaries));
       })(),
       studyRequests: (async () => {
@@ -156,6 +153,7 @@ export const load: PageServerLoad = async (event) => {
         ]);
         return requests
           .filter((r) => r.status === "pending")
+          .sort(byCreatedAtAsc)
           .map((r) => adminStudyRequestItem(r, summaries));
       })(),
     }),

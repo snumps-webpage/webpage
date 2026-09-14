@@ -17,6 +17,7 @@ import {
   adminStudyRequestItem,
   contentFileFromKey,
   directorySummaryIndex,
+  byCreatedAtAsc,
 } from "$lib/server/data/admin-queue-views";
 import type { PageServerLoad } from "./$types";
 
@@ -34,6 +35,7 @@ export const load: PageServerLoad = async ({ locals }) => {
   return {
     requests: requests
       .filter((r) => r.status === "pending")
+      .sort(byCreatedAtAsc)
       .map((r) => adminStudyRequestItem(r, summaries)),
     records: [...studies].reverse().map((s) => ({
       id: s.id,

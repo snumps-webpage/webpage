@@ -41,7 +41,7 @@ let gallery: AdminGalleryRecord[] = getDevPublicArchive().gallery.map(
     id: record.id,
     title: record.title,
     category: record.category,
-    date: record.date,
+    date: record.date ?? "",
     alt: record.alt,
     photo: null,
   }),

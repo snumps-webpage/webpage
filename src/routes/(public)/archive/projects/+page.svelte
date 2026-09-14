@@ -17,7 +17,7 @@
   <p class="scope-note">회원 레코드에 공개 프로젝트를 등록한 경우에만 표시합니다.</p>
   {#if data.dataAvailable}
     <PublicIndexList {items} searchLabel="프로젝트 검색" emptyLabel="검색 조건에 맞는 프로젝트가 없습니다." />
-  {:else}<p class="empty">데이터 이관 후 프로젝트가 표시됩니다.</p>{/if}
+  {:else}<p class="empty">프로젝트 기록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p>{/if}
 </article>
 
 <style>.archive-paper { width: min(100%, 980px); }.scope-note { margin: 0 0 1rem; color: var(--latex-muted); font-size: 0.78rem; }</style>

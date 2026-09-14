@@ -1,3 +1,4 @@
+import { compareSemesters } from "$lib/server/core/semester";
 import type { ActivityType } from "$lib/constants";
 
 export interface PublicFileReference {
@@ -41,7 +42,8 @@ export interface PublicGalleryRecord {
   id: string;
   title: string;
   category: "seminar" | "study" | "dinner";
-  date: string;
+  /** null when the record carries no derivable date — never a stand-in date. */
+  date: string | null;
   thumbnailUrl: string | null;
   displayUrl: string | null;
   alt: string;
@@ -94,7 +96,9 @@ export function seminarIndexItems(
 ): PublicIndexItem[] {
   return [...seminars]
     .sort((a, b) =>
-      (b.scheduledAt ?? b.term).localeCompare(a.scheduledAt ?? a.term, "ko-KR"),
+      a.scheduledAt && b.scheduledAt
+        ? b.scheduledAt.localeCompare(a.scheduledAt, "ko-KR")
+        : compareSemesters(b.term, a.term),
     )
     .map((seminar) => ({
       id: seminar.id,
@@ -113,8 +117,7 @@ export function seminarIndexItems(
 export function studyIndexItems(
   studies: PublicStudyRecord[],
 ): PublicIndexItem[] {
-  return [...studies]
-    .sort((a, b) => b.term.localeCompare(a.term, "ko-KR"))
+  return [...studies].sort((a, b) => compareSemesters(b.term, a.term))
     .map((study) => ({
       id: study.id,
       title: study.title,

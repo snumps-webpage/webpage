@@ -72,7 +72,7 @@
       {/each}
     </div>
   {:else}
-    <p class="empty-state">새 AWS 공개 임원 API 연결 후 기록이 표시됩니다.</p>
+    <p class="empty-state">임원 기록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p>
   {/if}
 </article>
 

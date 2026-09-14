@@ -48,3 +48,34 @@ export function termRange(term: string): { start: Date; end: Date } {
   }
   return { start: kstStart(year, 9), end: kstStart(year + 1, 3) };
 }
+
+/**
+ * Chronological order inside a term-year: 1학기(3~8월) → 여름 → 2학기(9~익년 2월)
+ * → 겨울. A plain string compare sorted "26-S"/"26-W" after "26-2", which put
+ * vacation records above the semester that actually followed them (W-7).
+ */
+const HALF_ORDER: Record<string, number> = { "1": 0, S: 1, "2": 2, W: 3 };
+
+export function compareSemesters(a: string, b: string): number {
+  const [ay, ah] = a.split("-");
+  const [by, bh] = b.split("-");
+  if (ay !== by) return ay.localeCompare(by);
+  return (HALF_ORDER[ah] ?? 99) - (HALF_ORDER[bh] ?? 99);
+}
+
+/**
+ * KST first day of a term, or null when the term has no derivable start —
+ * vacation terms (YY-S/YY-W) are stored but have no date range by design.
+ *
+ * Callers used to fall back to "1970-01-01", which is not a coarse answer but
+ * a wrong one: it showed up in gallery captions as a real date.
+ */
+export function termStartDateOrNull(term: string): string | null {
+  try {
+    return new Date(termRange(term).start.getTime() + KST_OFFSET_MS)
+      .toISOString()
+      .slice(0, 10);
+  } catch {
+    return null;
+  }
+}

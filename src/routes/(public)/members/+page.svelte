@@ -111,7 +111,7 @@
 
     <p class="freshness">조회 기준 {new Date(data.generatedAt).toLocaleString("ko-KR")}</p>
   {:else}
-    <p class="unavailable">데이터 이관 후 명단이 표시됩니다.</p>
+    <p class="unavailable">명단을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p>
   {/if}
 </article>
 

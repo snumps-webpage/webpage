@@ -15,6 +15,7 @@ import {
   adminSeminarRequestItem,
   contentFileFromKey,
   directorySummaryIndex,
+  byCreatedAtAsc,
 } from "$lib/server/data/admin-queue-views";
 import type { SeminarPublicationStatus } from "$lib/domain/admin-seminars";
 import type { PageServerLoad } from "./$types";
@@ -49,6 +50,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     dashboard: {
       requests: requests
         .filter((r) => r.status === "pending")
+        .sort(byCreatedAtAsc)
         .map((r) => adminSeminarRequestItem(r, summaries)),
       seminars: rows.map(({ s, request, event }) => ({
         id: s.id,
