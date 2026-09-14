@@ -325,7 +325,19 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
   "externalPresenters": "string",
   "materials": ["s3Key"],
   "photos": ["s3Key"],
-  "activityId": "ULID | null", // 승인 생성 시 기록 — 아카이브↔활동 연결
+  "posterKey": "s3Key | \"\"", // 직접 업로드 포스터. 빈 값이면 자동 생성
+  "preferredTiming": "string", // 신청서의 선호 시점 (조율 참고 기록)
+  // 승인 → 일정 미정 → 확정 → 공개 (FRONTEND-DECISIONS §3-1).
+  // 필드가 없는 기존 행은 "published" — 승인이 곧 공개이던 시절의 기록이다.
+  "publicationStatus": "unscheduled | scheduled | published | completed | cancelled",
+  // 확정 전에는 null. *의도된 일정*의 원천이며, 공개가 이 값을 event·activity로
+  // 복사한다 (events.date는 *출석 창*의 원천). 장소는 여기에만 있다.
+  "schedule": {
+    "startsAt": "ISO",
+    "endsAt": "ISO | null",
+    "location": "string",
+  },
+  "activityId": "ULID | null", // 공개 시 기록 — 아카이브↔활동 연결
   "sourceRequestId": "string | null",
 }
 ```

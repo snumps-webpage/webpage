@@ -139,7 +139,7 @@ export async function approveSeminar(
     posterKey: request.posterKey,
     preferredTiming: request.preferredTiming,
     // TODO(B단계): 승인은 일정 미정으로 만들고 activity·event는 공개 시점에.
-    publicationStatus: "published" as const,
+    publicationStatus: "published",
     schedule: null,
     activityId: activity.id,
     sourceRequestId: id,

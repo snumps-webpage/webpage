@@ -24,7 +24,9 @@ function monthsForTerm(term: string): readonly number[] {
 /** 현재 학기의 활동월 선택지 (폼 노출용). */
 export function seminarTimingOptions(term: string): string[] {
   return [
-    ...monthsForTerm(term).flatMap((m) => TIMING_SEGMENTS.map((s) => `${m}월 ${s}`)),
+    ...monthsForTerm(term).flatMap((m) =>
+      TIMING_SEGMENTS.map((s) => `${m}월 ${s}`),
+    ),
     NEGOTIATE,
   ];
 }
@@ -36,6 +38,23 @@ export const SEMINAR_TIMING_OPTIONS = [
   ),
   NEGOTIATE,
 ] as const;
+
+/**
+ * 승인된 세미나의 공개 수명주기 (FRONTEND-DECISIONS §3-1).
+ * 저장 스키마와 관리자 화면이 같은 목록을 쓴다 — 여기가 단일 원천이다.
+ * (관리자 화면 계약인 admin-seminars.ts가 아니라 이 중립 모듈에 두는 이유:
+ *  칼럼 재배치 같은 화면 사정이 저장 값의 정의를 바꾸면 안 된다.)
+ */
+export const SEMINAR_PUBLICATION_STATUSES = [
+  "unscheduled",
+  "scheduled",
+  "published",
+  "completed",
+  "cancelled",
+] as const;
+
+export type SeminarPublicationStatus =
+  (typeof SEMINAR_PUBLICATION_STATUSES)[number];
 
 export type SeminarRequestStatus =
   "pending" | "approved" | "rejected" | "withdrawn";
@@ -98,7 +117,8 @@ export const seminarRequestInputSchema = z.object({
   preferredTiming: z
     .string()
     .refine(
-      (v) => v === "" || (SEMINAR_TIMING_OPTIONS as readonly string[]).includes(v),
+      (v) =>
+        v === "" || (SEMINAR_TIMING_OPTIONS as readonly string[]).includes(v),
       "선택지에 없는 시점입니다.",
     ),
   attachmentUrl: z.union([z.literal(""), httpsUrl]),

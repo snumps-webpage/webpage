@@ -16,7 +16,7 @@ const buildSeminar = (sourceRequestId: string): Seminar => ({
   note: "",
   presenterIds: [],
   externalPresenters: "",
-  publicationStatus: "published" as const,
+  publicationStatus: "published",
   schedule: null,
   materials: [],
   photos: [],

@@ -112,7 +112,7 @@ async function seedFixture() {
       note: "비고",
       presenterIds: ["m1"],
       externalPresenters: "",
-      publicationStatus: "published" as const,
+      publicationStatus: "published",
       schedule: null,
       materials: ["seminars/sem1/a.pdf"],
       photos: ["seminars/sem1/p.png"],

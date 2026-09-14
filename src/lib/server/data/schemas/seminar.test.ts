@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { SEMINAR_PUBLICATION_STATUSES } from "$lib/domain/admin-seminars";
-import { SeminarSchema } from "./seminar";
+import { SEMINAR_PUBLICATION_STATUSES } from "$lib/domain/seminars";
+import type { SeminarSchedule as DomainSeminarSchedule } from "$lib/domain/admin-seminars";
+import { SeminarSchema, type SeminarSchedule } from "./seminar";
 
 /**
  * 세미나는 승인 즉시 공개되지 않는다 (FRONTEND-DECISIONS §3-1):
@@ -77,12 +78,61 @@ describe("SeminarSchema — 공개 상태와 일정", () => {
     ).toThrow();
   });
 
-  it("일정의 시각은 오프셋을 가진 ISO여야 한다", () => {
-    expect(() =>
-      SeminarSchema.parse({
+  it("일정의 시각은 ISO 8601이어야 한다 (오프셋 또는 Z)", () => {
+    const ok = (startsAt: string) =>
+      SeminarSchema.safeParse({
         ...base,
-        schedule: { startsAt: "2026-10-15 19:00", endsAt: null, location: "x" },
-      }),
-    ).toThrow();
+        schedule: { startsAt, endsAt: null, location: "x" },
+      }).success;
+
+    expect(ok("2026-10-15 19:00")).toBe(false); // 공백 구분 — 거절
+    expect(ok("2026-10-15T19:00:00+09:00")).toBe(true);
+    expect(ok("2026-10-15T10:00:00Z")).toBe(true); // Z도 유효한 instant다
+  });
+
+  // 저장 스키마가 입력 폼보다 헐거우면 "장소는 여기가 유일한 자리"가 빈 값으로 퇴화한다.
+  it("장소는 비어 있을 수 없고 길이 상한이 있다", () => {
+    const withLocation = (location: string) =>
+      SeminarSchema.safeParse({
+        ...base,
+        schedule: {
+          startsAt: "2026-10-15T19:00:00+09:00",
+          endsAt: null,
+          location,
+        },
+      }).success;
+
+    expect(withLocation("")).toBe(false);
+    expect(withLocation("x".repeat(161))).toBe(false);
+    expect(withLocation("27동 325호")).toBe(true);
+  });
+
+  it("종료 시각은 시작보다 늦어야 한다", () => {
+    const range = (startsAt: string, endsAt: string) =>
+      SeminarSchema.safeParse({
+        ...base,
+        schedule: { startsAt, endsAt, location: "27동" },
+      }).success;
+
+    expect(
+      range("2026-10-15T19:00:00+09:00", "2026-10-15T18:00:00+09:00"),
+    ).toBe(false);
+    expect(
+      range("2026-10-15T19:00:00+09:00", "2026-10-15T21:00:00+09:00"),
+    ).toBe(true);
+  });
+
+  // 같은 모양이 도메인 DTO와 저장 스키마 두 곳에 선언돼 있다. 갈라지면 zod가
+  // 미지의 키를 조용히 벗겨내므로(저장 시 소실) 컴파일 시점에 묶어 둔다.
+  it("저장 일정 모양이 도메인 DTO와 같다", () => {
+    const fromDomain: DomainSeminarSchedule = {
+      startsAt: "2026-10-15T19:00:00+09:00",
+      endsAt: null,
+      location: "27동",
+    };
+    const stored: SeminarSchedule = fromDomain;
+    const backToDomain: DomainSeminarSchedule = stored;
+
+    expect(backToDomain).toEqual(fromDomain);
   });
 });

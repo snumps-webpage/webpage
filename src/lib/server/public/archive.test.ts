@@ -88,7 +88,7 @@ async function seedFixture() {
       id: "sem1", title: "위상수학", semester: "26-2", note: "비고",
       presenterIds: ["m1"], externalPresenters: "", materials: ["seminars/sem1/a.pdf"],
       photos: ["seminars/sem1/p.png"], posterKey: "", preferredTiming: "",
-      publicationStatus: "published" as const, schedule: null,
+      publicationStatus: "published", schedule: null,
       activityId: "act1", sourceRequestId: "req1",
     },
   ]);

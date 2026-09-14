@@ -1,17 +1,16 @@
 import { z } from "zod/v4";
-import type { MemberPickerItem, SeminarKind } from "./seminars";
+import type {
+  MemberPickerItem,
+  SeminarKind,
+  SeminarPublicationStatus,
+} from "./seminars";
 import type { AdminSeminarRecord } from "./admin-records";
 
-export const SEMINAR_PUBLICATION_STATUSES = [
-  "unscheduled",
-  "scheduled",
-  "published",
-  "completed",
-  "cancelled",
-] as const;
-
-export type SeminarPublicationStatus =
-  (typeof SEMINAR_PUBLICATION_STATUSES)[number];
+// 정의는 domain/seminars.ts — 관리자 화면 계약이 저장 값의 원천이 되지 않게 한다.
+export {
+  SEMINAR_PUBLICATION_STATUSES,
+  type SeminarPublicationStatus,
+} from "./seminars";
 
 export interface SeminarRequesterSummary {
   id: string;
