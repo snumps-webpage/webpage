@@ -93,7 +93,7 @@
 | [CROSS-CUTTING.md](./CROSS-CUTTING.md)      | **먼저 읽을 것.** 파일 단위로는 안 잡히는 발견 — `main`이 자기 CI lint를 통과하지 못한다는 사실 포함 |
 | [BACKLOG.md](./BACKLOG.md)                  | **처리 사항 전체 색인.** 지적 67건 + 교차 발견 + 신규 `N-P` 5건이 각각 어느 `W-*`로 갔는지           |
 | [DEPLOY-CHECK.md](./DEPLOY-CHECK.md)        | 배포 중인 `main` 대비 기능 손실 점검 — 라우트 표 기계 비교 + 동작 델타 전수                          |
-| [PRIORITY.md](./PRIORITY.md)                | **다음에 할 일.** 실 작업 목록 `W-1~W-18`·3중 검증 결과·결정 대기·하지 않기로 한 것. 완료분은 부록 A |
+| [PRIORITY.md](./PRIORITY.md)                | **다음에 할 일.** 실 작업 목록 `W-1~W-37`·3중 검증 결과·결정 대기·하지 않기로 한 것. 완료분은 부록 A |
 | [STATUS-CODES.md](./STATUS-CODES.md)        | **HTTP 상태 코드 전수 감사** — `W-1` 이후 두 관점 검토. 🔴 2건은 같은 버그의 다른 층                 |
 | [REGISTER.md](./REGISTER.md)                | 나머지 58건을 A~J 유형으로 묶은 등록부 — 중복/죽은코드 분류, H 3관점 교차 검토 결과, 이월 항목       |
 | `files/`                                    | 파일별 리뷰 결과 (진행하며 추가) — **아직 비어 있다**                                                |
