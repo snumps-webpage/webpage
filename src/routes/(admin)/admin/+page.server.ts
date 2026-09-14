@@ -44,12 +44,27 @@ import { ACTIVITY_TYPES, type Event } from "$lib/server/data/schemas";
 import { mutate } from "$lib/server/data/tables";
 import type { PageServerLoad } from "./$types";
 
+/**
+ * Settles a map of in-flight queries, keeping them parallel. Load data must not
+ * carry promises (W-21): Kit streams any response whose data holds one, and its
+ * streaming branch builds a Response without a status, so the fourteen actions
+ * on this page would report every failure as 200.
+ */
+async function settle<T extends Record<string, Promise<unknown>>>(
+  pending: T,
+): Promise<{ [K in keyof T]: Awaited<T[K]> }> {
+  const entries = await Promise.all(
+    Object.entries(pending).map(async ([key, value]) => [key, await value] as const),
+  );
+  return Object.fromEntries(entries) as { [K in keyof T]: Awaited<T[K]> };
+}
+
 export const load: PageServerLoad = async (event) => {
   await ensureAdmin(event.locals, { silent: true });
 
   return {
     generatedAt: nowKstIso(),
-    streamed: {
+    streamed: await settle({
       applications: (async () => {
         const apps = await getTable("applications");
         return [...apps]
@@ -143,7 +158,7 @@ export const load: PageServerLoad = async (event) => {
           .filter((r) => r.status === "pending")
           .map((r) => adminStudyRequestItem(r, summaries));
       })(),
-    },
+    }),
   };
 };
 

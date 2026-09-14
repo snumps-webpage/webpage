@@ -152,7 +152,7 @@ export const load: PageServerLoad = async (event) => {
       currentSemesterKey: semester.key,
       isMember: true,
       application: null,
-      streamed: { dashboard: Promise.resolve(buildDevDashboardPreview(semester.key)) },
+      streamed: { dashboard: buildDevDashboardPreview(semester.key) },
     };
   }
 
@@ -162,7 +162,7 @@ export const load: PageServerLoad = async (event) => {
       isAdmin: false,
       semester: semester.name,
       currentSemesterKey: semester.key,
-      streamed: { dashboard: Promise.resolve(null) },
+      streamed: { dashboard: null },
     };
   }
 
@@ -318,7 +318,10 @@ export const load: PageServerLoad = async (event) => {
     currentSemesterKey: semester.key,
     isMember: !!member,
     application: null,
-    streamed: { dashboard: dashboardPromise() },
+    // Awaited, not streamed (W-21): an unsettled promise here makes the whole
+    // response streamed, and Kit's streaming branch drops the status — which
+    // silently turned every action failure on this page into a 200.
+    streamed: { dashboard: await dashboardPromise() },
   };
 };
 

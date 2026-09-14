@@ -34,6 +34,23 @@ check /archive/nope       404 "아카이브 하위 미매칭"
 check /admin              404 "훅에서 throw — 렌더를 거치지 않는 경로"
 check /                   200 "정상 페이지"
 
+check_post() { # check_post <경로> <기대 코드> <설명>
+  local code
+  code="$(curl -s -o /dev/null -w "%{http_code}" -X POST -H 'Accept: text/html' \
+    -H 'Content-Type: application/x-www-form-urlencoded' --data '' "$BASE$1")"
+  if [ "$code" = "$2" ]; then
+    printf '  ok   %-28s %s  (%s)\n' "POST $1" "$code" "$3"
+  else
+    printf '  FAIL %-28s %s  기대 %s  (%s)\n' "POST $1" "$code" "$2" "$3"
+    fail=1
+  fi
+}
+
+# W-21: 액션 실패 상태는 페이지가 스트리밍이면 증발한다. GET만 봐서는 안 잡힌다.
+echo "폼 액션 실패 상태"
+check_post "/?/applyActivity" 401 "스트리밍 페이지의 액션 — 비로그인"
+check_post "/seminar/apply" 303 "회원 존 — 가드가 먼저 잡는다"
+
 echo "참고 (데이터 계층 설정에 따라 달라진다)"
 for path in /members /about/executives /api/health; do
   printf '  %-28s %s\n' "$path" "$(curl -s -o /dev/null -w "%{http_code}" "$BASE$path")"

@@ -15,6 +15,11 @@ declare global {
     interface PageData {
       session: Session | null;
     }
+    /** handleError adds a machine-readable code so /api errors fit the REST envelope (W-22). */
+    interface Error {
+      message: string;
+      error?: import("./lib/domain/api").ApiErrorCode;
+    }
   }
 }
 

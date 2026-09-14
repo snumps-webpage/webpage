@@ -1,4 +1,5 @@
 import { ensureOrganizer, handleUserAction } from "$lib/server/auth-guards";
+import { httpGuard } from "$lib/server/core/http";
 import {
   getAttendanceSheet,
   saveStudyAttendance,
@@ -7,7 +8,9 @@ import type { PageServerLoad } from "./$types";
 
 /** STU-05: session×participant attendance sheet for the organizer. */
 export const load: PageServerLoad = async ({ locals, params }) => {
-  const study = await ensureOrganizer(params.id, locals.member!.memberId);
+  const study = await httpGuard(() =>
+    ensureOrganizer(params.id, locals.member!.memberId),
+  );
   const sheet = await getAttendanceSheet(study);
   return { studyId: study.id, studyTitle: study.title, ...sheet };
 };

@@ -1,4 +1,5 @@
 import { ensureOrganizer, handleUserAction } from "$lib/server/auth-guards";
+import { httpGuard } from "$lib/server/core/http";
 import { AppError } from "$lib/server/core/errors";
 import { kstInputToIso, nowKstIso } from "$lib/server/core/time";
 import { getTable } from "$lib/server/data/tables";
@@ -20,7 +21,7 @@ import type { PageServerLoad } from "./$types";
 
 /** STU-04·06·07: the organizer hub. Guard re-fetches the study every time. */
 export const load: PageServerLoad = async ({ locals, params }) => {
-  const study = await ensureOrganizer(params.id, locals.member!.memberId);
+  const study = await httpGuard(() => ensureOrganizer(params.id, locals.member!.memberId));
 
   const [events, activities, members] = await Promise.all([
     getTable("events"),

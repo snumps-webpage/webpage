@@ -1,7 +1,7 @@
 import { env } from "$env/dynamic/private";
 import { building } from "$app/environment";
 import { sequence } from "@sveltejs/kit/hooks";
-import { error, type Handle } from "@sveltejs/kit";
+import { error, type Handle, type HandleServerError } from "@sveltejs/kit";
 import { handle as authHandle } from "./auth";
 import {
   buildDevPreviewSession,
@@ -145,3 +145,22 @@ const zoneGuard: Handle = async ({ event, resolve }) => {
 };
 
 export const handle = sequence(cacheShield, authHandle, devPreviewHandle, zoneGuard);
+
+/**
+ * Shapes what an UNCAUGHT error becomes (W-22 / HS-4). Kit derives the status
+ * before calling this — it cannot change 500 into anything else — so this is
+ * about the body, which matters twice over:
+ *
+ *   1. `/api/**` answered `{"message":"Internal Error"}`, which the client's
+ *      restErrorEnvelopeSchema rejects, so the admin dashboard could only say
+ *      "refresh failed" no matter what broke.
+ *   2. The raw exception text (Postgres DSNs, fetch URLs) must not travel to a
+ *      browser. It is logged here instead.
+ *
+ * Data-layer failures still leave as 500; moving them to 503 + Retry-After is
+ * W-30, and needs SERVICE_UNAVAILABLE to be throwable first (W-32).
+ */
+export const handleError: HandleServerError = ({ error: e, event, status, message }) => {
+  console.error(`[${status}] ${event.request.method} ${event.url.pathname}`, e);
+  return { message, error: "SERVICE_UNAVAILABLE" };
+};
