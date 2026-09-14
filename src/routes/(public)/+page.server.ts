@@ -5,6 +5,7 @@ import { getDirectoryIndex } from "$lib/server/data/directory";
 import { CAPABILITIES } from "$lib/server/core/capabilities";
 import { resolveDevPreviewRole } from "$lib/server/dev-preview";
 import { getTable, mutate } from "$lib/server/data/tables";
+import { getMemberVisibleEvents } from "$lib/server/services/visibility";
 import { getActivitiesBetween, getActivitiesOf, getPrivateInfoOf } from "$lib/server/data/repos";
 import { effectiveStatus } from "$lib/server/services/events";
 import { seminarRequestView } from "$lib/server/data/views";
@@ -193,7 +194,8 @@ export const load: PageServerLoad = async (event) => {
         getTable("seminar-requests"),
         getPrivateInfoOf(member.memberId),
         getTable("seminars"),
-        getTable("events"),
+        // 취소된 세미나는 회원 화면에서 사라진다 (services/visibility.ts).
+        getMemberVisibleEvents(),
         getTable("studies"),
         getTable("members"),
       ]);

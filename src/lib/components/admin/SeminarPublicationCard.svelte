@@ -23,8 +23,6 @@
         return "공개 준비";
       case "published":
         return "공개됨";
-      case "completed":
-        return "종료";
       case "cancelled":
         return "취소";
     }

@@ -57,18 +57,19 @@
    * so a review verdict is the only board transition; the reloaded data
    * carries the new published seminar and record.
    */
+  // 승인은 더 이상 메일을 보내지 않는다 — 전 회원 공지는 공개 시점 한 번뿐이다.
+  // 예전 문구는 발송하지도 않은 메일을 발송했다고 알리고 있었다.
   function handleTransition(
     operation: "approved" | "rejected",
     requestId: string,
-    mailFailed: boolean,
+    _mailFailed: boolean,
   ) {
     requests = requests.filter((item) => item.id !== requestId);
     if (operation === "approved") {
       notice = {
-        tone: mailFailed ? "error" : "success",
-        message: mailFailed
-          ? "세미나는 승인했지만 ‘일정 추후 안내’ 공지 발송에 실패했습니다."
-          : "세미나를 승인하고 ‘일정 추후 안내’ 공지를 발송했습니다. 일정 공개·변경 시에도 안내 메일을 보냅니다.",
+        tone: "success",
+        message:
+          "세미나를 승인했습니다. 일정을 확정한 뒤 공개하면 전 회원에게 안내 메일이 나갑니다.",
       };
     } else {
       notice = { tone: "success", message: "세미나 신청을 반려했습니다." };

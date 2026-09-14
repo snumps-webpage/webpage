@@ -10,14 +10,20 @@ import {
 import { promotePendingUpload } from "$lib/server/services/uploads";
 import { AppError } from "$lib/server/core/errors";
 import { currentTerm, SEMESTER_PATTERN } from "$lib/server/core/semester";
-import { nowKstIso } from "$lib/server/core/time";
+import { kstInputToIso, nowKstIso } from "$lib/server/core/time";
 import {
   adminSeminarRequestItem,
   contentFileFromKey,
   directorySummaryIndex,
   byCreatedAtAsc,
 } from "$lib/server/data/admin-queue-views";
-import type { SeminarPublicationStatus } from "$lib/domain/admin-seminars";
+import { validateSeminarScheduleForm } from "$lib/domain/admin-seminars";
+import {
+  cancelSeminar,
+  publishSeminar,
+  scheduleSeminar,
+  updateSeminarSchedule,
+} from "$lib/server/services/seminars";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -41,8 +47,6 @@ export const load: PageServerLoad = async ({ locals }) => {
   });
   const presenterOf = (id: string) =>
     summaries.get(id) ?? { id, name: "알 수 없음", department: "" };
-  // Approval creates activity+event in one chain (§7-2), so a linked seminar
-  // is already published; there is no separate schedule/publish step here.
   const kindOf = (sourceRequestId: string | null) =>
     (sourceRequestId ? "irregular" : "regular") as "regular" | "irregular";
 
@@ -62,16 +66,18 @@ export const load: PageServerLoad = async ({ locals }) => {
         duration: request?.duration ?? "",
         attachmentUrl: request?.attachment || null,
         presenters: s.presenterIds.map(presenterOf),
-        publicationStatus: (s.activityId
-          ? "published"
-          : "unscheduled") as SeminarPublicationStatus,
-        schedule: event
-          ? { startsAt: event.date.start, endsAt: event.date.end, location: "" }
-          : null,
+        // 저장된 상태가 권위다. 예전에는 `activityId` 유무로 추측해서, 승인만
+        // 된 세미나와 이주된 기록이 모두 "공개됨"으로 보였다.
+        publicationStatus: s.publicationStatus,
+        // 일정도 마찬가지 — 장소는 event에 없으므로 세미나 행에만 있다.
+        schedule: s.schedule,
         activityId: s.activityId,
         eventId: event?.id ?? null,
-        canSchedule: false,
-        canPublish: false,
+        canSchedule:
+          s.publicationStatus === "unscheduled" ||
+          s.publicationStatus === "scheduled" ||
+          s.publicationStatus === "published",
+        canPublish: s.publicationStatus === "scheduled" && s.schedule !== null,
       })),
       generatedAt: nowKstIso(),
     },
@@ -87,9 +93,9 @@ export const load: PageServerLoad = async ({ locals }) => {
       preferredTiming: s.preferredTiming,
       presenterIds: s.presenterIds,
       presenterNames: s.presenterIds.map((id) => presenterOf(id).name),
-      scheduledAt: event?.date.start ?? null,
-      endsAt: event?.date.end ?? null,
-      location: null,
+      scheduledAt: s.schedule?.startsAt ?? event?.date.start ?? null,
+      endsAt: s.schedule?.endsAt ?? event?.date.end ?? null,
+      location: s.schedule?.location ?? null,
       activityId: s.activityId,
       eventId: event?.id ?? null,
       files: [
@@ -113,6 +119,55 @@ function requireTerm(raw: string): string {
 }
 
 export const actions = {
+  /** 일정 확정 — UI(SeminarScheduleDialog)가 보내는 필드를 도메인 검증에 그대로 태운다. */
+  scheduleSeminar: async ({ request, locals }: Ctx) => {
+    const data = await request.formData();
+    return handleAdminAction(locals, async () => {
+      const seminarId = data.get("seminarId") as string;
+      if (!seminarId) throw new AppError("VALIDATION_FAILED");
+      const parsed = validateSeminarScheduleForm(data);
+      if (!parsed.success) return parsed.failure;
+
+      const schedule = {
+        startsAt: kstInputToIso(parsed.data.startsAtLocal),
+        endsAt: parsed.data.endsAtLocal ? kstInputToIso(parsed.data.endsAtLocal) : null,
+        location: parsed.data.location,
+      };
+      // 공개된 세미나의 일정 변경은 활동·이벤트까지 함께 맞춰야 한다 —
+      // 이주로 일정을 잃은 레거시 행을 고치는 입구이기도 하다.
+      const seminar = (await getTable("seminars")).find((s) => s.id === seminarId);
+      if (!seminar) throw new AppError("NOT_FOUND");
+      if (seminar.publicationStatus === "published") {
+        await updateSeminarSchedule(seminarId, schedule);
+      } else {
+        await scheduleSeminar(seminarId, schedule);
+      }
+      return { operation: "scheduled", seminarId, schedule };
+    });
+  },
+
+  /** 공개 — 활동·출석 이벤트를 만들고 전 회원에게 알린다. */
+  publishSeminar: async ({ request, locals }: Ctx) => {
+    const data = await request.formData();
+    return handleAdminAction(locals, async () => {
+      const seminarId = data.get("seminarId") as string;
+      if (!seminarId) throw new AppError("VALIDATION_FAILED");
+      const { activityId, eventId, mailFailed } = await publishSeminar(seminarId);
+      return { operation: "published", seminarId, activityId, eventId, mailFailed };
+    });
+  },
+
+  /** 취소 — 기록은 남기고 회원·공개 면에서만 사라진다. */
+  cancelSeminar: async ({ request, locals }: Ctx) => {
+    const data = await request.formData();
+    return handleAdminAction(locals, async () => {
+      const seminarId = data.get("seminarId") as string;
+      if (!seminarId) throw new AppError("VALIDATION_FAILED");
+      await cancelSeminar(seminarId);
+      return { operation: "cancelled", seminarId };
+    });
+  },
+
   create: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {

@@ -71,9 +71,7 @@ export async function scheduleSeminar(
  * 있을 때만 나간다. 그래서 "CAS 성공 → 메일 실패"가 영구 침묵이 되지 않고,
  * 상태를 되감아도 공지가 두 번 나가지 않는다.
  */
-export async function publishSeminar(
-  id: string,
-): Promise<{
+export async function publishSeminar(id: string): Promise<{
   seminar: Seminar;
   activityId: string;
   eventId: string;
@@ -185,6 +183,10 @@ async function announceOnce(
 ): Promise<boolean> {
   let claimed = false;
   await mutate("seminars", (rows) => {
+    // 이 콜백은 CAS에 지면 **다시 불린다**. 바깥 플래그를 매 시도마다 초기화하지
+    // 않으면, 진 시도가 켜 놓은 값이 남아 패자도 발송한다 — 동시성 테스트가
+    // 3회 중 1회 빈도로 잡아낸 실제 결함이다.
+    claimed = false;
     const idx = rows.findIndex((s) => s.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
     if (rows[idx].announcedAt !== null) return rows; // 이미 보냈거나 다른 실행이 선점
@@ -211,4 +213,101 @@ async function announceOnce(
     return rows;
   });
   return true;
+}
+
+/**
+ * 일정 변경.
+ *
+ * 공개 전에는 세미나 행 하나로 끝난다. **공개 후에는 같은 일정이 세 문서에
+ * 산다** — 세미나(의도된 일정) · 활동(기록) · 이벤트(출석 창). 하나만 고치면
+ * 회원 화면과 공개 아카이브가 서로 다른 날짜를 말하므로 셋을 한 흐름에서
+ * 맞춘다. 중간에 실패하면 같은 호출을 다시 하는 것이 복구다 — 각 단계가
+ * 목표 상태를 그대로 쓰기 때문에 재실행이 수렴한다.
+ *
+ * 이주로 일정을 잃은 레거시 행(`published` + `schedule: null`)을 고치는 입구도
+ * 여기다. 그 행들은 `scheduleSeminar`가 받지 않는다(이미 공개됐으므로).
+ */
+export async function updateSeminarSchedule(
+  id: string,
+  schedule: SeminarSchedule,
+): Promise<Seminar> {
+  let seminar: Seminar | undefined;
+  await mutate("seminars", (rows) => {
+    const idx = rows.findIndex((s) => s.id === id);
+    if (idx === -1) throw new AppError("NOT_FOUND");
+    const row = rows[idx];
+    if (
+      row.publicationStatus === "cancelled" ||
+      row.publicationStatus === "unscheduled"
+    ) {
+      throw new AppError("CONFLICT");
+    }
+    rows[idx] = {
+      ...row,
+      schedule,
+      // 공개된 세미나만 학기가 확정된다 — 확정 전 학기는 공개 시 다시 계산된다.
+      semester:
+        row.publicationStatus === "published"
+          ? termOf(new Date(schedule.startsAt))
+          : row.semester,
+    };
+    seminar = rows[idx];
+    return rows;
+  });
+
+  if (seminar!.publicationStatus !== "published") return seminar!;
+
+  const date = { start: schedule.startsAt, end: schedule.endsAt };
+  const anchor = seminarAnchor(id);
+  await mutate("activities", (rows) =>
+    rows.map((a) =>
+      a.id === seminar!.activityId || a.sourceRequestId === anchor
+        ? { ...a, date }
+        : a,
+    ),
+  );
+  await mutate("events", (rows) =>
+    rows.map((e) =>
+      e.sourceRequestId === anchor ||
+      (seminar!.activityId && e.activityId === seminar!.activityId)
+        ? { ...e, date }
+        : e,
+    ),
+  );
+  return seminar!;
+}
+
+/**
+ * 취소 — 세미나를 `cancelled`로, 연결된 출석 이벤트도 `cancelled`로.
+ *
+ * 활동과 출석 기록은 **지우지 않는다.** 기록 삭제는 되돌릴 수 없고, 이 저장소는
+ * 아카이브를 사료로 다룬다(C-16). 대신 회원·공개 면에서 보이지 않게 하는 것은
+ * 읽기 쪽(services/visibility.ts)이 맡는다 — "안 그린다"가 아니라 "페이로드에
+ * 싣지 않는다"여야 한다(ZR-8의 교훈).
+ *
+ * 두 번 호출해도 한 번과 같다. 이미 취소된 이벤트에 상태를 다시 쓰지 않는다.
+ */
+export async function cancelSeminar(id: string): Promise<Seminar> {
+  let seminar: Seminar | undefined;
+  await mutate("seminars", (rows) => {
+    const idx = rows.findIndex((s) => s.id === id);
+    if (idx === -1) throw new AppError("NOT_FOUND");
+    seminar = rows[idx];
+    if (rows[idx].publicationStatus === "cancelled") return rows; // 멱등
+    rows[idx] = { ...rows[idx], publicationStatus: "cancelled" };
+    seminar = rows[idx];
+    return rows;
+  });
+
+  const anchor = seminarAnchor(id);
+  await mutate("events", (rows) =>
+    rows.map((e) =>
+      (e.sourceRequestId === anchor ||
+        (seminar!.activityId && e.activityId === seminar!.activityId)) &&
+      e.status !== "cancelled"
+        ? { ...e, status: "cancelled" as const }
+        : e,
+    ),
+  );
+  return seminar!;
 }

@@ -10,6 +10,7 @@ import {
   mutateQueue,
 } from "$lib/server/data/tables";
 import { getDirectoryIndex } from "$lib/server/data/directory";
+import { getMemberVisibleEvents } from "./visibility";
 import type {
   Activity,
   AttendanceRecord,
@@ -58,7 +59,8 @@ export function presentsEvent(event: Event, memberId: string): boolean {
  * needs it, while the page it points at still lists the seminar.
  */
 export async function hasPresenterEvents(memberId: string): Promise<boolean> {
-  const events = await getTable("events");
+  // 취소된 세미나는 회원에게 존재하지 않는다 — 네비 플래그도 마찬가지다.
+  const events = await getMemberVisibleEvents();
   return events.some((e) => presentsEvent(e, memberId));
 }
 
@@ -236,7 +238,9 @@ export async function cancelEventApplication(
 /** Seminars the member presents, with resolved applicants and current checks. */
 export async function getManagedSeminars(memberId: string) {
   const [events, activities, memberById] = await Promise.all([
-    getTable("events"),
+    // 취소된 세미나는 목록에서 사라진다 — 네비 플래그(hasPresenterEvents)와
+    // 같은 집합을 봐야 "링크는 있는데 페이지는 비었다"가 생기지 않는다.
+    getMemberVisibleEvents(),
     getTable("activities"),
     getDirectoryIndex(), // 표시용 이름·학과 — 과거 기록의 legacy id도 해석
   ]);

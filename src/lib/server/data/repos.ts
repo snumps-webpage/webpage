@@ -1,4 +1,5 @@
 import { getTable } from "./tables";
+import { withoutHiddenActivities } from "$lib/server/services/visibility";
 import type { Activity, Member, PrivateInfo } from "./schemas";
 
 /**
@@ -20,22 +21,36 @@ export async function getMemberById(id: string): Promise<Member | null> {
   return (await getTable("members")).find((m) => m.id === id) ?? null;
 }
 
-export async function getPrivateInfoOf(memberId: string): Promise<PrivateInfo | null> {
-  return (await getTable("private-info")).find((p) => p.memberId === memberId) ?? null;
+export async function getPrivateInfoOf(
+  memberId: string,
+): Promise<PrivateInfo | null> {
+  return (
+    (await getTable("private-info")).find((p) => p.memberId === memberId) ??
+    null
+  );
 }
 
-export async function getActivitiesBetween(start: Date, end: Date): Promise<Activity[]> {
-  const activities = await getTable("activities");
+export async function getActivitiesBetween(
+  start: Date,
+  end: Date,
+): Promise<Activity[]> {
+  // 취소·미공개 세미나의 활동은 회원·게스트 어느 쪽에도 나가지 않는다.
+  const activities = await withoutHiddenActivities(
+    await getTable("activities"),
+  );
   return activities.filter((a) => {
     const d = new Date(a.date.start);
     return d >= start && d < end;
   });
 }
 
-export async function getActivitiesOf(...memberIds: (string | null)[]): Promise<Activity[]> {
+export async function getActivitiesOf(
+  ...memberIds: (string | null)[]
+): Promise<Activity[]> {
   // S9: 재가입 회원은 legacy id의 과거 기록도 본인 것이다 — 복수 id 매칭.
   const ids = memberIds.filter((id): id is string => !!id);
-  return (await getTable("activities")).filter((a) =>
-    ids.some((id) => a.attendeeIds.includes(id)),
+  const activities = await withoutHiddenActivities(
+    await getTable("activities"),
   );
+  return activities.filter((a) => ids.some((id) => a.attendeeIds.includes(id)));
 }

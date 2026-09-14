@@ -1,16 +1,18 @@
 import { error } from "@sveltejs/kit";
 import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
 import { AppError } from "$lib/server/core/errors";
-import { getTable } from "$lib/server/data/tables";
 import { getDirectoryIndex } from "$lib/server/data/directory";
 import { checkIn, effectiveStatus } from "$lib/server/services/events";
+import { getMemberVisibleEvents } from "$lib/server/services/visibility";
 import { parseGoogleName } from "$lib/utils";
 import type { PageServerLoad } from "./$types";
 
 /** EVT-01 / SEM-05: the shared check-in page behind the obfuscated link. */
 
 async function findByPathId(pathId: string) {
-  return (await getTable("events")).find((e) => e.pathId === pathId) ?? null;
+  // 취소된 세미나의 출석 링크는 주소를 아는 사람에게도 열리지 않는다 —
+  // 회원 면의 단일 통로를 쓴다 (services/visibility.ts).
+  return (await getMemberVisibleEvents()).find((e) => e.pathId === pathId) ?? null;
 }
 
 export const load: PageServerLoad = async ({ params, locals, url }) => {

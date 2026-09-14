@@ -49,7 +49,6 @@ export const SEMINAR_PUBLICATION_STATUSES = [
   "unscheduled",
   "scheduled",
   "published",
-  "completed",
   "cancelled",
 ] as const;
 

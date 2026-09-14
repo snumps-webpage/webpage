@@ -1,6 +1,7 @@
 import { env } from "$env/dynamic/private";
 import { getMemberDirectory } from "$lib/server/data/directory";
 import { getTable } from "$lib/server/data/tables";
+import { withoutHiddenActivities } from "$lib/server/services/visibility";
 import { currentTerm } from "$lib/server/core/semester";
 
 /**
@@ -25,7 +26,9 @@ export function assetUrl(s3Key: string): string {
   if (!cdn) {
     if (!warnedMissingCdn) {
       warnedMissingCdn = true;
-      console.warn("[assets] ASSETS_CDN_URL is not set — asset URLs resolve to empty");
+      console.warn(
+        "[assets] ASSETS_CDN_URL is not set — asset URLs resolve to empty",
+      );
     }
     return "";
   }
@@ -72,9 +75,11 @@ export async function getPublicExecutives() {
   // memberId → phone (운영 우선, 없으면 legacy). 현 회장단 전화 조회 전용.
   // hidePublicPhone=true인 회원은 애초에 맵에 넣지 않는다 (거부 존중).
   const phoneByMemberId = new Map<string, string>();
-  for (const i of legacyInfos) if (i.phone && !i.hidePublicPhone) phoneByMemberId.set(i.memberId, i.phone);
+  for (const i of legacyInfos)
+    if (i.phone && !i.hidePublicPhone) phoneByMemberId.set(i.memberId, i.phone);
   for (const i of infos) {
-    if (i.hidePublicPhone) phoneByMemberId.delete(i.memberId); // 운영 행이 legacy를 덮는다
+    if (i.hidePublicPhone)
+      phoneByMemberId.delete(i.memberId); // 운영 행이 legacy를 덮는다
     else if (i.phone) phoneByMemberId.set(i.memberId, i.phone);
   }
 
@@ -85,10 +90,14 @@ export async function getPublicExecutives() {
     return phone || null;
   };
 
-  const byTerm = new Map<string, { term: string; title: string; name: string; contact: string | null }[]>();
+  const byTerm = new Map<
+    string,
+    { term: string; title: string; name: string; contact: string | null }[]
+  >();
   for (const m of members) {
     for (const r of m.roles) {
-      if (!(PUBLIC_EXECUTIVE_ORDER as readonly string[]).includes(r.title)) continue;
+      if (!(PUBLIC_EXECUTIVE_ORDER as readonly string[]).includes(r.title))
+        continue;
       const list = byTerm.get(r.term) ?? [];
       list.push({
         term: r.term,
@@ -100,7 +109,8 @@ export async function getPublicExecutives() {
       byTerm.set(r.term, list);
     }
   }
-  const rank = (title: string) => PUBLIC_EXECUTIVE_ORDER.indexOf(title as "회장");
+  const rank = (title: string) =>
+    PUBLIC_EXECUTIVE_ORDER.indexOf(title as "회장");
   return [...byTerm.entries()]
     .sort(([a], [b]) => b.localeCompare(a))
     .map(([t, holders]) => ({
@@ -111,8 +121,13 @@ export async function getPublicExecutives() {
 
 /** PUB-09: seminar archive grouped by term, files resolved to CDN URLs. */
 export async function getPublicSeminars() {
-  const [seminars, names] = await Promise.all([getTable("seminars"), memberNameMap()]);
-  return [...seminars]
+  const [seminars, names] = await Promise.all([
+    getTable("seminars"),
+    memberNameMap(),
+  ]);
+  // 공개는 명시적 행위다 — 승인·확정 단계의 세미나와 취소분은 게스트에게 없다.
+  return seminars
+    .filter((s) => s.publicationStatus === "published")
     .sort((a, b) => b.semester.localeCompare(a.semester))
     .map((s) => ({
       id: s.id,
@@ -127,9 +142,13 @@ export async function getPublicSeminars() {
 }
 
 export async function getPublicSeminar(id: string) {
-  const [seminars, names] = await Promise.all([getTable("seminars"), memberNameMap()]);
+  const [seminars, names] = await Promise.all([
+    getTable("seminars"),
+    memberNameMap(),
+  ]);
   const s = seminars.find((row) => row.id === id);
-  if (!s) return null;
+  // 목록과 같은 규칙 — 공개되지 않은 세미나는 id를 알아도 없는 것이다.
+  if (!s || s.publicationStatus !== "published") return null;
   return {
     id: s.id,
     title: s.title,
@@ -145,7 +164,10 @@ export async function getPublicSeminar(id: string) {
 
 /** PUB-10: study archive — operational fields (pending lists, transfers) never leave. */
 export async function getPublicStudies() {
-  const [studies, names] = await Promise.all([getTable("studies"), memberNameMap()]);
+  const [studies, names] = await Promise.all([
+    getTable("studies"),
+    memberNameMap(),
+  ]);
   return [...studies]
     .sort((a, b) => b.semester.localeCompare(a.semester))
     .map((s) => ({
@@ -164,7 +186,9 @@ export async function getPublicStudies() {
 
 /** PUB-11: the public calendar — schedule only, NEVER attendee lists. */
 export async function getPublicActivities() {
-  const activities = await getTable("activities");
+  const activities = await withoutHiddenActivities(
+    await getTable("activities"),
+  );
   return [...activities]
     .sort((a, b) => b.date.start.localeCompare(a.date.start))
     .map((a) => ({
@@ -183,13 +207,25 @@ export async function getPublicGallery() {
   ]);
   return [
     ...seminars.flatMap((s) =>
-      s.photos.map((key) => ({ kind: "세미나" as const, title: s.title, url: assetUrl(key) })),
+      s.photos.map((key) => ({
+        kind: "세미나" as const,
+        title: s.title,
+        url: assetUrl(key),
+      })),
     ),
     ...studies.flatMap((s) =>
-      s.photos.map((key) => ({ kind: "스터디" as const, title: s.title, url: assetUrl(key) })),
+      s.photos.map((key) => ({
+        kind: "스터디" as const,
+        title: s.title,
+        url: assetUrl(key),
+      })),
     ),
     ...dinners.flatMap((g) =>
-      g.photos.map((key) => ({ kind: "회식" as const, title: g.year, url: assetUrl(key) })),
+      g.photos.map((key) => ({
+        kind: "회식" as const,
+        title: g.year,
+        url: assetUrl(key),
+      })),
     ),
   ];
 }

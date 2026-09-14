@@ -19,14 +19,23 @@ vi.mock("$lib/server/mail/dispatch", () => ({
 }));
 
 import { __reset } from "$lib/server/data/store-memory";
-import { _resetDataLayerForTests, getTable } from "$lib/server/data/tables";
+import {
+  _resetDataLayerForTests,
+  getTable,
+  mutate,
+} from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { AppError } from "$lib/server/core/errors";
 import { newId } from "$lib/server/core/id";
 import { toKstIso } from "$lib/server/core/time";
 import { termOf } from "$lib/server/core/semester";
 import { approveSeminar, submitSeminarRequest } from "./seminar-requests";
-import { publishSeminar, scheduleSeminar } from "./seminars";
+import {
+  cancelSeminar,
+  publishSeminar,
+  scheduleSeminar,
+  updateSeminarSchedule,
+} from "./seminars";
 
 /**
  * 승인 → 일정 미정 → 확정 → 공개 (FRONTEND-DECISIONS §3-1).
@@ -251,5 +260,149 @@ describe("publishSeminar — 공개", () => {
     // 기록 정정이지 안내가 아니다 — 지난 세미나를 전 회원에게 알리지 않는다.
     expect(sentMail).toEqual([]);
     expect(published.announcedAt).not.toBeNull(); // 되살아나지 않게 앵커는 찍는다
+  });
+});
+
+describe("updateSeminarSchedule — 확정 후 일정 변경", () => {
+  async function published() {
+    await approveSeminar((await pendingRequest()).id);
+    const [seminar] = await getTable("seminars");
+    await scheduleSeminar(seminar.id, SCHEDULE);
+    await publishSeminar(seminar.id);
+    return seminar.id;
+  }
+
+  it("공개 전에는 세미나만 고친다", async () => {
+    await approveSeminar((await pendingRequest()).id);
+    const [seminar] = await getTable("seminars");
+    await scheduleSeminar(seminar.id, SCHEDULE);
+    const moved = { ...SCHEDULE, startsAt: at(40 * 24 * HOUR), endsAt: null };
+
+    await updateSeminarSchedule(seminar.id, moved);
+
+    const [updated] = await getTable("seminars");
+    expect(updated.schedule).toEqual(moved);
+    expect(updated.publicationStatus).toBe("scheduled");
+  });
+
+  // 공개된 세미나의 일정은 세 문서에 산다 — 하나만 고치면 회원 화면과 공개
+  // 아카이브가 서로 다른 날짜를 말한다.
+  it("공개 후에는 활동·출석 이벤트까지 한 작업으로 맞춘다", async () => {
+    const id = await published();
+    const moved = {
+      startsAt: at(45 * 24 * HOUR),
+      endsAt: at(45 * 24 * HOUR + 3 * HOUR),
+      location: "302동 105호",
+    };
+
+    await updateSeminarSchedule(id, moved);
+
+    const [seminar] = await getTable("seminars");
+    const [activity] = await getTable("activities");
+    const [event] = await getTable("events");
+    expect(seminar.schedule).toEqual(moved);
+    expect(activity.date).toEqual({ start: moved.startsAt, end: moved.endsAt });
+    expect(event.date).toEqual(activity.date);
+    expect(seminar.semester).toBe(termOf(new Date(moved.startsAt)));
+  });
+
+  // 이주로 일정을 잃은 레거시 행(published + schedule: null)을 고치는 입구다.
+  it("일정이 비어 있던 공개 세미나에도 일정을 넣을 수 있다", async () => {
+    await mutate("seminars", (rows) => [
+      ...rows,
+      {
+        id: "legacy-1",
+        title: "이주된 세미나",
+        semester: "24-2",
+        note: "",
+        presenterIds: [],
+        externalPresenters: "",
+        materials: [],
+        photos: [],
+        posterKey: "",
+        preferredTiming: "",
+        publicationStatus: "published" as const,
+        schedule: null,
+        announcedAt: null,
+        activityId: null,
+        sourceRequestId: null,
+      },
+    ]);
+
+    await updateSeminarSchedule("legacy-1", SCHEDULE);
+
+    const legacy = (await getTable("seminars")).find(
+      (s) => s.id === "legacy-1",
+    )!;
+    expect(legacy.schedule).toEqual(SCHEDULE);
+  });
+
+  it("변경만으로는 공지가 나가지 않는다 — 공지는 D단계", async () => {
+    const id = await published();
+    sentMail.length = 0;
+
+    await updateSeminarSchedule(id, { ...SCHEDULE, location: "다른 곳" });
+
+    expect(sentMail).toEqual([]);
+  });
+
+  it("취소된 세미나는 일정을 바꿀 수 없다", async () => {
+    const id = await published();
+    await cancelSeminar(id);
+
+    await expect(updateSeminarSchedule(id, SCHEDULE)).rejects.toSatisfy(
+      (e) => e instanceof AppError && e.code === "CONFLICT",
+    );
+  });
+});
+
+describe("cancelSeminar — 취소", () => {
+  it("공개된 세미나를 취소하면 출석 이벤트도 취소된다", async () => {
+    await approveSeminar((await pendingRequest()).id);
+    const [seminar] = await getTable("seminars");
+    await scheduleSeminar(seminar.id, SCHEDULE);
+    await publishSeminar(seminar.id);
+
+    await cancelSeminar(seminar.id);
+
+    expect((await getTable("seminars"))[0].publicationStatus).toBe("cancelled");
+    expect((await getTable("events"))[0].status).toBe("cancelled");
+  });
+
+  // 기록은 사료다 — 관리자에게는 남고, 회원·공개 면에서만 사라진다.
+  it("활동과 출석 기록은 지우지 않는다", async () => {
+    await approveSeminar((await pendingRequest()).id);
+    const [seminar] = await getTable("seminars");
+    await scheduleSeminar(seminar.id, SCHEDULE);
+    await publishSeminar(seminar.id);
+
+    await cancelSeminar(seminar.id);
+
+    const activities = await getTable("activities");
+    expect(activities).toHaveLength(1);
+    expect(activities[0].attendeeIds).toEqual(seminar.presenterIds);
+  });
+
+  it("일정 확정 전에도 취소할 수 있다", async () => {
+    await approveSeminar((await pendingRequest()).id);
+    const [seminar] = await getTable("seminars");
+
+    await cancelSeminar(seminar.id);
+
+    expect((await getTable("seminars"))[0].publicationStatus).toBe("cancelled");
+    expect(await getTable("events")).toEqual([]);
+  });
+
+  it("두 번 취소해도 한 번 취소한 것과 같다", async () => {
+    await approveSeminar((await pendingRequest()).id);
+    const [seminar] = await getTable("seminars");
+    await scheduleSeminar(seminar.id, SCHEDULE);
+    await publishSeminar(seminar.id);
+
+    await cancelSeminar(seminar.id);
+    await cancelSeminar(seminar.id);
+
+    expect((await getTable("seminars"))[0].publicationStatus).toBe("cancelled");
+    expect((await getTable("events"))[0].status).toBe("cancelled");
   });
 });
