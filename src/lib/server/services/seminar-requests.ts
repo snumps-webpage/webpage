@@ -138,6 +138,9 @@ export async function approveSeminar(
     // 신청서의 포스터를 세미나가 소유하도록 이관 — 세미나=정보+포스터
     posterKey: request.posterKey,
     preferredTiming: request.preferredTiming,
+    // TODO(B단계): 승인은 일정 미정으로 만들고 activity·event는 공개 시점에.
+    publicationStatus: "published" as const,
+    schedule: null,
     activityId: activity.id,
     sourceRequestId: id,
   }));

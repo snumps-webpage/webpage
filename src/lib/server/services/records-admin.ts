@@ -79,6 +79,9 @@ export async function createSeminar(
     ...input,
     materials: [],
     photos: [],
+    // 관리자가 직접 적는 기록은 이미 치른 세미나다 — 승인 흐름을 거치지 않는다.
+    publicationStatus: "published" as const,
+    schedule: null,
     // 신청 흐름과 동일한 단일 소스 헬퍼 — 포스터 처리가 루트마다 갈라지지 않는다
     posterKey: await promoteSeminarPoster(posterPendingKey),
     preferredTiming: "",
