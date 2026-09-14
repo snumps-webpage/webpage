@@ -77,14 +77,23 @@ mutate<T>(name: TableName, fn: (rows: T[]) => T[]): Promise<T[]>
 
 ### 1-4. 캐시
 
-| 키                           | 내용           | 무효화                                                     |
-| ---------------------------- | -------------- | ---------------------------------------------------------- |
-| `table_<name>`               | 테이블 전문    | 해당 테이블 `mutate` 성공 시 **자동** (데이터 계층이 수행) |
-| `activities_<start>_<end>`   | 기간 조회 파생 | activities 변경 액션이 명시                                |
-| `user_activities_<memberId>` | 회원별 이력    | 해당 회원 출석 변경 액션이 명시                            |
-| `all_events`                 | 이벤트 목록    | events 변경 액션이 명시                                    |
+| 키                                 | 내용                 | 무효화                                                     |
+| ---------------------------------- | -------------------- | ---------------------------------------------------------- |
+| `table_<name>`                     | 테이블 전문          | 해당 테이블 `mutate` 성공 시 **자동** (데이터 계층이 수행) |
+| `table_attendance-queue_<eventId>` | 이벤트별 출석 대기열 | `mutateQueue`·`deleteQueue` 성공 시 **자동**               |
 
-- 원칙: **`mutate(t)` → `table_t` 무효화는 자동.** 아래 액션 명세의 "캐시:" 표기는 파생 키만 적는다
+- 원칙: **`mutate(t)` → `table_t` 무효화는 자동.** 캐시되는 키는 이 둘뿐이다
+- **파생 캐시는 없다.** 회원별 이력·기간 조회·이벤트 목록은 캐시된 테이블을 메모리에서 거른 결과이지
+  별도 캐시 항목이 아니다 — `getActivitiesOf`·`getActivitiesBetween`(`data/repos.ts`) 참조.
+  테이블 캐시가 최신이면 파생 결과도 최신이므로 따로 무효화할 것이 없다
+
+  > **2026-09-14 정정.** 이 표에는 `activities_<start>_<end>` · `user_activities_<memberId>` · `all_events`
+  > 세 행이 있었다. 셋 다 노션 시절의 캐시다 — `user_activities_*`는 회원별 Notion API 페이지네이션
+  > 쿼리를(`40f0111`), `all_events`는 이벤트 DB 조회를 감쌌다. 이관(`ea91528`)이 그 원격 쿼리를
+  > 테이블 전문 + 메모리 필터로 바꾸면서 캐시는 사라졌지만 **무효화 호출만 남아 있었다.**
+  > 존재하지 않는 키를 지우는 호출이었다. 코드에서 제거하고(감사 W-4) 표를 코드에 맞췄다.
+  > `activities_<start>_<end>`는 무효화 호출조차 없던 완전한 유령이다.
+
 - **HTTP 캐시: 전면 금지 (v0.8).** 공개 페이지를 포함한 **모든 SSR 응답**에 최외곽 훅이
   `cache-control: private, no-store` + `vercel-cdn-cache-control: no-store`를 부여한다
   (`hooks.server.ts` cacheShield). 따라서 회원 편집은 **다음 요청에 즉시 반영**된다 — 지연 없음.
@@ -465,7 +474,7 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
 - 가드: `ensureMember`. 입력: `eventId`
 - 검증: 존재 · `active` · `date.start` 미도래
 - 처리: `applicantIds` 추가/제거. 멱등
-- 에러: `NOT_FOUND`, `EVENT_NOT_OPEN`. 캐시: `all_events`
+- 에러: `NOT_FOUND`, `EVENT_NOT_OPEN`. 캐시: 자동 (`table_events`)
 
 ### 5-4. `GET /events/[pathId]/[attendCode]` + `POST ?/attend` — EVT-01, SEM-05, STU-03
 
@@ -492,7 +501,7 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
   outside = activities[activityId].attendeeIds − applicantIds
   final   = outside ∪ attendeeIds
   ```
-- 캐시: `activities_*`, 영향 회원 전원 `user_activities_<id>`
+- 캐시: 자동 (`table_activities`) — 영향 회원별로 지울 파생 키는 없다 (§1-4)
 - 에러: `FORBIDDEN`, `VALIDATION_FAILED`, `NOT_FOUND`
 
 ### 5-7. 공지 메일 (내부 계약) — SEM-04, SYS-05
@@ -534,7 +543,7 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
 | `?/proposeTransfer`                           | STU-07        | 검증: 대상이 회원 ∧ **본인 아님**(`VALIDATION_FAILED`) ∧ 기존 제안 없음(`CONFLICT`)                                                                                                            |
 | `?/cancelTransfer`                            | STU-07        | `pendingTransfer = null`                                                                                                                                                                       |
 
-캐시: 회차 변경 시 `all_events`, `activities_*`.
+캐시: 회차 변경 시 자동 (`table_events` · `table_activities`).
 
 ### 6-5. `POST /?/acceptTransfer` · `?/declineTransfer` — STU-07 대상자 측
 
@@ -562,18 +571,18 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
 
 ### 7-2. `/admin` 액션
 
-| 액션                                                   | 기능      | 처리                                                                                                                                                                                                                                         |
-| ------------------------------------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `?/approve`                                            | ADM-01    | ① `private-info` 생성(신청 내용 **전환**) ② `members` 생성(status **associate**) ③ **신청 행 제거**. ①②는 `sourceRequestId` check-before-create — ③ 실패 후 재실행은 기존 레코드를 감지하고 행 제거만 수행. 행이 이미 없으면 `NOT_FOUND`     |
-| `?/reject`                                             | ADM-01    | 거절 알림 메일 후 **신청 행 제거** (전환 대상 없음)                                                                                                                                                                                          |
-| `?/approveSeminar`                                     | ADM-02    | ① `activities` ② `events`(active, `presenterIds` = request의 presenterIds, `activityId` 연결) ③ `seminars`(`activityId`·`presenterIds` 기록) ④ request `approved` ⑤ 공지 메일(비전파). 전 단계 `sourceRequestId`                             |
-| `?/rejectSeminar` / `?/approveStudy` / `?/rejectStudy` | ADM-02·16 | 스터디 승인: `studies` 생성(`organizerIds = [requesterId]`, recruiting, `sourceRequestId`) → request `approved` → 알림 메일                                                                                                                  |
-| `?/activateEvent` / `?/expireEvent` / `?/deleteEvent`  | ADM-04    | 전이 draft↔active↔expired (cancelled는 불가). **deleteEvent**: 해당 `attendance-queue/<eventId>`에 pending 있으면 `CONFLICT`(먼저 처리 요구), 없으면 큐 객체 함께 삭제                                                                       |
-| `?/updateEvent`                                        | ADM-04    | 제목·일시·타입 수정 (오입력 정정)                                                                                                                                                                                                            |
-| `?/approveAttendance`                                  | ADM-03    | 입력: **`(eventId, queueId)`** — 저장이 이벤트당 객체라 둘 다 필수 (큐 액션 4종 공통). 검증: 이벤트·활동 실재 (dangling → `NOT_FOUND`). `activities.attendeeIds` 추가 → queue `approved`. 캐시: `activities_*`, `user_activities_<memberId>` |
-| `?/rejectAttendance` / `?/deleteAttendanceRecord`      | ADM-03    | 입력 `(eventId, queueId)`. **approved 행에 적용 시 역반영** — `attendeeIds`에서 제거 후 상태 변경/삭제. 캐시 동일                                                                                                                            |
-| `?/updateAttendanceTime`                               | ADM-03    | 입력 `(eventId, queueId, start, end)`. 시각 수정                                                                                                                                                                                             |
-| `?/holdWithdrawal` / `?/releaseWithdrawalHold`         | ADM-17    | §7-3 표 참조 — 진입은 이 대시보드의 탈퇴 유예 목록                                                                                                                                                                                           |
+| 액션                                                   | 기능      | 처리                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `?/approve`                                            | ADM-01    | ① `private-info` 생성(신청 내용 **전환**) ② `members` 생성(status **associate**) ③ **신청 행 제거**. ①②는 `sourceRequestId` check-before-create — ③ 실패 후 재실행은 기존 레코드를 감지하고 행 제거만 수행. 행이 이미 없으면 `NOT_FOUND`                       |
+| `?/reject`                                             | ADM-01    | 거절 알림 메일 후 **신청 행 제거** (전환 대상 없음)                                                                                                                                                                                                            |
+| `?/approveSeminar`                                     | ADM-02    | ① `activities` ② `events`(active, `presenterIds` = request의 presenterIds, `activityId` 연결) ③ `seminars`(`activityId`·`presenterIds` 기록) ④ request `approved` ⑤ 공지 메일(비전파). 전 단계 `sourceRequestId`                                               |
+| `?/rejectSeminar` / `?/approveStudy` / `?/rejectStudy` | ADM-02·16 | 스터디 승인: `studies` 생성(`organizerIds = [requesterId]`, recruiting, `sourceRequestId`) → request `approved` → 알림 메일                                                                                                                                    |
+| `?/activateEvent` / `?/expireEvent` / `?/deleteEvent`  | ADM-04    | 전이 draft↔active↔expired (cancelled는 불가). **deleteEvent**: 해당 `attendance-queue/<eventId>`에 pending 있으면 `CONFLICT`(먼저 처리 요구), 없으면 큐 객체 함께 삭제                                                                                         |
+| `?/updateEvent`                                        | ADM-04    | 제목·일시·타입 수정 (오입력 정정)                                                                                                                                                                                                                              |
+| `?/approveAttendance`                                  | ADM-03    | 입력: **`(eventId, queueId)`** — 저장이 이벤트당 객체라 둘 다 필수 (큐 액션 4종 공통). 검증: 이벤트·활동 실재 (dangling → `NOT_FOUND`). `activities.attendeeIds` 추가 → queue `approved`. 캐시: 자동 (`table_activities` · `table_attendance-queue_<eventId>`) |
+| `?/rejectAttendance` / `?/deleteAttendanceRecord`      | ADM-03    | 입력 `(eventId, queueId)`. **approved 행에 적용 시 역반영** — `attendeeIds`에서 제거 후 상태 변경/삭제. 캐시 동일                                                                                                                                              |
+| `?/updateAttendanceTime`                               | ADM-03    | 입력 `(eventId, queueId, start, end)`. 시각 수정                                                                                                                                                                                                               |
+| `?/holdWithdrawal` / `?/releaseWithdrawalHold`         | ADM-17    | §7-3 표 참조 — 진입은 이 대시보드의 탈퇴 유예 목록                                                                                                                                                                                                             |
 
 ### 7-3. 회원 편집 — ADM-07·12
 

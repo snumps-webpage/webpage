@@ -3,7 +3,6 @@ import { newId } from "$lib/server/core/id";
 import { nowKstIso } from "$lib/server/core/time";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { audit } from "$lib/server/data/audit";
-import { invalidateAttendanceCaches } from "$lib/server/attendance";
 import { promoteSeminarPoster } from "$lib/server/services/uploads";
 import type {
   Activity,
@@ -61,15 +60,12 @@ export async function deleteActivity(id: string): Promise<void> {
 
 /** Admin plenary overwrite — merge rule deliberately NOT applied (§7-4). */
 export async function setAttendees(id: string, attendeeIds: string[]): Promise<void> {
-  let before: string[] = [];
   await mutate("activities", (rows) => {
     const idx = rows.findIndex((a) => a.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
-    before = rows[idx].attendeeIds;
     rows[idx] = { ...rows[idx], attendeeIds: [...new Set(attendeeIds)] };
     return rows;
   });
-  await invalidateAttendanceCaches([...new Set([...before, ...attendeeIds])]);
 }
 
 // ---- seminars ---------------------------------------------------------------

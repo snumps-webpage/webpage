@@ -15,10 +15,7 @@ import type {
   AttendanceRecord,
   Event,
 } from "$lib/server/data/schemas";
-import {
-  invalidateAttendanceCaches,
-  mergeAttendees,
-} from "$lib/server/attendance";
+import { mergeAttendees } from "$lib/server/attendance";
 
 /**
  * Event lifecycle + attendance queue (API-SPEC §5-4, §7-2, §8-1).
@@ -282,7 +279,6 @@ export async function savePresenterAttendance(
     throw new AppError("FORBIDDEN");
   if (!isSeminarType(event.type)) throw new AppError("VALIDATION_FAILED");
 
-  let touched: string[] = [];
   await mutate("activities", (rows) => {
     const idx = rows.findIndex((a) => a.id === event.activityId);
     if (idx === -1) throw new AppError("NOT_FOUND");
@@ -291,11 +287,9 @@ export async function savePresenterAttendance(
       event.applicantIds,
       selectedApplicantIds,
     );
-    touched = [...new Set([...rows[idx].attendeeIds, ...next])];
     rows[idx] = { ...rows[idx], attendeeIds: next };
     return rows;
   });
-  await invalidateAttendanceCaches(touched);
 }
 
 // ---- queue administration (ADM-03) ------------------------------------------
@@ -333,7 +327,6 @@ export async function approveAttendance(
       r.id === queueId ? { ...r, status: "approved" as const } : r,
     ),
   );
-  await invalidateAttendanceCaches([row.memberId]);
 }
 
 /** Rejection/deletion of an APPROVED row reverses the activity merge (§7-2). */
@@ -354,7 +347,6 @@ async function reverseIfApproved(
         : a,
     ),
   );
-  await invalidateAttendanceCaches([row.memberId]);
 }
 
 export async function rejectAttendance(

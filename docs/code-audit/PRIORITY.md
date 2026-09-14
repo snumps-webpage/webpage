@@ -16,8 +16,8 @@
 | --------- | ------------------------------------------------------------------------------------------------------------------ |
 | 감사 진행 | 위험 선행 11개 완료 (지적 67건). 계층 감사(A-a~A-d, 98파일) 미착수                                                 |
 | 처리 완료 | P0 전부 · P1 전부 · P2-4 — 부록 A                                                                                  |
-| 검증 상태 | `vitest` **305 passed · 2 skipped** · `svelte-check` **0 errors / 897 files** · `eslint` **0** · `vite build` 통과 |
-| 남은 작업 | **W-4 ~ W-18 · W-20** (W-1 · W-2 · W-3 · W-19 ✅)                                                                  |
+| 검증 상태 | `vitest` **306 passed · 2 skipped** · `svelte-check` **0 errors / 897 files** · `eslint` **0** · `vite build` 통과 |
+| 남은 작업 | **W-5 ~ W-18 · W-20** (W-1 ~ W-4 · W-19 ✅)                                                                        |
 | 미결 결정 | C-12 ~ C-15 (C-14는 목록이 정정됐다)                                                                               |
 
 > **기준선 수치가 문서마다 달랐다 — 그 자체가 발견이다.** README는 268, 이 문서는 270, 실측은 **286**.
@@ -159,7 +159,21 @@
   `ops-env-auth.sh:12`·`ops-vercel-env.sh:36`이 심는 값도 무시된다.
 - **완료 기준** 변수명을 `SITE_ORIGIN`으로 바꾸거나 `$env/dynamic/public`으로 읽는다. 어느 쪽이든 **폴백이 실제로 폴백일 때만 쓰이는지** 테스트로 고정. `.env.example`·ops 스크립트·`OPERATOR-TODO`를 함께 맞춘다(**W-17**과 한 커밋)
 
-#### W-4 🟡 `invalidateAttendanceCaches`가 존재하지 않는 키를 지운다 (`N-P2`)
+#### W-4 🟡 `invalidateAttendanceCaches`가 존재하지 않는 키를 지운다 (`N-P2`) ✅ 처리됨
+
+> ✅ **처리 (2026-09-14).** 함수와 호출 5곳, import, 그리고 그 호출에만 쓰이던 `touched`·`before`
+> 부기 변수까지 지웠다. `attendance.ts`에는 `mergeAttendees` 하나만 남는다.
+>
+> **삭제가 안전함을 먼저 증명했다.** 동작이 바뀌지 않는 삭제라 "테스트를 먼저 실패시킨다"를 이렇게 바꿔 적용했다 —
+> `participation.test.ts`에 read-after-write 테스트("승인 직후 회원 이력 조회가 새 값을 본다", 캐시를 먼저 데운다)를
+> 넣고, **`mutate`의 무효화를 일시로 끊어 그 테스트가 실제로 실패하는 것을 확인**했다.
+> 끊은 상태에서도 `invalidateAttendanceCaches`는 그대로 돌고 있었다 — 그것이 신선도에 기여하지 않는다는 직접 증거다.
+> 복원 후 다시 초록.
+>
+> **스펙도 맞췄다.** `API-SPEC` §1-4의 유령 키 세 행(`activities_<start>_<end>` · `user_activities_<memberId>` ·
+> `all_events`)을 지우고 실제 키 둘(`table_<name>` · `table_attendance-queue_<eventId>`)로 바꿨다.
+> 액션별 "캐시:" 표기 4곳(`:476` `:503` `:545` `:581`)도 같은 유령을 가리키고 있어 함께 고쳤다 — **그 표기를 그대로 두면
+> 다음 사람이 없는 키를 지우는 코드를 다시 쓴다.** 정정 경위(노션 시절 원격 쿼리 캐시 → 이관에서 소멸)를 스펙에 남겼다.
 
 - **어디** `src/lib/server/attendance.ts:26-27` · 호출부 `services/events.ts:298,336,357` · `records-admin.ts:72` · `studies.ts:516`
 - **무엇** `withCache`를 쓰는 곳은 `tables.ts:126`(`table_*`)와 `:150` 둘뿐이다. `user_activities_*`·`all_events`는 **생성되지 않는 키**다

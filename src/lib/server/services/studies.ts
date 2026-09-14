@@ -4,10 +4,7 @@ import { nowKstIso } from "$lib/server/core/time";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { getDirectoryIndex } from "$lib/server/data/directory";
 import { ensureCreated } from "$lib/server/data/idempotency";
-import {
-  invalidateAttendanceCaches,
-  mergeAttendees,
-} from "$lib/server/attendance";
+import { mergeAttendees } from "$lib/server/attendance";
 import type { Event, Study, StudyRequest } from "$lib/server/data/schemas";
 import { effectiveStatus, type CronStep } from "./events";
 
@@ -500,7 +497,6 @@ export async function saveStudyAttendance(
   const event = (await getTable("events")).find((e) => e.id === eventId);
   if (!event || event.studyId !== study.id) throw new AppError("NOT_FOUND");
 
-  let touched: string[] = [];
   await mutate("activities", (rows) => {
     const idx = rows.findIndex((a) => a.id === event.activityId);
     if (idx === -1) throw new AppError("NOT_FOUND");
@@ -509,9 +505,7 @@ export async function saveStudyAttendance(
       study.participantIds,
       selectedIds,
     );
-    touched = [...new Set([...rows[idx].attendeeIds, ...next])];
     rows[idx] = { ...rows[idx], attendeeIds: next };
     return rows;
   });
-  await invalidateAttendanceCaches(touched);
 }

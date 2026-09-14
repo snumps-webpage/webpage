@@ -108,6 +108,23 @@ describe("presenter attendance management (PRES-02 / BE-44)", () => {
     expect(attendees).toContain("walkin-member");
   });
 
+  // W-4: the freshness net. A member reads their own history right after an
+  // admin approves their check-in — and lands on an instance whose local cache
+  // already holds the pre-write rows. What makes the read fresh is mutate()
+  // invalidating `table_activities`, nothing else.
+  it("shows an approved check-in to the very next read of the member's history", async () => {
+    const { getActivitiesOf } = await import("$lib/server/data/repos");
+    const event = await seminarWithApplicants();
+    const stored = (await getTable("events"))[0];
+    const rec = await checkIn(stored, "walkin-member");
+    expect(await getActivitiesOf("walkin-member")).toEqual([]); // warms the cache
+
+    const { approveAttendance } = await import("./events");
+    await approveAttendance(event.id, rec.id);
+
+    expect(await getActivitiesOf("walkin-member")).toHaveLength(1);
+  });
+
   it("lists managed seminars with applicant names and current checks", async () => {
     const event = await seminarWithApplicants();
     await mutate("members", (rows) => [
