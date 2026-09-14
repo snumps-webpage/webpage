@@ -1,12 +1,12 @@
 import { json } from "@sveltejs/kit";
-import { requireAdminAction } from "$lib/server/auth-guards";
+import { requireAdminRest } from "$lib/server/core/http";
 import { getTable } from "$lib/server/data/tables";
 import type { RequestHandler } from "./$types";
 
 /** Admin polling: pending membership applications (§8-3). */
 export const GET: RequestHandler = async ({ locals }) => {
-  const { allowed } = await requireAdminAction(locals);
-  if (!allowed) return json({ error: "FORBIDDEN" }, { status: 403 });
+  const denied = await requireAdminRest(locals);
+  if (denied) return denied;
 
   const apps = await getTable("applications");
   const { adminApplicationItem } =

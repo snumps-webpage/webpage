@@ -195,7 +195,7 @@ SvelteKit은 서버 로드 반환값을 컴포넌트가 읽든 말든 통째로 
 | 검사                           | 결과                                                  |
 | ------------------------------ | ----------------------------------------------------- |
 | `vitest run`                   | **305 passed · 2 skipped** · 51 files (1 skipped)     |
-| `svelte-check`                 | **0 errors** · 0 warnings · 906 files                 |
+| `svelte-check`                 | **0 errors** · 0 warnings · 908 files                 |
 | `eslint .`                     | ✅ **0** — XC-1 해소 (`254af71` `4d42366`)            |
 | `prettier --check` (추적 파일) | ❌ 131 files — CI 밖, 결정 대기                       |
 | `vite build`                   | 통과. 프리렌더 0개(C-17)라 `SUPABASE_URL` 없이도 된다 |

@@ -98,12 +98,14 @@ src/lib/server/core/
 // errors.ts
 export const ERR = {
   VALIDATION_FAILED: "VALIDATION_FAILED",
+  UNAUTHORIZED: "UNAUTHORIZED", // 401 (C-19)
   NOT_FOUND: "NOT_FOUND",
   FORBIDDEN: "FORBIDDEN",
   CONFLICT: "CONFLICT",
-  WRITE_CONFLICT: "WRITE_CONFLICT",
+  WRITE_CONFLICT: "WRITE_CONFLICT", // 409 (C-21)
   EVENT_NOT_OPEN: "EVENT_NOT_OPEN",
   STUDY_NOT_RECRUITING: "STUDY_NOT_RECRUITING",
+  SERVICE_UNAVAILABLE: "SERVICE_UNAVAILABLE", // 503
 } as const;
 export type ErrCode = keyof typeof ERR;
 export class AppError extends Error {
@@ -253,7 +255,7 @@ for attempt in 0..maxAttempts-1:
        | ConditionalRequestConflict(409)          # S3는 동시 조건부 PUT에 409도 반환한다
        | NotFound(404, If-Match 경합 중 삭제):
     sleep(50ms * 2^attempt + jitter(0~50ms))      # 지수 백오프
-throw new AppError("WRITE_CONFLICT", 503)
+throw new AppError("WRITE_CONFLICT")  // 409 (C-21)
 ```
 
 - **읽기 캐시**: `getTable` = `withCache("table_" + name, TTL_TABLE, fetcher)`. `TTL_TABLE = 300s`(Redis).

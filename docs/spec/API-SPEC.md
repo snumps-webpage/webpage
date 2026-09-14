@@ -31,6 +31,7 @@
 | `ensurePresenter(eventId)` | 회원 + 해당 이벤트 `presenterIds` 포함 (이벤트를 재조회해 판정 — locals 불신) | 403 `FORBIDDEN`                              |
 | `ensureOrganizer(studyId)` | 회원 + 해당 스터디 `organizerIds` 포함 (재조회 판정)                          | 403 `FORBIDDEN`                              |
 | `ensureAdmin`              | 회원 + `isAdmin: true` (D4)                                                   | 404 (존재 은폐)                              |
+| `requireAdminRest` (/api)  | 위와 같되 REST 응답                                                           | 세션 없음 **401**, 비관리자 **404** (C-19)   |
 
 - 공개 영역 판정은 접두사 매칭이 아니라 **라우트 그룹/명시 목록** 기반
 - 가드 테스트 매트릭스: 전 라우트 × **5역할** {게스트, 신청자, 회원, 발표자/주최자, 관리자} (SYS-07)
@@ -48,12 +49,14 @@
 | 코드                   | 의미                                                                     |
 | ---------------------- | ------------------------------------------------------------------------ |
 | `VALIDATION_FAILED`    | 입력 형식 오류 (자기 자신 전달 등 의미 오류 포함)                        |
+| `UNAUTHORIZED`         | 세션 없음 — 401. 다시 인증하면 해결된다 (`FORBIDDEN`과 구분, C-19)       |
 | `NOT_FOUND`            | 대상 레코드 없음 / dangling 참조                                         |
 | `FORBIDDEN`            | 권한 없음                                                                |
 | `CONFLICT`             | 상태 충돌 (이미 처리됨, 중복 제안 등)                                    |
-| `WRITE_CONFLICT`       | 조건부 쓰기(version CAS) 재시도 소진                                     |
+| `WRITE_CONFLICT`       | 조건부 쓰기(version CAS) 재시도 소진 — **409** (C-21, 구 503)            |
 | `EVENT_NOT_OPEN`       | 이벤트가 신청·출석 가능 상태 아님 (draft/expired/cancelled/시작 후 신청) |
 | `STUDY_NOT_RECRUITING` | 모집 중이 아닌 스터디에 참여 신청                                        |
+| `SERVICE_UNAVAILABLE`  | 데이터 계층이 응답하지 못함 — 503, 재시도 가능                           |
 
 ### 1-3. 데이터 계층 계약 (SYS-01)
 
@@ -626,7 +629,8 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
 
 ### 8-1. `GET /api/cron/sync-events` — ADM-06, STU-06 자동 생성
 
-- 인증: `Bearer <CRON_SECRET>`. **미설정 시 501 (fail-closed)**
+- 인증: `Bearer <CRON_SECRET>`. **미설정·불일치 모두 401** (C-20 — fail-closed는 유지된다. 시크릿이 없으면 무엇도 통과하지 못한다).
+  구 규정은 미설정을 501로 갈랐는데, 그것이 인증 전에 설정 여부를 노출했다(`CS-4`)
 - 호출 주체: **cron-job.org 매시(주 스케줄러) + Vercel cron 일 1회(최후 심장)** — SUPABASE-MIGRATION-SPEC §5
 - **만료는 lazy 판정이 1차 방어**: 신청·출석 검증(§5-3·5-4)은 저장된 `status`가 아니라
   읽기 시점의 `expiryOf(event)` 계산으로 판정한다 — 크론 지연(최후 심장 단독 생존 시 최대 1일)이

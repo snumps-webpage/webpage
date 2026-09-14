@@ -44,7 +44,7 @@
 | `CS-1`  | 🟠   | Bearer 검사 블록이 세 엔드포인트에 그대로 복제돼 있다                                      | W-11                  | `api/cron/sync-events/+server`       |
 | `CS-2`  | 🟡   | 시크릿 비교가 상수 시간이 아니다                                                           | W-11                  | `api/cron/sync-events/+server`       |
 | `CS-3`  | 🟠   | 모듈 최상위 등록이 테스트와 프로덕션의 스텝 목록을 갈라놓았다                              | 📌 이월               | `api/cron/sync-events/+server`       |
-| `CS-4`  | 🟡   | 501을 401보다 먼저 반환해 설정 상태를 노출한다                                             | 📌 이월               | `api/cron/sync-events/+server`       |
+| `CS-4`  | 🟡   | 501을 401보다 먼저 반환해 설정 상태를 노출한다                                             | ✅ C-20               | `api/cron/sync-events/+server`       |
 | `CS-5`  | 🔴   | 크론이 전부 실패해도 `success: true`를 반환하고 dead-man's switch를 누른다                 | ✅ d9f7bb6            | `api/cron/sync-events/+server`       |
 | `CS-6`  | 🟡   | 스텝 결과 키가 한 평면에서 충돌한다                                                        | W-12                  | `api/cron/sync-events/+server`       |
 | `CM-1`  | 🟠   | `sync-events`의 인증 블록 복제본                                                           | W-11                  | `api/cron/maintenance/+server`       |
@@ -185,15 +185,15 @@
 | `HS-2`  | 🔴   | 로드의 `AppError`가 404/403 대신 500                        | ✅ **W-22** |
 | `HS-3`  | 🟠   | 가드가 던지는 404/403/500이 캐시 실드를 우회                | **W-23**    |
 | `HS-4`  | 🟠   | 미포획 예외가 `{"message":"Internal Error"}`로 봉투를 깬다  | ✅ **W-22** |
-| `HS-5`  | 🟠   | 관리자 API가 익명에게 403 (스펙은 404, 의미는 401)          | **W-24**    |
-| `HS-6`  | 🟠   | `WRITE_CONFLICT`가 503 — 사용자 경합이 서버 장애로 집계된다 | **W-25**    |
+| `HS-5`  | 🟠   | 관리자 API가 익명에게 403 (스펙은 404, 의미는 401)          | ✅ **W-24** |
+| `HS-6`  | 🟠   | `WRITE_CONFLICT`가 503 — 사용자 경합이 서버 장애로 집계된다 | ✅ **W-25** |
 | `HS-7`  | 🟠   | POST 후 302가 2곳 — 재전송 위험                             | **W-26**    |
 | `HS-8`  | 🟠   | `fail(500, e.message)`가 원시 예외를 클라이언트에 노출      | **W-27**    |
-| `HS-9`  | 🟡   | 크론 501 — 의미가 틀렸고 `CS-4`와 한 덩어리                 | **W-28**    |
+| `HS-9`  | 🟡   | 크론 501 — 의미가 틀렸고 `CS-4`와 한 덩어리                 | ✅ **W-28** |
 | `HS-10` | 🟡   | `HEAD`가 크론 GET을 실행한다 (safe-method 위반)             | **W-29**    |
 | `HS-11` | 🟡   | 데이터 장애 500 → 503 + `Retry-After`                       | **W-30**    |
 | `HS-12` | 🟡   | 의미가 틀린 개별 코드 3종                                   | **W-31**    |
-| `HS-13` | 🟡   | 죽은 상태 코드 2개 (`SERVICE_UNAVAILABLE` · 413)            | **W-32**    |
+| `HS-13` | 🟡   | 죽은 상태 코드 2개 (`SERVICE_UNAVAILABLE` · 413)            | ✅ **W-32** |
 | `XC-7`  | 🟠   | 오류 본문 8종 — 응답 어댑터 부재 (**`W-11` 흡수**)          | **W-33**    |
 
 ### 결정 대기

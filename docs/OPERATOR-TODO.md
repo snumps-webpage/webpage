@@ -144,7 +144,9 @@ Vercel → `snumps` 프로젝트 → Settings → Environment Variables (Product
 3. **Advanced → Headers**: `Authorization` = `Bearer <CRON_SECRET>` (3절과 동일 값. URL 쿼리 전달 금지).
 4. **알림 설정**: ① 실행 실패 알림 on ② **연속 실패로 잡이 자동 비활성될 때의 알림 on** — 수신은 공용 메일.
    (cron-job.org는 장기 연속 실패 시 잡을 꺼버릴 수 있다 — 알림 없이는 조용히 죽는다.)
-5. 저장 후 **수동 실행(Test run)으로 응답 200 직접 확인**. 401/501이면 `CRON_SECRET` 불일치/미설정.
+5. 저장 후 **수동 실행(Test run)으로 응답 200 직접 확인**. **401이면 `CRON_SECRET`이 헤더와 다르거나 배포에 설정되지 않은 것**이다
+   — 둘을 상태 코드로 구분하지 않는다(결정 C-20). 인증 전에 설정 여부를 알려 주지 않기 위해서다.
+   Vercel 환경변수와 3절의 값을 대조할 것.
 
 ## 5. Healthchecks.io
 

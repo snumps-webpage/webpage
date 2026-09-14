@@ -9,6 +9,7 @@ export type AdminQueuePath = (typeof ADMIN_QUEUE_PATHS)[number];
 
 export const API_ERROR_CODES = [
   "VALIDATION_FAILED",
+  "UNAUTHORIZED",
   "NOT_FOUND",
   "FORBIDDEN",
   "CONFLICT",

@@ -80,6 +80,20 @@ export async function ensureAdmin(
 }
 
 /**
+ * Admin access as three outcomes, not two (C-19). "No session" and "signed in
+ * but not an admin" need different answers: the first is fixed by logging in
+ * again, the second never is.
+ */
+export async function resolveAdminAccess(
+  locals: App.Locals,
+): Promise<"ok" | "unauthenticated" | "not-admin"> {
+  const session = await locals.auth();
+  if (!session?.user?.email) return "unauthenticated";
+  const ctx = await resolveAdminContext(locals);
+  return ctx ? "ok" : "not-admin";
+}
+
+/**
  * Helper for form actions and /api handlers to verify admin status.
  */
 export async function requireAdminAction(locals: App.Locals) {
@@ -205,7 +219,9 @@ export async function handleUserAction<T extends Record<string, unknown>>(
   try {
     session = await ensureSession(locals);
   } catch {
-    return fail(401, { error: "FORBIDDEN" });
+    // 401 with the code that means it (C-19). It said FORBIDDEN, which reads
+    // as "you may not" when the truth is "you are not signed in".
+    return fail(401, { error: "UNAUTHORIZED" });
   }
   return runAction(session, logic, options);
 }
