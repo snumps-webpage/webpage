@@ -29,9 +29,22 @@ export function isVisibleToMembers(event: Event): boolean {
   return event.status !== "cancelled";
 }
 
-/** 회원 화면이 이벤트를 읽는 유일한 통로. */
+/**
+ * 회원 화면이 이벤트를 읽는 유일한 통로.
+ *
+ * 이벤트 자신의 상태만 보면 우회로가 남는다 — 관리자가 `/admin/events/connect`로
+ * 취소된 세미나의 활동에 **새 출석 세션**을 붙이면 `status: "active"`인 이벤트가
+ * 생겨 회원 면에 되살아난다(실측). 그래서 가려진 활동에 매달린 이벤트도 함께
+ * 제외한다.
+ */
 export async function getMemberVisibleEvents(): Promise<Event[]> {
-  return (await getTable("events")).filter(isVisibleToMembers);
+  const [events, hidden] = await Promise.all([
+    getTable("events"),
+    hiddenActivityIds(),
+  ]);
+  return events.filter(
+    (e) => isVisibleToMembers(e) && !hidden.has(e.activityId),
+  );
 }
 
 /** 활동 목록에서 가려진 세미나의 것을 걷어낸다 (공개·회원 공용). */

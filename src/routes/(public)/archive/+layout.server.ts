@@ -93,8 +93,23 @@ export const load: LayoutServerLoad = async () => {
   const activityStart = new Map(activities.map((a) => [a.id, a.date.start]));
   const requestOf = new Map(seminarRequests.map((r) => [r.id, r]));
 
+  // 공개는 명시적 행위다. 이 로드는 공개 접근자(public/archive.ts)를 쓰지 않고
+  // 표를 직접 읽어 스냅샷을 만드므로, 필터도 **여기서** 걸어야 한다 — 접근자에만
+  // 걸면 아무도 안 보는 페이로드를 지키게 된다(ZR-8의 재발 형태).
+  const publicSeminars = seminars.filter(
+    (s) => s.publicationStatus === "published",
+  );
+  const hiddenActivityIds = new Set(
+    seminars
+      .filter((s) => s.publicationStatus !== "published" && s.activityId)
+      .map((s) => s.activityId!),
+  );
+  const publicActivities = activities.filter(
+    (a) => !hiddenActivityIds.has(a.id),
+  );
+
   const archive: PublicArchiveSnapshot = {
-    seminars: [...seminars]
+    seminars: [...publicSeminars]
       .sort((a, b) => compareSemesters(b.semester, a.semester))
       .map((s) => {
         const request = s.sourceRequestId
@@ -128,7 +143,7 @@ export const load: LayoutServerLoad = async () => {
         organizerNames: s.organizerIds.map((id) => nameOf.get(id) ?? "Unknown"),
         files: [],
       })),
-    activities: [...activities]
+    activities: [...publicActivities]
       .sort((a, b) => b.date.start.localeCompare(a.date.start))
       .map((a) => ({
         id: a.id,
@@ -137,7 +152,7 @@ export const load: LayoutServerLoad = async () => {
         date: a.date.start,
       })),
     gallery: [
-      ...seminars.flatMap((s) =>
+      ...publicSeminars.flatMap((s) =>
         s.photos.map((key, index) => ({
           id: `seminar-${s.id}-${index}`,
           title: s.title,

@@ -68,7 +68,8 @@ export async function getEventByPath(
   pathId: string,
   attendCode: string,
 ): Promise<Event | null> {
-  const events = await getTable("events");
+  // 회원이 링크로 도달하는 경로 — 취소된 세미나는 여기서도 없는 것이다.
+  const events = await getMemberVisibleEvents();
   return (
     events.find((e) => e.pathId === pathId && e.attendCode === attendCode) ??
     null
@@ -277,7 +278,8 @@ export async function savePresenterAttendance(
   presenterId: string,
   selectedApplicantIds: string[],
 ): Promise<void> {
-  const event = (await getTable("events")).find((e) => e.id === eventId);
+  // 발표자 저장도 회원 면의 단일 통로를 탄다 — 취소된 세미나에는 기록을 남길 수 없다.
+  const event = (await getMemberVisibleEvents()).find((e) => e.id === eventId);
   if (!event) throw new AppError("NOT_FOUND");
   if (!event.presenterIds.includes(presenterId))
     throw new AppError("FORBIDDEN");

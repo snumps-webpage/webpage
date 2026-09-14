@@ -291,6 +291,8 @@ export const load: PageServerLoad = async (event) => {
             requestedAt: s.pendingTransfer?.requestedAt ?? "",
           })),
         approvedSeminars: allSeminars
+          // 취소된 세미나는 발표자 본인에게도 사라진다 — 관리자에게만 남는다.
+          .filter((s) => s.publicationStatus !== "cancelled")
           .filter((s) => s.presenterIds.some((id) => myIds.has(id)))
           .map((s) => ({ id: s.id, title: s.title, semester: s.semester, remarks: s.note })),
         myAttendanceStats: {
