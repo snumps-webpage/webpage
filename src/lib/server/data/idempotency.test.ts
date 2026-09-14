@@ -18,6 +18,7 @@ const buildSeminar = (sourceRequestId: string): Seminar => ({
   externalPresenters: "",
   publicationStatus: "published",
   schedule: null,
+  announcedAt: null,
   materials: [],
   photos: [],
   posterKey: "",

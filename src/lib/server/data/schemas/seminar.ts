@@ -63,6 +63,14 @@ export const SeminarSchema = z.object({
   publicationStatus: SeminarPublicationStatus.default("published"),
   /** 확정 전에는 null. 공개 시 이 값으로 activity·event의 날짜를 만든다. */
   schedule: SeminarScheduleSchema.nullable().default(null),
+  /**
+   * 전 회원 공지를 실제로 보낸 시각. 공개 상태와 **분리된** 사실이다.
+   *
+   * 공개 CAS가 커밋된 뒤 메일이 실패하면 재실행이 상태만 보고 "이미 공개됨"으로
+   * 튕겨 공지가 영영 안 나가고, 반대로 상태를 되감으면 공지가 두 번 나간다.
+   * 둘 다 실측된 결함이다. 발송 여부는 이 앵커가 혼자 결정한다.
+   */
+  announcedAt: DateTime.nullable().default(null),
   activityId: Id.nullable(), // archive↔activity link, stamped at publication
   sourceRequestId: SourceRequestId,
 });

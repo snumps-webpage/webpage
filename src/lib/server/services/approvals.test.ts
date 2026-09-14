@@ -1,9 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("$lib/server/data/store", () => import("$lib/server/data/store-memory"));
+vi.mock(
+  "$lib/server/data/store",
+  () => import("$lib/server/data/store-memory"),
+);
 
 import { __putRawDoc, __reset } from "$lib/server/data/store-memory";
-import { _resetDataLayerForTests, getTable, mutate } from "$lib/server/data/tables";
+import {
+  _resetDataLayerForTests,
+  getTable,
+  mutate,
+} from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { newId } from "$lib/server/core/id";
 import { nowKstIso } from "$lib/server/core/time";
@@ -13,10 +20,24 @@ import {
   submitApplication,
   withdrawOwnApplication,
 } from "./membership";
-import { approveSeminar, submitSeminarRequest, withdrawSeminarRequest } from "./seminar-requests";
+import {
+  approveSeminar,
+  submitSeminarRequest,
+  withdrawSeminarRequest,
+} from "./seminar-requests";
 
 async function clearCaches() {
-  for (const t of ["applications", "members", "private-info", "registrations", "legacy-private-info", "activities", "events", "seminars", "seminar-requests"]) {
+  for (const t of [
+    "applications",
+    "members",
+    "private-info",
+    "registrations",
+    "legacy-private-info",
+    "activities",
+    "events",
+    "seminars",
+    "seminar-requests",
+  ]) {
     await invalidateCache(`table_${t}`);
   }
 }
@@ -51,13 +72,21 @@ describe("membership conversion (§7-2 approve)", () => {
     // S9: 승인은 이번 학기 등록 행도 만든다
     const regs = await getTable("registrations");
     expect(regs).toHaveLength(1);
-    expect(regs[0]).toMatchObject({ memberId: members[0].id, sourceRequestId: app.id });
+    expect(regs[0]).toMatchObject({
+      memberId: members[0].id,
+      sourceRequestId: app.id,
+    });
     expect(await getTable("applications")).toHaveLength(0);
   });
 
   it("re-run after full completion is CONFLICT with zero duplicates", async () => {
     const app = await submitApplication({
-      email: "a@snu.ac.kr", name: "A", department: "D", phone: "010-0000-0000", studentId: "", background: "",
+      email: "a@snu.ac.kr",
+      name: "A",
+      department: "D",
+      phone: "010-0000-0000",
+      studentId: "",
+      background: "",
     });
     await approveApplication(app.id);
     await expect(approveApplication(app.id)).rejects.toSatisfy(
@@ -68,17 +97,32 @@ describe("membership conversion (§7-2 approve)", () => {
 
   it("re-run after a mid-sequence crash fills in only the missing records", async () => {
     const app = await submitApplication({
-      email: "b@snu.ac.kr", name: "B", department: "D", phone: "010-0000-0000", studentId: "", background: "",
+      email: "b@snu.ac.kr",
+      name: "B",
+      department: "D",
+      phone: "010-0000-0000",
+      studentId: "",
+      background: "",
     });
     // Simulate: member creation succeeded, then the process died.
     await mutate("members", (rows) => [
       ...rows,
       {
-        id: newId(), name: app.name, department: app.department,
-        joinedAt: "2026-08-29", status: "associate" as const,
-        statusChangedAt: nowKstIso(), withdrawal: null,
-        isAlumni: false, alumniRevoked: false, roles: [], isAdmin: false,
-        publicContact: null, project: null, legacyMemberId: null, sourceRequestId: app.id,
+        id: newId(),
+        name: app.name,
+        department: app.department,
+        joinedAt: "2026-08-29",
+        status: "associate" as const,
+        statusChangedAt: nowKstIso(),
+        withdrawal: null,
+        isAlumni: false,
+        alumniRevoked: false,
+        roles: [],
+        isAdmin: false,
+        publicContact: null,
+        project: null,
+        legacyMemberId: null,
+        sourceRequestId: app.id,
       },
     ]);
 
@@ -91,7 +135,12 @@ describe("membership conversion (§7-2 approve)", () => {
 
   it("self-withdrawal removes the row and its PII", async () => {
     await submitApplication({
-      email: "c@snu.ac.kr", name: "C", department: "D", phone: "010-0000-0000", studentId: "", background: "",
+      email: "c@snu.ac.kr",
+      name: "C",
+      department: "D",
+      phone: "010-0000-0000",
+      studentId: "",
+      background: "",
     });
     await withdrawOwnApplication("c@snu.ac.kr");
     expect(await getTable("applications")).toHaveLength(0);
@@ -99,26 +148,44 @@ describe("membership conversion (§7-2 approve)", () => {
 
   it("duplicate application for the same email is CONFLICT", async () => {
     await submitApplication({
-      email: "d@snu.ac.kr", name: "D", department: "D", phone: "010-0000-0000", studentId: "", background: "",
+      email: "d@snu.ac.kr",
+      name: "D",
+      department: "D",
+      phone: "010-0000-0000",
+      studentId: "",
+      background: "",
     });
     await expect(
       submitApplication({
-        email: "D@snu.ac.kr", name: "D2", department: "D", phone: "010-0000-0000", studentId: "", background: "",
+        email: "D@snu.ac.kr",
+        name: "D2",
+        department: "D",
+        phone: "010-0000-0000",
+        studentId: "",
+        background: "",
       }),
     ).rejects.toSatisfy((e) => e instanceof AppError && e.code === "CONFLICT");
   });
 
   it("re-registration for an existing email updates the row instead of creating a member", async () => {
     const first = await submitApplication({
-      email: "re@snu.ac.kr", name: "재", department: "D", phone: "010-1111-1111",
-      studentId: "2023-11111", background: "",
+      email: "re@snu.ac.kr",
+      name: "재",
+      department: "D",
+      phone: "010-1111-1111",
+      studentId: "2023-11111",
+      background: "",
     });
     await approveApplication(first.id);
 
     // 같은 이메일로 다음 학기 재가입 신청 → 승인
     const second = await submitApplication({
-      email: "RE@snu.ac.kr", name: "재", department: "D", phone: "010-2222-2222",
-      studentId: "2023-11111", background: "재가입",
+      email: "RE@snu.ac.kr",
+      name: "재",
+      department: "D",
+      phone: "010-2222-2222",
+      studentId: "2023-11111",
+      background: "재가입",
     });
     await approveApplication(second.id);
 
@@ -128,7 +195,9 @@ describe("membership conversion (§7-2 approve)", () => {
     expect(infos).toHaveLength(1);
     expect(infos[0].phone).toBe("010-2222-2222"); // 연락 정보는 신청 내용으로 갱신
     const regs = await getTable("registrations");
-    expect(regs.map((r) => r.sourceRequestId).sort()).toEqual([first.id, second.id].sort());
+    expect(regs.map((r) => r.sourceRequestId).sort()).toEqual(
+      [first.id, second.id].sort(),
+    );
     expect(regs.every((r) => r.memberId === members[0].id)).toBe(true);
   });
 
@@ -137,12 +206,21 @@ describe("membership conversion (§7-2 approve)", () => {
       schemaVersion: 1,
       rows: [
         {
-          id: "LEG1", name: "김기존", department: "수리과학부", joinedAt: "2022-03-05",
-          status: "associate", statusChangedAt: "2022-03-05T00:00:00+09:00",
-          withdrawal: null, isAlumni: false, alumniRevoked: false,
-          roles: [{ term: "23-1", title: "회장" }], isAdmin: false,
-          publicContact: "010-1234-5678 · old@snu.ac.kr", project: { title: "옛 프로젝트" },
-          legacyMemberId: null, sourceRequestId: null,
+          id: "LEG1",
+          name: "김기존",
+          department: "수리과학부",
+          joinedAt: "2022-03-05",
+          status: "associate",
+          statusChangedAt: "2022-03-05T00:00:00+09:00",
+          withdrawal: null,
+          isAlumni: false,
+          alumniRevoked: false,
+          roles: [{ term: "23-1", title: "회장" }],
+          isAdmin: false,
+          publicContact: "010-1234-5678 · old@snu.ac.kr",
+          project: { title: "옛 프로젝트" },
+          legacyMemberId: null,
+          sourceRequestId: null,
         },
       ],
     });
@@ -150,20 +228,32 @@ describe("membership conversion (§7-2 approve)", () => {
       schemaVersion: 1,
       rows: [
         {
-          id: "LEGP1", memberId: "LEG1", email: "old-member@snu.ac.kr", phone: "010-0000-0000",
-          studentId: "", background: "", mailPrefs: { announcements: true }, sourceRequestId: null,
+          id: "LEGP1",
+          memberId: "LEG1",
+          email: "old-member@snu.ac.kr",
+          phone: "010-0000-0000",
+          studentId: "",
+          background: "",
+          mailPrefs: { announcements: true },
+          sourceRequestId: null,
         },
       ],
     });
     await invalidateCache("table_legacy-members");
 
     const app = await submitApplication({
-      email: "old-member@snu.ac.kr", name: "김기존", department: "수리과학부",
-      phone: "010-9999-0000", studentId: "2022-54321", background: "재가입",
+      email: "old-member@snu.ac.kr",
+      name: "김기존",
+      department: "수리과학부",
+      phone: "010-9999-0000",
+      studentId: "2022-54321",
+      background: "재가입",
     });
     await approveApplication(app.id);
 
-    const member = (await getTable("members")).find((m) => m.sourceRequestId === app.id)!;
+    const member = (await getTable("members")).find(
+      (m) => m.sourceRequestId === app.id,
+    )!;
     expect(member.legacyMemberId).toBe("LEG1");
     expect(member.joinedAt).toBe("2022-03-05"); // 원 가입일 보존 — 재가입일이 아니다
     expect(member.roles).toEqual([{ term: "23-1", title: "회장" }]); // 임원 이력 상속
@@ -181,23 +271,30 @@ describe("seminar approval chain (§7-2 approveSeminar)", () => {
       prerequisites: "",
       duration: "1h",
       presenterIds: ["m-presenter"],
-      attachment: "", preferredTiming: "",
+      attachment: "",
+      preferredTiming: "",
       requesterId: "m-presenter",
     });
 
-  it("creates activity + event + archive record and marks the request approved", async () => {
+  // 계약이 바뀌었다: 승인은 세미나만 만든다. activity·event는 공개 시점에
+  // 확정된 일정으로 만들어진다 (FRONTEND-DECISIONS §3-1). 예전 계약에서는
+  // 승인 시각이 곧 세미나 시작 시각이라 신청이 즉시 닫혔다.
+  it("creates the archive record only, and marks the request approved", async () => {
     const req = await submit();
     await approveSeminar(req.id);
 
     const [activities, events, seminars, requests] = await Promise.all([
-      getTable("activities"), getTable("events"), getTable("seminars"), getTable("seminar-requests"),
+      getTable("activities"),
+      getTable("events"),
+      getTable("seminars"),
+      getTable("seminar-requests"),
     ]);
-    expect(activities).toHaveLength(1);
-    expect(events).toHaveLength(1);
-    expect(events[0].activityId).toBe(activities[0].id);
-    expect(events[0].presenterIds).toEqual(["m-presenter"]);
-    expect(events[0].status).toBe("active");
-    expect(seminars[0].activityId).toBe(activities[0].id);
+    expect(activities).toHaveLength(0);
+    expect(events).toHaveLength(0);
+    expect(seminars[0].publicationStatus).toBe("unscheduled");
+    expect(seminars[0].schedule).toBeNull();
+    expect(seminars[0].activityId).toBeNull();
+    expect(seminars[0].presenterIds).toEqual(["m-presenter"]);
     expect(requests[0].status).toBe("approved");
   });
 
@@ -206,7 +303,11 @@ describe("seminar approval chain (§7-2 approveSeminar)", () => {
     await mutate("seminar-requests", (rows) =>
       rows.map((r) =>
         r.id === req.id
-          ? { ...r, posterKey: "seminars/posters/x/p.png", preferredTiming: "주말 오후" }
+          ? {
+              ...r,
+              posterKey: "seminars/posters/x/p.png",
+              preferredTiming: "주말 오후",
+            }
           : r,
       ),
     );
@@ -216,22 +317,20 @@ describe("seminar approval chain (§7-2 approveSeminar)", () => {
     expect(seminars[0].preferredTiming).toBe("주말 오후");
   });
 
-  it("re-run after the activity-only crash creates the missing event and record once", async () => {
+  it("re-run after a mid-sequence crash leaves exactly one archive record", async () => {
     const req = await submit();
-    // Simulate: only the activity landed before the crash.
-    await mutate("activities", (rows) => [
-      ...rows,
-      {
-        id: newId(), title: req.title, date: { start: nowKstIso(), end: null },
-        type: "세미나" as const, attendeeIds: ["m-presenter"], sourceRequestId: req.id,
-      },
-    ]);
 
     await approveSeminar(req.id);
+    // 승인 직후 상태 플립만 실패했다면 재실행이 세미나를 또 만들면 안 된다.
+    await mutate("seminar-requests", (rows) =>
+      rows.map((r) =>
+        r.id === req.id ? { ...r, status: "pending" as const } : r,
+      ),
+    );
+    await approveSeminar(req.id);
 
-    expect(await getTable("activities")).toHaveLength(1);
-    expect(await getTable("events")).toHaveLength(1);
     expect(await getTable("seminars")).toHaveLength(1);
+    expect((await getTable("seminar-requests"))[0].status).toBe("approved");
   });
 
   it("approving a non-pending request is CONFLICT", async () => {

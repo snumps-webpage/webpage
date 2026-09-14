@@ -114,6 +114,7 @@ async function seedFixture() {
       externalPresenters: "",
       publicationStatus: "published",
       schedule: null,
+      announcedAt: null,
       materials: ["seminars/sem1/a.pdf"],
       photos: ["seminars/sem1/p.png"],
       posterKey: "",

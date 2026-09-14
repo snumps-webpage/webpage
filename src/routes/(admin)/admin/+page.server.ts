@@ -322,9 +322,10 @@ export const actions = {
   approveSeminar: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
-      const { request: req, mailFailed } = await approveSeminar(id);
+      // 승인은 이제 일정 미정 세미나만 만든다 — 전 회원 공지는 공개 시점이다.
+      const req = await approveSeminar(id);
       await notifyMember(req.presenterIds[0], "seminar", req.title, "approved");
-      return { mailFailed };
+      return {};
     });
   },
 
