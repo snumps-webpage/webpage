@@ -206,13 +206,19 @@ export async function getPublicGallery() {
     getTable("gallery-dinner"),
   ]);
   return [
-    ...seminars.flatMap((s) =>
-      s.photos.map((key) => ({
-        kind: "세미나" as const,
-        title: s.title,
-        url: assetUrl(key),
-      })),
-    ),
+    // 형제 접근자(getPublicSeminars/getPublicActivities)와 같은 규칙을 여기에도
+    // 둔다. 지금은 아카이브 레이아웃이 걸러진 목록으로 갤러리를 만들어 이 함수를
+    // 쓰지 않지만, 필터 없는 접근자는 다음 화면이 집어 드는 순간 취소된 세미나의
+    // 제목과 사진을 다시 내보낸다.
+    ...seminars
+      .filter((s) => s.publicationStatus === "published")
+      .flatMap((s) =>
+        s.photos.map((key) => ({
+          kind: "세미나" as const,
+          title: s.title,
+          url: assetUrl(key),
+        })),
+      ),
     ...studies.flatMap((s) =>
       s.photos.map((key) => ({
         kind: "스터디" as const,

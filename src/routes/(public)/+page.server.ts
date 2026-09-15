@@ -6,12 +6,20 @@ import { CAPABILITIES } from "$lib/server/core/capabilities";
 import { resolveDevPreviewRole } from "$lib/server/dev-preview";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { getMemberVisibleEvents } from "$lib/server/services/visibility";
-import { getActivitiesBetween, getActivitiesOf, getPrivateInfoOf } from "$lib/server/data/repos";
+import {
+  getActivitiesBetween,
+  getActivitiesOf,
+  getPrivateInfoOf,
+} from "$lib/server/data/repos";
 import { effectiveStatus } from "$lib/server/services/events";
 import { seminarRequestView } from "$lib/server/data/views";
 import { currentTerm, termRange } from "$lib/server/core/semester";
 import { AppError } from "$lib/server/core/errors";
-import { getSemesterInfo, getSemesterKeyFromDate, normalizePhoneNumber } from "$lib/utils";
+import {
+  getSemesterInfo,
+  getSemesterKeyFromDate,
+  normalizePhoneNumber,
+} from "$lib/utils";
 import type { ActivityType } from "$lib/constants";
 import type { RequestStatus, StudyStatus } from "$lib/server/data/schemas";
 import type { PageServerLoad } from "./$types";
@@ -31,7 +39,12 @@ export type DashboardData = {
     canApply: boolean;
     pendingAttendance: boolean;
   }[];
-  seminarRequests: { id: string; title: string; status: RequestStatus; submittedAt: string }[];
+  seminarRequests: {
+    id: string;
+    title: string;
+    status: RequestStatus;
+    submittedAt: string;
+  }[];
   myStudies: {
     id: string;
     title: string;
@@ -45,9 +58,20 @@ export type DashboardData = {
     fromMemberName: string;
     requestedAt: string;
   }[];
-  approvedSeminars: { id: string; title: string; semester: string; remarks: string }[];
+  approvedSeminars: {
+    id: string;
+    title: string;
+    semester: string;
+    remarks: string;
+  }[];
   myAttendanceStats: { total: number; attended: number };
-  profile: { name: string; department: string; email: string; phone: string; background: string };
+  profile: {
+    name: string;
+    department: string;
+    email: string;
+    phone: string;
+    background: string;
+  };
   semesters: string[];
   generatedAt: string;
 };
@@ -55,7 +79,9 @@ export type DashboardData = {
 function buildDevDashboardPreview(semesterKey: string): DashboardData {
   const today = new Date();
   const toDate = (offsetDays: number) =>
-    new Date(today.getTime() + offsetDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    new Date(today.getTime() + offsetDays * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
 
   const activities: DashboardData["activities"] = [
     {
@@ -106,7 +132,9 @@ function buildDevDashboardPreview(semesterKey: string): DashboardData {
         id: "preview-req-1",
         status: "pending",
         title: "대수적 위상수학 입문",
-        submittedAt: new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString(),
+        submittedAt: new Date(
+          today.getTime() - 6 * 24 * 60 * 60 * 1000,
+        ).toISOString(),
       },
     ],
     myStudies: [],
@@ -169,7 +197,9 @@ export const load: PageServerLoad = async (event) => {
 
   const member = event.locals.member ?? null;
 
-  const dashboardPromise = async (): Promise<DashboardData | { error: string } | null> => {
+  const dashboardPromise = async (): Promise<
+    DashboardData | { error: string } | null
+  > => {
     if (!member) return null;
 
     try {
@@ -199,25 +229,42 @@ export const load: PageServerLoad = async (event) => {
         getTable("studies"),
         getTable("members"),
       ]);
-      const eventByActivityId = new Map(allEvents.map((e) => [e.activityId, e]));
+      const eventByActivityId = new Map(
+        allEvents.map((e) => [e.activityId, e]),
+      );
       const directory = await getDirectoryIndex();
       // S9: 과거 기록은 legacy id를 가리킨다 — 이름 해석은 통합 디렉터리로.
-      const memberNameById = new Map([...directory.entries()].map(([id, m]) => [id, m.name]));
-      const memberRow = allMembers.find((m) => m.id === member.memberId) ?? null;
+      const memberNameById = new Map(
+        [...directory.entries()].map(([id, m]) => [id, m.name]),
+      );
+      const memberRow =
+        allMembers.find((m) => m.id === member.memberId) ?? null;
       const now = new Date();
 
+      // 취소는 세미나 행만 뒤집는다 — 신청 행은 "승인됨"인 채로 남는다. 걸러
+      // 주지 않으면 취소된 세미나가 개설자와 공동 발표자의 첫 화면에 계속
+      // 남아, 관리자에게만 남기기로 한 결정이 여기서만 깨진다.
+      const cancelledRequestIds = new Set(
+        allSeminars
+          .filter(
+            (s) => s.publicationStatus === "cancelled" && s.sourceRequestId,
+          )
+          .map((s) => s.sourceRequestId),
+      );
       const requests = allRequests
         .filter(
           (r) =>
-            r.presenterIds.some((id) => myIds.has(id)) ||
-            myIds.has(r.requesterId),
+            !cancelledRequestIds.has(r.id) &&
+            (r.presenterIds.some((id) => myIds.has(id)) ||
+              myIds.has(r.requesterId)),
         )
         .map(seminarRequestView);
 
       const currentActivities = currentRaw.map((a) => {
         const event = eventByActivityId.get(a.id);
         const attended = a.attendeeIds.some((id) => myIds.has(id));
-        const isApplied = event?.applicantIds.includes(member.memberId) ?? false;
+        const isApplied =
+          event?.applicantIds.includes(member.memberId) ?? false;
         const started = event ? new Date(event.date.start) <= now : true;
         return {
           id: a.id,
@@ -232,8 +279,10 @@ export const load: PageServerLoad = async (event) => {
           isApplied,
           // effectiveStatus, not the stored value — a lazily-expired event must
           // not advertise an apply button it will reject (review low-16).
-          canApply: !!event && effectiveStatus(event, now) === "active" && !started,
-          pendingAttendance: isApplied && started && !attended && a.type === "세미나",
+          canApply:
+            !!event && effectiveStatus(event, now) === "active" && !started,
+          pendingAttendance:
+            isApplied && started && !attended && a.type === "세미나",
         };
       });
 
@@ -294,7 +343,12 @@ export const load: PageServerLoad = async (event) => {
           // 취소된 세미나는 발표자 본인에게도 사라진다 — 관리자에게만 남는다.
           .filter((s) => s.publicationStatus !== "cancelled")
           .filter((s) => s.presenterIds.some((id) => myIds.has(id)))
-          .map((s) => ({ id: s.id, title: s.title, semester: s.semester, remarks: s.note })),
+          .map((s) => ({
+            id: s.id,
+            title: s.title,
+            semester: s.semester,
+            remarks: s.note,
+          })),
         myAttendanceStats: {
           total: currentActivities.length,
           attended: currentActivities.filter((a) => a.attended).length,
@@ -361,7 +415,8 @@ export const actions = {
       const member = locals.member;
       if (!member) throw new AppError("FORBIDDEN");
       requireCapability(locals, CAPABILITIES.PARTICIPATE);
-      const { cancelEventApplication } = await import("$lib/server/services/events");
+      const { cancelEventApplication } =
+        await import("$lib/server/services/events");
       await cancelEventApplication(eventId, member.memberId);
       return {};
     });
@@ -460,10 +515,17 @@ export const actions = {
       await mutate("seminars", (rows) => {
         const idx = rows.findIndex((s) => s.id === id);
         if (idx === -1) throw new AppError("NOT_FOUND");
-        if (!rows[idx].presenterIds.includes(member.memberId) && !member.isAdmin) {
+        if (
+          !rows[idx].presenterIds.includes(member.memberId) &&
+          !member.isAdmin
+        ) {
           throw new AppError("FORBIDDEN");
         }
-        rows[idx] = { ...rows[idx], title: title || rows[idx].title, note: remarks };
+        rows[idx] = {
+          ...rows[idx],
+          title: title || rows[idx].title,
+          note: remarks,
+        };
         return rows;
       });
       return {};

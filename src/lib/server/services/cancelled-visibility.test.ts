@@ -7,19 +7,25 @@ vi.mock(
 );
 
 import { __reset } from "$lib/server/data/store-memory";
-import { _resetDataLayerForTests, getTable } from "$lib/server/data/tables";
+import {
+  _resetDataLayerForTests,
+  getTable,
+  mutate,
+} from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { newId } from "$lib/server/core/id";
 import { toKstIso } from "$lib/server/core/time";
 import { getActivitiesOf } from "$lib/server/data/repos";
 import {
   getPublicActivities,
+  getPublicGallery,
   getPublicSeminars,
 } from "$lib/server/public/archive";
 import { getManagedSeminars, hasPresenterEvents } from "./events";
 import { cancelSeminar, publishSeminar, scheduleSeminar } from "./seminars";
 import { approveSeminar, submitSeminarRequest } from "./seminar-requests";
 import { getMemberVisibleEvents } from "./visibility";
+import { load as dashboardLoad } from "../../../routes/(public)/+page.server";
 
 /**
  * 취소된 세미나는 **회원과 게스트 양쪽에서 사라지고 관리자에게만 남는다**.
@@ -92,6 +98,17 @@ describe("공개 면", () => {
     expect(await getPublicSeminars()).toEqual([]);
     expect(await getPublicActivities()).toEqual([]);
     expect(await getTable("activities")).toHaveLength(1); // 기록 자체는 보존된다
+  });
+
+  // 사진 격자는 세미나 표를 직접 읽는다 — 형제 접근자의 상태 필터가 여기에만
+  // 빠져 있으면 취소된 세미나의 제목과 사진이 그대로 나간다.
+  it("공개 갤러리에서도 사라진다", async () => {
+    const id = await cancelledSeminar();
+    await mutate("seminars", (rows) =>
+      rows.map((s) => (s.id === id ? { ...s, photos: ["photo-key.jpg"] } : s)),
+    );
+
+    expect(await getPublicGallery()).toEqual([]);
   });
 
   // 위 접근자들은 **게스트에게 실제로 나가는 경로가 아니다.** 아카이브
@@ -171,5 +188,61 @@ describe("공개되지 않은 세미나도 게스트에게 보이지 않는다",
     await scheduledOnlySeminar();
 
     expect(await getPublicSeminars()).toEqual([]);
+  });
+});
+
+/**
+ * 대시보드는 세미나 행과 **신청 행**을 따로 싣는다. 취소는 세미나 쪽만 건드리므로
+ * 신청 행은 "승인됨"인 채로 남아, 개설자와 공동 발표자의 첫 화면에 취소된
+ * 세미나가 계속 보인다 — 관리자에게만 남기기로 한 결정과 어긋난다.
+ */
+describe("개설자 본인의 대시보드", () => {
+  const locals = {
+    member: { memberId: PRESENTER, isAdmin: false, status: "active" },
+    auth: async () => ({ user: { email: "p@snu.ac.kr", name: "발표자" } }),
+  };
+
+  async function dashboardOf() {
+    const result = (await dashboardLoad({
+      locals,
+      url: new URL("https://example.test/"),
+      cookies: { get: () => undefined },
+    } as never)) as {
+      streamed: {
+        dashboard: Promise<{
+          seminarRequests: { title: string }[];
+          approvedSeminars: { title: string }[];
+        } | null>;
+      };
+    };
+    return (await result.streamed.dashboard)!;
+  }
+
+  it("취소된 세미나는 신청 목록에서도 사라진다", async () => {
+    await cancelledSeminar();
+
+    const dashboard = await dashboardOf();
+
+    expect(dashboard.approvedSeminars).toEqual([]);
+    expect(dashboard.seminarRequests.map((r) => r.title)).toEqual([]);
+  });
+
+  it("취소되지 않은 세미나의 신청은 그대로 보인다", async () => {
+    await submitSeminarRequest({
+      title: "살아 있는 세미나",
+      description: "",
+      prerequisites: "",
+      duration: "60",
+      preferredTiming: "",
+      presenterIds: [PRESENTER],
+      attachment: "",
+      requesterId: PRESENTER,
+    });
+
+    const dashboard = await dashboardOf();
+
+    expect(dashboard.seminarRequests.map((r) => r.title)).toEqual([
+      "살아 있는 세미나",
+    ]);
   });
 });

@@ -184,6 +184,18 @@ describe("publishSeminar — 공개", () => {
 
   // 초판 테스트는 두 번째 호출을 그냥 이어 불렀는데, 그건 진입 검사에서 튕겨
   // ensureCreated에 닿지도 않았다 — 멱등을 하나도 검증하지 못하는 공허한 단언이었다.
+  it("공개 공지에는 확정된 일시와 장소가 실린다", async () => {
+    await approveSeminar((await pendingRequest()).id);
+    const [seminar] = await getTable("seminars");
+    await scheduleSeminar(seminar.id, SCHEDULE);
+
+    await publishSeminar(seminar.id);
+
+    expect(sentMail[0].event).toBe("seminar.published");
+    expect(sentMail[0].vars.location).toBe(SCHEDULE.location);
+    expect(sentMail[0].vars.schedule).not.toBe("추후 공지");
+  });
+
   it("재실행해도 활동·이벤트는 하나뿐이고 공지도 한 번이다", async () => {
     const id = await approvedAndScheduled();
     await publishSeminar(id);
@@ -338,11 +350,50 @@ describe("updateSeminarSchedule — 확정 후 일정 변경", () => {
     expect(legacy.schedule).toEqual(SCHEDULE);
   });
 
-  it("변경만으로는 공지가 나가지 않는다 — 공지는 D단계", async () => {
+  it("공개된 세미나의 일정이 바뀌면 변경 공지가 나간다", async () => {
     const id = await published();
     sentMail.length = 0;
 
     await updateSeminarSchedule(id, { ...SCHEDULE, location: "다른 곳" });
+
+    expect(sentMail.map((m) => m.event)).toEqual(["seminar.schedule-changed"]);
+    expect(sentMail[0].vars.location).toBe("다른 곳");
+  });
+
+  // 같은 값을 다시 저장하는 것은 변경이 아니다 — 전 회원 메일이 그렇게 새어 나간다.
+  it("바뀐 것이 없으면 공지하지 않는다", async () => {
+    const id = await published();
+    sentMail.length = 0;
+
+    await updateSeminarSchedule(id, SCHEDULE);
+
+    expect(sentMail).toEqual([]);
+  });
+
+  it("공개 전 일정 수정은 아무에게도 알리지 않는다", async () => {
+    await approveSeminar((await pendingRequest()).id);
+    const [seminar] = await getTable("seminars");
+    await scheduleSeminar(seminar.id, SCHEDULE);
+    sentMail.length = 0;
+
+    await updateSeminarSchedule(seminar.id, {
+      ...SCHEDULE,
+      location: "다른 곳",
+    });
+
+    expect(sentMail).toEqual([]);
+  });
+
+  // 지난 일정을 고치는 것은 기록 정정이다 — "일정이 바뀌었습니다"가 아니다.
+  it("이미 지난 일정으로 고치면 변경 공지는 나가지 않는다", async () => {
+    const id = await published();
+    sentMail.length = 0;
+
+    await updateSeminarSchedule(id, {
+      startsAt: at(-3 * HOUR),
+      endsAt: null,
+      location: "27동",
+    });
 
     expect(sentMail).toEqual([]);
   });
@@ -405,6 +456,62 @@ describe("cancelSeminar — 취소", () => {
 
     expect((await getTable("seminars"))[0].publicationStatus).toBe("cancelled");
     expect((await getTable("events"))[0].status).toBe("cancelled");
+  });
+});
+
+describe("취소 공지", () => {
+  async function publishedAt(startOffsetMs: number) {
+    await approveSeminar((await pendingRequest()).id);
+    const [seminar] = await getTable("seminars");
+    await scheduleSeminar(seminar.id, {
+      startsAt: at(startOffsetMs),
+      endsAt: null,
+      location: "27동",
+    });
+    await publishSeminar(seminar.id);
+    sentMail.length = 0;
+    return seminar.id;
+  }
+
+  it("공지된 세미나를 취소하면 취소 사실을 알린다", async () => {
+    const id = await publishedAt(10 * 24 * HOUR);
+
+    await cancelSeminar(id, { memberId: "admin-1", isAdmin: true });
+
+    expect(sentMail.map((m) => m.event)).toEqual(["seminar.cancelled"]);
+    expect(sentMail[0].vars.title).toBe("정수론 입문");
+  });
+
+  // 알린 적 없는 세미나의 취소를 알리면 "있었는지도 몰랐던 세미나가 취소됐다"가 된다.
+  it("공개되지 않은 세미나의 취소는 알리지 않는다", async () => {
+    await approveSeminar((await pendingRequest()).id);
+    const [seminar] = await getTable("seminars");
+    sentMail.length = 0;
+
+    await cancelSeminar(seminar.id, { memberId: "admin-1", isAdmin: true });
+
+    expect(sentMail).toEqual([]);
+  });
+
+  it("이미 열린 세미나의 취소는 알리지 않는다 — 기록 정정이다", async () => {
+    const id = await publishedAt(-3 * HOUR);
+
+    await cancelSeminar(id, {
+      memberId: "admin-1",
+      isAdmin: true,
+      acknowledgeStarted: true,
+    });
+
+    expect(sentMail).toEqual([]);
+  });
+
+  it("두 번 취소해도 공지는 한 번이다", async () => {
+    const id = await publishedAt(10 * 24 * HOUR);
+
+    await cancelSeminar(id, { memberId: "admin-1", isAdmin: true });
+    await cancelSeminar(id, { memberId: "admin-1", isAdmin: true });
+
+    expect(sentMail).toHaveLength(1);
   });
 });
 

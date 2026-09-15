@@ -170,14 +170,33 @@ export async function publishSeminar(id: string): Promise<{
     sourceRequestId: anchor,
   }));
 
-  if (seminar!.activityId !== activity.id) {
-    await mutate("seminars", (rows) => {
-      const idx = rows.findIndex((s) => s.id === id);
-      if (idx === -1) throw new AppError("NOT_FOUND");
+  // 3) 상태를 다시 읽는다. 여기까지 오는 동안 취소가 끼어들 수 있고, 그
+  //    취소의 이벤트 정리는 **아직 없던** 이벤트를 훑고 지나갔다 — 방금 만든
+  //    `active` 이벤트가 취소된 세미나에 살아남는다(실측). 활동 id를 심는
+  //    쓰기와 같은 CAS 안에서 확인해야 그 사이가 다시 벌어지지 않는다.
+  await mutate("seminars", (rows) => {
+    const idx = rows.findIndex((s) => s.id === id);
+    if (idx === -1) throw new AppError("NOT_FOUND");
+    if (
+      rows[idx].publicationStatus === "published" &&
+      rows[idx].activityId !== activity.id
+    ) {
       rows[idx] = { ...rows[idx], activityId: activity.id };
-      seminar = rows[idx];
-      return rows;
-    });
+    }
+    seminar = rows[idx];
+    return rows;
+  });
+
+  if (seminar!.publicationStatus !== "published") {
+    // 공개 도중 취소됐다. 만들어 버린 출석 이벤트를 취소로 덮고, 공지는 보내지
+    // 않는다 — 취소된 세미나의 "열립니다" 메일은 되돌릴 수 없다.
+    await cancelAnchoredEvents(id, seminar!);
+    return {
+      seminar: seminar!,
+      activityId: activity.id,
+      eventId: event.id,
+      mailFailed: false,
+    };
   }
 
   const mailFailed = await announceOnce(id, seminar!, schedule);
@@ -219,6 +238,7 @@ async function announceOnce(
     const idx = rows.findIndex((s) => s.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
     if (rows[idx].announcedAt !== null) return rows; // 이미 보냈거나 다른 실행이 선점
+    if (rows[idx].publicationStatus !== "published") return rows; // 그 사이 취소됨
     rows[idx] = { ...rows[idx], announcedAt: nowKstIso() };
     claimed = true;
     return rows;
@@ -232,6 +252,7 @@ async function announceOnce(
   const sent = await sendSeminarAnnouncement({
     title: seminar.title,
     description: seminar.note,
+    schedule,
   });
   if (sent) return false;
 
@@ -261,6 +282,7 @@ export async function updateSeminarSchedule(
   schedule: SeminarSchedule,
 ): Promise<Seminar> {
   let seminar: Seminar | undefined;
+  let changed = false;
   await mutate("seminars", (rows) => {
     const idx = rows.findIndex((s) => s.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
@@ -271,6 +293,12 @@ export async function updateSeminarSchedule(
     ) {
       throw new AppError("CONFLICT");
     }
+    // CAS에 지면 콜백이 다시 불린다 — 플래그는 매 시도마다 다시 센다.
+    changed =
+      row.schedule === null ||
+      row.schedule.startsAt !== schedule.startsAt ||
+      row.schedule.endsAt !== schedule.endsAt ||
+      row.schedule.location !== schedule.location;
     rows[idx] = {
       ...row,
       schedule,
@@ -304,6 +332,15 @@ export async function updateSeminarSchedule(
         : e,
     ),
   );
+
+  // 공지는 **바뀌었을 때만**. 같은 값을 다시 저장하는 것은 변경이 아니고,
+  // 지난 일정으로 고치는 것은 기록 정정이지 안내가 아니다 — 공개 공지가
+  // 지난 세미나를 알리지 않는 것과 같은 규칙이다.
+  if (changed && new Date(schedule.startsAt).getTime() > Date.now()) {
+    const { sendSeminarScheduleChange } =
+      await import("$lib/server/mail/announcements");
+    await sendSeminarScheduleChange({ title: seminar!.title, schedule });
+  }
   return seminar!;
 }
 
@@ -336,25 +373,47 @@ export async function cancelSeminar(
   }
 
   let seminar: Seminar | undefined;
+  let flipped = false;
+  let wasAnnounced = false;
   await mutate("seminars", (rows) => {
     const idx = rows.findIndex((s) => s.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
+    // CAS에 지면 콜백이 다시 불린다 — 플래그는 매 시도마다 초기화한다.
+    flipped = false;
     seminar = rows[idx];
     if (rows[idx].publicationStatus === "cancelled") return rows; // 멱등
+    wasAnnounced =
+      rows[idx].publicationStatus === "published" &&
+      rows[idx].announcedAt !== null;
     rows[idx] = { ...rows[idx], publicationStatus: "cancelled" };
     seminar = rows[idx];
+    flipped = true;
     return rows;
   });
 
+  await cancelAnchoredEvents(id, seminar!);
+
+  // 공지는 **알린 적 있는** 세미나에만. 알린 적 없는 것의 취소를 알리면
+  // "있었는지도 몰랐던 세미나가 취소됐다"가 된다. 이미 치른 세미나의 취소는
+  // 기록 정정이므로 역시 알리지 않는다.
+  if (flipped && wasAnnounced && !started) {
+    const { sendSeminarCancellation } =
+      await import("$lib/server/mail/announcements");
+    await sendSeminarCancellation({ title: seminar!.title });
+  }
+  return seminar!;
+}
+
+/** 세미나에 딸린 출석 이벤트를 취소로 덮는다 (앵커 우선, 이주분은 activityId). */
+async function cancelAnchoredEvents(id: string, seminar: Seminar) {
   const anchor = seminarAnchor(id);
   await mutate("events", (rows) =>
     rows.map((e) =>
       (e.sourceRequestId === anchor ||
-        (seminar!.activityId && e.activityId === seminar!.activityId)) &&
+        (seminar.activityId && e.activityId === seminar.activityId)) &&
       e.status !== "cancelled"
         ? { ...e, status: "cancelled" as const }
         : e,
     ),
   );
-  return seminar!;
 }
