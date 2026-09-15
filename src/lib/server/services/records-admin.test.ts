@@ -1,9 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("$lib/server/data/store", () => import("$lib/server/data/store-memory"));
+vi.mock(
+  "$lib/server/data/store",
+  () => import("$lib/server/data/store-memory"),
+);
 
 import { __reset } from "$lib/server/data/store-memory";
-import { _resetDataLayerForTests, getTable, mutate } from "$lib/server/data/tables";
+import {
+  _resetDataLayerForTests,
+  getTable,
+  mutate,
+} from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { newId } from "$lib/server/core/id";
 import { nowKstIso } from "$lib/server/core/time";
@@ -25,30 +32,57 @@ import {
 beforeEach(async () => {
   __reset();
   _resetDataLayerForTests({ backoffBaseMs: 1 });
-  for (const t of ["activities", "events", "seminars", "studies", "gallery-dinner", "members"]) {
+  for (const t of [
+    "activities",
+    "events",
+    "seminars",
+    "studies",
+    "gallery-dinner",
+    "members",
+  ]) {
     await invalidateCache(`table_${t}`);
   }
 });
 
-const seedMember = async (id: string, status: "regular" | "withdrawn" = "regular") =>
+const seedMember = async (
+  id: string,
+  status: "regular" | "withdrawn" = "regular",
+) =>
   mutate("members", (rows) => [
     ...rows,
     {
-      id, name: "회원", department: "수리과학부", joinedAt: "2024-03-01",
-      status, statusChangedAt: nowKstIso(),
+      id,
+      name: "회원",
+      department: "수리과학부",
+      joinedAt: "2024-03-01",
+      status,
+      statusChangedAt: nowKstIso(),
       withdrawal:
         status === "withdrawn"
-          ? { requestedAt: nowKstIso(), previousStatus: "regular" as const, holdBy: null, holdAt: null }
+          ? {
+              requestedAt: nowKstIso(),
+              previousStatus: "regular" as const,
+              holdBy: null,
+              holdAt: null,
+            }
           : null,
-      isAlumni: false, alumniRevoked: false, roles: [], isAdmin: false,
-      publicContact: null, project: null, legacyMemberId: null, sourceRequestId: null,
+      isAlumni: false,
+      alumniRevoked: false,
+      roles: [],
+      isAdmin: false,
+      publicContact: null,
+      project: null,
+      legacyMemberId: null,
+      sourceRequestId: null,
     },
   ]);
 
 describe("setAttendees — the sanctioned wholesale overwrite", () => {
   it("replaces the list entirely, deduped — merge rule deliberately absent", async () => {
     const a = await createActivity({
-      title: "회의", date: { start: nowKstIso(), end: null }, type: "회의",
+      title: "회의",
+      date: { start: nowKstIso(), end: null },
+      type: "회의",
     });
     await setAttendees(a.id, ["m1", "m1", "m2"]);
     expect((await getTable("activities"))[0].attendeeIds).toEqual(["m1", "m2"]);
@@ -57,13 +91,61 @@ describe("setAttendees — the sanctioned wholesale overwrite", () => {
   });
 });
 
+describe("학기는 관리자의 결정이 최상위다", () => {
+  /**
+   * 기록 편집기에서 학기를 손으로 고치면 그 값이 자동 도출보다 위여야 한다.
+   * 고정되지 않으면 이후 일정 수정 한 번이 조용히 덮어쓴다 — 손으로 "24-2"로
+   * 되돌린 이주 기록이 일정을 넣는 순간 현재 학기로 튀는 경로였다.
+   */
+  it("학기를 손으로 고치면 이후 자동 도출이 덮지 않는다", async () => {
+    const s = await createSeminar({
+      title: "세미나",
+      semester: "26-2",
+      note: "",
+      presenterIds: [],
+      externalPresenters: "",
+    });
+    await updateSeminar(s.id, { semesterPinned: false } as never); // 승인 흐름과 같은 상태로
+    expect((await getTable("seminars"))[0].semesterPinned).toBe(false);
+
+    await updateSeminar(s.id, { semester: "24-2" });
+
+    const [row] = await getTable("seminars");
+    expect(row.semester).toBe("24-2");
+    expect(row.semesterPinned).toBe(true);
+  });
+
+  // 편집기는 바뀌지 않은 학기도 매번 보낸다 — 그것까지 고정으로 읽으면 기록을
+  // 한 번 저장했다는 이유만으로 모든 자동 도출이 멈춘다.
+  it("같은 학기를 다시 저장하는 것은 고정이 아니다", async () => {
+    const s = await createSeminar({
+      title: "세미나",
+      semester: "26-2",
+      note: "",
+      presenterIds: [],
+      externalPresenters: "",
+    });
+    await updateSeminar(s.id, { semesterPinned: false } as never);
+
+    await updateSeminar(s.id, { semester: "26-2", note: "설명만 수정" });
+
+    expect((await getTable("seminars"))[0].semesterPinned).toBe(false);
+  });
+});
+
 describe("referential-integrity deletes", () => {
   it("refuses to delete an activity a seminar record references", async () => {
     const a = await createActivity({
-      title: "세미나", date: { start: nowKstIso(), end: null }, type: "세미나",
+      title: "세미나",
+      date: { start: nowKstIso(), end: null },
+      type: "세미나",
     });
     const s = await createSeminar({
-      title: "세미나", semester: "26-2", note: "", presenterIds: [], externalPresenters: "",
+      title: "세미나",
+      semester: "26-2",
+      note: "",
+      presenterIds: [],
+      externalPresenters: "",
     });
     await updateSeminar(s.id, { activityId: a.id });
 
@@ -78,17 +160,30 @@ describe("referential-integrity deletes", () => {
 
   it("refuses to delete a study that still has sessions", async () => {
     const study = await createStudy({
-      title: "해석학", semester: "26-2", textbook: "", description: "", note: "",
+      title: "해석학",
+      semester: "26-2",
+      textbook: "",
+      description: "",
+      note: "",
       organizerIds: ["org"],
     });
     await mutate("events", (rows) => [
       ...rows,
       {
-        id: newId(), title: "1회차", date: { start: nowKstIso(), end: null },
-        type: "스터디" as const, status: "active" as const,
-        pathId: "p", attendCode: "c", activityId: newId(),
-        applicantIds: [], presenterIds: [], studyId: study.id, sessionNo: 1,
-        autoGenerated: false, sourceRequestId: null,
+        id: newId(),
+        title: "1회차",
+        date: { start: nowKstIso(), end: null },
+        type: "스터디" as const,
+        status: "active" as const,
+        pathId: "p",
+        attendCode: "c",
+        activityId: newId(),
+        applicantIds: [],
+        presenterIds: [],
+        studyId: study.id,
+        sessionNo: 1,
+        autoGenerated: false,
+        sourceRequestId: null,
       },
     ]);
     await expect(deleteStudy(study.id)).rejects.toSatisfy(
@@ -100,7 +195,11 @@ describe("referential-integrity deletes", () => {
 describe("file-array editing (shared setFileArray)", () => {
   it("adds deduped and removes exactly", async () => {
     const s = await createSeminar({
-      title: "세미나", semester: "26-2", note: "", presenterIds: [], externalPresenters: "",
+      title: "세미나",
+      semester: "26-2",
+      note: "",
+      presenterIds: [],
+      externalPresenters: "",
     });
     await setSeminarFiles(s.id, "materials", { add: "seminars/x/a.pdf" });
     await setSeminarFiles(s.id, "materials", { add: "seminars/x/a.pdf" });
@@ -118,7 +217,9 @@ describe("file-array editing (shared setFileArray)", () => {
 describe("update actions cannot poison the table (review C1)", () => {
   it("undefined patch fields leave stored fields intact", async () => {
     const a = await createActivity({
-      title: "세미나", date: { start: nowKstIso(), end: null }, type: "세미나",
+      title: "세미나",
+      date: { start: nowKstIso(), end: null },
+      type: "세미나",
     });
     await updateActivity(a.id, { title: undefined, type: "회의" });
     const row = (await getTable("activities"))[0];
@@ -133,7 +234,9 @@ describe("update actions cannot poison the table (review C1)", () => {
       mutate("gallery-dinner", (rows) =>
         rows.map((r) => (r.id === g.id ? { ...r, year: "" } : r)),
       ),
-    ).rejects.toSatisfy((e) => e instanceof AppError && e.code === "VALIDATION_FAILED");
+    ).rejects.toSatisfy(
+      (e) => e instanceof AppError && e.code === "VALIDATION_FAILED",
+    );
     expect((await getTable("gallery-dinner"))[0].year).toBe("2026"); // table readable, intact
   });
 });
@@ -143,7 +246,11 @@ describe("setOrganizer target validation (review M6)", () => {
     await seedMember("m-ok");
     await seedMember("m-gone", "withdrawn");
     const study = await createStudy({
-      title: "해석학", semester: "26-2", textbook: "", description: "", note: "",
+      title: "해석학",
+      semester: "26-2",
+      textbook: "",
+      description: "",
+      note: "",
       organizerIds: ["org"],
     });
 

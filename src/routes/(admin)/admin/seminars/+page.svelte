@@ -10,6 +10,7 @@
   import SeminarScheduleDialog from "$lib/components/admin/SeminarScheduleDialog.svelte";
   import type {
     AdminSeminarItem,
+    AdminSeminarOperationResult,
     AdminSeminarRequestItem,
   } from "$lib/domain/admin-seminars";
   import { MANUSCRIPT } from "$lib/constants";
@@ -50,6 +51,33 @@
 
   function showError(message: string) {
     notice = { tone: "error", message };
+  }
+
+  /**
+   * 카드가 돌려주는 결과를 문장으로 옮긴다. 예전에는 네 곳 모두 결과를 버려서
+   * 일정 확정·공개·취소 어느 것도 "됐다"는 말을 남기지 않았다 — 카드가 다른
+   * 칸으로 옮겨 가는 것이 유일한 신호였다.
+   */
+  function handleSeminarTransition(result: AdminSeminarOperationResult) {
+    if (result.operation === "scheduled") {
+      notice = {
+        tone: "success",
+        message: "일정을 저장했습니다. 공개하면 전 회원에게 안내 메일이 나갑니다.",
+      };
+    } else if (result.operation === "published") {
+      notice = {
+        tone: "success",
+        message: result.mailFailed
+          ? "세미나를 공개했습니다. 다만 전 회원 공지 발송에 실패했습니다 — 다시 공개를 눌러 재발송할 수 있습니다."
+          : "세미나를 공개했습니다. 전 회원에게 확정 일정 안내를 보냈습니다.",
+      };
+    } else if (result.operation === "cancelled") {
+      notice = {
+        tone: "success",
+        message:
+          "세미나를 취소했습니다. 회원·공개 화면에서는 사라지고 관리자 화면에만 남습니다.",
+      };
+    }
   }
 
   /**
@@ -174,7 +202,7 @@
           <SeminarPublicationCard
             {seminar}
             onSchedule={(item) => (selectedSeminar = item)}
-            onTransition={() => void 0}
+            onTransition={handleSeminarTransition}
             onError={showError}
           />
         {:else}
@@ -202,7 +230,7 @@
           <SeminarPublicationCard
             {seminar}
             onSchedule={(item) => (selectedSeminar = item)}
-            onTransition={() => void 0}
+            onTransition={handleSeminarTransition}
             onError={showError}
           />
         {:else}
@@ -225,7 +253,7 @@
         <SeminarPublicationCard
           {seminar}
           onSchedule={(item) => (selectedSeminar = item)}
-          onTransition={() => void 0}
+          onTransition={handleSeminarTransition}
           onError={showError}
         />
       {:else}
@@ -248,7 +276,7 @@
           <SeminarPublicationCard
             {seminar}
             onSchedule={(item) => (selectedSeminar = item)}
-            onTransition={() => void 0}
+            onTransition={handleSeminarTransition}
             onError={showError}
           />
         {/each}
@@ -278,7 +306,10 @@
   {#key selectedSeminar.id}
     <SeminarScheduleDialog
       seminar={selectedSeminar}
-      onSaved={() => (selectedSeminar = null)}
+      onSaved={(result) => {
+        selectedSeminar = null;
+        handleSeminarTransition(result);
+      }}
       onClose={() => (selectedSeminar = null)}
     />
   {/key}

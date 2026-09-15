@@ -321,10 +321,6 @@
   .request-card footer form {
     margin: 0;
   }
-  :global(.paper-btn.danger) {
-    border-color: var(--latex-accent);
-    color: var(--latex-accent);
-  }
   .empty-state {
     grid-column: 1 / -1;
     margin: 0;

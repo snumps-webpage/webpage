@@ -354,7 +354,6 @@
   .create-form { width: 100%; border: 1px solid var(--latex-rule); padding: 0.8rem; }
   .create-form label:first-child { margin-top: 0; }
   .paper-btn.small { padding: 0.25rem 0.55rem; font-size: 0.62rem; }
-  .paper-btn.danger { border-color: var(--color-danger-text, #b00); color: var(--color-danger-text, #b00); }
   .test-board { border: 1px solid var(--latex-rule); padding: 0.9rem; }
   .test-mode { display: flex; gap: 1.2rem; margin-bottom: 0.4rem; font-size: 0.78rem; }
   .test-mode label { display: flex; align-items: center; gap: 0.35rem; margin: 0; }

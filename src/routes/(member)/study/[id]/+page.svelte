@@ -209,7 +209,6 @@
   .enrollment-sheet > a { display: block; margin-top: 0.8rem; }
   .enrollment-sheet button,
   .enrollment-sheet > a { width: 100%; }
-  :global(.paper-btn.danger) { border-color: var(--latex-accent); color: var(--latex-accent); }
   footer { display: flex; justify-content: flex-start; margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid var(--latex-rule); }
   @media (max-width: 760px) {
     .detail-index { grid-template-columns: repeat(2, minmax(0, 1fr)); }

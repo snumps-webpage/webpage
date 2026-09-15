@@ -23,7 +23,6 @@ import {
   cancelSeminar,
   publishSeminar,
   scheduleSeminar,
-  seminarHasStarted,
   updateSeminarSchedule,
 } from "$lib/server/services/seminars";
 import type { PageServerLoad } from "./$types";
@@ -86,10 +85,10 @@ export const load: PageServerLoad = async ({ locals }) => {
           s.publicationStatus === "scheduled" ||
           s.publicationStatus === "published",
         canPublish: s.publicationStatus === "scheduled" && s.schedule !== null,
+        // 이미 시작됐는지는 화면이 **누르는 시각**으로 판단한다. 로드 시점의
+        // 계산을 실어 보내면 그 사이에 시작 시각이 지난 세미나가 두 번째 확인
+        // 없이 전송되고, 서버가 거절하는데 화면은 이유를 모른다.
         canCancel: s.publicationStatus !== "cancelled",
-        // 이미 시작된 세미나의 취소는 되돌릴 수 없다 — 화면이 두 번째 확인을
-        // 요구하고, 서버도 같은 사실을 독립적으로 검사한다.
-        hasStarted: seminarHasStarted(s),
       })),
       generatedAt: nowKstIso(),
     },

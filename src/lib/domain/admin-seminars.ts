@@ -4,7 +4,6 @@ import type {
   SeminarKind,
   SeminarPublicationStatus,
 } from "./seminars";
-import type { AdminSeminarRecord } from "./admin-records";
 
 // 정의는 domain/seminars.ts — 관리자 화면 계약이 저장 값의 원천이 되지 않게 한다.
 export {
@@ -72,8 +71,6 @@ export interface AdminSeminarItem {
   canSchedule: boolean;
   canPublish: boolean;
   canCancel: boolean;
-  /** 시작 시각이 지났는가 — 취소에 두 번째 확인이 필요한지 가른다. */
-  hasStarted: boolean;
 }
 
 export interface AdminSeminarDashboardData {
@@ -82,31 +79,18 @@ export interface AdminSeminarDashboardData {
   generatedAt: string;
 }
 
-export type SeminarMailEvent =
-  "approval" | "schedule-confirmed" | "schedule-changed" | "none";
-
+/**
+ * 공개 보드의 액션이 **실제로** 돌려주는 것. 예전에는 승인·반려 변형과
+ * mailEvent 필드까지 선언돼 있었지만 어느 액션도 그것을 보내지 않았고,
+ * 호출부의 `as` 캐스트가 그 불일치를 가려 왔다 — 화면이 있지도 않은 값을
+ * 읽고 조용히 undefined를 받는 길이다.
+ */
 export type AdminSeminarOperationResult =
-  | {
-      success: true;
-      operation: "approved";
-      requestId: string;
-      seminar: AdminSeminarItem;
-      record: AdminSeminarRecord;
-      mailEvent: "approval";
-      mailFailed: boolean;
-    }
-  | {
-      success: true;
-      operation: "rejected";
-      requestId: string;
-    }
   | {
       success: true;
       operation: "scheduled";
       seminarId: string;
       schedule: SeminarSchedule;
-      mailEvent: "none" | "schedule-changed";
-      mailFailed: boolean;
     }
   | {
       success: true;
@@ -119,7 +103,6 @@ export type AdminSeminarOperationResult =
       seminarId: string;
       activityId: string;
       eventId: string;
-      mailEvent: "schedule-confirmed";
       mailFailed: boolean;
     };
 

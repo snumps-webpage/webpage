@@ -23,7 +23,12 @@ import type {
 export async function createActivity(
   input: Pick<Activity, "title" | "date" | "type">,
 ): Promise<Activity> {
-  const row: Activity = { id: newId(), ...input, attendeeIds: [], sourceRequestId: null };
+  const row: Activity = {
+    id: newId(),
+    ...input,
+    attendeeIds: [],
+    sourceRequestId: null,
+  };
   await mutate("activities", (rows) => [...rows, row]);
   return row;
 }
@@ -59,7 +64,10 @@ export async function deleteActivity(id: string): Promise<void> {
 }
 
 /** Admin plenary overwrite — merge rule deliberately NOT applied (§7-4). */
-export async function setAttendees(id: string, attendeeIds: string[]): Promise<void> {
+export async function setAttendees(
+  id: string,
+  attendeeIds: string[],
+): Promise<void> {
   await mutate("activities", (rows) => {
     const idx = rows.findIndex((a) => a.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
@@ -71,7 +79,10 @@ export async function setAttendees(id: string, attendeeIds: string[]): Promise<v
 // ---- seminars ---------------------------------------------------------------
 
 export async function createSeminar(
-  input: Pick<Seminar, "title" | "semester" | "note" | "presenterIds" | "externalPresenters">,
+  input: Pick<
+    Seminar,
+    "title" | "semester" | "note" | "presenterIds" | "externalPresenters"
+  >,
   posterPendingKey = "",
 ): Promise<Seminar> {
   const row: Seminar = {
@@ -99,17 +110,34 @@ export async function createSeminar(
 export async function updateSeminar(
   id: string,
   patch: Partial<
-    Pick<Seminar, "title" | "semester" | "note" | "presenterIds" | "externalPresenters" | "activityId">
+    Pick<
+      Seminar,
+      | "title"
+      | "semester"
+      | "note"
+      | "presenterIds"
+      | "externalPresenters"
+      | "activityId"
+    >
   >,
   posterPendingKey = "",
 ): Promise<void> {
-  const promotedPoster = posterPendingKey ? await promoteSeminarPoster(posterPendingKey) : null;
+  const promotedPoster = posterPendingKey
+    ? await promoteSeminarPoster(posterPendingKey)
+    : null;
   await mutate("seminars", (rows) => {
     const idx = rows.findIndex((s) => s.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
+    // 학기를 **실제로 바꾸면** 그것은 관리자의 결정이고, 이후 자동 도출이
+    // 덮어서는 안 된다. 편집기는 바뀌지 않은 학기도 매번 보내므로 값이 같은
+    // 저장은 고정으로 읽지 않는다 — 한 번 저장했다는 이유로 모든 기록의 학기
+    // 자동화가 멈추게 된다.
+    const pinned =
+      patch.semester !== undefined && patch.semester !== rows[idx].semester;
     rows[idx] = {
       ...rows[idx],
       ...definedOnly(patch),
+      ...(pinned ? { semesterPinned: true } : {}),
       ...(promotedPoster !== null ? { posterKey: promotedPoster } : {}),
     };
     return rows;
@@ -153,7 +181,10 @@ export function setSeminarFiles(
 // ---- studies ----------------------------------------------------------------
 
 export async function createStudy(
-  input: Pick<Study, "title" | "semester" | "textbook" | "description" | "note" | "organizerIds">,
+  input: Pick<
+    Study,
+    "title" | "semester" | "textbook" | "description" | "note" | "organizerIds"
+  >,
 ): Promise<Study> {
   if (input.organizerIds.length === 0) throw new AppError("VALIDATION_FAILED");
   const row: Study = {
@@ -174,7 +205,12 @@ export async function createStudy(
 
 export async function updateStudy(
   id: string,
-  patch: Partial<Pick<Study, "title" | "semester" | "textbook" | "description" | "note" | "status">>,
+  patch: Partial<
+    Pick<
+      Study,
+      "title" | "semester" | "textbook" | "description" | "note" | "status"
+    >
+  >,
 ): Promise<void> {
   await mutate("studies", (rows) => {
     const idx = rows.findIndex((s) => s.id === id);
@@ -205,8 +241,11 @@ export async function setOrganizer(
 ): Promise<void> {
   // Same target validation as the two-phase proposal (review M6): a ghost or
   // grace-period member as sole organizer leaves the study unmanageable.
-  const target = (await getTable("members")).find((m) => m.id === newOrganizerId);
-  if (!target || target.status === "withdrawn") throw new AppError("VALIDATION_FAILED");
+  const target = (await getTable("members")).find(
+    (m) => m.id === newOrganizerId,
+  );
+  if (!target || target.status === "withdrawn")
+    throw new AppError("VALIDATION_FAILED");
 
   await mutate("studies", (rows) => {
     const idx = rows.findIndex((s) => s.id === studyId);

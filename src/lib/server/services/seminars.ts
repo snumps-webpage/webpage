@@ -358,34 +358,42 @@ export async function cancelSeminar(
   id: string,
   actor: CancelActor,
 ): Promise<Seminar> {
-  const target = await seminarOrThrow(id);
-  const started = seminarHasStarted(target);
-  const isPresenter = target.presenterIds.includes(actor.memberId);
-
-  if (!actor.isAdmin) {
-    // 개설자는 자기 세미나만, 그리고 **열리기 전까지만** 취소할 수 있다.
-    // 이미 치른 세미나를 지우는 것은 출석 기록을 조용히 없애는 일이다.
-    if (!isPresenter || started) throw new AppError("FORBIDDEN");
-  } else if (started && !actor.acknowledgeStarted) {
-    // 관리자에게는 길이 열려 있되 되돌릴 수 없는 조작이므로 명시적 확인을
-    // 요구한다 — 화면의 확인 대화상자만으로는 보장이 되지 않는다.
-    throw new AppError("CONFLICT");
-  }
+  // 존재 확인만 캐시로 한다. **판정은 전부 mutate 안에서**, 그 순간의 행으로
+  // 한다 — 표 읽기는 최대 15초 낡을 수 있고, 관리자가 방금 일정을 지난 시각으로
+  // 고쳤다면 낡은 스냅샷은 "아직 안 열렸다"고 답한다(실측). 그 답을 믿으면 이미
+  // 치른 세미나의 출석 기록이 개설자 손에 사라진다.
+  await seminarOrThrow(id);
 
   let seminar: Seminar | undefined;
   let flipped = false;
   let wasAnnounced = false;
+  let started = false;
   await mutate("seminars", (rows) => {
     const idx = rows.findIndex((s) => s.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
+    const row = rows[idx];
     // CAS에 지면 콜백이 다시 불린다 — 플래그는 매 시도마다 초기화한다.
     flipped = false;
-    seminar = rows[idx];
-    if (rows[idx].publicationStatus === "cancelled") return rows; // 멱등
+    wasAnnounced = false;
+    started = seminarHasStarted(row);
+
+    if (!actor.isAdmin) {
+      // 개설자는 자기 세미나만, 그리고 **열리기 전까지만** 취소할 수 있다.
+      // 이미 치른 세미나를 지우는 것은 출석 기록을 조용히 없애는 일이다.
+      if (!row.presenterIds.includes(actor.memberId) || started) {
+        throw new AppError("FORBIDDEN");
+      }
+    } else if (started && !actor.acknowledgeStarted) {
+      // 관리자에게는 길이 열려 있되 되돌릴 수 없는 조작이므로 명시적 확인을
+      // 요구한다 — 화면의 확인 대화상자만으로는 보장이 되지 않는다.
+      throw new AppError("CONFLICT");
+    }
+
+    seminar = row;
+    if (row.publicationStatus === "cancelled") return rows; // 멱등
     wasAnnounced =
-      rows[idx].publicationStatus === "published" &&
-      rows[idx].announcedAt !== null;
-    rows[idx] = { ...rows[idx], publicationStatus: "cancelled" };
+      row.publicationStatus === "published" && row.announcedAt !== null;
+    rows[idx] = { ...row, publicationStatus: "cancelled" };
     seminar = rows[idx];
     flipped = true;
     return rows;

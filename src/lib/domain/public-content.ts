@@ -1,4 +1,4 @@
-import { compareSemesters } from "$lib/server/core/semester";
+import { compareSemesters } from "./semester-order";
 import type { ActivityType } from "$lib/constants";
 
 export interface PublicFileReference {
@@ -77,7 +77,9 @@ export interface PublicIndexItem {
 export function formatArchiveTerm(term: string) {
   const match = /^(\d{2})-([12SW])$/.exec(term);
   if (!match) return term;
-  const label = { "1": "1학기", "2": "2학기", S: "여름학기", W: "겨울학기" }[match[2]];
+  const label = { "1": "1학기", "2": "2학기", S: "여름학기", W: "겨울학기" }[
+    match[2]
+  ];
   return `20${match[1]}년 ${label}`;
 }
 
@@ -117,7 +119,8 @@ export function seminarIndexItems(
 export function studyIndexItems(
   studies: PublicStudyRecord[],
 ): PublicIndexItem[] {
-  return [...studies].sort((a, b) => compareSemesters(b.term, a.term))
+  return [...studies]
+    .sort((a, b) => compareSemesters(b.term, a.term))
     .map((study) => ({
       id: study.id,
       title: study.title,

@@ -206,5 +206,4 @@
   .candidates { max-height: 24rem; overflow-y: auto; }
   .empty { color: var(--latex-muted); font-size: 0.78rem; }
   .paper-btn.small { padding: 0.25rem 0.55rem; font-size: 0.62rem; }
-  .paper-btn.danger { border-color: var(--color-danger-text, #b00); color: var(--color-danger-text, #b00); }
 </style>

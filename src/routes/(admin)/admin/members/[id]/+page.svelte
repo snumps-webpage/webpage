@@ -272,7 +272,6 @@
   .admin-section > p,
   .admin-section form,
   .locked-note { margin: 0.8rem; }
-  :global(.paper-btn.danger) { border-color: var(--latex-accent); color: var(--latex-accent); }
   .contact-section { grid-column: 1 / -1; }
   .contact-section form { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; align-items: end; }
   .contact-section fieldset { grid-column: 1 / -1; display: flex; gap: 1rem; margin: 0; padding: 0.65rem 0.75rem; border: 1px solid var(--latex-rule); }

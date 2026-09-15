@@ -447,7 +447,6 @@
   .private-section .background-field,
   .private-section footer,
   .private-section form > .field-error { grid-column: 1 / -1; }
-  :global(.paper-btn.danger) { border-color: var(--latex-accent); color: var(--latex-accent); }
 
   @media (max-width: 820px) {
     .record-grid { grid-template-columns: 1fr; }

@@ -41,6 +41,7 @@
   let selectedEventId = $state(initialManagement?.selectedEvent.id ?? "");
   let processing = $state(false);
   let notice = $state<{ tone: "success" | "error"; message: string } | null>(null);
+  let stickyNotice = $state(false);
 
   const selectedCount = $derived(selectedIds.size);
   const allSelected = $derived(
@@ -52,6 +53,11 @@
   $effect(() => {
     if (!management || management.selectedEvent.id === selectedEventId) return;
     selectedEventId = management.selectedEvent.id;
+    // 이 효과는 "다른 세미나를 골랐으니 이전 알림은 낡았다"를 위한 것이다.
+    // 취소는 목록에서 세미나를 빼면서 선택도 바꾸므로, 방금 띄운 취소 알림이
+    // 여기서 지워진다 — 한 번은 넘긴다.
+    const keep = stickyNotice;
+    stickyNotice = false;
     replaceSelected(
       management.applicants
         .filter((member) => member.checked)
@@ -62,7 +68,7 @@
         .filter((member) => member.checked)
         .map((member) => member.id),
     );
-    notice = null;
+    if (!keep) notice = null;
   });
 
   function replaceSelected(memberIds: Iterable<string>) {
@@ -137,6 +143,13 @@
     figure={MANUSCRIPT.FIGURES.PRESENTER_ATTENDANCE}
   />
 
+    {#if notice}
+      <div class="notice" data-tone={notice.tone} role="status">
+        <p>{notice.message}</p>
+        <button aria-label="알림 닫기" onclick={() => (notice = null)}>×</button>
+      </div>
+    {/if}
+
   {#if !management}
     <section class="empty-sheet">
       <p class="section-index">No Assigned Events</p>
@@ -183,10 +196,26 @@
               processing = false;
               if (result.type === "success") {
                 await update({ reset: false });
-                notice = { tone: "success", message: "세미나를 취소했습니다." };
+                stickyNotice = true;
+                notice = {
+                  tone: "success",
+                  message:
+                    "세미나를 취소했습니다. 신청자와 공개 아카이브에서 사라집니다.",
+                };
                 return;
               }
-              notice = { tone: "error", message: "세미나를 취소하지 못했습니다." };
+              const payload =
+                "data" in result
+                  ? (result.data as { error?: string } | undefined)
+                  : undefined;
+              stickyNotice = true;
+              notice = {
+                tone: "error",
+                message:
+                  payload?.error === "FORBIDDEN"
+                    ? "이미 시작된 세미나이거나 취소 권한이 없습니다."
+                    : "세미나를 취소하지 못했습니다.",
+              };
             };
           }}
         >
@@ -219,12 +248,6 @@
       신청자 명부만 수정합니다. 공유 링크 등 다른 경로로 출석한 {management.nonApplicantAttendanceCount}명의 기록은 저장 후에도 보존됩니다.
     </aside>
 
-    {#if notice}
-      <div class="notice" data-tone={notice.tone} role="status">
-        <p>{notice.message}</p>
-        <button aria-label="알림 닫기" onclick={() => (notice = null)}>×</button>
-      </div>
-    {/if}
 
     <form
       method="POST"

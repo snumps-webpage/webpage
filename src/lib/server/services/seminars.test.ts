@@ -18,7 +18,7 @@ vi.mock("$lib/server/mail/dispatch", () => ({
   },
 }));
 
-import { __reset } from "$lib/server/data/store-memory";
+import { __docs, __putRawDoc, __reset } from "$lib/server/data/store-memory";
 import {
   _resetDataLayerForTests,
   getTable,
@@ -599,6 +599,47 @@ describe("취소 권한 — 개설자와 관리자", () => {
     await cancelSeminar(id, ADMIN);
 
     expect((await getTable("seminars"))[0].publicationStatus).toBe("cancelled");
+  });
+});
+
+describe("취소 권한은 캐시가 아니라 그 순간의 행으로 판정한다", () => {
+  /**
+   * 표 읽기는 최대 15초까지 낡을 수 있다. 관리자가 일정을 지난 시각으로
+   * 고친 직후, 개설자의 취소가 **낡은 스냅샷**을 보고 "아직 안 열렸다"로
+   * 통과하면 이미 치른 세미나의 출석 기록이 회원 면에서 사라진다.
+   * 캐시를 건드리지 않고 저장소만 바꿔 그 창을 그대로 만든다.
+   */
+  function rewriteScheduleBehindTheCache(id: string, startsAt: string) {
+    const docs = __docs("table");
+    const stored = docs.get("seminars")!;
+    const envelope = structuredClone(stored.doc) as {
+      rows: { id: string; schedule: { startsAt: string } | null }[];
+    };
+    for (const row of envelope.rows) {
+      if (row.id === id && row.schedule) row.schedule.startsAt = startsAt;
+    }
+    __putRawDoc("table", "seminars", envelope);
+  }
+
+  it("낡은 일정으로 이미 열린 세미나를 취소할 수 없다", async () => {
+    const request = await pendingRequest();
+    await approveSeminar(request.id);
+    const [seminar] = await getTable("seminars");
+    await scheduleSeminar(seminar.id, {
+      startsAt: at(10 * 24 * HOUR),
+      endsAt: null,
+      location: "27동",
+    });
+    await publishSeminar(seminar.id);
+    await getTable("seminars"); // 캐시를 데운다 — 이후 판정이 이것을 본다
+    rewriteScheduleBehindTheCache(seminar.id, at(-3 * HOUR));
+
+    await expect(
+      cancelSeminar(seminar.id, {
+        memberId: seminar.presenterIds[0],
+        isAdmin: false,
+      }),
+    ).rejects.toSatisfy((e) => e instanceof AppError && e.code === "FORBIDDEN");
   });
 });
 

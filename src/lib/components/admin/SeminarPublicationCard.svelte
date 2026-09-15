@@ -15,6 +15,32 @@
   let { seminar, onSchedule, onTransition, onError }: Props = $props();
   let processing = $state(false);
 
+  /**
+   * 실패를 한 문장으로 뭉개면 "다시 누르세요"와 "권한이 없습니다"가 같은 말이
+   * 된다. 서버가 코드를 보내 주므로 그대로 옮긴다.
+   */
+  function cancelFailure(result: { data?: unknown }) {
+    const code = (result.data as { error?: string } | undefined)?.error;
+    if (code === "CONFLICT")
+      return "이미 시작된 세미나입니다. 화면을 새로고침한 뒤 다시 시도해 주세요.";
+    if (code === "FORBIDDEN") return "이 세미나를 취소할 권한이 없습니다.";
+    if (code === "UNAUTHORIZED")
+      return "로그인이 풀렸습니다. 다시 로그인한 뒤 시도해 주세요.";
+    if (code === "NOT_FOUND") return "이미 삭제된 세미나입니다.";
+    return "세미나를 취소하지 못했습니다.";
+  }
+
+  /**
+   * 시작 여부는 **누르는 시각**으로 판단한다. 화면이 로드될 때 서버가 계산한
+   * 값을 그대로 쓰면, 그 사이에 시작 시각이 지난 세미나는 두 번째 확인 없이
+   * 전송되고 서버가 409로 거절한다 — 새로고침 전에는 몇 번을 눌러도 같다.
+   * 일정을 잃은 공개 행은 이미 치른 것으로 읽는다(서버와 같은 규칙).
+   */
+  function hasStartedNow() {
+    if (!seminar.schedule) return seminar.publicationStatus === "published";
+    return new Date(seminar.schedule.startsAt).getTime() <= Date.now();
+  }
+
   const statusLabel = $derived.by(() => {
     switch (seminar.publicationStatus) {
       case "unscheduled":
@@ -92,7 +118,28 @@
       <form
         method="POST"
         action="?/cancelSeminar"
-        use:enhance={() => {
+        use:enhance={({ formData, cancel }) => {
+          if (
+            !confirm(
+              `‘${seminar.title}’ 세미나를 취소합니다. 회원과 공개 아카이브에서 사라집니다.`,
+            )
+          ) {
+            cancel();
+            return;
+          }
+          if (hasStartedNow()) {
+            if (
+              !confirm(
+                "이 세미나는 이미 시작된 일정입니다. 출석 기록은 관리자에게만 남습니다. 정말 취소하시겠습니까?",
+              )
+            ) {
+              cancel();
+              return;
+            }
+            // 서버가 이 값을 독립적으로 검사한다 — 대화상자만으로는
+            // 보장이 되지 않는다.
+            formData.set("acknowledgeStarted", "yes");
+          }
           processing = true;
           return async ({ result, update }) => {
             processing = false;
@@ -100,40 +147,14 @@
               await update({ reset: false });
               onTransition(result.data as AdminSeminarOperationResult);
             } else {
-              onError("세미나를 취소하지 못했습니다.");
+              onError(cancelFailure(result as { data?: unknown }));
             }
           };
         }}
       >
         <input type="hidden" name="seminarId" value={seminar.id} />
-        {#if seminar.hasStarted}
-          <!-- 이미 시작된 일정의 취소는 두 번째 확인을 거친다. 서버도 이 값을
-               독립적으로 검사하므로 대화상자를 우회해도 거절된다. -->
-          <input type="hidden" name="acknowledgeStarted" value="yes" />
-        {/if}
-        <button
-          class="paper-btn danger"
-          type="submit"
-          disabled={processing}
-          onclick={(event) => {
-            if (
-              !confirm(
-                `‘${seminar.title}’ 세미나를 취소합니다. 회원과 공개 아카이브에서 사라집니다.`,
-              )
-            ) {
-              event.preventDefault();
-              return;
-            }
-            if (
-              seminar.hasStarted &&
-              !confirm(
-                "이 세미나는 이미 시작된 일정입니다. 출석 기록은 관리자에게만 남습니다. 정말 취소하시겠습니까?",
-              )
-            ) {
-              event.preventDefault();
-            }
-          }}>취소</button
-        >
+        <button class="paper-btn danger" type="submit" disabled={processing}
+          >취소</button>
       </form>
     {/if}
 

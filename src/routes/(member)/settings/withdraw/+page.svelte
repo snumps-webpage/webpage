@@ -124,7 +124,5 @@
   .field-error { margin: 0.4rem 0 0; color: var(--color-danger-text); font-size: 0.7rem; }
   .actions { display: flex; justify-content: space-between; gap: 0.6rem; margin-top: 1.1rem; }
   .actions.end { justify-content: flex-end; }
-  :global(.paper-btn.danger) { border-color: var(--color-danger-text); color: var(--color-danger-text); }
-  :global(.paper-btn.danger:hover:not(:disabled)) { background: var(--color-danger-text); color: var(--latex-bg); }
   @media (max-width: 500px) { .step-index li { padding-inline: 0.3rem; font-size: 0.52rem; } .actions { flex-wrap: wrap; } .actions :global(.paper-btn) { flex: 1; } }
 </style>

@@ -265,10 +265,6 @@
     font-size: 0.74rem;
   }
 
-  :global(.paper-btn.danger) {
-    border-color: var(--latex-accent);
-    color: var(--latex-accent);
-  }
 
   .notice {
     display: flex;
