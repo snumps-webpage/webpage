@@ -4,8 +4,20 @@ vi.mock(
   "$lib/server/data/store",
   () => import("$lib/server/data/store-memory"),
 );
+vi.mock(
+  "$lib/server/data/storage",
+  () => import("$lib/server/data/storage-memory"),
+);
 
 import { __reset } from "$lib/server/data/store-memory";
+import {
+  __exists,
+  __reset as __resetStorage,
+  __setRemoveFails,
+  __stage,
+  copyToBackups,
+  promoteToAssets,
+} from "$lib/server/data/storage-memory";
 import {
   _resetDataLayerForTests,
   getTable,
@@ -21,6 +33,7 @@ import {
   createSeminar,
   createStudy,
   deleteActivity,
+  deleteSeminar,
   deleteStudy,
   setAttendees,
   setOrganizer,
@@ -31,6 +44,7 @@ import {
 
 beforeEach(async () => {
   __reset();
+  __resetStorage();
   _resetDataLayerForTests({ backoffBaseMs: 1 });
   for (const t of [
     "activities",
@@ -130,6 +144,120 @@ describe("학기는 관리자의 결정이 최상위다", () => {
     await updateSeminar(s.id, { semester: "26-2", note: "설명만 수정" });
 
     expect((await getTable("seminars"))[0].semesterPinned).toBe(false);
+  });
+});
+
+describe("관리자 파일 삭제 — 기록에서 빼는 것으로는 부족하다", () => {
+  /**
+   * 예전에는 기록에서 키만 지우고 바이트는 버킷에 남겼다. 공개 버킷이었으므로
+   * 이미 나간 URL은 그 파일을 영원히 내려 줬다(C-22). 백업 미러는 건드리지
+   * 않는다 — 실수로 지웠을 때의 복구 근거다.
+   */
+  async function seminarWithFile(field: "materials" | "photos") {
+    const s = await createSeminar({
+      title: "세미나",
+      semester: "26-2",
+      note: "",
+      presenterIds: [],
+      externalPresenters: "",
+    });
+    __stage("pending/x-file.pdf", 10, "application/pdf");
+    await promoteToAssets("pending/x-file.pdf", "seminars/s1/aa-file.pdf");
+    await copyToBackups(
+      "assets",
+      "seminars/s1/aa-file.pdf",
+      "assets-mirror/seminars/s1/aa-file.pdf",
+    );
+    await setSeminarFiles(s.id, field, { add: "seminars/s1/aa-file.pdf" });
+    return s.id;
+  }
+
+  it("파일을 떼어내면 버킷에서도 지운다", async () => {
+    const id = await seminarWithFile("materials");
+
+    await setSeminarFiles(id, "materials", {
+      remove: "seminars/s1/aa-file.pdf",
+    });
+
+    expect(__exists("assets", "seminars/s1/aa-file.pdf")).toBe(false);
+  });
+
+  it("백업 미러는 남긴다 — 실수를 되돌릴 유일한 길이다", async () => {
+    const id = await seminarWithFile("photos");
+
+    await setSeminarFiles(id, "photos", { remove: "seminars/s1/aa-file.pdf" });
+
+    expect(__exists("backups", "assets-mirror/seminars/s1/aa-file.pdf")).toBe(
+      true,
+    );
+  });
+
+  it("기록을 지우면 딸린 파일도 함께 지운다", async () => {
+    const id = await seminarWithFile("materials");
+
+    await deleteSeminar(id);
+
+    expect(__exists("assets", "seminars/s1/aa-file.pdf")).toBe(false);
+  });
+
+  // 삭제 실패가 기록 편집을 막으면 관리자가 화면에서 아무것도 못 한다.
+  it("버킷 삭제가 실패해도 기록 편집은 끝난다", async () => {
+    const id = await seminarWithFile("materials");
+    __setRemoveFails(true);
+
+    await setSeminarFiles(id, "materials", {
+      remove: "seminars/s1/aa-file.pdf",
+    });
+
+    __setRemoveFails(false);
+    expect((await getTable("seminars"))[0].materials).toEqual([]);
+  });
+});
+
+// 승격은 매직 바이트를 검사한다 — 확장자만으로는 통과하지 않는다.
+const PNG_HEAD = new Uint8Array([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+]);
+
+describe("포스터 교체", () => {
+  // 교체하면 이전 포스터는 어느 기록도 가리키지 않는다 — /media는 그런 키를
+  // 거절하지만(서빙은 막힌다), 바이트는 용량과 백업 비용으로 남는다.
+  it("새 포스터를 올리면 이전 포스터를 버킷에서 지운다", async () => {
+    __stage(
+      "pending/seminar-poster/old-poster.png",
+      10,
+      "image/png",
+      undefined,
+      PNG_HEAD,
+    );
+    const seminar = await createSeminar(
+      {
+        title: "세미나",
+        semester: "26-2",
+        note: "",
+        presenterIds: [],
+        externalPresenters: "",
+      },
+      "pending/seminar-poster/old-poster.png",
+    );
+    const oldKey = (await getTable("seminars"))[0].posterKey;
+    expect(__exists("assets", oldKey)).toBe(true);
+
+    __stage(
+      "pending/seminar-poster/new-poster.png",
+      10,
+      "image/png",
+      undefined,
+      PNG_HEAD,
+    );
+    await updateSeminar(
+      seminar.id,
+      {},
+      "pending/seminar-poster/new-poster.png",
+    );
+
+    expect(__exists("assets", oldKey)).toBe(false);
+    expect((await getTable("seminars"))[0].posterKey).not.toBe(oldKey);
   });
 });
 

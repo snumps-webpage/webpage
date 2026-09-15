@@ -185,23 +185,25 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
     });
   });
 
-  it("resolves asset keys to URLs, never raw keys alone", async () => {
-    testEnv.ASSETS_CDN_URL = "https://cdn.example/assets";
-
+  // 기본값은 앱 경로다 — 버킷이 비공개이므로 그것만이 유효한 링크다(C-22).
+  it("resolves asset keys to guarded app paths, never raw keys alone", async () => {
     const seminar = await getPublicSeminar("sem1");
-    expect(seminar!.materials[0]).toBe("https://cdn.example/assets/seminars/sem1/a.pdf");
+    expect(seminar!.materials[0]).toBe("/media/seminars/sem1/a.pdf");
     const gallery = await getPublicGallery();
     expect(gallery).toHaveLength(3); // seminar + study + dinner photos
   });
 
   // W-8: with no CDN the payload must carry nothing usable — and nothing that
   // looks usable either, or the consumer's `{#if url}` guard renders a broken
-  // image instead of its placeholder.
-  it("emits empty strings, not raw keys, when no CDN is configured", async () => {
+  // image instead of its placeholder. (직접 CDN 모드에서만 해당한다.)
+  it("emits empty strings, not raw keys, when direct mode has no CDN", async () => {
+    testEnv.ASSETS_ACCESS = "public";
     delete testEnv.ASSETS_CDN_URL;
 
     const seminar = await getPublicSeminar("sem1");
     expect(seminar!.materials[0]).toBe("");
     expect(JSON.stringify(await getPublicGallery())).not.toContain("seminars/sem1");
+
+    delete testEnv.ASSETS_ACCESS;
   });
 });

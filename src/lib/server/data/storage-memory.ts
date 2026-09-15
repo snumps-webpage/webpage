@@ -4,9 +4,15 @@
  * Three virtual buckets keyed as `bucket/path`.
  */
 
-type StoredObject = { bytes: number; contentType: string; createdAt: string; head?: Uint8Array };
+type StoredObject = {
+  bytes: number;
+  contentType: string;
+  createdAt: string;
+  head?: Uint8Array;
+};
 
 const objects = new Map<string, StoredObject>();
+let removeFails = false;
 const issuedUrls = new Set<string>();
 
 const STAGING = "staging";
@@ -30,7 +36,9 @@ export async function createUploadUrl(
   return `https://memory.test/upload/${path}`;
 }
 
-export async function stagedInfo(path: string): Promise<StagedObjectInfo | null> {
+export async function stagedInfo(
+  path: string,
+): Promise<StagedObjectInfo | null> {
   const obj = objects.get(keyOf(STAGING, path));
   if (!obj) return null;
   return { size: obj.bytes, contentType: obj.contentType };
@@ -57,6 +65,29 @@ export async function copyToBackups(
   objects.set(keyOf(BACKUPS, backupPath), obj);
 }
 
+/**
+ * 비공개 assets 버킷의 읽기 통로. 없는 객체에는 URL을 내지 않는다 — 실제
+ * Supabase도 존재하지 않는 경로에는 서명을 거절한다.
+ */
+export async function createSignedAssetUrl(
+  path: string,
+  expiresInSeconds: number,
+): Promise<string | null> {
+  if (!objects.has(keyOf(ASSETS, path))) return null;
+  return `https://memory.test/signed/${path}?exp=${expiresInSeconds}`;
+}
+
+/** 관리자 삭제. 백업 미러(assets-mirror/)는 건드리지 않는다 — 복구의 근거다. */
+export async function removeAssets(paths: string[]): Promise<void> {
+  if (removeFails) throw new Error("removeAssets failed (injected)");
+  for (const path of paths) objects.delete(keyOf(ASSETS, path));
+}
+
+/** 버킷 삭제 실패를 흉내 낸다 — 기록 편집이 그것에 발목 잡히지 않는지 본다. */
+export function __setRemoveFails(v: boolean): void {
+  removeFails = v;
+}
+
 export async function removeStaged(paths: string[]): Promise<void> {
   for (const path of paths) objects.delete(keyOf(STAGING, path));
 }
@@ -67,7 +98,10 @@ export async function removeStaged(paths: string[]): Promise<void> {
  * `created_at: null`), sorted by name. Service tests run against this, so it
  * must not be more capable than the real listing.
  */
-function listLevel(bucket: string, prefix: string): { name: string; createdAt: string }[] {
+function listLevel(
+  bucket: string,
+  prefix: string,
+): { name: string; createdAt: string }[] {
   const base = prefix === "" ? "" : `${prefix.replace(/\/$/, "")}/`;
   const files: { name: string; createdAt: string }[] = [];
   const folders = new Set<string>();
@@ -80,9 +114,10 @@ function listLevel(bucket: string, prefix: string): { name: string; createdAt: s
     if (slash === -1) files.push({ name: rest, createdAt: obj.createdAt });
     else folders.add(rest.slice(0, slash));
   }
-  return [...[...folders].map((name) => ({ name, createdAt: "" })), ...files].sort((a, b) =>
-    a.name.localeCompare(b.name),
-  );
+  return [
+    ...[...folders].map((name) => ({ name, createdAt: "" })),
+    ...files,
+  ].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function listStaged(
@@ -91,7 +126,10 @@ export async function listStaged(
   return listLevel(STAGING, prefix);
 }
 
-export async function uploadToBackups(path: string, body: string): Promise<void> {
+export async function uploadToBackups(
+  path: string,
+  body: string,
+): Promise<void> {
   objects.set(keyOf(BACKUPS, path), {
     bytes: body.length,
     contentType: "application/json",
@@ -113,6 +151,7 @@ export async function removeBackups(paths: string[]): Promise<void> {
 export function __reset(): void {
   objects.clear();
   issuedUrls.clear();
+  removeFails = false;
 }
 
 /** Simulates the browser's PUT to the signed upload URL. */
@@ -123,11 +162,19 @@ export function __stage(
   createdAt = new Date().toISOString(),
   head?: Uint8Array,
 ): void {
-  objects.set(keyOf(STAGING, path), { bytes: size, contentType, createdAt, head });
+  objects.set(keyOf(STAGING, path), {
+    bytes: size,
+    contentType,
+    createdAt,
+    head,
+  });
 }
 
 /** Head bytes of a staged object (magic-byte verification in tests). */
-export async function readStagedHead(path: string, _max: number): Promise<Uint8Array | null> {
+export async function readStagedHead(
+  path: string,
+  _max: number,
+): Promise<Uint8Array | null> {
   const obj = objects.get(keyOf(STAGING, path));
   if (!obj) return null;
   return obj.head ?? new Uint8Array();
@@ -138,7 +185,11 @@ export function __exists(bucket: string, path: string): boolean {
 }
 
 /** Backdates an object (e.g. a seeded dump) for retention tests. */
-export function __setCreatedAt(bucket: string, path: string, iso: string): void {
+export function __setCreatedAt(
+  bucket: string,
+  path: string,
+  iso: string,
+): void {
   const obj = objects.get(keyOf(bucket, path));
   if (obj) obj.createdAt = iso;
 }

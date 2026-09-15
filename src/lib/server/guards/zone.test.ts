@@ -58,6 +58,7 @@ const REGISTERED: Record<string, Zone> = {
   "/(public)/archive/projects": "(public)",
   "/(public)/archive/misc": "(public)",
   "/(public)/archive/misc/integration-bee": "(public)",
+  "/(public)/media/[...key]": "(public)",
   "/(public)/archive/problems": "(public)",
   "/(public)/archive/discussions": "(public)",
   "/(public)/members": "(public)",

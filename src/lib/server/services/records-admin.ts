@@ -4,6 +4,7 @@ import { nowKstIso } from "$lib/server/core/time";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { audit } from "$lib/server/data/audit";
 import { promoteSeminarPoster } from "$lib/server/services/uploads";
+import { removeAssets } from "$lib/server/data/storage";
 import type {
   Activity,
   GalleryDinner,
@@ -125,9 +126,15 @@ export async function updateSeminar(
   const promotedPoster = posterPendingKey
     ? await promoteSeminarPoster(posterPendingKey)
     : null;
+  let replacedPoster: string | null = null;
   await mutate("seminars", (rows) => {
     const idx = rows.findIndex((s) => s.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
+    // CAS 재시도마다 다시 센다 — 진 시도의 값이 남으면 엉뚱한 키를 지운다.
+    replacedPoster =
+      promotedPoster !== null && rows[idx].posterKey !== promotedPoster
+        ? rows[idx].posterKey || null
+        : null;
     // 학기를 **실제로 바꾸면** 그것은 관리자의 결정이고, 이후 자동 도출이
     // 덮어서는 안 된다. 편집기는 바뀌지 않은 학기도 매번 보내므로 값이 같은
     // 저장은 고정으로 읽지 않는다 — 한 번 저장했다는 이유로 모든 기록의 학기
@@ -142,13 +149,49 @@ export async function updateSeminar(
     };
     return rows;
   });
+  // 교체된 포스터는 어느 기록도 가리키지 않는다 — 남겨 두면 용량과 백업만 먹는다.
+  await forgetAssets([replacedPoster]);
+}
+
+/**
+ * 기록에서 키를 빼는 것만으로는 파일이 사라지지 않는다. 공개 버킷이던 시절에는
+ * 이미 나간 URL이 그 바이트를 영원히 내려 줬고(C-22), 비공개로 돌린 지금도
+ * 남은 객체는 용량과 백업 비용으로 남는다.
+ *
+ * 실패는 **삼키고 기록한다.** 관리자 화면의 동작(기록 편집)은 이미 끝났고,
+ * 여기서 던지면 편집 자체가 실패한 것처럼 보인다. 남은 바이트는 백업 미러가
+ * 있는 회수 가능한 손해이지만, 편집 불능은 그렇지 않다.
+ */
+async function forgetAssets(
+  keys: (string | null | undefined)[],
+): Promise<void> {
+  const paths = keys.filter((k): k is string => !!k);
+  if (paths.length === 0) return;
+  try {
+    await removeAssets(paths);
+  } catch (e) {
+    console.error(`[assets] delete failed for ${paths.join(", ")}:`, e);
+  }
 }
 
 export async function deleteSeminar(id: string): Promise<void> {
+  let removed:
+    { materials: string[]; photos: string[]; posterKey: string } | undefined;
   await mutate("seminars", (rows) => {
-    if (!rows.some((s) => s.id === id)) throw new AppError("NOT_FOUND");
+    const row = rows.find((s) => s.id === id);
+    if (!row) throw new AppError("NOT_FOUND");
+    removed = {
+      materials: row.materials,
+      photos: row.photos,
+      posterKey: row.posterKey,
+    };
     return rows.filter((s) => s.id !== id);
   });
+  await forgetAssets([
+    ...removed!.materials,
+    ...removed!.photos,
+    removed!.posterKey,
+  ]);
 }
 
 /** One file-array editor for all three photo/material fields (review M11). */
@@ -168,6 +211,7 @@ async function setFileArray(
     rows[idx] = { ...rows[idx], [field]: files };
     return rows;
   });
+  if (op.remove) await forgetAssets([op.remove]);
 }
 
 export function setSeminarFiles(
@@ -305,10 +349,14 @@ export async function updateGalleryEntry(
 }
 
 export async function deleteGalleryEntry(id: string): Promise<void> {
+  let photos: string[] = [];
   await mutate("gallery-dinner", (rows) => {
-    if (!rows.some((g) => g.id === id)) throw new AppError("NOT_FOUND");
+    const row = rows.find((g) => g.id === id);
+    if (!row) throw new AppError("NOT_FOUND");
+    photos = row.photos;
     return rows.filter((g) => g.id !== id);
   });
+  await forgetAssets(photos);
 }
 
 export function setGalleryPhotos(

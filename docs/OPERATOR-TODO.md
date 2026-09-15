@@ -9,18 +9,18 @@
 
 ## 상태 요약
 
-| # | 작업 | 상태 | 막고 있는 것 |
-|---|---|---|---|
-| 1 | 공용 계정 준비 (콘솔 5종 공용화 + MFA + 자격증명 인벤토리) | ⬜ 미완 | 이하 전부 — 알림 수신·소유권의 전제 |
-| 2 | Supabase 프로젝트 2개 생성 (prod/dev) + SQL 실행 + sb_secret 키 발급 | ✅ 완료 (CLI, 2026-08-30) — org 공용화(1절)만 잔여 | 데이터 계층·자산·이주 전부 |
-| 3 | Vercel env 등록 | 🟡 CLI로 10종 등록 완료 (2026-08-30) — `HEALTHCHECKS_PING_URL`(5절)·`GITHUB_BACKUP_TOKEN`(6절)만 발급 후 추가 | 런타임 동작 전부 |
-| 4 | cron-job.org 잡 3개 등록 + 알림 설정 | ⬜ 미완 (3 선행) | 만료 처리·회차 생성·keep-alive·주간 백업 |
-| 5 | Healthchecks.io 체크 생성 | ⬜ 미완 (1·3 선행) | 크론 침묵 감지 (dead-man's switch) |
-| 6 | 백업 repo (`snumps-backups`) + fine-grained PAT | 🟡 repo 생성 완료 (2026-08-30) — **PAT 발급·등록만 남음** | off-platform 백업 (B2) |
-| 7 | 🔴 pause 런북 숙지 | 상시 | — (장애 시 대응 속도) |
-| 8 | 복구 절차 숙지 | 상시 | — |
-| 9 | 정기 수칙 (학기말·분기) | 🔁 반복 | — |
-| 10 | Gmail 발신 계정 확인 | ⬜ 미완 | 전 회원 공지 메일 (M4) |
+| #   | 작업                                                                 | 상태                                                                                                          | 막고 있는 것                             |
+| --- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| 1   | 공용 계정 준비 (콘솔 5종 공용화 + MFA + 자격증명 인벤토리)           | ⬜ 미완                                                                                                       | 이하 전부 — 알림 수신·소유권의 전제      |
+| 2   | Supabase 프로젝트 2개 생성 (prod/dev) + SQL 실행 + sb_secret 키 발급 | ✅ 완료 (CLI, 2026-08-30) — org 공용화(1절)만 잔여                                                            | 데이터 계층·자산·이주 전부               |
+| 3   | Vercel env 등록                                                      | 🟡 CLI로 10종 등록 완료 (2026-08-30) — `HEALTHCHECKS_PING_URL`(5절)·`GITHUB_BACKUP_TOKEN`(6절)만 발급 후 추가 | 런타임 동작 전부                         |
+| 4   | cron-job.org 잡 3개 등록 + 알림 설정                                 | ⬜ 미완 (3 선행)                                                                                              | 만료 처리·회차 생성·keep-alive·주간 백업 |
+| 5   | Healthchecks.io 체크 생성                                            | ⬜ 미완 (1·3 선행)                                                                                            | 크론 침묵 감지 (dead-man's switch)       |
+| 6   | 백업 repo (`snumps-backups`) + fine-grained PAT                      | 🟡 repo 생성 완료 (2026-08-30) — **PAT 발급·등록만 남음**                                                     | off-platform 백업 (B2)                   |
+| 7   | 🔴 pause 런북 숙지                                                   | 상시                                                                                                          | — (장애 시 대응 속도)                    |
+| 8   | 복구 절차 숙지                                                       | 상시                                                                                                          | —                                        |
+| 9   | 정기 수칙 (학기말·분기)                                              | 🔁 반복                                                                                                       | —                                        |
+| 10  | Gmail 발신 계정 확인                                                 | ⬜ 미완                                                                                                       | 전 회원 공지 메일 (M4)                   |
 
 ---
 
@@ -39,18 +39,18 @@
 2. MFA 복구 코드는 계정별로 발급 직후 안전한 공용 보관소(예: 회장단 인수인계 금고 문서)에 저장.
 3. **자격증명 인벤토리**를 아래 표 형식으로 유지 — 항목이 늘 때마다 갱신 (9절 정기 수칙):
 
-| 자격증명 | 보유자 | 보관 위치 | 복구 경로 |
-|---|---|---|---|
-| `SUPABASE_SECRET_KEY` (prod) | | | Supabase 콘솔에서 재발급 (구 키 폐기) |
-| `SUPABASE_SECRET_KEY` (dev) | | | 〃 |
-| `CRON_SECRET` | | | 재생성 → Vercel env + cron-job.org 잡 3개 동시 교체 |
-| `HEALTHCHECKS_PING_URL` | | | Healthchecks 콘솔에서 확인/재발급 |
-| `GITHUB_BACKUP_TOKEN` (fine-grained PAT — `snumps-backups` repo `contents:write` 한정) | | | GitHub 콘솔에서 재발급 |
-| Supabase org 로그인 | | | 공용 메일 비밀번호 재설정 + MFA 복구 코드 |
-| cron-job.org 로그인 | | | 〃 |
-| Healthchecks.io 로그인 | | | 〃 |
-| GitHub org 로그인 | | | 〃 |
-| Vercel 로그인 | | | 〃 |
+| 자격증명                                                                               | 보유자 | 보관 위치 | 복구 경로                                           |
+| -------------------------------------------------------------------------------------- | ------ | --------- | --------------------------------------------------- |
+| `SUPABASE_SECRET_KEY` (prod)                                                           |        |           | Supabase 콘솔에서 재발급 (구 키 폐기)               |
+| `SUPABASE_SECRET_KEY` (dev)                                                            |        |           | 〃                                                  |
+| `CRON_SECRET`                                                                          |        |           | 재생성 → Vercel env + cron-job.org 잡 3개 동시 교체 |
+| `HEALTHCHECKS_PING_URL`                                                                |        |           | Healthchecks 콘솔에서 확인/재발급                   |
+| `GITHUB_BACKUP_TOKEN` (fine-grained PAT — `snumps-backups` repo `contents:write` 한정) |        |           | GitHub 콘솔에서 재발급                              |
+| Supabase org 로그인                                                                    |        |           | 공용 메일 비밀번호 재설정 + MFA 복구 코드           |
+| cron-job.org 로그인                                                                    |        |           | 〃                                                  |
+| Healthchecks.io 로그인                                                                 |        |           | 〃                                                  |
+| GitHub org 로그인                                                                      |        |           | 〃                                                  |
+| Vercel 로그인                                                                          |        |           | 〃                                                  |
 
 ## 2. Supabase 프로젝트 2개 생성 (prod / dev)
 
@@ -105,23 +105,43 @@ dev 값은 로컬 `.env`로 (스펙 §6).
 
 Vercel → `snumps` 프로젝트 → Settings → Environment Variables (Production):
 
-| env | 값 | 비고 |
-|---|---|---|
-| `SUPABASE_URL` | prod 프로젝트 URL | 콘솔 → Project Settings → API |
-| `SUPABASE_SECRET_KEY` | `sb_secret_...` (2절에서 발급) | 서버 전용 — 클라이언트 노출 금지 |
-| `SUPABASE_ASSETS_BUCKET` | `assets` | |
-| `SUPABASE_STAGING_BUCKET` | `staging` | |
-| `SUPABASE_BACKUPS_BUCKET` | `backups` | |
-| `HEALTHCHECKS_PING_URL` | 5절에서 발급 | |
-| `GITHUB_BACKUP_REPO` | `snumps-webpage/snumps-backups` | |
-| `GITHUB_BACKUP_TOKEN` | 6절에서 발급한 PAT | |
-| `DATA_BACKEND` | `supabase` | `memory`는 dev 오프라인 보조 플래그 |
-| `CRON_SECRET` | `openssl rand -base64 32`로 생성 | **유지** — cron-job.org 잡 헤더(4절)와 동일 값. Vercel cron은 이 env 존재 시 Bearer 자동 첨부 |
-| `ASSETS_CDN_URL` | `assets` 버킷 공개 URL 베이스 (값 교체) | 예: `https://<prod-ref>.supabase.co/storage/v1/object/public/assets` |
+| env                         | 값                                                                                          | 비고                                                                                                                                                                     |
+| --------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SUPABASE_URL`              | prod 프로젝트 URL                                                                           | 콘솔 → Project Settings → API                                                                                                                                            |
+| `SUPABASE_SECRET_KEY`       | `sb_secret_...` (2절에서 발급)                                                              | 서버 전용 — 클라이언트 노출 금지                                                                                                                                         |
+| `SUPABASE_ASSETS_BUCKET`    | `assets`                                                                                    |                                                                                                                                                                          |
+| `SUPABASE_STAGING_BUCKET`   | `staging`                                                                                   |                                                                                                                                                                          |
+| `SUPABASE_BACKUPS_BUCKET`   | `backups`                                                                                   |                                                                                                                                                                          |
+| `HEALTHCHECKS_PING_URL`     | 5절에서 발급                                                                                |                                                                                                                                                                          |
+| `GITHUB_BACKUP_REPO`        | `snumps-webpage/snumps-backups`                                                             |                                                                                                                                                                          |
+| `GITHUB_BACKUP_TOKEN`       | 6절에서 발급한 PAT                                                                          |                                                                                                                                                                          |
+| `DATA_BACKEND`              | `supabase`                                                                                  | `memory`는 dev 오프라인 보조 플래그                                                                                                                                      |
+| `CRON_SECRET`               | `openssl rand -base64 32`로 생성                                                            | **유지** — cron-job.org 잡 헤더(4절)와 동일 값. Vercel cron은 이 env 존재 시 Bearer 자동 첨부                                                                            |
+| `ASSETS_CDN_URL`            | `assets` 버킷 공개 URL 베이스 (값 교체)                                                     | **`ASSETS_ACCESS=public`일 때만 쓰인다.** 기본 모드에서는 읽히지 않는다                                                                                                  |
+| `ASSETS_ACCESS`             | **등록하지 않는다**(기본값 = `/media` 프록시)                                               | 옛 동작(공개 버킷 직접 링크)으로 되돌려야 할 때만 `public`을 넣는다. 버킷이 비공개면 이 값은 화면을 깨뜨린다                                                             |
 | `SITE_ORIGIN` / `REDIS_URL` | `SITE_ORIGIN`은 **신규 등록**(값은 `https://snumps.vercel.app`), `REDIS_URL`은 기존 값 유지 | 구 `PUBLIC_SITE_ORIGIN`은 **코드가 한 번도 읽지 못했다**(SvelteKit이 private env에서 `PUBLIC_` 키를 제거). 새 이름 등록 후 옛 키는 삭제해도 된다 — 삭제 전후 동작은 같다 |
 
 - **제거**: `AWS_*` 5종 (남아 있으면 삭제).
 - dev 프로젝트의 `SUPABASE_URL`/`SUPABASE_SECRET_KEY`는 로컬 `.env`에만 등록 (`docs/SETUP.md` 로컬 개발 절 참조).
+
+## 3-1. `assets` 버킷을 **비공개로 전환** (C-22)
+
+**왜**: 지금까지 `assets`는 공개 버킷이었고, 그래서 "URL을 아는 것"이 곧 권한이었다.
+세미나를 취소해도 이미 나간 절대 URL은 포스터·자료를 계속 내려 줬다. 코드는 이미
+앱 경로(`/media/<key>`)로만 링크하고 요청마다 권한을 판정하지만, **버킷이 공개로 남아
+있으면 예전 URL이 그대로 살아 있다.** 이 전환이 차단을 실제로 만든다.
+
+1. Supabase 콘솔 → Storage → `assets` → **Make private** (Public bucket 토글 해제).
+2. 전환 직후 공개 페이지에서 이미지·PDF가 그려지는지 확인한다 — 앱은 서명 URL로
+   리디렉트하므로 정상 동작해야 한다. 깨진다면 `ASSETS_ACCESS`가 `public`으로
+   남아 있는지부터 본다(등록하지 않는 것이 정답이다).
+3. `staging`·`backups`는 원래 비공개다. 바꾸지 않는다.
+
+> **되돌리기**: 버킷을 다시 공개로 돌리고 `ASSETS_ACCESS=public` + `ASSETS_CDN_URL`을
+> 등록하면 옛 동작으로 복귀한다. 그 상태에서는 취소된 세미나의 파일도 다시 공개된다.
+
+> **이미 유출된 URL은 이 전환으로 끝난다** — 공개 URL이 죽기 때문이다. 다만 Vercel
+> 이미지 최적화가 만든 파생본은 최대 30일(`minimumCacheTTL`) 남을 수 있다.
 
 ## 4. cron-job.org 잡 3개 등록
 
@@ -130,11 +150,11 @@ Vercel → `snumps` 프로젝트 → Settings → Environment Variables (Product
 
 스펙 §5-1 표 그대로 등록:
 
-| # | 잡 이름 | 스케줄 (KST) | URL |
-|---|---|---|---|
-| 1 | sync-events | 매시 17분 | `GET https://snumps.vercel.app/api/cron/sync-events` |
-| 2 | health | 매일 09:00 | `GET https://snumps.vercel.app/api/health` |
-| 3 | maintenance | 매일 04:00 | `GET https://snumps.vercel.app/api/cron/maintenance` |
+| #   | 잡 이름     | 스케줄 (KST) | URL                                                  |
+| --- | ----------- | ------------ | ---------------------------------------------------- |
+| 1   | sync-events | 매시 17분    | `GET https://snumps.vercel.app/api/cron/sync-events` |
+| 2   | health      | 매일 09:00   | `GET https://snumps.vercel.app/api/health`           |
+| 3   | maintenance | 매일 04:00   | `GET https://snumps.vercel.app/api/cron/maintenance` |
 
 절차 (잡마다 반복):
 

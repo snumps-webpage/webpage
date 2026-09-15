@@ -52,7 +52,8 @@ SUPABASE_SECRET_KEY=sb_secret_xxxxxx   # 신 체계 sb_secret_... 키 (server-on
 SUPABASE_ASSETS_BUCKET=assets
 SUPABASE_STAGING_BUCKET=staging
 SUPABASE_BACKUPS_BUCKET=backups
-ASSETS_CDN_URL=https://xxxx.supabase.co/storage/v1/object/public/assets   # assets 버킷 public URL 베이스
+ASSETS_CDN_URL=https://xxxx.supabase.co/storage/v1/object/public/assets   # ASSETS_ACCESS=public 일 때만 쓰인다
+ASSETS_ACCESS=            # 비워 두면 /media 프록시(기본·권장). public = 옛 방식(공개 버킷 직접 링크)
 
 HEALTHCHECKS_PING_URL=   # Healthchecks.io dead-man's switch (스펙 §5-3)
 GITHUB_BACKUP_REPO=snumps-webpage/snumps-backups   # 주간 백업 off-platform 사본 (§7 B2)

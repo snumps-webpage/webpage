@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  __exists,
   __reset,
   __stage,
+  createSignedAssetUrl,
   listBackups,
   listStaged,
+  promoteToAssets,
+  removeAssets,
   uploadToBackups,
 } from "./storage-memory";
 
@@ -70,5 +74,45 @@ describe("listBackups (same semantics as listStaged)", () => {
     const rows = await listBackups("dumps");
 
     expect(rows.map((r) => r.name)).toEqual(["2026-09-06.json"]);
+  });
+});
+
+/**
+ * 공개 버킷을 비공개로 돌리는 작업이 이 두 함수를 요구한다 — 서명 URL(읽기의
+ * 유일한 통로)과 삭제(관리자가 파일을 지울 수 있어야 한다). 메모리 백엔드가
+ * 같은 모양을 제공하지 않으면 서비스 테스트가 실제 seam을 못 흉내 낸다.
+ */
+describe("assets 버킷 — 서명 URL과 삭제", () => {
+  async function promoted(path: string) {
+    __stage("pending/x-file.pdf", 10, "application/pdf");
+    await promoteToAssets("pending/x-file.pdf", path);
+  }
+
+  it("승격된 자산에 서명 URL을 낸다", async () => {
+    await promoted("seminars/s1/aa-slides.pdf");
+
+    const url = await createSignedAssetUrl("seminars/s1/aa-slides.pdf", 60);
+
+    expect(url).toContain("seminars/s1/aa-slides.pdf");
+  });
+
+  it("없는 자산에는 서명 URL을 내지 않는다", async () => {
+    expect(await createSignedAssetUrl("seminars/gone/zz.pdf", 60)).toBeNull();
+  });
+
+  it("관리자 삭제는 바이트를 지운다", async () => {
+    await promoted("seminars/s1/aa-slides.pdf");
+
+    await removeAssets(["seminars/s1/aa-slides.pdf"]);
+
+    expect(__exists("assets", "seminars/s1/aa-slides.pdf")).toBe(false);
+  });
+
+  it("빈 목록은 아무것도 하지 않는다", async () => {
+    await promoted("seminars/s1/aa-slides.pdf");
+
+    await removeAssets([]);
+
+    expect(__exists("assets", "seminars/s1/aa-slides.pdf")).toBe(true);
   });
 });

@@ -14,20 +14,28 @@ import { currentTerm } from "$lib/server/core/semester";
 let warnedMissingCdn = false;
 
 /**
- * Public URL for an asset key, or "" when ASSETS_CDN_URL is unset (W-8).
+ * 자산의 URL.
  *
- * It used to return "/assets-unavailable/<key>" — a diagnostic string standing
- * where a URL belongs. Nothing serves that path, and consumers guard with
- * `{#if url}`, so a non-empty value skipped the placeholder branch and the
- * browser drew a broken image instead. Diagnosis belongs in the log.
+ * 기본값은 **앱 경로**(`/media/<key>`)다. `assets` 버킷은 비공개이고, 누가 그
+ * 파일을 받을 수 있는지는 요청마다 라우트가 판정한다(services/asset-access.ts).
+ * 예전처럼 공개 CDN URL을 그대로 실어 보내면 "URL을 아는 것"이 곧 권한이 되어,
+ * 취소된 세미나의 자료가 이미 나간 링크로 계속 내려간다(C-22).
+ *
+ * `ASSETS_ACCESS=public`은 탈출구다 — 버킷을 아직 비공개로 바꾸지 않은 환경에서
+ * 배포 순서 때문에 화면이 깨지지 않도록, 예전 동작(CDN 직접 링크)을 유지한다.
+ * 그 모드에서 CDN이 설정돼 있지 않으면 빈 문자열을 돌려준다: URL 자리에 진단
+ * 문자열을 넣으면 `{#if url}` 가드가 통과해 브라우저가 깨진 이미지를 그린다(W-8).
  */
 export function assetUrl(s3Key: string): string {
+  if (!s3Key) return "";
+  if (env.ASSETS_ACCESS !== "public") return `/media/${s3Key}`;
+
   const cdn = env.ASSETS_CDN_URL;
   if (!cdn) {
     if (!warnedMissingCdn) {
       warnedMissingCdn = true;
       console.warn(
-        "[assets] ASSETS_CDN_URL is not set — asset URLs resolve to empty",
+        "[assets] ASSETS_ACCESS=public but ASSETS_CDN_URL is not set — asset URLs resolve to empty",
       );
     }
     return "";

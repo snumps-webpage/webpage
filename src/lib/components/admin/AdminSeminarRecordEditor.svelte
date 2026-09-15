@@ -313,7 +313,11 @@
                       method="POST"
                       action="?/removeFile"
                       onsubmit={(event) => {
-                        if (!confirm("파일 연결을 제거할까요?"))
+                        if (
+                          !confirm(
+                            "이 파일을 삭제합니다. 기록에서 빠지고 저장소에서도 지워집니다. (백업 사본은 남습니다)",
+                          )
+                        )
                           event.preventDefault();
                       }}
                     >

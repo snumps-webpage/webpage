@@ -131,6 +131,45 @@ export async function copyToBackups(
   }
 }
 
+/**
+ * Signed read URL into the ASSETS bucket.
+ *
+ * This is what replaces "public bucket + guessable URL": the bucket itself is
+ * private, and every read goes through the app, which decides who may have a
+ * URL and for how long (services/asset-access.ts). Returns null when the
+ * object is gone, so a deleted file reads as 404 rather than a broken link.
+ */
+export async function createSignedAssetUrl(
+  path: string,
+  expiresInSeconds: number,
+): Promise<string | null> {
+  if (isMemoryBackend()) return memory.createSignedAssetUrl(path, expiresInSeconds);
+  const { data, error } = await getSupabase()
+    .storage.from(assetsBucket())
+    .createSignedUrl(path, expiresInSeconds);
+  if (error) {
+    if (isNotFound(error as StorageErrorLike)) return null;
+    throw new Error(`createSignedAssetUrl(${path}) failed: ${error.message}`);
+  }
+  return data?.signedUrl ?? null;
+}
+
+/**
+ * Admin deletion from the ASSETS bucket — the operation this seam never had
+ * (it could only delete staging and backups), which is why a removed record
+ * kept serving its files forever.
+ *
+ * The B3 mirror under `assets-mirror/` in the private backups bucket is
+ * deliberately NOT touched: that copy is the recovery path for a mistaken
+ * delete, and it is not reachable from the web.
+ */
+export async function removeAssets(paths: string[]): Promise<void> {
+  if (isMemoryBackend()) return memory.removeAssets(paths);
+  if (paths.length === 0) return;
+  const { error } = await getSupabase().storage.from(assetsBucket()).remove(paths);
+  if (error) throw new Error(`removeAssets(${paths.length} paths) failed: ${error.message}`);
+}
+
 export async function removeStaged(paths: string[]): Promise<void> {
   if (isMemoryBackend()) return memory.removeStaged(paths);
   if (paths.length === 0) return;
