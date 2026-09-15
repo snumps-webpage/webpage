@@ -52,7 +52,7 @@ async function cancelledSeminar() {
     location: "27동",
   });
   await publishSeminar(seminar.id);
-  await cancelSeminar(seminar.id);
+  await cancelSeminar(seminar.id, { memberId: "admin-1", isAdmin: true });
   return seminar.id;
 }
 

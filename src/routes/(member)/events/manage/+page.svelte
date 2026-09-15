@@ -172,7 +172,47 @@
 
     <section class="schedule-line">
       <div><span>일시</span><strong>{formatDate(management.selectedEvent.date)}</strong></div>
+      {#if management.selectedEvent.canCancel && management.selectedEvent.seminarId}
+        <form
+          method="POST"
+          action="?/cancelSeminar"
+          use:enhance={() => {
+            processing = true;
+            notice = null;
+            return async ({ result, update }) => {
+              processing = false;
+              if (result.type === "success") {
+                await update({ reset: false });
+                notice = { tone: "success", message: "세미나를 취소했습니다." };
+                return;
+              }
+              notice = { tone: "error", message: "세미나를 취소하지 못했습니다." };
+            };
+          }}
+        >
+          <input type="hidden" name="seminarId" value={management.selectedEvent.seminarId} />
+          <button
+            type="submit"
+            class="paper-btn small danger"
+            disabled={processing}
+            onclick={(event) => {
+              if (
+                !confirm(
+                  `‘${management.selectedEvent.title}’ 세미나를 취소합니다. 신청자와 공개 아카이브에서 사라지며 되돌릴 수 없습니다.`,
+                )
+              ) {
+                event.preventDefault();
+              }
+            }}>세미나 취소</button>
+        </form>
+      {/if}
     </section>
+
+    {#if management.selectedEvent.seminarId && !management.selectedEvent.canCancel}
+      <p class="cancel-note">
+        이미 시작된 세미나는 개설자가 취소할 수 없습니다. 취소가 필요하면 운영진에게 요청해 주세요.
+      </p>
+    {/if}
 
     <aside class="merge-note">
       <strong>병합 저장</strong>
@@ -273,6 +313,23 @@
   .event-index > div:last-child, .schedule-line > div:last-child { border-right: 0; }
   .event-index strong, .schedule-line strong { overflow-wrap: anywhere; font-size: 0.78rem; font-weight: 560; }
   .schedule-line { display: grid; grid-template-columns: 1fr; border: 1px solid var(--latex-rule); border-top: 0; }
+  .cancel-note {
+    margin: 0;
+    padding-left: 0.55rem;
+    border-left: 2px solid var(--latex-rule);
+    color: var(--latex-muted);
+    font-size: 0.75rem;
+    line-height: 1.55;
+  }
+
+  .schedule-line form {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    border-top: 1px solid var(--latex-rule);
+  }
+
   .merge-note { margin: 0.8rem 0; padding: 0.7rem 0.8rem; border-left: 3px solid var(--latex-accent); background: color-mix(in srgb, var(--latex-accent) 4%, transparent); color: var(--latex-muted); font-size: 0.75rem; line-height: 1.6; }
   .merge-note strong { color: var(--latex-text); margin-right: 0.4rem; }
   .notice { display: flex; justify-content: space-between; gap: 0.8rem; margin-bottom: 0.75rem; padding: 0.65rem 0.75rem; border: 1px solid var(--latex-rule); border-left: 4px solid var(--latex-text); font-size: 0.76rem; }

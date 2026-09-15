@@ -89,6 +89,7 @@ async function seedFixture() {
       presenterIds: ["m1"], externalPresenters: "", materials: ["seminars/sem1/a.pdf"],
       photos: ["seminars/sem1/p.png"], posterKey: "", preferredTiming: "",
       publicationStatus: "published", schedule: null, announcedAt: null,
+        semesterPinned: false,
       activityId: "act1", sourceRequestId: "req1",
     },
   ]);

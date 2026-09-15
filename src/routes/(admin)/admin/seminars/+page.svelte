@@ -234,6 +234,28 @@
     </div>
   </section>
 
+  {#if seminars.some((item) => item.publicationStatus === "cancelled")}
+    <section class="published-section cancelled-section">
+      <header>
+        <div>
+          <p>05 · Cancelled</p>
+          <h2>취소된 세미나</h2>
+        </div>
+        <span>회원·공개 아카이브에서는 보이지 않습니다 · 출석 기록은 보존</span>
+      </header>
+      <div class="published-grid">
+        {#each seminars.filter((item) => item.publicationStatus === "cancelled") as seminar (seminar.id)}
+          <SeminarPublicationCard
+            {seminar}
+            onSchedule={(item) => (selectedSeminar = item)}
+            onTransition={() => void 0}
+            onError={showError}
+          />
+        {/each}
+      </div>
+    </section>
+  {/if}
+
   <AdminSeminarRecordEditor
     {records}
     members={data.members}
@@ -434,6 +456,11 @@
     color: var(--latex-muted);
     font-size: 0.72rem;
     text-align: right;
+  }
+
+  .cancelled-section {
+    margin-top: 1.6rem;
+    opacity: 0.75;
   }
 
   .published-grid {

@@ -13,6 +13,17 @@ import type { Seminar, SeminarSchedule } from "$lib/server/data/schemas";
 const seminarAnchor = (seminarId: string) => `seminar:${seminarId}`;
 
 /**
+ * 취소를 요청한 주체. 규칙이 둘로 갈린다 — 개설자는 열리기 전까지만,
+ * 관리자는 이후에도 가능하되 명시적 확인이 필요하다.
+ */
+export interface CancelActor {
+  memberId: string;
+  isAdmin: boolean;
+  /** 이미 시작된 세미나를 취소한다는 관리자의 두 번째 확인. */
+  acknowledgeStarted?: boolean;
+}
+
+/**
  * 승인된 세미나의 공개 수명주기 (FRONTEND-DECISIONS §3-1).
  *
  *   승인 → unscheduled → [일정 확정] → scheduled → [공개] → published
@@ -25,6 +36,21 @@ const seminarAnchor = (seminarId: string) => `seminar:${seminarId}`;
  * 세미나는 신청이 즉시 닫히고(`start <= now`) 그날 자정에 만료됐다. 실제
  * 일정은 관리자와 발표자가 운영 채널에서 조율한 뒤에야 정해진다.
  */
+
+/**
+ * 이미 열린 세미나인가 — 취소 규칙이 갈리는 지점이라 판정은 한 곳에만 둔다.
+ * 화면(관리자 보드·발표자 관리)이 서버와 다른 규칙으로 버튼을 그리면 "눌러도
+ * 거절당하는 버튼"이나 그 반대가 생긴다.
+ *
+ * 일정을 잃은 `published` 행(이주 사고)은 "아직 안 열렸다"가 아니라 "이미
+ * 치렀다"로 읽는다 — 반대로 읽으면 몇 해 전 세미나가 개설자에게 취소 가능한
+ * 것으로 열린다. 확정 전(unscheduled) 행은 일정이 없는 것이 정상이다.
+ */
+export function seminarHasStarted(seminar: Seminar): boolean {
+  return seminar.schedule
+    ? new Date(seminar.schedule.startsAt).getTime() <= Date.now()
+    : seminar.publicationStatus === "published";
+}
 
 async function seminarOrThrow(id: string): Promise<Seminar> {
   const seminar = (await getTable("seminars")).find((s) => s.id === id);
@@ -101,8 +127,11 @@ export async function publishSeminar(id: string): Promise<{
     rows[idx] = {
       ...row,
       publicationStatus: "published",
-      // 학기는 승인 시각이 아니라 실제로 열리는 날이 정한다.
-      semester: termOf(new Date(row.schedule.startsAt)),
+      // 학기는 승인 시각이 아니라 실제로 열리는 날이 정한다 — 관리자가 직접
+      // 정해 둔 경우는 그 결정이 위다.
+      semester: row.semesterPinned
+        ? row.semester
+        : termOf(new Date(row.schedule.startsAt)),
     };
     seminar = rows[idx];
     return rows;
@@ -246,8 +275,9 @@ export async function updateSeminarSchedule(
       ...row,
       schedule,
       // 공개된 세미나만 학기가 확정된다 — 확정 전 학기는 공개 시 다시 계산된다.
+      // 관리자가 직접 정한 학기(semesterPinned)는 자동 도출이 덮지 않는다.
       semester:
-        row.publicationStatus === "published"
+        row.publicationStatus === "published" && !row.semesterPinned
           ? termOf(new Date(schedule.startsAt))
           : row.semester,
     };
@@ -287,7 +317,24 @@ export async function updateSeminarSchedule(
  *
  * 두 번 호출해도 한 번과 같다. 이미 취소된 이벤트에 상태를 다시 쓰지 않는다.
  */
-export async function cancelSeminar(id: string): Promise<Seminar> {
+export async function cancelSeminar(
+  id: string,
+  actor: CancelActor,
+): Promise<Seminar> {
+  const target = await seminarOrThrow(id);
+  const started = seminarHasStarted(target);
+  const isPresenter = target.presenterIds.includes(actor.memberId);
+
+  if (!actor.isAdmin) {
+    // 개설자는 자기 세미나만, 그리고 **열리기 전까지만** 취소할 수 있다.
+    // 이미 치른 세미나를 지우는 것은 출석 기록을 조용히 없애는 일이다.
+    if (!isPresenter || started) throw new AppError("FORBIDDEN");
+  } else if (started && !actor.acknowledgeStarted) {
+    // 관리자에게는 길이 열려 있되 되돌릴 수 없는 조작이므로 명시적 확인을
+    // 요구한다 — 화면의 확인 대화상자만으로는 보장이 되지 않는다.
+    throw new AppError("CONFLICT");
+  }
+
   let seminar: Seminar | undefined;
   await mutate("seminars", (rows) => {
     const idx = rows.findIndex((s) => s.id === id);

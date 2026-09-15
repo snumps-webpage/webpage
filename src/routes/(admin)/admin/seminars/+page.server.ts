@@ -23,6 +23,7 @@ import {
   cancelSeminar,
   publishSeminar,
   scheduleSeminar,
+  seminarHasStarted,
   updateSeminarSchedule,
 } from "$lib/server/services/seminars";
 import type { PageServerLoad } from "./$types";
@@ -85,6 +86,10 @@ export const load: PageServerLoad = async ({ locals }) => {
           s.publicationStatus === "scheduled" ||
           s.publicationStatus === "published",
         canPublish: s.publicationStatus === "scheduled" && s.schedule !== null,
+        canCancel: s.publicationStatus !== "cancelled",
+        // 이미 시작된 세미나의 취소는 되돌릴 수 없다 — 화면이 두 번째 확인을
+        // 요구하고, 서버도 같은 사실을 독립적으로 검사한다.
+        hasStarted: seminarHasStarted(s),
       })),
       generatedAt: nowKstIso(),
     },
@@ -193,7 +198,13 @@ export const actions = {
     return handleAdminAction(locals, async () => {
       const seminarId = data.get("seminarId") as string;
       if (!seminarId) throw new AppError("VALIDATION_FAILED");
-      await cancelSeminar(seminarId);
+      // 이미 시작된 세미나를 지우는 것은 되돌릴 수 없다 — 두 번째 확인을
+      // 폼에서 받아 서버가 검사한다(대화상자만으로는 보장이 되지 않는다).
+      await cancelSeminar(seminarId, {
+        memberId: locals.member?.memberId ?? "",
+        isAdmin: true,
+        acknowledgeStarted: data.get("acknowledgeStarted") === "yes",
+      });
       return { operation: "cancelled", seminarId };
     });
   },

@@ -88,6 +88,55 @@
   {/if}
 
   <div class="card-actions">
+    {#if seminar.canCancel}
+      <form
+        method="POST"
+        action="?/cancelSeminar"
+        use:enhance={() => {
+          processing = true;
+          return async ({ result, update }) => {
+            processing = false;
+            if (result.type === "success") {
+              await update({ reset: false });
+              onTransition(result.data as AdminSeminarOperationResult);
+            } else {
+              onError("세미나를 취소하지 못했습니다.");
+            }
+          };
+        }}
+      >
+        <input type="hidden" name="seminarId" value={seminar.id} />
+        {#if seminar.hasStarted}
+          <!-- 이미 시작된 일정의 취소는 두 번째 확인을 거친다. 서버도 이 값을
+               독립적으로 검사하므로 대화상자를 우회해도 거절된다. -->
+          <input type="hidden" name="acknowledgeStarted" value="yes" />
+        {/if}
+        <button
+          class="paper-btn danger"
+          type="submit"
+          disabled={processing}
+          onclick={(event) => {
+            if (
+              !confirm(
+                `‘${seminar.title}’ 세미나를 취소합니다. 회원과 공개 아카이브에서 사라집니다.`,
+              )
+            ) {
+              event.preventDefault();
+              return;
+            }
+            if (
+              seminar.hasStarted &&
+              !confirm(
+                "이 세미나는 이미 시작된 일정입니다. 출석 기록은 관리자에게만 남습니다. 정말 취소하시겠습니까?",
+              )
+            ) {
+              event.preventDefault();
+            }
+          }}>취소</button
+        >
+      </form>
+    {/if}
+
     {#if seminar.canSchedule}
       <button class="paper-btn secondary" onclick={() => onSchedule(seminar)}>
         {seminar.schedule ? "일정 수정" : "일정 입력"}

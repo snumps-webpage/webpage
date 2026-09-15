@@ -84,6 +84,8 @@ export async function createSeminar(
     publicationStatus: "published",
     schedule: null,
     announcedAt: null,
+    // 관리자가 학기를 직접 입력하는 유일한 경로 — 이후 일정 변경이 덮지 않는다.
+    semesterPinned: true,
     // 신청 흐름과 동일한 단일 소스 헬퍼 — 포스터 처리가 루트마다 갈라지지 않는다
     posterKey: await promoteSeminarPoster(posterPendingKey),
     preferredTiming: "",

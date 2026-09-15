@@ -129,6 +129,7 @@ export async function approveSeminar(id: string): Promise<SeminarRequest> {
     publicationStatus: "unscheduled",
     schedule: null,
     announcedAt: null,
+    semesterPinned: false,
     activityId: null,
     sourceRequestId: id,
   }));

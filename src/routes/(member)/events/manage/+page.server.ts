@@ -1,5 +1,10 @@
 import { handleUserAction } from "$lib/server/auth-guards";
+import { AppError } from "$lib/server/core/errors";
 import { getQueue, getTable } from "$lib/server/data/tables";
+import {
+  cancelSeminar,
+  seminarHasStarted,
+} from "$lib/server/services/seminars";
 import {
   getManagedSeminars,
   savePresenterAttendance,
@@ -12,13 +17,27 @@ import type { PageServerLoad } from "./$types";
  * (non-presenters get an empty list); the nav link hides it, nothing more.
  */
 export const load: PageServerLoad = async ({ locals }) => {
-  const [seminars, events, activities] = await Promise.all([
+  const [seminars, events, activities, seminarRows] = await Promise.all([
     getManagedSeminars(locals.member!.memberId),
     getTable("events"),
     getTable("activities"),
+    getTable("seminars"),
   ]);
   const eventById = new Map(events.map((e) => [e.id, e]));
   const activityById = new Map(activities.map((a) => [a.id, a]));
+  // 이 화면이 쥔 것은 **이벤트 id**이고 취소는 **세미나 id**로 한다. 다리는
+  // 공개 시 심은 앵커(`seminar:<id>`)이고, 앵커가 없는 이주분은 activityId로
+  // 잇는다 — 둘 다 없으면 취소할 대상을 특정할 수 없으므로 버튼을 내린다.
+  const seminarByEventId = new Map(
+    events.flatMap((event) => {
+      const seminar = seminarRows.find(
+        (s) =>
+          event.sourceRequestId === `seminar:${s.id}` ||
+          (s.activityId !== null && s.activityId === event.activityId),
+      );
+      return seminar ? [[event.id, seminar] as const] : [];
+    }),
+  );
 
   const managedSeminars = await Promise.all(
     seminars.map(async (seminar) => {
@@ -29,8 +48,17 @@ export const load: PageServerLoad = async ({ locals }) => {
       const checkedInAt = new Map(
         (await getQueue(seminar.id)).map((r) => [r.memberId, r.startTime]),
       );
+      const row = seminarByEventId.get(seminar.id);
       return {
         ...seminar,
+        seminarId: row?.id ?? null,
+        // 개설자는 **열리기 전까지만** 취소할 수 있다 (결정 6). 서버가 같은
+        // 판정을 독립적으로 하므로 이것은 화면을 맞추는 값이지 관문이 아니다.
+        canCancel:
+          row !== undefined &&
+          row.publicationStatus !== "cancelled" &&
+          row.presenterIds.includes(locals.member!.memberId) &&
+          !seminarHasStarted(row),
         endsAt: event?.date.end ?? null,
         nonApplicantAttendanceCount: (activity?.attendeeIds ?? []).filter(
           (id) => !pool.has(id),
@@ -75,6 +103,30 @@ export const actions = {
         applicantAttendeeIds: attendeeIds.filter((id) => pool.has(id)),
         totalAttendanceCount: attendeeIds.length,
       };
+    });
+  },
+
+  /**
+   * 개설자 본인의 취소. 서비스가 두 가지를 강제한다 — 자기 세미나만, 그리고
+   * **열리기 전까지만**. 이미 치른 세미나를 지우는 것은 출석 기록을 조용히
+   * 없애는 일이라 관리자에게만 열려 있다.
+   */
+  cancelSeminar: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
+    const data = await request.formData();
+    const seminarId = data.get("seminarId") as string;
+    return handleUserAction(locals, async () => {
+      if (!seminarId) throw new AppError("VALIDATION_FAILED");
+      await cancelSeminar(seminarId, {
+        memberId: locals.member!.memberId,
+        isAdmin: locals.member!.isAdmin === true,
+      });
+      return { operation: "seminarCancelled" as const, seminarId };
     });
   },
 };

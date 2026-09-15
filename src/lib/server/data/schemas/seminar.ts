@@ -71,6 +71,14 @@ export const SeminarSchema = z.object({
    * 둘 다 실측된 결함이다. 발송 여부는 이 앵커가 혼자 결정한다.
    */
   announcedAt: DateTime.nullable().default(null),
+  /**
+   * 학기를 관리자가 직접 정했다는 표시.
+   *
+   * 학기는 기본적으로 확정된 일정에서 자동 도출된다(결정 4). 그러나 관리자가
+   * 아카이브 기록에 학기를 직접 입력했다면 그 결정이 자동 도출보다 위다 —
+   * 손으로 적은 "24-2"가 일정 입력 한 번에 조용히 바뀌면 안 된다.
+   */
+  semesterPinned: z.boolean().default(false),
   activityId: Id.nullable(), // archive↔activity link, stamped at publication
   sourceRequestId: SourceRequestId,
 });

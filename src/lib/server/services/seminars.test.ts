@@ -324,6 +324,7 @@ describe("updateSeminarSchedule — 확정 후 일정 변경", () => {
         publicationStatus: "published" as const,
         schedule: null,
         announcedAt: null,
+        semesterPinned: false,
         activityId: null,
         sourceRequestId: null,
       },
@@ -348,7 +349,7 @@ describe("updateSeminarSchedule — 확정 후 일정 변경", () => {
 
   it("취소된 세미나는 일정을 바꿀 수 없다", async () => {
     const id = await published();
-    await cancelSeminar(id);
+    await cancelSeminar(id, { memberId: "admin-1", isAdmin: true });
 
     await expect(updateSeminarSchedule(id, SCHEDULE)).rejects.toSatisfy(
       (e) => e instanceof AppError && e.code === "CONFLICT",
@@ -363,7 +364,7 @@ describe("cancelSeminar — 취소", () => {
     await scheduleSeminar(seminar.id, SCHEDULE);
     await publishSeminar(seminar.id);
 
-    await cancelSeminar(seminar.id);
+    await cancelSeminar(seminar.id, { memberId: "admin-1", isAdmin: true });
 
     expect((await getTable("seminars"))[0].publicationStatus).toBe("cancelled");
     expect((await getTable("events"))[0].status).toBe("cancelled");
@@ -376,7 +377,7 @@ describe("cancelSeminar — 취소", () => {
     await scheduleSeminar(seminar.id, SCHEDULE);
     await publishSeminar(seminar.id);
 
-    await cancelSeminar(seminar.id);
+    await cancelSeminar(seminar.id, { memberId: "admin-1", isAdmin: true });
 
     const activities = await getTable("activities");
     expect(activities).toHaveLength(1);
@@ -387,7 +388,7 @@ describe("cancelSeminar — 취소", () => {
     await approveSeminar((await pendingRequest()).id);
     const [seminar] = await getTable("seminars");
 
-    await cancelSeminar(seminar.id);
+    await cancelSeminar(seminar.id, { memberId: "admin-1", isAdmin: true });
 
     expect((await getTable("seminars"))[0].publicationStatus).toBe("cancelled");
     expect(await getTable("events")).toEqual([]);
@@ -399,10 +400,143 @@ describe("cancelSeminar — 취소", () => {
     await scheduleSeminar(seminar.id, SCHEDULE);
     await publishSeminar(seminar.id);
 
-    await cancelSeminar(seminar.id);
-    await cancelSeminar(seminar.id);
+    await cancelSeminar(seminar.id, { memberId: "admin-1", isAdmin: true });
+    await cancelSeminar(seminar.id, { memberId: "admin-1", isAdmin: true });
 
     expect((await getTable("seminars"))[0].publicationStatus).toBe("cancelled");
     expect((await getTable("events"))[0].status).toBe("cancelled");
+  });
+});
+
+describe("취소 권한 — 개설자와 관리자", () => {
+  const ADMIN = { memberId: "admin-1", isAdmin: true };
+
+  async function publishedSeminar(startOffsetMs: number) {
+    const request = await pendingRequest();
+    await approveSeminar(request.id);
+    const [seminar] = await getTable("seminars");
+    await scheduleSeminar(seminar.id, {
+      startsAt: at(startOffsetMs),
+      endsAt: null,
+      location: "27동",
+    });
+    await publishSeminar(seminar.id);
+    return { id: seminar.id, presenter: seminar.presenterIds[0] };
+  }
+
+  it("개설자는 시작 전 자기 세미나를 취소할 수 있다", async () => {
+    const { id, presenter } = await publishedSeminar(10 * 24 * HOUR);
+
+    await cancelSeminar(id, { memberId: presenter, isAdmin: false });
+
+    expect((await getTable("seminars"))[0].publicationStatus).toBe("cancelled");
+  });
+
+  // 이미 열린 세미나를 개설자가 지울 수 있으면 출석 기록이 조용히 사라진다.
+  it("개설자는 이미 시작된 세미나를 취소할 수 없다", async () => {
+    const { id, presenter } = await publishedSeminar(-2 * HOUR);
+
+    await expect(
+      cancelSeminar(id, { memberId: presenter, isAdmin: false }),
+    ).rejects.toSatisfy((e) => e instanceof AppError && e.code === "FORBIDDEN");
+    expect((await getTable("seminars"))[0].publicationStatus).toBe("published");
+  });
+
+  it("남의 세미나는 취소할 수 없다", async () => {
+    const { id } = await publishedSeminar(10 * 24 * HOUR);
+
+    await expect(
+      cancelSeminar(id, { memberId: "someone-else", isAdmin: false }),
+    ).rejects.toSatisfy((e) => e instanceof AppError && e.code === "FORBIDDEN");
+  });
+
+  // 관리자는 가능하되, 되돌릴 수 없는 조작이라 명시적 확인을 요구한다.
+  it("관리자도 시작된 세미나는 확인 없이 취소할 수 없다", async () => {
+    const { id } = await publishedSeminar(-2 * HOUR);
+
+    await expect(cancelSeminar(id, ADMIN)).rejects.toSatisfy(
+      (e) => e instanceof AppError && e.code === "CONFLICT",
+    );
+  });
+
+  it("관리자가 확인하면 시작된 세미나도 취소된다", async () => {
+    const { id } = await publishedSeminar(-2 * HOUR);
+
+    await cancelSeminar(id, { ...ADMIN, acknowledgeStarted: true });
+
+    expect((await getTable("seminars"))[0].publicationStatus).toBe("cancelled");
+  });
+
+  // 이주로 일정을 잃은 레거시 공개 행은 이미 치른 세미나다. `schedule`이 비었다는
+  // 이유로 "아직 안 열렸다"로 읽으면 몇 해 전 세미나를 개설자가 조용히 지운다.
+  it("일정이 비어 있는 공개 세미나는 이미 열린 것으로 다룬다", async () => {
+    const { id, presenter } = await publishedSeminar(10 * 24 * HOUR);
+    await mutate("seminars", (rows) =>
+      rows.map((s) => (s.id === id ? { ...s, schedule: null } : s)),
+    );
+
+    await expect(
+      cancelSeminar(id, { memberId: presenter, isAdmin: false }),
+    ).rejects.toSatisfy((e) => e instanceof AppError && e.code === "FORBIDDEN");
+    await expect(cancelSeminar(id, ADMIN)).rejects.toSatisfy(
+      (e) => e instanceof AppError && e.code === "CONFLICT",
+    );
+
+    await cancelSeminar(id, { ...ADMIN, acknowledgeStarted: true });
+    expect((await getTable("seminars"))[0].publicationStatus).toBe("cancelled");
+  });
+
+  it("시작 전 세미나에는 확인이 필요 없다", async () => {
+    const { id } = await publishedSeminar(10 * 24 * HOUR);
+
+    await cancelSeminar(id, ADMIN);
+
+    expect((await getTable("seminars"))[0].publicationStatus).toBe("cancelled");
+  });
+});
+
+describe("학기 — 자동 도출과 관리자 결정", () => {
+  it("관리자가 직접 정한 학기는 일정 변경이 덮지 않는다", async () => {
+    await mutate("seminars", (rows) => [
+      ...rows,
+      {
+        id: "pinned-1",
+        title: "손으로 적은 기록",
+        semester: "24-2",
+        note: "",
+        presenterIds: [],
+        externalPresenters: "",
+        materials: [],
+        photos: [],
+        posterKey: "",
+        preferredTiming: "",
+        publicationStatus: "published" as const,
+        schedule: null,
+        announcedAt: null,
+        semesterPinned: true,
+        activityId: null,
+        sourceRequestId: null,
+      },
+    ]);
+
+    await updateSeminarSchedule("pinned-1", SCHEDULE);
+
+    const row = (await getTable("seminars")).find((s) => s.id === "pinned-1")!;
+    expect(row.semester).toBe("24-2"); // 자동 도출이 관리자 결정을 이기지 않는다
+    expect(row.schedule).toEqual(SCHEDULE);
+  });
+
+  it("고정되지 않은 기록은 일정에서 자동으로 도출한다", async () => {
+    const request = await pendingRequest();
+    await approveSeminar(request.id);
+    const [seminar] = await getTable("seminars");
+    await scheduleSeminar(seminar.id, SCHEDULE);
+    await publishSeminar(seminar.id);
+
+    const moved = { ...SCHEDULE, startsAt: at(200 * 24 * HOUR), endsAt: null };
+    await updateSeminarSchedule(seminar.id, moved);
+
+    const [updated] = await getTable("seminars");
+    expect(updated.semester).toBe(termOf(new Date(moved.startsAt)));
   });
 });

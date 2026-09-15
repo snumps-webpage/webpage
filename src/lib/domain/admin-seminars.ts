@@ -71,6 +71,9 @@ export interface AdminSeminarItem {
   eventId: string | null;
   canSchedule: boolean;
   canPublish: boolean;
+  canCancel: boolean;
+  /** 시작 시각이 지났는가 — 취소에 두 번째 확인이 필요한지 가른다. */
+  hasStarted: boolean;
 }
 
 export interface AdminSeminarDashboardData {
@@ -104,6 +107,11 @@ export type AdminSeminarOperationResult =
       schedule: SeminarSchedule;
       mailEvent: "none" | "schedule-changed";
       mailFailed: boolean;
+    }
+  | {
+      success: true;
+      operation: "cancelled";
+      seminarId: string;
     }
   | {
       success: true;

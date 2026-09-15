@@ -314,6 +314,17 @@ textarea:focus-visible {
   border-color: var(--latex-accent);
 }
 
+/* 되돌릴 수 없는 조작(취소·해제)의 공통 표시. 예전에는 페이지마다 따로
+   선언해서, 새 화면에서 .danger가 조용히 평범한 버튼으로 보였다. */
+.paper-btn.danger {
+  border-color: var(--color-danger-text, #b00);
+  color: var(--color-danger-text, #b00);
+}
+
+.paper-btn.danger:hover:not(:disabled) {
+  background: var(--color-danger-bg, #fdf0f0);
+}
+
 .paper-btn.small {
   padding: 0.38rem 0.75rem;
   font-size: 0.66rem;
