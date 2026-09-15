@@ -1,4 +1,5 @@
 import { ensureAdmin, handleAdminAction } from "$lib/server/auth-guards";
+import { fail } from "@sveltejs/kit";
 import { getTable } from "$lib/server/data/tables";
 import { memberPickers } from "$lib/server/data/repos";
 import {
@@ -39,10 +40,16 @@ export const load: PageServerLoad = async ({ locals }) => {
   ]);
   const requestById = new Map(requests.map((r) => [r.id, r]));
   const rows = [...seminars].reverse().map((s) => {
-    const request = s.sourceRequestId ? requestById.get(s.sourceRequestId) : undefined;
+    const request = s.sourceRequestId
+      ? requestById.get(s.sourceRequestId)
+      : undefined;
     const event =
-      events.find((e) => s.sourceRequestId && e.sourceRequestId === s.sourceRequestId) ??
-      (s.activityId ? events.find((e) => e.activityId === s.activityId) : undefined);
+      events.find(
+        (e) => s.sourceRequestId && e.sourceRequestId === s.sourceRequestId,
+      ) ??
+      (s.activityId
+        ? events.find((e) => e.activityId === s.activityId)
+        : undefined);
     return { s, request, event };
   });
   const presenterOf = (id: string) =>
@@ -111,7 +118,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 type Ctx = { request: Request; locals: App.Locals };
 
 const parseIds = (raw: string | null) =>
-  raw ? [...new Set(raw.split(",").map((s) => s.trim()).filter(Boolean))] : [];
+  raw
+    ? [
+        ...new Set(
+          raw
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+        ),
+      ]
+    : [];
 
 function requireTerm(raw: string): string {
   if (!SEMESTER_PATTERN.test(raw)) throw new AppError("VALIDATION_FAILED");
@@ -126,16 +142,23 @@ export const actions = {
       const seminarId = data.get("seminarId") as string;
       if (!seminarId) throw new AppError("VALIDATION_FAILED");
       const parsed = validateSeminarScheduleForm(data);
-      if (!parsed.success) return parsed.failure;
+      // fail()로 감싸지 않으면 runAction이 `status`가 없는 객체를 성공으로
+      // 포장한다 — 다이얼로그가 저장된 것처럼 닫히고 오류 문구는 화면에
+      // 도달하지 못한다(실측).
+      if (!parsed.success) return fail(400, parsed.failure);
 
       const schedule = {
         startsAt: kstInputToIso(parsed.data.startsAtLocal),
-        endsAt: parsed.data.endsAtLocal ? kstInputToIso(parsed.data.endsAtLocal) : null,
+        endsAt: parsed.data.endsAtLocal
+          ? kstInputToIso(parsed.data.endsAtLocal)
+          : null,
         location: parsed.data.location,
       };
       // 공개된 세미나의 일정 변경은 활동·이벤트까지 함께 맞춰야 한다 —
       // 이주로 일정을 잃은 레거시 행을 고치는 입구이기도 하다.
-      const seminar = (await getTable("seminars")).find((s) => s.id === seminarId);
+      const seminar = (await getTable("seminars")).find(
+        (s) => s.id === seminarId,
+      );
       if (!seminar) throw new AppError("NOT_FOUND");
       if (seminar.publicationStatus === "published") {
         await updateSeminarSchedule(seminarId, schedule);
@@ -152,8 +175,15 @@ export const actions = {
     return handleAdminAction(locals, async () => {
       const seminarId = data.get("seminarId") as string;
       if (!seminarId) throw new AppError("VALIDATION_FAILED");
-      const { activityId, eventId, mailFailed } = await publishSeminar(seminarId);
-      return { operation: "published", seminarId, activityId, eventId, mailFailed };
+      const { activityId, eventId, mailFailed } =
+        await publishSeminar(seminarId);
+      return {
+        operation: "published",
+        seminarId,
+        activityId,
+        eventId,
+        mailFailed,
+      };
     });
   },
 
@@ -173,13 +203,16 @@ export const actions = {
     return handleAdminAction(locals, async () => {
       const title = (data.get("title") as string)?.trim();
       if (!title) throw new AppError("VALIDATION_FAILED");
-      await createSeminar({
-        title,
-        semester: requireTerm(data.get("semester") as string),
-        note: (data.get("note") as string) ?? "",
-        presenterIds: parseIds(data.get("presenterIds") as string),
-        externalPresenters: (data.get("externalPresenters") as string) ?? "",
-      }, (data.get("posterPendingKey") as string) || "");
+      await createSeminar(
+        {
+          title,
+          semester: requireTerm(data.get("semester") as string),
+          note: (data.get("note") as string) ?? "",
+          presenterIds: parseIds(data.get("presenterIds") as string),
+          externalPresenters: (data.get("externalPresenters") as string) ?? "",
+        },
+        (data.get("posterPendingKey") as string) || "",
+      );
       return { operation: "seminarRecordCreated" };
     });
   },
@@ -187,15 +220,22 @@ export const actions = {
   update: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
-      await updateSeminar(data.get("id") as string, {
-        title: (data.get("title") as string)?.trim() || undefined,
-        semester: data.get("semester") ? requireTerm(data.get("semester") as string) : undefined,
-        note: (data.get("note") as string) ?? undefined,
-        presenterIds: data.get("presenterIds")
-          ? parseIds(data.get("presenterIds") as string)
-          : undefined,
-        externalPresenters: (data.get("externalPresenters") as string) ?? undefined,
-      }, (data.get("posterPendingKey") as string) || "");
+      await updateSeminar(
+        data.get("id") as string,
+        {
+          title: (data.get("title") as string)?.trim() || undefined,
+          semester: data.get("semester")
+            ? requireTerm(data.get("semester") as string)
+            : undefined,
+          note: (data.get("note") as string) ?? undefined,
+          presenterIds: data.get("presenterIds")
+            ? parseIds(data.get("presenterIds") as string)
+            : undefined,
+          externalPresenters:
+            (data.get("externalPresenters") as string) ?? undefined,
+        },
+        (data.get("posterPendingKey") as string) || "",
+      );
       return { operation: "seminarRecordUpdated" };
     });
   },
@@ -214,8 +254,10 @@ export const actions = {
     return handleAdminAction(locals, async () => {
       const id = data.get("id") as string;
       const field = data.get("field") as "materials" | "photos";
-      if (field !== "materials" && field !== "photos") throw new AppError("VALIDATION_FAILED");
-      const purpose = field === "materials" ? "seminar-material" : "seminar-photo";
+      if (field !== "materials" && field !== "photos")
+        throw new AppError("VALIDATION_FAILED");
+      const purpose =
+        field === "materials" ? "seminar-material" : "seminar-photo";
       const finalKey = await promotePendingUpload(
         data.get("pendingKey") as string,
         purpose,
@@ -230,7 +272,8 @@ export const actions = {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       const field = data.get("field") as "materials" | "photos";
-      if (field !== "materials" && field !== "photos") throw new AppError("VALIDATION_FAILED");
+      if (field !== "materials" && field !== "photos")
+        throw new AppError("VALIDATION_FAILED");
       await setSeminarFiles(data.get("id") as string, field, {
         remove: data.get("s3Key") as string,
       });

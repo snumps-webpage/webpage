@@ -100,10 +100,17 @@
         action="?/publishSeminar"
         use:enhance={() => {
           processing = true;
-          return async ({ result }) => {
+          return async ({ result, update }) => {
             processing = false;
             if (result.type === "success") {
-              onTransition(result.data as AdminSeminarOperationResult);
+              await update({ reset: false });
+              const payload = result.data as AdminSeminarOperationResult;
+              // 서버는 전 회원 메일 실패를 정직하게 보고한다 — 삼키면 관리자가
+              // 재발송이 필요하다는 사실을 알 길이 없다.
+              if ("mailFailed" in payload && payload.mailFailed) {
+                onError("세미나는 공개했지만 전 회원 공지 발송에 실패했습니다. 다시 공개를 눌러 재발송할 수 있습니다.");
+              }
+              onTransition(payload);
             } else {
               onError("세미나를 공개하지 못했습니다.");
             }
@@ -119,7 +126,7 @@
   </div>
 
   {#if seminar.publicationStatus === "published"}
-    <p class="mail-note">공개된 일정을 수정하면 전 회원에게 변경 안내 메일을 보냅니다.</p>
+    <p class="mail-note">공개된 일정을 수정하면 출석 이벤트와 공개 아카이브가 함께 갱신됩니다.</p>
   {:else if seminar.publicationStatus === "scheduled"}
     <p class="mail-note">공개할 때 전 회원에게 확정 일정 안내 메일을 보냅니다.</p>
   {:else if seminar.publicationStatus === "unscheduled"}

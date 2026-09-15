@@ -49,10 +49,13 @@
       processing = true;
       issues = {};
 
-      return async ({ result }) => {
+      return async ({ result, update }) => {
         processing = false;
 
         if (result.type === "success") {
+          // 커스텀 콜백이 있으면 SvelteKit은 기본 동작(invalidateAll)을 건너뛴다.
+          // 부르지 않으면 저장해도 카드가 그대로라 관리자가 실패로 오인한다.
+          await update({ reset: false });
           onSaved(result.data as AdminSeminarOperationResult);
           return;
         }
@@ -138,7 +141,7 @@
     <aside class="publication-note">
       <strong>저장은 공개가 아닙니다.</strong>
       {#if seminar.publicationStatus === "published"}
-        저장하면 회원 페이지의 일정이 갱신되고 전 회원에게 변경 안내 메일을 보냅니다.
+        저장하면 회원 페이지와 공개 아카이브의 일정이 함께 갱신됩니다.
       {:else}
         일정 저장 후 ‘활동·출석 이벤트 공개’를 누르면 회원 페이지에 노출되고 확정 일정 안내
         메일을 보냅니다. 저장만으로는 메일을 보내지 않습니다.
