@@ -97,7 +97,6 @@ const REGISTERED: Record<string, Zone> = {
   "/api/cron/sync-events": "api",
   "/api/health": "api",
   "/api/uploads/presign": "api",
-  "/api/posters/seminar/png": "api",
 };
 
 describe("route registry", () => {
