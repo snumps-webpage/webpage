@@ -166,6 +166,44 @@ describe("?/publishSeminar · ?/cancelSeminar", () => {
     expect((await getTable("events"))[0].status).toBe("cancelled");
   });
 
+  // 이미 시작된 세미나의 취소는 되돌릴 수 없다 — 액션이 폼의 두 번째 확인을
+  // 서버로 넘기는지까지 여기서 고정한다(서비스 단위 테스트로는 배선을 못 본다).
+  async function startedAndPublished() {
+    const seminarId = await approvedSeminarId();
+    await actions.scheduleSeminar(
+      post({
+        seminarId,
+        startsAtLocal: localInput(-3 * HOUR),
+        endsAtLocal: "",
+        location: "27동",
+      }),
+    );
+    await actions.publishSeminar(post({ seminarId }));
+    return seminarId;
+  }
+
+  it("이미 시작된 세미나는 확인 없이 취소되지 않는다", async () => {
+    const seminarId = await startedAndPublished();
+
+    const result = (await actions.cancelSeminar(post({ seminarId }))) as {
+      status?: number;
+    };
+
+    expect(result.status).toBe(409);
+    expect((await getTable("seminars"))[0].publicationStatus).toBe("published");
+  });
+
+  it("확인을 함께 보내면 시작된 세미나도 취소된다", async () => {
+    const seminarId = await startedAndPublished();
+
+    const result = (await actions.cancelSeminar(
+      post({ seminarId, acknowledgeStarted: "yes" }),
+    )) as { operation?: string };
+
+    expect(result.operation).toBe("cancelled");
+    expect((await getTable("seminars"))[0].publicationStatus).toBe("cancelled");
+  });
+
   it("세미나 id가 없으면 검증 실패다", async () => {
     await expect(actions.publishSeminar(post({}))).resolves.toMatchObject({
       status: 400,
