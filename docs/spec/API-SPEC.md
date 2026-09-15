@@ -590,7 +590,7 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
 | ------------------------------------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `?/approve`                                            | ADM-01    | ① `private-info` 생성(신청 내용 **전환**) ② `members` 생성(status **associate**) ③ **신청 행 제거**. ①②는 `sourceRequestId` check-before-create — ③ 실패 후 재실행은 기존 레코드를 감지하고 행 제거만 수행. 행이 이미 없으면 `NOT_FOUND`                       |
 | `?/reject`                                             | ADM-01    | 거절 알림 메일 후 **신청 행 제거** (전환 대상 없음)                                                                                                                                                                                                            |
-| `?/approveSeminar`                                     | ADM-02    | ① `activities` ② `events`(active, `presenterIds` = request의 presenterIds, `activityId` 연결) ③ `seminars`(`activityId`·`presenterIds` 기록) ④ request `approved` ⑤ 공지 메일(비전파). 전 단계 `sourceRequestId`                                               |
+| `?/approveSeminar`                                     | ADM-02    | ① `seminars` 생성(`publicationStatus: unscheduled`, `schedule: null`, `activityId: null`) ② request `approved`(CAS) ③ 신청자 알림 메일. **활동·이벤트·전 회원 공지는 만들지 않는다** — 그것은 공개(`?/publishSeminar`)의 일이다. 멱등 앵커는 `sourceRequestId` |
 | `?/rejectSeminar` / `?/approveStudy` / `?/rejectStudy` | ADM-02·16 | 스터디 승인: `studies` 생성(`organizerIds = [requesterId]`, recruiting, `sourceRequestId`) → request `approved` → 알림 메일                                                                                                                                    |
 | `?/activateEvent` / `?/expireEvent` / `?/deleteEvent`  | ADM-04    | 전이 draft↔active↔expired (cancelled는 불가). **deleteEvent**: 해당 `attendance-queue/<eventId>`에 pending 있으면 `CONFLICT`(먼저 처리 요구), 없으면 큐 객체 함께 삭제                                                                                         |
 | `?/updateEvent`                                        | ADM-04    | 제목·일시·타입 수정 (오입력 정정)                                                                                                                                                                                                                              |
@@ -598,6 +598,21 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
 | `?/rejectAttendance` / `?/deleteAttendanceRecord`      | ADM-03    | 입력 `(eventId, queueId)`. **approved 행에 적용 시 역반영** — `attendeeIds`에서 제거 후 상태 변경/삭제. 캐시 동일                                                                                                                                              |
 | `?/updateAttendanceTime`                               | ADM-03    | 입력 `(eventId, queueId, start, end)`. 시각 수정                                                                                                                                                                                                               |
 | `?/holdWithdrawal` / `?/releaseWithdrawalHold`         | ADM-17    | §7-3 표 참조 — 진입은 이 대시보드의 탈퇴 유예 목록                                                                                                                                                                                                             |
+
+### 7-2-1. `/admin/seminars` 액션 — ADM-02·18
+
+승인과 공개가 갈라진 뒤 생긴 화면이다. 승인은 일정을 만들지 않으므로, 일시·장소를
+정하고 공개하는 일이 여기에 산다.
+
+| 액션                | 기능   | 처리                                                                                                                                                                                                                                                                                                                  |
+| ------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `?/scheduleSeminar` | ADM-02 | 입력 `(seminarId, startsAtLocal, endsAtLocal?, location)` — KST 입력을 ISO로 바꿔 `seminars.schedule`에 저장하고 `scheduled`로 전이. 검증 실패는 `fail(400)`으로 필드 오류를 돌려준다. 이미 `published`인 행은 `updateSeminarSchedule` 경로로 가 활동·이벤트까지 함께 맞추고, 실제로 바뀌었고 미래 일정이면 변경 공지 |
+| `?/publishSeminar`  | ADM-02 | 상태 전이를 CAS로 **먼저** 확정한 뒤 활동·이벤트를 앵커(`seminar:<id>`)로 멱등 생성. 학기는 확정된 일정에서 도출하되 `semesterPinned`면 관리자 값이 우선. 공지는 `announcedAt` 선점으로 정확히 한 번, 지난 일정이면 보내지 않는다. 공개 도중 취소가 끼어들면 만든 이벤트를 취소로 덮고 공지하지 않는다                |
+| `?/cancelSeminar`   | ADM-18 | 입력 `(seminarId, acknowledgeStarted?)`. 세미나와 연결 이벤트를 `cancelled`로. 이미 시작된 일정은 `acknowledgeStarted=yes` 없이는 `CONFLICT`. 권한·시작 여부 판정은 전부 쓰기 CAS 안에서 그 순간의 행으로 한다                                                                                                        |
+
+회원 구역에도 같은 이름의 액션이 하나 있다 — `(member)/events/manage`의 `?/cancelSeminar`.
+주체는 폼이 아니라 세션에서 오고, 개설자는 **열리기 전까지만** 자기 세미나를 취소할 수 있다
+(이후에는 `FORBIDDEN`). 화면은 그 경우 버튼 자체를 그리지 않는다.
 
 ### 7-3. 회원 편집 — ADM-07·12
 
