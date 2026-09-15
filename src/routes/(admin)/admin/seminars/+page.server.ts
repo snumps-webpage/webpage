@@ -89,6 +89,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         // 계산을 실어 보내면 그 사이에 시작 시각이 지난 세미나가 두 번째 확인
         // 없이 전송되고, 서버가 거절하는데 화면은 이유를 모른다.
         canCancel: s.publicationStatus !== "cancelled",
+        canReapplyCancel: s.publicationStatus === "cancelled",
       })),
       generatedAt: nowKstIso(),
     },
@@ -164,12 +165,13 @@ export const actions = {
         (s) => s.id === seminarId,
       );
       if (!seminar) throw new AppError("NOT_FOUND");
+      let mailFailed = false;
       if (seminar.publicationStatus === "published") {
-        await updateSeminarSchedule(seminarId, schedule);
+        ({ mailFailed } = await updateSeminarSchedule(seminarId, schedule));
       } else {
         await scheduleSeminar(seminarId, schedule);
       }
-      return { operation: "scheduled", seminarId, schedule };
+      return { operation: "scheduled", seminarId, schedule, mailFailed };
     });
   },
 
@@ -179,8 +181,13 @@ export const actions = {
     return handleAdminAction(locals, async () => {
       const seminarId = data.get("seminarId") as string;
       if (!seminarId) throw new AppError("VALIDATION_FAILED");
-      const { activityId, eventId, mailFailed } =
+      const { activityId, eventId, mailFailed, cancelledDuringPublish } =
         await publishSeminar(seminarId);
+      // 공개 도중 취소가 이겼다면 공개는 성립하지 않았다 — 성공 문구를 띄우면
+      // 보드는 "취소"로 새로 그려지는데 알림만 "공개했습니다"라고 말한다.
+      if (cancelledDuringPublish) {
+        return { operation: "cancelled", seminarId, mailFailed: false };
+      }
       return {
         operation: "published",
         seminarId,
@@ -199,12 +206,12 @@ export const actions = {
       if (!seminarId) throw new AppError("VALIDATION_FAILED");
       // 이미 시작된 세미나를 지우는 것은 되돌릴 수 없다 — 두 번째 확인을
       // 폼에서 받아 서버가 검사한다(대화상자만으로는 보장이 되지 않는다).
-      await cancelSeminar(seminarId, {
+      const { mailFailed } = await cancelSeminar(seminarId, {
         memberId: locals.member?.memberId ?? "",
         isAdmin: true,
         acknowledgeStarted: data.get("acknowledgeStarted") === "yes",
       });
-      return { operation: "cancelled", seminarId };
+      return { operation: "cancelled", seminarId, mailFailed };
     });
   },
 

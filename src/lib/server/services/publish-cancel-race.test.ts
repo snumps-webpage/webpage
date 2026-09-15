@@ -49,7 +49,8 @@ import { newId } from "$lib/server/core/id";
 import { toKstIso } from "$lib/server/core/time";
 import { approveSeminar, submitSeminarRequest } from "./seminar-requests";
 import { cancelSeminar, publishSeminar, scheduleSeminar } from "./seminars";
-import { getMemberVisibleEvents } from "./visibility";
+import { getMemberVisibleEvents, hiddenActivityIds } from "./visibility";
+import { getPublicActivities } from "$lib/server/public/archive";
 
 const HOUR = 60 * 60 * 1000;
 const ADMIN = { memberId: "admin-1", isAdmin: true };
@@ -109,6 +110,21 @@ describe("공개 중 취소가 끼어들 때", () => {
     await publishSeminar(id);
 
     expect(await getMemberVisibleEvents()).toEqual([]);
+  });
+
+  // 이벤트만 덮는 것으로는 부족하다. 숨김 규칙은 전부 `seminars.activityId`를
+  // 보는데, 그 칸을 채우는 것이 공개의 **마지막** 단계다 — 취소가 그 앞에
+  // 끼어들면 활동은 만들어졌는데 아무도 그것을 세미나와 잇지 못한다.
+  it("만들어진 활동이 공개 달력에 남지 않는다", async () => {
+    const id = await scheduledSeminar();
+    hook.fn = async () => {
+      await cancelSeminar(id, ADMIN);
+    };
+
+    await publishSeminar(id);
+
+    expect(await getPublicActivities()).toEqual([]);
+    expect([...(await hiddenActivityIds())]).toHaveLength(1);
   });
 
   it("취소된 세미나의 공개 공지는 나가지 않는다", async () => {

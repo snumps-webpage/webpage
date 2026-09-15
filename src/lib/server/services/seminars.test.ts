@@ -459,6 +459,31 @@ describe("cancelSeminar — 취소", () => {
   });
 });
 
+describe("취소 재적용 — 남은 이벤트를 다시 덮는다", () => {
+  /**
+   * 취소의 이벤트 정리가 CAS를 다섯 번 내리 잃으면(`WRITE_CONFLICT`) 세미나는
+   * `cancelled`인데 출석 이벤트는 `active`로 남는다. 같은 호출을 다시 하는 것이
+   * 복구여야 한다 — 그러지 않으면 손으로 데이터를 고치는 수밖에 없다.
+   */
+  it("이미 취소된 세미나에 다시 취소를 걸면 남은 이벤트가 정리된다", async () => {
+    await approveSeminar((await pendingRequest()).id);
+    const [seminar] = await getTable("seminars");
+    await scheduleSeminar(seminar.id, SCHEDULE);
+    await publishSeminar(seminar.id);
+    await cancelSeminar(seminar.id, { memberId: "admin-1", isAdmin: true });
+    // 정리가 끝나기 전에 죽은 상태를 만든다.
+    await mutate("events", (rows) =>
+      rows.map((e) => ({ ...e, status: "active" as const })),
+    );
+    sentMail.length = 0;
+
+    await cancelSeminar(seminar.id, { memberId: "admin-1", isAdmin: true });
+
+    expect((await getTable("events"))[0].status).toBe("cancelled");
+    expect(sentMail).toEqual([]); // 복구는 공지를 다시 보내지 않는다
+  });
+});
+
 describe("취소 공지", () => {
   async function publishedAt(startOffsetMs: number) {
     await approveSeminar((await pendingRequest()).id);
@@ -512,6 +537,60 @@ describe("취소 공지", () => {
     await cancelSeminar(id, { memberId: "admin-1", isAdmin: true });
 
     expect(sentMail).toHaveLength(1);
+  });
+});
+
+describe("공지 발송 실패는 삼키지 않는다", () => {
+  /**
+   * 전 회원 메일은 실패해도 예외를 던지지 않는다(§5-7: 메일이 본 동작을 막지
+   * 않는다). 그렇다면 **호출자가 그 사실을 들어야** 한다 — 공개 경로는 이미
+   * `mailFailed`로 관리자에게 알리는데, 변경·취소 경로는 결과를 버리고 있어
+   * 아무도 재발송이 필요하다는 것을 알 수 없었다.
+   */
+  async function published() {
+    await approveSeminar((await pendingRequest()).id);
+    const [seminar] = await getTable("seminars");
+    await scheduleSeminar(seminar.id, SCHEDULE);
+    await publishSeminar(seminar.id);
+    sentMail.length = 0;
+    return seminar.id;
+  }
+
+  it("일정 변경 공지 실패를 알린다", async () => {
+    const id = await published();
+    mailOutcome.ok = false;
+
+    const { mailFailed } = await updateSeminarSchedule(id, {
+      ...SCHEDULE,
+      location: "다른 곳",
+    });
+
+    expect(mailFailed).toBe(true);
+  });
+
+  it("취소 공지 실패를 알린다", async () => {
+    const id = await published();
+    mailOutcome.ok = false;
+
+    const { mailFailed } = await cancelSeminar(id, {
+      memberId: "admin-1",
+      isAdmin: true,
+    });
+
+    expect(mailFailed).toBe(true);
+  });
+
+  it("보낼 공지가 없으면 실패도 아니다", async () => {
+    await approveSeminar((await pendingRequest()).id);
+    const [seminar] = await getTable("seminars");
+    mailOutcome.ok = false;
+
+    const { mailFailed } = await cancelSeminar(seminar.id, {
+      memberId: "admin-1",
+      isAdmin: true,
+    });
+
+    expect(mailFailed).toBe(false);
   });
 });
 

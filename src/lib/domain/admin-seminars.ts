@@ -71,6 +71,12 @@ export interface AdminSeminarItem {
   canSchedule: boolean;
   canPublish: boolean;
   canCancel: boolean;
+  /**
+   * 이미 취소된 세미나에 취소를 **다시** 걸 수 있는가. 정리(이벤트 덮기)가
+   * 쓰기 경합으로 중간에 끊기면 취소된 세미나에 살아 있는 출석 이벤트가 남는데,
+   * 그때 같은 호출을 다시 하는 것이 유일한 복구다.
+   */
+  canReapplyCancel: boolean;
 }
 
 export interface AdminSeminarDashboardData {
@@ -91,11 +97,14 @@ export type AdminSeminarOperationResult =
       operation: "scheduled";
       seminarId: string;
       schedule: SeminarSchedule;
+      /** 공개된 세미나의 일정을 바꾼 경우의 변경 공지 발송 실패 여부. */
+      mailFailed: boolean;
     }
   | {
       success: true;
       operation: "cancelled";
       seminarId: string;
+      mailFailed: boolean;
     }
   | {
       success: true;

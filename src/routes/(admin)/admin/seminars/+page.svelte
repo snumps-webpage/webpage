@@ -62,7 +62,9 @@
     if (result.operation === "scheduled") {
       notice = {
         tone: "success",
-        message: "일정을 저장했습니다. 공개하면 전 회원에게 안내 메일이 나갑니다.",
+        message: result.mailFailed
+          ? "일정을 저장했지만 변경 공지 발송에 실패했습니다. 잠시 후 일정을 한 번 더 저장하면 재발송합니다."
+          : "일정을 저장했습니다. 공개하면 전 회원에게 안내 메일이 나갑니다.",
       };
     } else if (result.operation === "published") {
       notice = {
@@ -74,8 +76,9 @@
     } else if (result.operation === "cancelled") {
       notice = {
         tone: "success",
-        message:
-          "세미나를 취소했습니다. 회원·공개 화면에서는 사라지고 관리자 화면에만 남습니다.",
+        message: result.mailFailed
+          ? "세미나를 취소했습니다. 다만 취소 공지 발송에 실패했습니다 — 회원에게는 별도로 알려 주세요."
+          : "세미나를 취소했습니다. 회원·공개 화면에서는 사라지고 관리자 화면에만 남습니다.",
       };
     }
   }

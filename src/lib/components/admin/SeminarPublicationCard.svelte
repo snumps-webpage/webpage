@@ -158,6 +158,39 @@
       </form>
     {/if}
 
+    {#if seminar.canReapplyCancel}
+      <form
+        method="POST"
+        action="?/cancelSeminar"
+        use:enhance={({ formData, cancel }) => {
+          if (
+            !confirm(
+              "취소 처리를 다시 적용합니다. 남아 있는 출석 이벤트를 취소 상태로 덮습니다.",
+            )
+          ) {
+            cancel();
+            return;
+          }
+          // 이미 시작된 일정이었을 수 있다 — 서버가 확인을 요구하므로 함께 보낸다.
+          formData.set("acknowledgeStarted", "yes");
+          processing = true;
+          return async ({ result, update }) => {
+            processing = false;
+            if (result.type === "success") {
+              await update({ reset: false });
+              onTransition(result.data as AdminSeminarOperationResult);
+            } else {
+              onError(cancelFailure(result as { data?: unknown }));
+            }
+          };
+        }}
+      >
+        <input type="hidden" name="seminarId" value={seminar.id} />
+        <button class="paper-btn small" type="submit" disabled={processing}
+          >취소 처리 재적용</button>
+      </form>
+    {/if}
+
     {#if seminar.canSchedule}
       <button class="paper-btn secondary" onclick={() => onSchedule(seminar)}>
         {seminar.schedule ? "일정 수정" : "일정 입력"}
@@ -199,6 +232,10 @@
     <p class="mail-note">공개된 일정을 수정하면 출석 이벤트와 공개 아카이브가 함께 갱신됩니다.</p>
   {:else if seminar.publicationStatus === "scheduled"}
     <p class="mail-note">공개할 때 전 회원에게 확정 일정 안내 메일을 보냅니다.</p>
+  {:else if seminar.publicationStatus === "cancelled"}
+    <p class="mail-note">
+      취소된 세미나입니다. 회원·공개 화면에서는 사라졌고 출석 기록은 보존됩니다.
+    </p>
   {:else if seminar.publicationStatus === "unscheduled"}
     <p class="mail-note">일정 저장은 비공개 초안이며, 공개할 때 확정 일정 안내를 보냅니다.</p>
   {/if}

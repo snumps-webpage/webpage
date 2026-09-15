@@ -102,6 +102,8 @@ export async function publishSeminar(id: string): Promise<{
   activityId: string;
   eventId: string;
   mailFailed: boolean;
+  /** 공개 도중 취소가 끼어들어 공개가 성립하지 않았는가. */
+  cancelledDuringPublish?: boolean;
 }> {
   const entry = await seminarOrThrow(id);
   if (
@@ -177,10 +179,11 @@ export async function publishSeminar(id: string): Promise<{
   await mutate("seminars", (rows) => {
     const idx = rows.findIndex((s) => s.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
-    if (
-      rows[idx].publicationStatus === "published" &&
-      rows[idx].activityId !== activity.id
-    ) {
+    // 상태와 **무관하게** 잇는다. 이 칸은 "공개됐다"가 아니라 "이 세미나의
+    // 활동은 이것"이라는 사실이고, 숨김 규칙이 전부 이 칸을 본다 — 취소가
+    // 이 창에서 이겼을 때 비워 두면, 만들어진 활동을 세미나와 이을 수 있는
+    // 사람이 아무도 없어 공개 달력과 회원 이력에 그대로 남는다(실측).
+    if (rows[idx].activityId !== activity.id) {
       rows[idx] = { ...rows[idx], activityId: activity.id };
     }
     seminar = rows[idx];
@@ -189,13 +192,15 @@ export async function publishSeminar(id: string): Promise<{
 
   if (seminar!.publicationStatus !== "published") {
     // 공개 도중 취소됐다. 만들어 버린 출석 이벤트를 취소로 덮고, 공지는 보내지
-    // 않는다 — 취소된 세미나의 "열립니다" 메일은 되돌릴 수 없다.
+    // 않는다 — 취소된 세미나의 "열립니다" 메일은 되돌릴 수 없다. 호출자에게는
+    // 사실대로 말한다: "공개했습니다"를 띄우면 화면과 데이터가 어긋난다.
     await cancelAnchoredEvents(id, seminar!);
     return {
       seminar: seminar!,
       activityId: activity.id,
       eventId: event.id,
       mailFailed: false,
+      cancelledDuringPublish: true,
     };
   }
 
@@ -280,7 +285,7 @@ async function announceOnce(
 export async function updateSeminarSchedule(
   id: string,
   schedule: SeminarSchedule,
-): Promise<Seminar> {
+): Promise<{ seminar: Seminar; mailFailed: boolean }> {
   let seminar: Seminar | undefined;
   let changed = false;
   await mutate("seminars", (rows) => {
@@ -313,7 +318,8 @@ export async function updateSeminarSchedule(
     return rows;
   });
 
-  if (seminar!.publicationStatus !== "published") return seminar!;
+  if (seminar!.publicationStatus !== "published")
+    return { seminar: seminar!, mailFailed: false };
 
   const date = { start: schedule.startsAt, end: schedule.endsAt };
   const anchor = seminarAnchor(id);
@@ -336,12 +342,18 @@ export async function updateSeminarSchedule(
   // 공지는 **바뀌었을 때만**. 같은 값을 다시 저장하는 것은 변경이 아니고,
   // 지난 일정으로 고치는 것은 기록 정정이지 안내가 아니다 — 공개 공지가
   // 지난 세미나를 알리지 않는 것과 같은 규칙이다.
+  // 발송 결과를 버리면 실패가 조용해진다 — 같은 값을 다시 저장해도 `changed`가
+  // false라 재시도되지 않으므로, 관리자가 모르면 그 공지는 영영 나가지 않는다.
+  let mailFailed = false;
   if (changed && new Date(schedule.startsAt).getTime() > Date.now()) {
     const { sendSeminarScheduleChange } =
       await import("$lib/server/mail/announcements");
-    await sendSeminarScheduleChange({ title: seminar!.title, schedule });
+    mailFailed = !(await sendSeminarScheduleChange({
+      title: seminar!.title,
+      schedule,
+    }));
   }
-  return seminar!;
+  return { seminar: seminar!, mailFailed };
 }
 
 /**
@@ -357,7 +369,7 @@ export async function updateSeminarSchedule(
 export async function cancelSeminar(
   id: string,
   actor: CancelActor,
-): Promise<Seminar> {
+): Promise<{ seminar: Seminar; mailFailed: boolean }> {
   // 존재 확인만 캐시로 한다. **판정은 전부 mutate 안에서**, 그 순간의 행으로
   // 한다 — 표 읽기는 최대 15초 낡을 수 있고, 관리자가 방금 일정을 지난 시각으로
   // 고쳤다면 낡은 스냅샷은 "아직 안 열렸다"고 답한다(실측). 그 답을 믿으면 이미
@@ -404,12 +416,13 @@ export async function cancelSeminar(
   // 공지는 **알린 적 있는** 세미나에만. 알린 적 없는 것의 취소를 알리면
   // "있었는지도 몰랐던 세미나가 취소됐다"가 된다. 이미 치른 세미나의 취소는
   // 기록 정정이므로 역시 알리지 않는다.
+  let mailFailed = false;
   if (flipped && wasAnnounced && !started) {
     const { sendSeminarCancellation } =
       await import("$lib/server/mail/announcements");
-    await sendSeminarCancellation({ title: seminar!.title });
+    mailFailed = !(await sendSeminarCancellation({ title: seminar!.title }));
   }
-  return seminar!;
+  return { seminar: seminar!, mailFailed };
 }
 
 /** 세미나에 딸린 출석 이벤트를 취소로 덮는다 (앵커 우선, 이주분은 activityId). */

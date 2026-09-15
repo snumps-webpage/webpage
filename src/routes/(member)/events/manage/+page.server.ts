@@ -134,11 +134,11 @@ export const actions = {
     const seminarId = data.get("seminarId") as string;
     return handleUserAction(locals, async () => {
       if (!seminarId) throw new AppError("VALIDATION_FAILED");
-      await cancelSeminar(seminarId, {
+      const { mailFailed } = await cancelSeminar(seminarId, {
         memberId: locals.member!.memberId,
         isAdmin: locals.member!.isAdmin === true,
       });
-      return { operation: "seminarCancelled" as const, seminarId };
+      return { operation: "seminarCancelled" as const, seminarId, mailFailed };
     });
   },
 };
