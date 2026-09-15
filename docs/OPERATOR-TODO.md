@@ -131,11 +131,25 @@ Vercel → `snumps` 프로젝트 → Settings → Environment Variables (Product
 앱 경로(`/media/<key>`)로만 링크하고 요청마다 권한을 판정하지만, **버킷이 공개로 남아
 있으면 예전 URL이 그대로 살아 있다.** 이 전환이 차단을 실제로 만든다.
 
-1. Supabase 콘솔 → Storage → `assets` → **Make private** (Public bucket 토글 해제).
-2. 전환 직후 공개 페이지에서 이미지·PDF가 그려지는지 확인한다 — 앱은 서명 URL로
-   리디렉트하므로 정상 동작해야 한다. 깨진다면 `ASSETS_ACCESS`가 `public`으로
-   남아 있는지부터 본다(등록하지 않는 것이 정답이다).
-3. `staging`·`backups`는 원래 비공개다. 바꾸지 않는다.
+**스크립트가 전환과 확인을 한 번에 한다** (콘솔 토글도 되지만, 확인까지 묶여 있는 쪽을 쓴다):
+
+```bash
+node scripts/ops/ops-assets-private.mjs           # 현재 상태만 본다 (아무것도 바꾸지 않음)
+node scripts/ops/ops-assets-private.mjs --apply   # 비공개로 전환 + 확인
+```
+
+`.env`에 `SUPABASE_URL`·`SUPABASE_SECRET_KEY`(**prod**)가 있으면 자동으로 읽는다. 없으면
+앞에 붙여 실행한다: `SUPABASE_URL=... SUPABASE_SECRET_KEY=sb_secret_... node ...`.
+
+`--apply`는 전환 후 **두 방향으로** 확인한다 — 공개 URL이 거부되는지(차단의 증거),
+서명 URL이 200인지(사이트가 살아 있다는 증거). 둘 중 하나라도 어긋나면 0이 아닌 코드로
+끝난다. 되돌리려면 `--public`.
+
+수동 경로: Supabase 콘솔 → Storage → `assets` → **Make private**.
+
+- 전환 후 공개 페이지에서 이미지·PDF가 그려지는지 눈으로도 확인한다. 깨진다면
+  `ASSETS_ACCESS`가 `public`으로 남아 있는지부터 본다(등록하지 않는 것이 정답이다).
+- `staging`·`backups`는 원래 비공개다. 바꾸지 않는다.
 
 > **되돌리기**: 버킷을 다시 공개로 돌리고 `ASSETS_ACCESS=public` + `ASSETS_CDN_URL`을
 > 등록하면 옛 동작으로 복귀한다. 그 상태에서는 취소된 세미나의 파일도 다시 공개된다.
