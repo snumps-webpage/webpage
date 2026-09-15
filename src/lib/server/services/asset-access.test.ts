@@ -146,6 +146,27 @@ describe("resolveAssetAccess", () => {
     expect(await resolveAssetAccess("gallery/g1/ff-photo.jpg")).toBe("public");
   });
 
+  /**
+   * 같은 키를 두 기록이 가리키는 일은 실제로 있다 — 승인은 신청의 포스터 키를
+   * 그대로 물려받는다. 먼저 찾은 행으로 답하면 표의 순서가 정책을 정하게 되고,
+   * 그 방향이 하필 "공개"다. 가장 엄격한 쪽을 택한다.
+   */
+  it("한 키를 여러 기록이 가리키면 더 엄격한 쪽을 따른다", async () => {
+    const shared = "seminars/posters/x/shared-poster.png";
+    await mutate("seminars", () => [
+      seminarRow({
+        publicationStatus: "published" as const,
+        posterKey: shared,
+      }),
+      seminarRow({
+        publicationStatus: "cancelled" as const,
+        posterKey: shared,
+      }),
+    ]);
+
+    expect(await resolveAssetAccess(shared)).toBe("admin");
+  });
+
   // 기본값이 허용이면 지워진 기록의 파일과 오타 경로가 그대로 나간다.
   it("어느 기록에도 속하지 않는 키는 거절한다", async () => {
     expect(await resolveAssetAccess("seminars/gone/zz-slides.pdf")).toBe(

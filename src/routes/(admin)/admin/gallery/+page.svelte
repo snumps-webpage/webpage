@@ -50,7 +50,7 @@
             {#each record.photos as photo (photo.s3Key)}
               <div class="photo-line">
                 <div class="file-meta"><strong>{photo.name}</strong><small>프리뷰에서는 CDN 파생본을 생성하지 않습니다.</small></div>
-                <form method="POST" action="?/removePhoto" onsubmit={(event) => { if (!confirm("사진 연결을 제거할까요?")) event.preventDefault(); }}><input type="hidden" name="id" value={record.id} /><input type="hidden" name="s3Key" value={photo.s3Key} /><button class="paper-btn small" type="submit">사진 제거</button></form>
+                <form method="POST" action="?/removePhoto" onsubmit={(event) => { if (!confirm("이 사진을 삭제합니다. 기록에서 빠지고 저장소에서도 지워집니다. (백업 사본은 남습니다)")) event.preventDefault(); }}><input type="hidden" name="id" value={record.id} /><input type="hidden" name="s3Key" value={photo.s3Key} /><button class="paper-btn small" type="submit">사진 제거</button></form>
               </div>
             {/each}
             <AdminDirectUploadForm recordId={record.id} action="?/addPhoto" inputName="photo" accept="image/jpeg,image/png,image/webp" label="사진 원본 · JPEG/PNG/WebP · 최대 10MB" imagePurpose="gallery-photo" buttonLabel="사진 등록" />

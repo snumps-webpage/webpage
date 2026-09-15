@@ -38,6 +38,7 @@ import {
   setAttendees,
   setOrganizer,
   setSeminarFiles,
+  setStudyPhotos,
   updateActivity,
   updateSeminar,
 } from "./records-admin";
@@ -218,6 +219,81 @@ describe("관리자 파일 삭제 — 기록에서 빼는 것으로는 부족하
 const PNG_HEAD = new Uint8Array([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
 ]);
+
+describe("삭제는 그 기록이 가진 파일만, 아무도 안 쓰는 것만", () => {
+  /**
+   * 삭제 대상 키는 폼의 hidden 필드로 온다 — 즉 **클라이언트가 고른다**. 예전
+   * 구현은 그 키를 기록에서 빼든 못 빼든 무조건 버킷에서 지웠고, 기록이 안
+   * 바뀌면 mutate가 조용히 아무것도 쓰지 않아 화면에는 성공으로 보였다.
+   * 같은 파일을 두 기록이 가리키는 경우(승인 시 신청의 포스터를 그대로 물려받는다)
+   * 한쪽을 지우면 다른 쪽의 화면이 깨진다.
+   */
+  async function seminarOwning(key: string, field: "materials" | "photos") {
+    const s = await createSeminar({
+      title: "세미나",
+      semester: "26-2",
+      note: "",
+      presenterIds: [],
+      externalPresenters: "",
+    });
+    __stage("pending/x.pdf", 10, "application/pdf");
+    await promoteToAssets("pending/x.pdf", key);
+    await setSeminarFiles(s.id, field, { add: key });
+    return s.id;
+  }
+
+  it("다른 기록의 파일은 지우지 않는다", async () => {
+    const other = await seminarOwning("seminars/b/bb-file.pdf", "materials");
+    const mine = await seminarOwning("seminars/a/aa-file.pdf", "materials");
+
+    await expect(
+      setSeminarFiles(mine, "materials", {
+        remove: "seminars/b/bb-file.pdf",
+      }),
+    ).rejects.toSatisfy((e) => e instanceof AppError && e.code === "NOT_FOUND");
+
+    expect(__exists("assets", "seminars/b/bb-file.pdf")).toBe(true);
+    expect(
+      (await getTable("seminars")).find((s) => s.id === other)!.materials,
+    ).toEqual(["seminars/b/bb-file.pdf"]);
+  });
+
+  it("여전히 다른 기록이 참조하는 파일은 남긴다", async () => {
+    const key = "seminars/shared/cc-file.pdf";
+    const first = await seminarOwning(key, "materials");
+    const second = await createSeminar({
+      title: "다른 세미나",
+      semester: "26-2",
+      note: "",
+      presenterIds: [],
+      externalPresenters: "",
+    });
+    await setSeminarFiles(second.id, "materials", { add: key });
+
+    await setSeminarFiles(first, "materials", { remove: key });
+
+    // 기록에서는 빠졌지만 두 번째 기록이 아직 쓰고 있으므로 바이트는 남는다.
+    expect(__exists("assets", key)).toBe(true);
+  });
+
+  it("스터디를 지우면 사진도 함께 지운다", async () => {
+    const study = await createStudy({
+      title: "스터디",
+      semester: "26-2",
+      textbook: "",
+      description: "",
+      note: "",
+      organizerIds: [newId()],
+    });
+    __stage("pending/y.jpg", 10, "image/jpeg");
+    await promoteToAssets("pending/y.jpg", "studies/st1/dd-photo.jpg");
+    await setStudyPhotos(study.id, { add: "studies/st1/dd-photo.jpg" });
+
+    await deleteStudy(study.id);
+
+    expect(__exists("assets", "studies/st1/dd-photo.jpg")).toBe(false);
+  });
+});
 
 describe("포스터 교체", () => {
   // 교체하면 이전 포스터는 어느 기록도 가리키지 않는다 — /media는 그런 키를

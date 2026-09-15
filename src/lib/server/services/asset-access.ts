@@ -23,6 +23,14 @@ export async function resolveAssetAccess(key: string): Promise<AssetAccess> {
     getTable("gallery-dinner"),
   ]);
 
+  // 한 키를 여러 기록이 가리킬 수 있다 — 승인은 신청의 포스터 키를 그대로
+  // 물려받는다. 먼저 찾은 행으로 답하면 **표의 순서가 정책을 정하고**, 그 방향이
+  // 하필 공개 쪽이다. 소유자를 전부 모아 가장 엄격한 답을 고른다.
+  let verdict: AssetAccess = "none";
+  const restrict = (next: Exclude<AssetAccess, "none">) => {
+    if (next === "admin" || verdict === "none") verdict = next;
+  };
+
   for (const seminar of seminars) {
     const owns =
       seminar.posterKey === key ||
@@ -30,14 +38,14 @@ export async function resolveAssetAccess(key: string): Promise<AssetAccess> {
       seminar.photos.includes(key);
     // 세미나의 자산은 세미나와 같은 운명을 따른다 — 공개된 것만 공개다.
     if (owns)
-      return seminar.publicationStatus === "published" ? "public" : "admin";
+      restrict(seminar.publicationStatus === "published" ? "public" : "admin");
   }
 
   // 신청 포스터가 그려지는 곳은 관리자 심사 화면뿐이다.
-  if (requests.some((request) => request.posterKey === key)) return "admin";
+  if (requests.some((request) => request.posterKey === key)) restrict("admin");
 
-  if (studies.some((study) => study.photos.includes(key))) return "public";
-  if (dinners.some((dinner) => dinner.photos.includes(key))) return "public";
+  if (studies.some((study) => study.photos.includes(key))) restrict("public");
+  if (dinners.some((dinner) => dinner.photos.includes(key))) restrict("public");
 
-  return "none";
+  return verdict;
 }

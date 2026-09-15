@@ -1,4 +1,3 @@
-import { error, redirect } from "@sveltejs/kit";
 import { createSignedAssetUrl } from "$lib/server/data/storage";
 import { resolveAssetAccess } from "$lib/server/services/asset-access";
 import { resolveAdminAccess } from "$lib/server/auth-guards";
@@ -22,30 +21,44 @@ import type { RequestHandler } from "./$types";
 /** 서명 URL의 수명. 짧게 두되, 큰 PDF를 내려받을 시간은 남긴다. */
 const SIGNED_URL_TTL_SECONDS = 300;
 
-export const GET: RequestHandler = async ({ params, locals, setHeaders }) => {
+/**
+ * 이 경로의 답은 **요청자에 따라 다르다.** 그러므로 공유 캐시에 올라가면 안 된다.
+ *
+ * 헤더를 여기서 직접 붙이는 이유: `setHeaders`로 남기면 두 가지가 어긋난다.
+ * 하나, 전역 `cacheShield`가 어차피 덮어써서 이 라우트의 의도는 실행되지 않는다
+ * (있으나 마나 한 코드가 남고, 나중에 shield를 손대면 조용히 캐시 가능해진다).
+ * 둘, `error()`로 던진 404는 shield를 **건너뛰고** 나가므로 캐시 헤더가 아예
+ * 붙지 않는다(W-23) — 404는 휴리스틱 캐시 대상이라, 게스트가 받은 404가
+ * 관리자에게 재생되면 관리자가 자기 자료를 못 받는다. 이 저장소는 경로 단위
+ * 엣지 재생을 실측한 적이 있다(hooks.server.ts).
+ */
+const NO_STORE = {
+  "cache-control": "private, no-store",
+  "vercel-cdn-cache-control": "no-store",
+  "cdn-cache-control": "no-store",
+};
+
+const notFound = () =>
+  new Response("Not Found", { status: 404, headers: NO_STORE });
+
+export const GET: RequestHandler = async ({ params, locals }) => {
   const key = params.key ?? "";
   const access = await resolveAssetAccess(key);
-  if (access === "none") throw error(404, "Not Found");
+  if (access === "none") return notFound();
 
   // 관리자 판정은 세션이 아니라 회원 레코드에서 나온다(D4). 미인증과 비관리자를
   // 여기서는 굳이 가르지 않는다 — 둘 다 "그런 파일 없음"으로 답한다.
   if (access === "admin" && (await resolveAdminAccess(locals)) !== "ok") {
-    throw error(404, "Not Found");
+    return notFound();
   }
 
   const url = await createSignedAssetUrl(key, SIGNED_URL_TTL_SECONDS);
   // 기록에는 남아 있는데 바이트가 없는 경우 — 관리자가 지웠거나 이주 누락이다.
   // 깨진 이미지를 그리게 두지 않고 없다고 답한다.
-  if (!url) throw error(404, "Not Found");
+  if (!url) return notFound();
 
-  // 리디렉트를 서명 URL보다 오래 캐시하면 만료된 URL을 나눠 주게 된다.
-  // 관리자 전용 자산은 공유 캐시에 아예 올리지 않는다.
-  setHeaders({
-    "cache-control":
-      access === "public"
-        ? `public, max-age=60, stale-while-revalidate=30`
-        : "private, no-store",
+  return new Response(null, {
+    status: 302,
+    headers: { ...NO_STORE, location: url },
   });
-
-  throw redirect(302, url);
 };

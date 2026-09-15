@@ -73,6 +73,7 @@ async function request(key: string, locals: Record<string, unknown> = {}) {
           headers.set(name, value);
       },
     } as never);
+    for (const [name, value] of response.headers) headers.set(name, value);
     return {
       status: response.status,
       headers,
@@ -142,6 +143,36 @@ describe("GET /media/<key>", () => {
 
     expect(response.status).toBe(302);
     expect(response.location).toContain(KEY);
+  });
+
+  /**
+   * 404는 캐시 헤더 없이 나가면 **공유 캐시가 저장할 수 있다**(RFC 9111은 404를
+   * 휴리스틱 캐시 대상으로 둔다). 이 경로의 답은 요청자에 따라 다르므로, 게스트가
+   * 받은 404가 관리자에게 재생되면 관리자가 자기 자료를 못 받는다. 이 저장소는
+   * 경로 단위 엣지 재생을 실측한 적이 있다(hooks.server.ts).
+   */
+  it("404도 캐시 금지를 스스로 붙인다", async () => {
+    const response = await request("seminars/none/zz.pdf");
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(response.headers.get("vercel-cdn-cache-control")).toContain(
+      "no-store",
+    );
+  });
+
+  // 서명 URL을 담은 302가 공유 캐시에 저장되면 남의 URL이 재생된다.
+  it("302도 캐시 금지를 스스로 붙인다", async () => {
+    await mutate("seminars", () => [seminarRow({ materials: [KEY] })]);
+    await storeFile();
+
+    const response = await request(KEY);
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(response.headers.get("vercel-cdn-cache-control")).toContain(
+      "no-store",
+    );
   });
 
   it("어느 기록에도 없는 키는 404다", async () => {

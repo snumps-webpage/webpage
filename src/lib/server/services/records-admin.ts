@@ -4,7 +4,7 @@ import { nowKstIso } from "$lib/server/core/time";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { audit } from "$lib/server/data/audit";
 import { promoteSeminarPoster } from "$lib/server/services/uploads";
-import { removeAssets } from "$lib/server/data/storage";
+import { forgetUnreferencedAssets } from "./asset-cleanup";
 import type {
   Activity,
   GalleryDinner,
@@ -150,28 +150,7 @@ export async function updateSeminar(
     return rows;
   });
   // 교체된 포스터는 어느 기록도 가리키지 않는다 — 남겨 두면 용량과 백업만 먹는다.
-  await forgetAssets([replacedPoster]);
-}
-
-/**
- * 기록에서 키를 빼는 것만으로는 파일이 사라지지 않는다. 공개 버킷이던 시절에는
- * 이미 나간 URL이 그 바이트를 영원히 내려 줬고(C-22), 비공개로 돌린 지금도
- * 남은 객체는 용량과 백업 비용으로 남는다.
- *
- * 실패는 **삼키고 기록한다.** 관리자 화면의 동작(기록 편집)은 이미 끝났고,
- * 여기서 던지면 편집 자체가 실패한 것처럼 보인다. 남은 바이트는 백업 미러가
- * 있는 회수 가능한 손해이지만, 편집 불능은 그렇지 않다.
- */
-async function forgetAssets(
-  keys: (string | null | undefined)[],
-): Promise<void> {
-  const paths = keys.filter((k): k is string => !!k);
-  if (paths.length === 0) return;
-  try {
-    await removeAssets(paths);
-  } catch (e) {
-    console.error(`[assets] delete failed for ${paths.join(", ")}:`, e);
-  }
+  await forgetUnreferencedAssets([replacedPoster]);
 }
 
 export async function deleteSeminar(id: string): Promise<void> {
@@ -187,7 +166,7 @@ export async function deleteSeminar(id: string): Promise<void> {
     };
     return rows.filter((s) => s.id !== id);
   });
-  await forgetAssets([
+  await forgetUnreferencedAssets([
     ...removed!.materials,
     ...removed!.photos,
     removed!.posterKey,
@@ -206,12 +185,18 @@ async function setFileArray(
     if (idx === -1) throw new AppError("NOT_FOUND");
     const row = rows[idx] as Record<string, unknown>;
     let files = row[field] as string[];
+    // 지울 키는 폼의 hidden 필드로 온다 — 즉 **클라이언트가 고른다.** 이 기록이
+    // 갖고 있지 않은 키라면 거절한다. 예전에는 조용히 통과했고(기록이 안 바뀌면
+    // mutate가 쓰기를 건너뛴다), 그런데도 그 키를 버킷에서 지웠다 — 다른 기록의
+    // 파일을 지우고 화면에는 성공으로 보이는 길이었다.
+    if (op.remove && !files.includes(op.remove))
+      throw new AppError("NOT_FOUND");
     if (op.add) files = [...new Set([...files, op.add])];
     if (op.remove) files = files.filter((f) => f !== op.remove);
     rows[idx] = { ...rows[idx], [field]: files };
     return rows;
   });
-  if (op.remove) await forgetAssets([op.remove]);
+  if (op.remove) await forgetUnreferencedAssets([op.remove]);
 }
 
 export function setSeminarFiles(
@@ -267,10 +252,14 @@ export async function updateStudy(
 export async function deleteStudy(id: string): Promise<void> {
   const events = await getTable("events");
   if (events.some((e) => e.studyId === id)) throw new AppError("CONFLICT");
+  let photos: string[] = [];
   await mutate("studies", (rows) => {
-    if (!rows.some((s) => s.id === id)) throw new AppError("NOT_FOUND");
+    const row = rows.find((s) => s.id === id);
+    if (!row) throw new AppError("NOT_FOUND");
+    photos = row.photos;
     return rows.filter((s) => s.id !== id);
   });
+  await forgetUnreferencedAssets(photos);
 }
 
 /**
@@ -356,7 +345,7 @@ export async function deleteGalleryEntry(id: string): Promise<void> {
     photos = row.photos;
     return rows.filter((g) => g.id !== id);
   });
-  await forgetAssets(photos);
+  await forgetUnreferencedAssets(photos);
 }
 
 export function setGalleryPhotos(

@@ -1,4 +1,5 @@
 import { AppError } from "$lib/server/core/errors";
+import { forgetUnreferencedAssets } from "./asset-cleanup";
 import { newId } from "$lib/server/core/id";
 import { nowKstIso } from "$lib/server/core/time";
 import { currentTerm } from "$lib/server/core/semester";
@@ -68,6 +69,7 @@ export async function updateSeminarRequest(
     patch.preferredTiming !== undefined
       ? { ...patch, preferredTiming: normalizeTiming(patch.preferredTiming) }
       : patch;
+  let replacedPoster: string | null = null;
   await mutate("seminar-requests", (rows) => {
     const idx = rows.findIndex((r) => r.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
@@ -76,6 +78,11 @@ export async function updateSeminarRequest(
       throw new AppError("FORBIDDEN");
     }
     if (row.status !== "pending") throw new AppError("CONFLICT");
+    // CAS 재시도마다 다시 센다 — 진 시도의 값이 남으면 엉뚱한 키를 지운다.
+    replacedPoster =
+      promotedPoster !== null && row.posterKey !== promotedPoster
+        ? row.posterKey || null
+        : null;
     rows[idx] = {
       ...row,
       ...cleanPatch,
@@ -83,6 +90,9 @@ export async function updateSeminarRequest(
     };
     return rows;
   });
+  // 교체된 포스터는 남겨 두면 용량과 백업만 먹는다. 승인된 세미나가 같은 키를
+  // 물려받았다면 forgetAssets가 참조를 보고 건너뛴다.
+  await forgetUnreferencedAssets([replacedPoster]);
 }
 
 /** §5-2 ?/withdraw — the requester's own retraction. */
