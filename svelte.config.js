@@ -17,7 +17,10 @@ const config = {
       images: {
         sizes: [480, 640, 960, 1280],
         formats: ["image/webp"],
-        minimumCacheTTL: 60 * 60 * 24 * 30,
+        // 24시간. 예전에는 30일이었는데, 자산 접근을 취소·삭제로 회수할 수 있게
+        // 된 지금은 그 값이 곧 "회수가 늦게 듣는 기간"이다 — 원본은 즉시 막혀도
+        // 최적화 파생본은 캐시가 만료될 때까지 남는다.
+        minimumCacheTTL: 60 * 60 * 24,
         domains: ["rwlvnttpaqkhpebtebif.supabase.co", "gcahkryexewswzvtfltj.supabase.co"],
       },
     }),

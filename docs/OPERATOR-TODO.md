@@ -141,7 +141,8 @@ Vercel → `snumps` 프로젝트 → Settings → Environment Variables (Product
 > 등록하면 옛 동작으로 복귀한다. 그 상태에서는 취소된 세미나의 파일도 다시 공개된다.
 
 > **이미 유출된 URL은 이 전환으로 끝난다** — 공개 URL이 죽기 때문이다. 다만 Vercel
-> 이미지 최적화가 만든 파생본은 최대 30일(`minimumCacheTTL`) 남을 수 있다.
+> 이미지 최적화가 만든 파생본은 최대 24시간(`minimumCacheTTL`) 남을 수 있다 — 회수가
+> 그만큼 늦게 듣는다는 뜻이라 30일에서 줄였다.
 
 ## 4. cron-job.org 잡 3개 등록
 
