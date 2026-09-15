@@ -104,9 +104,34 @@ export const MAIL_EVENTS: Record<string, MailEventDef> = {
   "seminar.published": {
     name: "세미나 공개",
     description: "세미나가 일정과 함께 공개된 순간",
-    variables: ["title", "description", "siteUrl", "optOutUrl"],
+    variables: [
+      "title",
+      "description",
+      "schedule",
+      "location",
+      "siteUrl",
+      "optOutUrl",
+    ],
     allowedRecipients: ["members-opted-in", "admins", "executives"],
     defaultRules: [{ templateKey: "seminar-announcement", recipient: "members-opted-in" }],
+  },
+  "seminar.schedule-changed": {
+    name: "세미나 일정 변경",
+    description: "공개된 세미나의 일시·장소가 바뀐 순간",
+    variables: ["title", "schedule", "location", "siteUrl", "optOutUrl"],
+    allowedRecipients: ["members-opted-in", "admins", "executives"],
+    defaultRules: [
+      { templateKey: "seminar-schedule-changed", recipient: "members-opted-in" },
+    ],
+  },
+  "seminar.cancelled": {
+    name: "세미나 취소",
+    description: "공지된 세미나가 취소된 순간 (사유는 싣지 않는다)",
+    variables: ["title", "siteUrl", "optOutUrl"],
+    allowedRecipients: ["members-opted-in", "admins", "executives"],
+    defaultRules: [
+      { templateKey: "seminar-cancelled", recipient: "members-opted-in" },
+    ],
   },
   "withdrawal.requested": {
     name: "회원 탈퇴 신청",

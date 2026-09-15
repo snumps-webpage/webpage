@@ -22,7 +22,12 @@ import { __reset } from "$lib/server/data/store-memory";
 import { _resetDataLayerForTests, mutate } from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { newId } from "$lib/server/core/id";
-import { chunk, sendSeminarAnnouncement } from "./announcements";
+import {
+  chunk,
+  sendSeminarAnnouncement,
+  sendSeminarCancellation,
+  sendSeminarScheduleChange,
+} from "./announcements";
 
 async function seedInfo(email: string, announcements: boolean) {
   await mutate("private-info", (rows) => [
@@ -85,5 +90,66 @@ describe("seminar announcement (SEM-04 / BE-45)", () => {
 
   it("chunk splits exactly", () => {
     expect(chunk([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
+  });
+});
+
+/**
+ * 공지는 공개·변경·취소 셋이다. 공개 공지가 제목만 싣던 시절에는 회원이
+ * "언제 어디서"를 알려면 사이트를 다시 열어야 했다 — 확정 일정을 알리는 것이
+ * 이 메일의 목적인데도 그랬다.
+ */
+const SCHEDULE = {
+  startsAt: "2026-10-15T19:00:00+09:00",
+  endsAt: "2026-10-15T21:00:00+09:00",
+  location: "27동 325호",
+};
+
+describe("확정 일정 안내 — 공개 공지", () => {
+  it("본문에 확정된 일시와 장소가 실린다", async () => {
+    await seedInfo("a@snu.ac.kr", true);
+
+    await sendSeminarAnnouncement({
+      title: "정수론",
+      description: "설명",
+      schedule: SCHEDULE,
+    });
+
+    expect(sent[0].body).toContain("10월 15일");
+    expect(sent[0].body).toContain("27동 325호");
+  });
+});
+
+describe("일정 변경 공지", () => {
+  it("바뀐 일시와 장소를 수신 동의 회원에게 Bcc로 보낸다", async () => {
+    await seedInfo("a@snu.ac.kr", true);
+    await seedInfo("optout@snu.ac.kr", false);
+
+    const ok = await sendSeminarScheduleChange({
+      title: "정수론",
+      schedule: SCHEDULE,
+    });
+
+    expect(ok).toBe(true);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].bcc).toBe(true);
+    expect(sent[0].recipients).toEqual(["a@snu.ac.kr"]);
+    expect(sent[0].body).toContain("10월 15일");
+    expect(sent[0].body).toContain("27동 325호");
+  });
+});
+
+describe("취소 공지", () => {
+  // 결정: 취소 **사실만** 알린다. 사유를 적을 자리를 만들면 그 자리가 채워진다.
+  it("취소 사실을 알리되 사유는 싣지 않는다", async () => {
+    await seedInfo("a@snu.ac.kr", true);
+
+    const ok = await sendSeminarCancellation({ title: "정수론" });
+
+    expect(ok).toBe(true);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].bcc).toBe(true);
+    expect(sent[0].body).toContain("정수론");
+    expect(sent[0].body).toContain("취소");
+    expect(sent[0].body).not.toContain("사유");
   });
 });

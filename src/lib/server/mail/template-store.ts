@@ -155,17 +155,55 @@ export const MAIL_TEMPLATE_DEFAULTS: Record<string, MailTemplateDefault> = {
   "seminar-announcement": {
     name: "새 세미나 전체 공지",
     description: "세미나 공개 시 수신 동의한 전 회원에게 (Bcc 배치)",
-    variables: ["title", "description", "siteUrl", "optOutUrl"],
+    variables: ["title", "description", "schedule", "location", "siteUrl", "optOutUrl"],
     subject: "[SNUMPS] 새 세미나 안내: {{title}}",
     body: `안녕하세요, 서울대학교 수학문제연구회입니다.
 
 새 세미나가 개설되었습니다.
 
 제목: {{title}}
+일시: {{schedule}}
+장소: {{location}}
 
 {{description}}
 
 참가 신청은 홈페이지 대시보드에서 할 수 있습니다: {{siteUrl}}/
+
+---
+이 공지 메일을 더 이상 받고 싶지 않으시면 아래에서 수신을 해제할 수 있습니다.
+{{optOutUrl}}`,
+  },
+  "seminar-schedule-changed": {
+    name: "세미나 일정 변경 공지",
+    description: "공개된 세미나의 일시·장소가 바뀌면 수신 동의한 전 회원에게",
+    variables: ["title", "schedule", "location", "siteUrl", "optOutUrl"],
+    subject: "[SNUMPS] 세미나 일정 변경 안내: {{title}}",
+    body: `안녕하세요, 서울대학교 수학문제연구회입니다.
+
+아래 세미나의 일정이 변경되었습니다.
+
+제목: {{title}}
+변경된 일시: {{schedule}}
+장소: {{location}}
+
+자세한 내용은 홈페이지에서 확인하실 수 있습니다: {{siteUrl}}/
+
+---
+이 공지 메일을 더 이상 받고 싶지 않으시면 아래에서 수신을 해제할 수 있습니다.
+{{optOutUrl}}`,
+  },
+  "seminar-cancelled": {
+    name: "세미나 취소 공지",
+    description: "공지된 세미나가 취소되면 수신 동의한 전 회원에게",
+    variables: ["title", "siteUrl", "optOutUrl"],
+    subject: "[SNUMPS] 세미나 취소 안내: {{title}}",
+    body: `안녕하세요, 서울대학교 수학문제연구회입니다.
+
+아래 세미나가 취소되었습니다.
+
+제목: {{title}}
+
+다른 일정은 홈페이지에서 확인하실 수 있습니다: {{siteUrl}}/
 
 ---
 이 공지 메일을 더 이상 받고 싶지 않으시면 아래에서 수신을 해제할 수 있습니다.
