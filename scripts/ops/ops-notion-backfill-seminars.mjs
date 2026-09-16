@@ -1,13 +1,17 @@
 /**
- * 노션 원본에서 **외부 발표자**를 되살린다 (감사 C-12 / 부록 D).
+ * 노션 원본에서 **외부 발표자**와 **세미나↔활동 링크(=출석 기록)**를 되살린다
+ * (감사 C-12 / 부록 D).
  *
  * 노션 `세미나 기록`에는 `진행자 (비회원)` rich_text 속성이 있는데, 이주
  * 스크립트는 `externalPresenters: ""` 를 박아 넣었다(`20-export-tables.ts:437`).
  * 원본에 값이 남아 있으므로 복구 대상이다.
  *
- * 짝짓기는 **제목 + 학기**뿐이다 — 노션 세미나 행에는 앱의 id도, 활동과의
- * relation도 없다. 그래서 같은 제목·학기가 둘 이상이면 **건드리지 않고 보고만
- * 한다**: 잘못 들어간 사람 이름은 나중에 눈으로 찾아내기 어렵다.
+ * 링크는 속성이 아니라 **페이지 본문**에 있다 — `활동 내역` 아래의 활동 페이지
+ * mention이 그것이다. 이주는 속성만 읽었으므로 이 링크를 한 번도 보지 못했고,
+ * 그래서 출석 기록이 달린 활동이 어느 세미나의 것인지 앱에서 알 수 없게 됐다.
+ *
+ * 세미나 짝짓기는 **제목 + 학기**다. 같은 제목·학기가 둘 이상이면 **건드리지 않고
+ * 보고만 한다**: 잘못 박은 날짜나 남의 이름은 나중에 눈으로 찾아내기 어렵다.
  *
  *   node scripts/ops/ops-notion-backfill-seminars.mjs         # 미리보기(기본)
  *   node scripts/ops/ops-notion-backfill-seminars.mjs apply   # 적용
@@ -16,8 +20,10 @@
  */
 
 /**
- * @typedef {{ title: string, semester: string, externalPresenters: string }} NotionSeminar
- * @typedef {{ id: string, title: string, semester: string, externalPresenters: string }} SeminarRow
+ * @typedef {{ title: string, startsAt: string }} NotionSession
+ * @typedef {{ id?: string, title: string, semester: string, externalPresenters: string, sessions?: NotionSession[] }} NotionSeminar
+ * @typedef {{ startsAt: string, endsAt: string | null, location: string }} Schedule
+ * @typedef {{ id: string, title: string, semester: string, externalPresenters: string, schedule?: Schedule | null, activityId?: string | null }} SeminarRow
  * @typedef {{ id: string, title: string, semester: string, value: string }} Planned
  * @typedef {{ title: string, semester: string, reason: string }} Unmatched
  */
@@ -97,40 +103,130 @@ export function planExternalPresenterBackfill({ notionRows, seminars }) {
   return { rows, planned, unmatched, changed: planned.length > 0 };
 }
 
+/**
+ * @typedef {{ start: string, end: string | null }} DateRange
+ * @typedef {{ id: string, title: string, type: string, date: DateRange }} AppActivity
+ * @typedef {{ id: string, title: string, semester: string, schedule: Schedule | null, activityId: string | null }} AppSeminar
+ */
+
+/**
+ * 세미나↔활동을 **원본이 말하는 대로** 잇는다.
+ *
+ * 노션 세미나 페이지의 `활동 내역` 본문에는 활동 페이지 링크(mention)가 있다.
+ * 이주 스크립트는 속성만 읽었으므로 이 링크를 보지 못했고, 그래서 모든 세미나가
+ * `activityId: null`이 됐다 — 출석 기록이 달린 활동이 어느 세미나의 것인지
+ * 아무도 모르게 된 것이다. 제목 대조는 추측이지만 이 링크는 답이다.
+ *
+ * 노션 활동 ↔ 앱 활동은 제목+시작시각으로 잇는다(같은 페이지에서 이주됐다).
+ * 세미나의 일정은 **가장 이른 회차**로 잡는다.
+ *
+ * @param {{
+ *   notionSeminars: { title: string, semester: string, sessions: NotionSession[] }[],
+ *   appSeminars: any[],
+ *   appActivities: AppActivity[],
+ *   location?: string,
+ * }} input
+ */
+export function planSessionLinks({
+  notionSeminars,
+  appSeminars,
+  appActivities,
+  location = "기록 없음",
+}) {
+  /** @type {Map<string, AppActivity>} */
+  const activityByKey = new Map();
+  for (const a of appActivities) {
+    activityByKey.set(keyOf(a.title, a.date.start), a);
+  }
+
+  /** @type {Map<string, AppSeminar[]>} */
+  const seminarsByKey = new Map();
+  for (const row of appSeminars) {
+    const key = keyOf(row.title, row.semester);
+    seminarsByKey.set(key, [...(seminarsByKey.get(key) ?? []), row]);
+  }
+
+  /** @type {{ id: string, title: string, semester: string, sessions: number, startsAt: string }[]} */
+  const planned = [];
+  /** @type {{ title: string, semester: string, reason: string }[]} */
+  const unresolved = [];
+  /** @type {Map<string, { activityId: string, schedule: Schedule }>} */
+  const fix = new Map();
+
+  for (const notionSeminar of notionSeminars) {
+    const title = notionSeminar.title.trim();
+    const semester = notionSeminar.semester.trim();
+    if (notionSeminar.sessions.length === 0) continue; // 아직 열리지 않은 세미나
+
+    const targets = seminarsByKey.get(keyOf(title, semester)) ?? [];
+    if (targets.length === 0) {
+      unresolved.push({ title, semester, reason: "앱에 세미나 없음" });
+      continue;
+    }
+    if (targets.length > 1) {
+      unresolved.push({ title, semester, reason: "제목·학기 중복" });
+      continue;
+    }
+
+    const target = targets[0];
+    // 손으로 넣은 일정을 되돌려 놓지 않는다.
+    if (target.schedule) continue;
+
+    const sorted = [...notionSeminar.sessions].sort((x, y) =>
+      x.startsAt.localeCompare(y.startsAt),
+    );
+    const first = sorted.find((session) =>
+      activityByKey.has(keyOf(session.title, session.startsAt)),
+    );
+    if (!first) {
+      unresolved.push({ title, semester, reason: "앱에 활동 없음" });
+      continue;
+    }
+
+    const activity = activityByKey.get(keyOf(first.title, first.startsAt));
+    if (!activity) {
+      unresolved.push({ title, semester, reason: "앱에 활동 없음" });
+      continue;
+    }
+
+    fix.set(target.id, {
+      activityId: activity.id,
+      schedule: {
+        startsAt: activity.date.start,
+        endsAt: activity.date.end ?? null,
+        location,
+      },
+    });
+    planned.push({
+      id: target.id,
+      title,
+      semester,
+      sessions: notionSeminar.sessions.length,
+      startsAt: activity.date.start,
+    });
+  }
+
+  const rows = appSeminars.map((s) => {
+    const patch = fix.get(s.id);
+    return patch ? { ...s, ...patch } : s;
+  });
+
+  return { rows, planned, unresolved, changed: planned.length > 0 };
+}
+
 // ---- CLI ------------------------------------------------------------------
 if (
   process.argv[1] &&
   process.argv[1].endsWith("ops-notion-backfill-seminars.mjs")
 ) {
   const { createClient } = await import("@supabase/supabase-js");
-  const { existsSync, readFileSync } = await import("node:fs");
-  const path = await import("node:path");
-  const { fileURLToPath } = await import("node:url");
-
-  const REPO_ROOT = path.resolve(
-    path.dirname(fileURLToPath(import.meta.url)),
-    "../..",
-  );
-  const envFile = path.join(REPO_ROOT, ".env");
-  if (existsSync(envFile)) {
-    for (const rawLine of readFileSync(envFile, "utf8").split("\n")) {
-      const line = rawLine.trim();
-      if (!line || line.startsWith("#")) continue;
-      const eq = line.indexOf("=");
-      if (eq <= 0) continue;
-      const key = line.slice(0, eq).trim();
-      let value = line.slice(eq + 1).trim();
-      if (
-        (value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))
-      ) {
-        value = value.slice(1, -1);
-      }
-      if (!(key in process.env)) process.env[key] = value;
-    }
-  }
+  const { loadDotenv } = await import("./lib-env.mjs");
+  loadDotenv();
 
   const APPLY = process.argv.includes("apply");
+  const locationArg = process.argv.indexOf("--location");
+  const location =
+    locationArg !== -1 ? process.argv[locationArg + 1] : "기록 없음";
   const token = process.env.NOTION_API_KEY;
   const dbId = process.env.NOTION_DB_SEMINARS;
   if (!token || !dbId) {
@@ -150,7 +246,7 @@ if (
 
   /**
    * 노션 세미나 전량 — 페이지네이션 끝까지.
-   * @type {NotionSeminar[]}
+   * @type {{ id: string, title: string, semester: string, externalPresenters: string, sessions: NotionSession[] }[]}
    */
   const notionRows = [];
   /** @type {string | undefined} */
@@ -178,31 +274,99 @@ if (
       /** @param {{ plain_text: string }[]} parts */
       const plain = (parts) => parts.map((t) => t.plain_text).join("");
       notionRows.push({
+        id: row.id,
         title: plain(props["제목"]?.title ?? []),
         semester: props["학기"]?.select?.name ?? "",
         externalPresenters: plain(props["진행자 (비회원)"]?.rich_text ?? []),
+        sessions: [],
       });
     }
     cursor = page.has_more ? page.next_cursor : undefined;
   } while (cursor);
 
+  /** 블록을 자식까지 훑어 mention 대상 페이지 id를 모은다. */
+  /**
+   * @param {string} blockId
+   * @param {number} [depth]
+   * @param {string[]} [found]
+   * @returns {Promise<string[]>}
+   */
+  const linkedPageIds = async (blockId, depth = 0, found = []) => {
+    if (depth > 3) return found;
+    let blockCursor = undefined;
+    do {
+      const qs = new URLSearchParams({ page_size: "100" });
+      if (blockCursor) qs.set("start_cursor", blockCursor);
+      const res = await fetch(
+        `https://api.notion.com/v1/blocks/${blockId}/children?${qs}`,
+        { headers },
+      );
+      if (!res.ok) return found;
+      const body = await res.json();
+      for (const block of body.results ?? []) {
+        const rich = block[block.type]?.rich_text ?? [];
+        for (const part of rich) {
+          if (part.type === "mention" && part.mention?.type === "page")
+            found.push(part.mention.page.id);
+        }
+        if (block.has_children) await linkedPageIds(block.id, depth + 1, found);
+      }
+      blockCursor = body.has_more ? body.next_cursor : undefined;
+    } while (blockCursor);
+    return found;
+  };
+
+  // 활동 페이지의 제목·시작시각 — 앱 활동 행과 잇는 열쇠다.
+  for (const seminar of notionRows) {
+    const ids = await linkedPageIds(seminar.id);
+    for (const id of ids) {
+      const res = await fetch(`https://api.notion.com/v1/pages/${id}`, {
+        headers,
+      });
+      if (!res.ok) continue;
+      const activity = await res.json();
+      const startsAt = activity.properties?.["일정"]?.date?.start;
+      const title = (activity.properties?.["활동명"]?.title ?? [])
+        .map((/** @type {{plain_text: string}} */ t) => t.plain_text)
+        .join("");
+      // 활동 DB가 아닌 페이지(자료 링크 등)는 일정이 없다 — 회차가 아니다.
+      if (startsAt && title) seminar.sessions.push({ title, startsAt });
+    }
+  }
+
   const sb = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SECRET_KEY,
   );
-  const { data: stored, error } = await sb
-    .from("app_tables")
-    .select("version, doc")
-    .eq("name", "seminars")
-    .single();
-  if (error) throw error;
-  /** @type {{ version: number, doc: { rows: SeminarRow[] } }} */
-  const storedDoc = stored;
+  const readDoc = async (/** @type {string} */ name) => {
+    const { data, error } = await sb
+      .from("app_tables")
+      .select("version, doc")
+      .eq("name", name)
+      .single();
+    if (error) throw error;
+    return data;
+  };
 
-  const { rows, planned, unmatched, changed } = planExternalPresenterBackfill({
+  /** @type {{ version: number, doc: { rows: SeminarRow[] } }} */
+  const storedDoc = await readDoc("seminars");
+  const activitiesDoc = await readDoc("activities");
+
+  // 두 복구를 이어서 계획한다 — 뒤 단계는 앞 단계의 결과 위에서 센다.
+  const presenters = planExternalPresenterBackfill({
     notionRows,
     seminars: storedDoc.doc.rows,
   });
+  const links = planSessionLinks({
+    notionSeminars: notionRows,
+    appSeminars: presenters.rows,
+    appActivities: activitiesDoc.doc.rows,
+    location,
+  });
+  const rows = links.rows;
+  const planned = presenters.planned;
+  const unmatched = presenters.unmatched;
+  const changed = presenters.changed || links.changed;
 
   const withValue = notionRows.filter((r) =>
     r.externalPresenters.trim(),
@@ -234,6 +398,34 @@ if (
       })),
     );
   }
+
+  console.log(
+    `\n활동 링크 복구 ${links.planned.length}건 · 링크 실패 ${links.unresolved.length}건`,
+  );
+  if (links.planned.length) {
+    console.log("\n[활동 링크 — 출석 기록이 세미나에 붙는다]");
+    console.table(
+      links.planned.map((p) => ({
+        제목: p.title.slice(0, 26),
+        학기: p.semester,
+        회차: p.sessions,
+        시작: p.startsAt.slice(0, 16).replace("T", " "),
+      })),
+    );
+  }
+  if (links.unresolved.length) {
+    console.log("\n[링크 실패 — 사람이 확인해야 한다]");
+    console.table(
+      links.unresolved.map((u) => ({
+        제목: u.title.slice(0, 26),
+        학기: u.semester,
+        사유: u.reason,
+      })),
+    );
+  }
+  console.log(
+    `\n장소는 노션에 없다 — 링크로 복구되는 일정의 장소는 "${location}"으로 들어간다.`,
+  );
 
   if (!APPLY) {
     console.log("\n(미리보기 — 적용하려면 'apply' 인자)");

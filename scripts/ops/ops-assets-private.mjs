@@ -16,32 +16,8 @@
  * 필요한 env (리포 루트 `.env`를 있으면 읽는다):
  *   SUPABASE_URL, SUPABASE_SECRET_KEY, (선택) SUPABASE_ASSETS_BUCKET
  */
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-
-/** 최소 .env 로더 — 이미 설정된 process.env가 우선한다(migration/lib.ts와 같은 규칙). */
-function loadDotenv(file = path.join(REPO_ROOT, ".env")) {
-  if (!existsSync(file)) return;
-  for (const rawLine of readFileSync(file, "utf8").split("\n")) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const eq = line.indexOf("=");
-    if (eq <= 0) continue;
-    const key = line.slice(0, eq).trim();
-    let value = line.slice(eq + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-    if (!(key in process.env)) process.env[key] = value;
-  }
-}
+import { loadDotenv } from "./lib-env.mjs";
 
 loadDotenv();
 
@@ -149,9 +125,7 @@ console.log(`프로젝트: ${url}`);
 for (const b of before.all) console.log(`  ${b.name} public=${b.public}`);
 
 if (before.assets.public === target) {
-  console.log(
-    `\n"${bucket}" 은 이미 public=${target} 이다 — 바꿀 것이 없다.`,
-  );
+  console.log(`\n"${bucket}" 은 이미 public=${target} 이다 — 바꿀 것이 없다.`);
   await verify();
   process.exit(process.exitCode ?? 0);
 }

@@ -15,34 +15,7 @@
  *
  * 읽기 전용: 노션에 아무것도 쓰지 않는다.
  */
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const REPO_ROOT = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../..",
-);
-
-/** 최소 .env 로더 — 값은 process.env로만 흘러가고 화면에 찍히지 않는다. */
-function loadDotenv(file = path.join(REPO_ROOT, ".env")) {
-  if (!existsSync(file)) return;
-  for (const rawLine of readFileSync(file, "utf8").split("\n")) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const eq = line.indexOf("=");
-    if (eq <= 0) continue;
-    const key = line.slice(0, eq).trim();
-    let value = line.slice(eq + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-    if (!(key in process.env)) process.env[key] = value;
-  }
-}
+import { loadDotenv } from "./lib-env.mjs";
 
 loadDotenv();
 
