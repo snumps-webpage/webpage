@@ -23,7 +23,7 @@
  * @typedef {{ title: string, startsAt: string }} NotionSession
  * @typedef {{ id?: string, title: string, semester: string, externalPresenters: string, sessions?: NotionSession[] }} NotionSeminar
  * @typedef {{ startsAt: string, endsAt: string | null, location: string }} Schedule
- * @typedef {{ id: string, title: string, semester: string, externalPresenters: string, schedule?: Schedule | null, activityId?: string | null }} SeminarRow
+ * @typedef {{ id: string, title: string, semester: string, externalPresenters: string, description?: string, schedule?: Schedule | null, activityId?: string | null }} SeminarRow
  * @typedef {{ id: string, title: string, semester: string, value: string }} Planned
  * @typedef {{ title: string, semester: string, reason: string }} Unmatched
  */
@@ -214,6 +214,34 @@ export function planSessionLinks({
   return { rows, planned, unresolved, changed: planned.length > 0 };
 }
 
+/**
+ * 세미나 **개요**를 페이지 본문에서 뽑는다.
+ *
+ * 원본의 본문은 `개요` 제목 아래 문단, 그리고 `활동 내역` 제목 아래 활동 링크로
+ * 이뤄져 있다. 이주는 속성만 읽었으므로 이 설명이 통째로 넘어오지 않았고, 공개
+ * 상세 페이지의 "1. 개요"가 25건 모두 비어 있다.
+ *
+ * 다음 제목에서 끊는다 — 활동 링크 목록을 설명으로 끌어오면 안 된다.
+ *
+ * @param {{ type: string, text: string, depth?: number }[]} blocks
+ * @returns {string}
+ */
+export function extractOverview(blocks) {
+  const start = blocks.findIndex(
+    (b) => b.type.startsWith("heading") && b.text.trim() === "개요",
+  );
+  if (start === -1) return "";
+
+  /** @type {string[]} */
+  const parts = [];
+  for (const block of blocks.slice(start + 1)) {
+    if (block.type.startsWith("heading")) break; // 다음 절 — 여기까지가 개요다
+    const text = block.text.trim();
+    if (text) parts.push(text);
+  }
+  return parts.join("\n\n");
+}
+
 // ---- CLI ------------------------------------------------------------------
 if (
   process.argv[1] &&
@@ -246,7 +274,7 @@ if (
 
   /**
    * 노션 세미나 전량 — 페이지네이션 끝까지.
-   * @type {{ id: string, title: string, semester: string, externalPresenters: string, sessions: NotionSession[] }[]}
+   * @type {{ id: string, title: string, semester: string, externalPresenters: string, overview: string, sessions: NotionSession[] }[]}
    */
   const notionRows = [];
   /** @type {string | undefined} */
@@ -278,11 +306,45 @@ if (
         title: plain(props["제목"]?.title ?? []),
         semester: props["학기"]?.select?.name ?? "",
         externalPresenters: plain(props["진행자 (비회원)"]?.rich_text ?? []),
+        overview: "",
         sessions: [],
       });
     }
     cursor = page.has_more ? page.next_cursor : undefined;
   } while (cursor);
+
+  /** 블록을 자식까지 훑어 평문·타입을 모은다 (개요 추출용). */
+  const bodyBlocks = async (
+    /** @type {string} */ blockId,
+    /** @type {number} */ depth = 0,
+    /** @type {{type: string, text: string, depth: number}[]} */ out = [],
+  ) => {
+    if (depth > 3) return out;
+    let blockCursor = undefined;
+    do {
+      const qs = new URLSearchParams({ page_size: "100" });
+      if (blockCursor) qs.set("start_cursor", blockCursor);
+      const res = await fetch(
+        `https://api.notion.com/v1/blocks/${blockId}/children?${qs}`,
+        { headers },
+      );
+      if (!res.ok) return out;
+      const body = await res.json();
+      for (const block of body.results ?? []) {
+        const parts = block[block.type]?.rich_text ?? [];
+        out.push({
+          type: block.type,
+          text: parts
+            .map((/** @type {{plain_text?: string}} */ t) => t.plain_text ?? "")
+            .join(""),
+          depth,
+        });
+        if (block.has_children) await bodyBlocks(block.id, depth + 1, out);
+      }
+      blockCursor = body.has_more ? body.next_cursor : undefined;
+    } while (blockCursor);
+    return out;
+  };
 
   /** 블록을 자식까지 훑어 mention 대상 페이지 id를 모은다. */
   /**
@@ -318,6 +380,8 @@ if (
 
   // 활동 페이지의 제목·시작시각 — 앱 활동 행과 잇는 열쇠다.
   for (const seminar of notionRows) {
+    // 개요는 페이지 본문에 있다 — 이주가 한 번도 읽지 않은 곳이다.
+    seminar.overview = extractOverview(await bodyBlocks(seminar.id));
     const ids = await linkedPageIds(seminar.id);
     for (const id of ids) {
       const res = await fetch(`https://api.notion.com/v1/pages/${id}`, {
@@ -357,16 +421,43 @@ if (
     notionRows,
     seminars: storedDoc.doc.rows,
   });
+  // 개요는 비어 있는 행에만 넣는다 — 관리자가 고쳐 둔 글을 덮지 않는다.
+  /** @type {{ title: string, semester: string, chars: number }[]} */
+  const overviews = [];
+  const withOverview = presenters.rows.map((row) => {
+    if (row.description && row.description.trim()) return row;
+    const source = notionRows.find(
+      (n) =>
+        n.title.trim() === row.title.trim() &&
+        n.semester.trim() === row.semester.trim() &&
+        n.overview.trim(),
+    );
+    if (!source) return row;
+    // 제목·학기가 겹치면 어느 쪽 글인지 알 수 없다 — 건드리지 않는다.
+    const rivals = notionRows.filter(
+      (n) =>
+        n.title.trim() === row.title.trim() &&
+        n.semester.trim() === row.semester.trim(),
+    );
+    if (rivals.length > 1) return row;
+    overviews.push({
+      title: row.title,
+      semester: row.semester,
+      chars: source.overview.length,
+    });
+    return { ...row, description: source.overview };
+  });
+
   const links = planSessionLinks({
     notionSeminars: notionRows,
-    appSeminars: presenters.rows,
+    appSeminars: withOverview,
     appActivities: activitiesDoc.doc.rows,
     location,
   });
   const rows = links.rows;
   const planned = presenters.planned;
   const unmatched = presenters.unmatched;
-  const changed = presenters.changed || links.changed;
+  const changed = presenters.changed || links.changed || overviews.length > 0;
 
   const withValue = notionRows.filter((r) =>
     r.externalPresenters.trim(),
@@ -399,6 +490,16 @@ if (
     );
   }
 
+  console.log(`\n개요(설명) 복구 ${overviews.length}건`);
+  if (overviews.length) {
+    console.table(
+      overviews.map((o) => ({
+        제목: o.title.slice(0, 26),
+        학기: o.semester,
+        글자수: o.chars,
+      })),
+    );
+  }
   console.log(
     `\n활동 링크 복구 ${links.planned.length}건 · 링크 실패 ${links.unresolved.length}건`,
   );

@@ -86,6 +86,7 @@ async function seedFixture() {
   await mutate("seminars", () => [
     {
       id: "sem1", title: "위상수학", semester: "26-2", note: "비고",
+      description: "공개 상세의 개요",
       presenterIds: ["m1"], externalPresenters: "", materials: ["seminars/sem1/a.pdf"],
       photos: ["seminars/sem1/p.png"], posterKey: "", preferredTiming: "",
       publicationStatus: "published", schedule: null, announcedAt: null,

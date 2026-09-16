@@ -89,6 +89,7 @@ export async function createSeminar(
   const row: Seminar = {
     id: newId(),
     ...input,
+    description: "",
     materials: [],
     photos: [],
     // 이 경로에는 아직 일정 입력 칸이 없다(입력은 title·semester·note·발표자뿐).

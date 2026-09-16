@@ -119,7 +119,7 @@ export const load: LayoutServerLoad = async () => {
           id: s.id,
           title: s.title,
           term: s.semester,
-          description: s.note,
+          description: s.description || s.note,
           prerequisites: request?.prerequisites ?? "",
           durationMinutes: null,
           presenterNames: [

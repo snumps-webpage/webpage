@@ -25,6 +25,7 @@ const seminarRow = (over: Record<string, unknown>) => ({
   title: "세미나",
   semester: "26-2",
   note: "",
+  description: "",
   presenterIds: [],
   externalPresenters: "",
   publicationStatus: "published" as const,

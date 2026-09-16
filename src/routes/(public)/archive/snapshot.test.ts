@@ -110,6 +110,7 @@ async function seedFixture() {
       title: "위상수학",
       semester: "26-2",
       note: "비고",
+      description: "",
       presenterIds: ["m1"],
       externalPresenters: "",
       publicationStatus: "published",
@@ -147,7 +148,6 @@ async function seedFixture() {
       title: "해석학",
       semester: "26-2",
       textbook: "",
-      description: "",
       note: "",
       organizerIds: ["m1"],
       participantIds: ["m1", "m2"],
@@ -158,6 +158,7 @@ async function seedFixture() {
       photos: ["studies/st1/p.png"],
       status: "ongoing" as const,
       sourceRequestId: null,
+      description: "",
     },
   ]);
   await mutate("activities", () => [

@@ -38,6 +38,12 @@ export const SeminarSchema = z.object({
   title: z.string().min(1),
   semester: Semester,
   note: z.string(),
+  /**
+   * 세미나 소개글. 노션 원본에서는 페이지 **본문**의 `개요` 절이었고, 이주는
+   * 속성만 읽었으므로 한 건도 넘어오지 않았다 — 공개 상세의 "1. 개요"가 비어
+   * 있던 이유다. `note`(비고)와는 다른 글이라 자리를 따로 둔다.
+   */
+  description: z.string().default(""),
   presenterIds: z.array(Id),
   externalPresenters: z.string(), // non-member presenters, free text
   materials: z.array(z.string()), // s3Keys

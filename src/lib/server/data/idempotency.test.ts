@@ -14,6 +14,7 @@ const buildSeminar = (sourceRequestId: string): Seminar => ({
   title: "테스트 세미나",
   semester: "26-2",
   note: "",
+  description: "",
   presenterIds: [],
   externalPresenters: "",
   publicationStatus: "published",

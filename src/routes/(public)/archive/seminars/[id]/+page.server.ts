@@ -4,7 +4,6 @@ import { httpGuard } from "$lib/server/core/http";
 import { getTable } from "$lib/server/data/tables";
 import type { PageServerLoad } from "./$types";
 
-
 export const load: PageServerLoad = async ({ params }) => {
   // 404 (no such seminar) and 503 (cannot reach the data layer) are different
   // facts; httpGuard keeps the AppError's status instead of flattening to 500.
@@ -32,7 +31,9 @@ export const load: PageServerLoad = async ({ params }) => {
   return {
     seminar: {
       ...seminar,
-      description: request?.description ?? seminar.note,
+      // 세미나 자신의 소개글이 먼저다 — 신청 설명은 신청 흐름으로 만든
+      // 세미나에만 있고, 비고는 설명이 아니라 덧붙이는 말이다.
+      description: seminar.description || request?.description || seminar.note,
       prerequisites: request?.prerequisites ?? "",
       duration: request?.duration ?? "",
       scheduledAt: activity?.date.start ?? null,

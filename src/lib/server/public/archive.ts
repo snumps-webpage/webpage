@@ -162,6 +162,9 @@ export async function getPublicSeminar(id: string) {
     title: s.title,
     semester: s.semester,
     note: s.note,
+    // 소개글은 세미나 자신의 것이다. 신청에서 오는 설명은 신청 흐름으로 만든
+    // 세미나에만 있고, 이주분에는 없다(원본에서는 페이지 본문에 있었다).
+    description: s.description,
     presenters: s.presenterIds.map((pid) => names.get(pid) ?? "Unknown"),
     externalPresenters: s.externalPresenters,
     materials: s.materials.map(assetUrl),

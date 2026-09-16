@@ -129,6 +129,8 @@ export async function approveSeminar(id: string): Promise<SeminarRequest> {
     // 확정 전의 임시값 — 공개 시 실제 일정에서 다시 계산한다.
     semester: currentTerm(),
     note: request.description,
+    // 소개글은 신청서에서 그대로 온다 — 공개 상세의 "개요"가 이것이다.
+    description: request.description,
     presenterIds: request.presenterIds,
     externalPresenters: "",
     materials: [],

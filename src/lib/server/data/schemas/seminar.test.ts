@@ -32,6 +32,22 @@ describe("SeminarSchema — 공개 상태와 일정", () => {
     expect(parsed.schedule).toBeNull();
   });
 
+  /**
+   * 세미나의 **개요**는 노션 페이지 본문에 있었고 속성이 아니었다. 이주가 속성만
+   * 읽는 바람에 25건 모두 설명 없이 넘어왔고, 공개 상세의 "1. 개요"가 비었다.
+   * 그 글이 살 자리를 만든다 — `note`(비고)와는 다른 것이다.
+   */
+  it("설명은 비고와 별개의 자리를 가진다", () => {
+    const parsed = SeminarSchema.parse({ ...base, description: "개요 본문" });
+
+    expect(parsed.description).toBe("개요 본문");
+    expect(parsed.note).toBe("설명"); // 비고는 그대로
+  });
+
+  it("설명이 없던 기존 행은 빈 문자열로 읽힌다", () => {
+    expect(SeminarSchema.parse(base).description).toBe("");
+  });
+
   it("새 세미나는 일정 미정으로 만들 수 있다", () => {
     const parsed = SeminarSchema.parse({
       ...base,
