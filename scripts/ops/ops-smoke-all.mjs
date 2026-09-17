@@ -21,6 +21,15 @@ loadDotenv();
 
 const BASE = process.env.BASE ?? "http://127.0.0.1:5199";
 
+/**
+ * `dev_preview`는 **개발 전용**이다 (`resolveDevPreviewRole`는 `dev`가 아니면
+ * null을 돌려준다). 운영 주소로 같은 경로를 부르면 게스트로 취급돼 회원 존은
+ * 303, 관리자 존은 404가 나온다 — 그것이 정상이고, 우회로가 배포본에 없다는
+ * 증거이기도 하다. 환경에 따라 기대를 바꾸지 않으면 이 도구가 정상을 실패로
+ * 보고한다.
+ */
+const IS_LOCAL = /^https?:\/\/(127\.0\.0\.1|localhost)/.test(BASE);
+
 /** 운영 데이터에서 파라미터를 꺼낸다 (없으면 해당 라우트는 건너뛴다). */
 async function sampleIds() {
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY) return {};
@@ -183,7 +192,15 @@ const ERROR_MARKERS =
 let failed = 0;
 const results = [];
 
-for (const [path, expect, kind] of ROUTES) {
+for (const [path, expectLocal, kind] of ROUTES) {
+  // 운영에서는 dev_preview가 통하지 않는다 — 회원 존은 로그인으로, 관리자 존은
+  // 존재 은폐 404로 막히는 것이 옳다.
+  const expect =
+    !IS_LOCAL && path.includes("dev_preview=")
+      ? path.includes("dev_preview=admin")
+        ? /^404$/
+        : /^(302|303)$/
+      : expectLocal;
   let code = "ERR";
   let note = "";
   try {
