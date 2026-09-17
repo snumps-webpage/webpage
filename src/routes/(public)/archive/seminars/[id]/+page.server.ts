@@ -36,7 +36,11 @@ export const load: PageServerLoad = async ({ params }) => {
       description: seminar.description || request?.description || seminar.note,
       prerequisites: request?.prerequisites ?? "",
       duration: request?.duration ?? "",
-      scheduledAt: activity?.date.start ?? null,
+      // 세미나 자신의 확정 일정이 먼저다 — 활동 날짜는 그 다음이다.
+      scheduledAt: row?.schedule?.startsAt ?? activity?.date.start ?? null,
+      // 시각을 모르면(이주분) 화면은 날짜만 보여 준다. 활동 날짜로 떨어진
+      // 경우도 시각을 아는 것이 아니므로 미상으로 다룬다.
+      startTimeKnown: row?.schedule ? row.schedule.startTime !== null : false,
     },
   };
 };

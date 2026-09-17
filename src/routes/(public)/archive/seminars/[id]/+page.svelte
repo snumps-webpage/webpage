@@ -24,12 +24,22 @@
     }),
   );
 
-  function dateTimeLabel(value: string | null) {
-    if (!value) return "일정 기록 없음";
+  /**
+   * 시각을 모르면 **날짜만** 보여 준다. 이주된 세미나의 원본에는 날짜만 적혀
+   * 있어 자정으로 저장되는데, 그것을 "오전 12:00"으로 그리면 화면이 없던
+   * 사실을 말하게 된다(실측으로 잡힌 결함).
+   */
+  function dateTimeLabel(value: string | null, timeKnown = true) {
+    if (!value) return "기록 없음";
     return new Intl.DateTimeFormat("ko-KR", {
-      dateStyle: "long",
-      timeStyle: "short",
       timeZone: "Asia/Seoul",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      weekday: "short",
+      ...(timeKnown
+        ? { hour: "2-digit" as const, minute: "2-digit" as const }
+        : {}),
     }).format(new Date(value));
   }
 </script>
@@ -58,7 +68,7 @@
     <dl class="metadata-grid">
       <div><dt>학기</dt><dd>{formatArchiveTerm(seminar.semester)}</dd></div>
       <div><dt>발표자</dt><dd>{presenterNames.join(", ")}</dd></div>
-      <div><dt>일시</dt><dd>{dateTimeLabel(seminar.scheduledAt)}</dd></div>
+      <div><dt>일시</dt><dd>{dateTimeLabel(seminar.scheduledAt, seminar.startTimeKnown)}</dd></div>
       <div><dt>소요 시간</dt><dd>{seminar.duration || "기록 없음"}</dd></div>
       <div><dt>선수지식</dt><dd>{seminar.prerequisites || "기록 없음"}</dd></div>
     </dl>

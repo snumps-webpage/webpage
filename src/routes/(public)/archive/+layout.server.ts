@@ -126,8 +126,11 @@ export const load: LayoutServerLoad = async () => {
             ...s.presenterIds.map((id) => nameOf.get(id) ?? "Unknown"),
             ...(s.externalPresenters ? [s.externalPresenters] : []),
           ],
+          // 세미나가 확정한 일정이 먼저 — 활동 날짜는 그것이 없을 때만.
           scheduledAt:
-            (s.activityId && activityStart.get(s.activityId)) || null,
+            s.schedule?.startsAt ??
+            ((s.activityId && activityStart.get(s.activityId)) || null),
+          startTimeKnown: s.schedule ? s.schedule.startTime !== null : false,
           location: null,
           files: s.materials.map(fileReference),
         };
