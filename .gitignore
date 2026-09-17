@@ -68,3 +68,6 @@ playwright-report/
 
 # 운영 데이터 스냅샷 (ops-backup-db.mjs) — 개인정보가 들어 있다
 backups/
+
+# 명부 내보내기 (ops-export-members.mjs) — 전화번호·학번이 들어 있다
+exports/
