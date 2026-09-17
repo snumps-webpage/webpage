@@ -4,6 +4,12 @@
 다만 **아무것도 없는 환경에서 전부 도는 것은 아니다** — 무엇을 건드리느냐에 따라
 필요한 것이 다르다. 아래가 그 전부다.
 
+의존하는 **바이너리**는 `node`(>=22)와, `ops-render-check`에 한해 크로미움뿐이다.
+`supabase` CLI는 쓰지 않는다 — 어떤 스크립트도 호출하지 않는다. 다만 이 기계에서
+Supabase 자격증명이 놓인 곳이 CLI라서 실제로는 CLI를 거치게 되는데, 그건 도구
+의존이 아니라 **키를 어디에 두었느냐**의 문제다. 「자격증명」 항목에 푸는 법을
+적어 두었다.
+
 아래 표에 있는 것들은 **필요한 것이 없으면 한 줄로 말하고 종료한다.** 스택
 트레이스나 66줄짜리 실패 표를 뱉지 않는다. 표 밖의 것들은 그렇지 않다 —
 맨 아래를 볼 것.
@@ -38,9 +44,21 @@ Supabase를 건드리는 것들은 `@supabase/supabase-js`를 쓴다 — 이미 
 
 ## 자격증명
 
-`.env`(리포 루트)를 자동으로 읽는다. **다만 이 리포의 `.env`에는 `NOTION_*`과
-앱 인증 값만 있고 `SUPABASE_*`는 없다** — Notion 쪽은 그냥 돌아가지만, Supabase
-쪽은 앞에 붙여 주어야 한다:
+스크립트가 보는 것은 **환경변수 두 개뿐**이다 — `SUPABASE_URL`,
+`SUPABASE_SECRET_KEY`. 어디서 왔는지는 묻지 않는다. `supabase` CLI는
+**요구사항이 아니다**; 아래 네 가지 중 아무거나로 채우면 된다.
+
+리포 루트 `.env`는 자동으로 읽는다. 하지만 **지금 이 리포의 `.env`에는
+`NOTION_*`과 앱 인증 값만 있고 `SUPABASE_*`는 없다.** 그래서 Notion 쪽은 그냥
+돌지만 Supabase 쪽은 매번 채워 주어야 한다. 무엇이 들어 있는지는 **값을 보지
+않고** 확인할 수 있다:
+
+```bash
+node scripts/ops/ops-env-names.mjs SUPABASE
+```
+
+**(1) 직접 붙이기** — 아무것도 설치할 필요 없음. 키는 Supabase 대시보드의
+Project Settings → API, 또는 Vercel 프로젝트의 환경변수에 있다.
 
 ```bash
 SUPABASE_URL=https://<ref>.supabase.co \
@@ -48,7 +66,13 @@ SUPABASE_SECRET_KEY=<service_role 또는 sb_secret> \
   node scripts/ops/ops-backup-db.mjs
 ```
 
-Supabase 키는 CLI에서 꺼내는 쪽이 낫다(값이 화면에 찍히지 않게 명령 치환으로):
+**(2) `.env`에 한 줄씩 넣기** — 한 번 넣으면 이후로는 인자 없이 돈다. `.env`는
+`.gitignore`에 있다. 이게 CLI 의존을 없애는 가장 확실한 방법이다.
+
+**(3) 셸 프로필이나 비밀번호 관리자에서 export** — 쓰는 도구에 맞게.
+
+**(4) `supabase` CLI가 이미 깔려 있다면** 거기서 꺼내 써도 된다. 편의일 뿐,
+필수가 아니다. 값이 화면에 찍히지 않게 명령 치환으로:
 
 ```bash
 SUPABASE_URL=https://<ref>.supabase.co \
@@ -57,11 +81,8 @@ SUPABASE_SECRET_KEY="$(supabase projects api-keys --project-ref <ref> -o json \
   node scripts/ops/ops-migration-audit.mjs --skip-notion
 ```
 
-`.env`에 어떤 이름이 들어 있는지는 **값을 보지 않고** 확인할 수 있다:
-
-```bash
-node scripts/ops/ops-env-names.mjs SUPABASE
-```
+Notion 쪽(`NOTION_API_KEY`, `NOTION_DB_*`)도 같은 방식이다 — 다만 그쪽은 이미
+`.env`에 있으므로 손댈 일이 없다.
 
 ## 개인정보
 
