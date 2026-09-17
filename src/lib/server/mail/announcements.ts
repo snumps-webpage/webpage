@@ -16,12 +16,15 @@ function siteOrigin(): string {
 /** 테스트·유틸 호환용 (dispatch의 배치 크기와 동일 규칙). */
 export function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  for (let i = 0; i < items.length; i += size)
+    out.push(items.slice(i, i + size));
   return out;
 }
 
 export interface AnnouncedSchedule {
   startsAt: string;
+  /** "HH:mm" (KST). `null`이면 **시각을 모른다** — 메일도 날짜만 적는다. */
+  startTime?: string | null;
   endsAt: string | null;
   location: string;
 }
@@ -31,16 +34,22 @@ export interface AnnouncedSchedule {
  * ISO가 아니라 한국어 표기로, 언제나 KST로 찍는다 — 서버 시간대와 무관하게.
  */
 export function formatAnnouncedSchedule(schedule: AnnouncedSchedule): string {
+  // 시각을 모르면 **날짜만**. 관리자 화면의 `시각 미정`이 그 뜻이고, 화면은 이미
+  // 날짜만 보여 준다. 여기서 자정을 시각처럼 적으면 아무도 적지 않은 사실이
+  // 수백 명에게 나간다.
+  const timeKnown =
+    schedule.startTime !== null && schedule.startTime !== undefined;
   const date = new Intl.DateTimeFormat("ko-KR", {
     timeZone: "Asia/Seoul",
     year: "numeric",
     month: "long",
     day: "numeric",
     weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
+    ...(timeKnown
+      ? { hour: "2-digit" as const, minute: "2-digit" as const }
+      : {}),
   }).format(new Date(schedule.startsAt));
-  if (!schedule.endsAt) return date;
+  if (!schedule.endsAt || !timeKnown) return date;
 
   const end = new Intl.DateTimeFormat("ko-KR", {
     timeZone: "Asia/Seoul",
@@ -53,7 +62,10 @@ export function formatAnnouncedSchedule(schedule: AnnouncedSchedule): string {
 /** 일정이 없는(이주로 잃은) 행도 공지는 나가야 한다 — 자리만 비운다. */
 function scheduleVars(schedule: AnnouncedSchedule | null) {
   return schedule
-    ? { schedule: formatAnnouncedSchedule(schedule), location: schedule.location }
+    ? {
+        schedule: formatAnnouncedSchedule(schedule),
+        location: schedule.location,
+      }
     : { schedule: "추후 공지", location: "추후 공지" };
 }
 
@@ -106,7 +118,9 @@ export async function sendSeminarCancellation(seminar: {
  * MEM-07: notify the current-term president/vice-president of a withdrawal
  * request. Falls back to the admin list when no executive email resolves.
  */
-export async function notifyExecutivesOfWithdrawal(memberName: string): Promise<boolean> {
+export async function notifyExecutivesOfWithdrawal(
+  memberName: string,
+): Promise<boolean> {
   return emitMailEvent("withdrawal.requested", {
     memberName,
     adminUrl: `${siteOrigin()}/admin/members`,

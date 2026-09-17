@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const testEnv = vi.hoisted(() => ({}) as Record<string, string | undefined>);
 vi.mock("$env/dynamic/private", () => ({ env: testEnv }));
-vi.mock("$lib/server/data/store", () => import("$lib/server/data/store-memory"));
+vi.mock(
+  "$lib/server/data/store",
+  () => import("$lib/server/data/store-memory"),
+);
 
 const sent: Array<{ recipients: string[]; bcc: boolean; body: string }> = [];
 vi.mock("./client", () => ({
@@ -33,8 +36,15 @@ async function seedInfo(email: string, announcements: boolean) {
   await mutate("private-info", (rows) => [
     ...rows,
     {
-      id: newId(), memberId: newId(), email, phone: "", studentId: "", background: "",
-      mailPrefs: { announcements }, hidePublicPhone: false, sourceRequestId: null,
+      id: newId(),
+      memberId: newId(),
+      email,
+      phone: "",
+      studentId: "",
+      background: "",
+      mailPrefs: { announcements },
+      hidePublicPhone: false,
+      sourceRequestId: null,
     },
   ]);
 }
@@ -54,7 +64,9 @@ describe("site origin in mail links", () => {
 
     await sendSeminarAnnouncement({ title: "T", description: "D" });
 
-    expect(sent[0].body).toContain("https://mps.example/settings/notifications");
+    expect(sent[0].body).toContain(
+      "https://mps.example/settings/notifications",
+    );
   });
 
   it("falls back to the production origin when SITE_ORIGIN is unset", async () => {
@@ -62,7 +74,9 @@ describe("site origin in mail links", () => {
 
     await sendSeminarAnnouncement({ title: "T", description: "D" });
 
-    expect(sent[0].body).toContain("https://snumps.vercel.app/settings/notifications");
+    expect(sent[0].body).toContain(
+      "https://snumps.vercel.app/settings/notifications",
+    );
   });
 });
 
@@ -72,7 +86,10 @@ describe("seminar announcement (SEM-04 / BE-45)", () => {
     await seedInfo("A@snu.ac.kr", true); // duplicate after normalization
     await seedInfo("optout@snu.ac.kr", false);
 
-    const ok = await sendSeminarAnnouncement({ title: "정수론", description: "설명" });
+    const ok = await sendSeminarAnnouncement({
+      title: "정수론",
+      description: "설명",
+    });
 
     expect(ok).toBe(true);
     expect(sent).toHaveLength(1);
@@ -100,6 +117,7 @@ describe("seminar announcement (SEM-04 / BE-45)", () => {
  */
 const SCHEDULE = {
   startsAt: "2026-10-15T19:00:00+09:00",
+  startTime: "19:00",
   endsAt: "2026-10-15T21:00:00+09:00",
   location: "27동 325호",
 };
@@ -116,6 +134,56 @@ describe("확정 일정 안내 — 공개 공지", () => {
 
     expect(sent[0].body).toContain("10월 15일");
     expect(sent[0].body).toContain("27동 325호");
+  });
+});
+
+describe("시각 미정 일정", () => {
+  /**
+   * 관리자 화면의 `시각 미정` 체크박스는 "날짜는 알고 시각은 아직"인 세미나를
+   * 위한 것이다(`startTime: null`). 그렇게 저장한 세미나를 공개하면 전 회원에게
+   * 메일이 나가는데, 거기서 자정을 시각으로 적으면 **아무도 적지 않은 사실**을
+   * 수백 명에게 말하게 된다. 화면은 이미 날짜만 보여 주고 있다.
+   */
+  const dateOnly = {
+    startsAt: "2026-10-15T00:00:00+09:00",
+    startTime: null,
+    endsAt: null,
+    location: "27동 325호",
+  };
+
+  it("공개 공지는 날짜만 싣는다", async () => {
+    await seedInfo("a@snu.ac.kr", true);
+
+    await sendSeminarAnnouncement({
+      title: "정수론",
+      description: "설명",
+      schedule: dateOnly,
+    });
+
+    expect(sent[0].body).toContain("10월 15일");
+    expect(sent[0].body).not.toContain("12:00");
+    expect(sent[0].body).not.toMatch(/오전|오후/);
+  });
+
+  it("변경 공지도 날짜만 싣는다", async () => {
+    await seedInfo("a@snu.ac.kr", true);
+
+    await sendSeminarScheduleChange({ title: "정수론", schedule: dateOnly });
+
+    expect(sent[0].body).toContain("10월 15일");
+    expect(sent[0].body).not.toMatch(/오전|오후/);
+  });
+
+  it("시각을 아는 일정은 종전대로 시각을 싣는다", async () => {
+    await seedInfo("a@snu.ac.kr", true);
+
+    await sendSeminarAnnouncement({
+      title: "정수론",
+      description: "설명",
+      schedule: { ...SCHEDULE, startTime: "19:00" },
+    });
+
+    expect(sent[0].body).toMatch(/오전|오후/);
   });
 });
 

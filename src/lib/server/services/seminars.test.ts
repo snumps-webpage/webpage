@@ -546,6 +546,45 @@ describe("취소 공지", () => {
   });
 });
 
+describe("공지 재발송", () => {
+  /**
+   * 메일이 실패하면 `announceOnce`가 앵커를 되돌려 놓는다. 그래서 같은 공개를
+   * 다시 실행하는 것이 재발송이다 — 화면에는 그 버튼이 없어 안내가 헛말이었다
+   * (이제 `canResendNotice`가 버튼을 되살린다).
+   */
+  it("발송 실패 후 다시 공개하면 공지가 나간다", async () => {
+    await approveSeminar((await pendingRequest()).id);
+    const [seminar] = await getTable("seminars");
+    await scheduleSeminar(seminar.id, SCHEDULE);
+
+    mailOutcome.ok = false;
+    const first = await publishSeminar(seminar.id);
+    expect(first.mailFailed).toBe(true);
+    // 되돌려졌으므로 재발송 대상으로 보인다.
+    expect((await getTable("seminars"))[0].announcedAt).toBeNull();
+
+    sentMail.length = 0;
+    mailOutcome.ok = true;
+    const second = await publishSeminar(seminar.id);
+
+    expect(second.mailFailed).toBe(false);
+    expect(sentMail.map((m) => m.event)).toContain("seminar.published");
+    expect((await getTable("seminars"))[0].announcedAt).not.toBeNull();
+  });
+
+  it("이미 공지된 세미나를 다시 공개해도 두 번 보내지 않는다", async () => {
+    await approveSeminar((await pendingRequest()).id);
+    const [seminar] = await getTable("seminars");
+    await scheduleSeminar(seminar.id, SCHEDULE);
+    await publishSeminar(seminar.id);
+    sentMail.length = 0;
+
+    await publishSeminar(seminar.id);
+
+    expect(sentMail).toEqual([]);
+  });
+});
+
 describe("공지 발송 실패는 삼키지 않는다", () => {
   /**
    * 전 회원 메일은 실패해도 예외를 던지지 않는다(§5-7: 메일이 본 동작을 막지

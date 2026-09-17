@@ -211,6 +211,30 @@
       </button>
     {/if}
 
+    {#if seminar.canResendNotice}
+      <form
+        method="POST"
+        action="?/publishSeminar"
+        use:enhance={() => {
+          processing = true;
+          return async ({ result, update }) => {
+            processing = false;
+            if (result.type === "success") {
+              await update({ reset: false });
+              onTransition(result.data as AdminSeminarOperationResult);
+            } else {
+              onError("공지를 재발송하지 못했습니다.");
+            }
+          };
+        }}
+      >
+        <input type="hidden" name="seminarId" value={seminar.id} />
+        <button class="paper-btn" type="submit" disabled={processing}>
+          {processing ? "재발송 중…" : "공지 재발송"}
+        </button>
+      </form>
+    {/if}
+
     {#if seminar.canPublish}
       <form
         method="POST"
