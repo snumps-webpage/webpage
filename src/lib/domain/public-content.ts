@@ -96,12 +96,19 @@ export function filterPublicIndex(items: PublicIndexItem[], query: string) {
 export function seminarIndexItems(
   seminars: PublicSeminarRecord[],
 ): PublicIndexItem[] {
+  /**
+   * **하나의 키로** 정렬한다: 학기가 먼저, 같은 학기 안에서 날짜가 그다음.
+   *
+   * 예전에는 "둘 다 날짜가 있으면 날짜로, 아니면 학기로" 비교했는데, 그렇게 키를
+   * 섞으면 순서가 전이적이지 않다 — 날짜 없는 항목 하나만 끼어도 같은 목록이 입력
+   * 순서에 따라 다르게 정렬된다(그때 `Array.sort`의 결과는 엔진이 정한다).
+   */
   return [...seminars]
-    .sort((a, b) =>
-      a.scheduledAt && b.scheduledAt
-        ? b.scheduledAt.localeCompare(a.scheduledAt, "ko-KR")
-        : compareSemesters(b.term, a.term),
-    )
+    .sort((a, b) => {
+      const byTerm = compareSemesters(b.term, a.term);
+      if (byTerm !== 0) return byTerm;
+      return (b.scheduledAt ?? "").localeCompare(a.scheduledAt ?? "", "ko-KR");
+    })
     .map((seminar) => ({
       id: seminar.id,
       title: seminar.title,

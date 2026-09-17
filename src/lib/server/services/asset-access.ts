@@ -23,10 +23,10 @@ export async function resolveAssetAccess(key: string): Promise<AssetAccess> {
     getTable("gallery-dinner"),
   ]);
 
-  // 한 키를 여러 기록이 가리킬 수 있다 — 승인은 신청의 포스터 키를 그대로
-  // 물려받는다. 먼저 찾은 행으로 답하면 **표의 순서가 정책을 정하고**, 그 방향이
-  // 하필 공개 쪽이다. 소유자를 전부 모아 가장 엄격한 답을 고른다.
+  // 한 키를 여러 기록이 가리킬 수 있다. **세미나끼리** 겹치면 가장 엄격한 쪽을
+  // 따른다 — 표의 순서가 정책을 정하게 두지 않는다.
   let verdict: AssetAccess = "none";
+  let ownedBySeminar = false;
   const restrict = (next: Exclude<AssetAccess, "none">) => {
     if (next === "admin" || verdict === "none") verdict = next;
   };
@@ -37,12 +37,25 @@ export async function resolveAssetAccess(key: string): Promise<AssetAccess> {
       seminar.materials.includes(key) ||
       seminar.photos.includes(key);
     // 세미나의 자산은 세미나와 같은 운명을 따른다 — 공개된 것만 공개다.
-    if (owns)
+    if (owns) {
+      ownedBySeminar = true;
       restrict(seminar.publicationStatus === "published" ? "public" : "admin");
+    }
   }
 
   // 신청 포스터가 그려지는 곳은 관리자 심사 화면뿐이다.
-  if (requests.some((request) => request.posterKey === key)) restrict("admin");
+  //
+  // 다만 **세미나가 이미 그 키를 갖고 있으면 신청은 판정에 끼어들지 않는다.**
+  // 승인이 `posterKey`를 그대로 물려받으므로(seminar-requests.ts), 신청 흐름으로
+  // 올라온 세미나는 공개된 뒤에도 신청 행과 같은 키를 공유한다. 여기서 신청을
+  // 이유로 관리자 전용으로 끌어내리면 **정상적으로 공개된 세미나의 포스터가
+  // 게스트에게 404가 된다** — 예외가 아니라 보통 경로다(실측).
+  if (
+    !ownedBySeminar &&
+    requests.some((request) => request.posterKey === key)
+  ) {
+    restrict("admin");
+  }
 
   if (studies.some((study) => study.photos.includes(key))) restrict("public");
   if (dinners.some((dinner) => dinner.photos.includes(key))) restrict("public");

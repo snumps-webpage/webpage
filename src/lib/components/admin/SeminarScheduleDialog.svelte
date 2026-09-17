@@ -18,6 +18,15 @@
 
   let dialog = $state<HTMLDialogElement>();
   let startsAtLocal = $state(initialSchedule?.startsAt.slice(0, 16) ?? "");
+  /**
+   * 이 일정의 **시각을 모르는가**. 이주된 세미나의 원본에는 날짜만 있었고,
+   * 그 사실을 `startTime: null`로 적어 뒀다. 체크를 유지한 채 저장하면 시각은
+   * 다시 null로 남는다 — 장소만 고치러 들어왔다가 자정을 시각으로 굳히는 일이
+   * 없도록.
+   */
+  let timeUnknown = $state(
+    initialSchedule !== null && initialSchedule.startTime === null,
+  );
   let endsAtLocal = $state(initialSchedule?.endsAt?.slice(0, 16) ?? "");
   let location = $state(initialSchedule?.location ?? "");
   let issues = $state<SeminarScheduleIssues>({});
@@ -87,6 +96,15 @@
     <div class="schedule-fields">
       <div class="paper-field">
         <label for={`starts-${seminar.id}`} class="paper-label">시작 일시 <span>*</span></label>
+        <label class="time-unknown">
+          <input
+            type="checkbox"
+            name="startTimeUnknown"
+            value="yes"
+            bind:checked={timeUnknown}
+          />
+          시각 미정 (날짜만 공개)
+        </label>
         <input
           id={`starts-${seminar.id}`}
           name="startsAtLocal"
@@ -290,4 +308,13 @@
       width: 100%;
     }
   }
+  .time-unknown {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    margin: 0.35rem 0 0;
+    color: var(--latex-muted);
+    font-size: 0.72rem;
+  }
+
 </style>

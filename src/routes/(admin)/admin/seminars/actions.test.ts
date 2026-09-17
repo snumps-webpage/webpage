@@ -124,6 +124,77 @@ describe("?/scheduleSeminar", () => {
   });
 });
 
+describe("?/scheduleSeminar — 시각 미정", () => {
+  /**
+   * 이주된 세미나는 원본에 시각이 없어 `startTime: null`로 복구됐다. 관리자가
+   * **장소만** 고치려고 일정 수정을 열면 다이얼로그가 자정을 시각처럼 채워
+   * 보내고, 그 값이 저장되면 공개 화면이 "오전 12:00"이라는 없던 사실을
+   * 말하게 된다. 그래서 "시각 미정"을 명시적으로 보낼 수 있어야 한다.
+   */
+  it("시각 미정으로 저장하면 시각이 null로 남는다", async () => {
+    const seminarId = await approvedSeminarId();
+
+    await actions.scheduleSeminar(
+      post({
+        seminarId,
+        startsAtLocal: localInput(20 * 24 * HOUR),
+        endsAtLocal: "",
+        location: "27동",
+        startTimeUnknown: "yes",
+      }),
+    );
+
+    const [seminar] = await getTable("seminars");
+    expect(seminar.schedule?.startTime).toBeNull();
+  });
+
+  // 시각을 모르는데 종료 시각이 있으면 앞뒤가 맞지 않는다.
+  it("시각 미정이면 종료 시각도 버린다", async () => {
+    const seminarId = await approvedSeminarId();
+
+    await actions.scheduleSeminar(
+      post({
+        seminarId,
+        startsAtLocal: localInput(20 * 24 * HOUR),
+        endsAtLocal: localInput(20 * 24 * HOUR + 2 * HOUR),
+        location: "27동",
+        startTimeUnknown: "yes",
+      }),
+    );
+
+    expect((await getTable("seminars"))[0].schedule?.endsAt).toBeNull();
+  });
+
+  it("시각 미정이면 시작 시각은 그 날 자정이다", async () => {
+    const seminarId = await approvedSeminarId();
+
+    await actions.scheduleSeminar(
+      post({
+        seminarId,
+        startsAtLocal: localInput(20 * 24 * HOUR),
+        endsAtLocal: "",
+        location: "27동",
+        startTimeUnknown: "yes",
+      }),
+    );
+
+    const [seminar] = await getTable("seminars");
+    expect(seminar.schedule?.startsAt).toMatch(/T00:00:00\+09:00$/);
+  });
+
+  it("평소에는 입력한 시각을 그대로 적는다", async () => {
+    const seminarId = await approvedSeminarId();
+    const startsAtLocal = localInput(20 * 24 * HOUR);
+
+    await actions.scheduleSeminar(
+      post({ seminarId, startsAtLocal, endsAtLocal: "", location: "27동" }),
+    );
+
+    const [seminar] = await getTable("seminars");
+    expect(seminar.schedule?.startTime).toBe(startsAtLocal.slice(11, 16));
+  });
+});
+
 describe("?/publishSeminar · ?/cancelSeminar", () => {
   async function scheduled() {
     const seminarId = await approvedSeminarId();

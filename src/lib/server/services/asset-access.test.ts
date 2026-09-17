@@ -168,6 +168,53 @@ describe("resolveAssetAccess", () => {
     expect(await resolveAssetAccess(shared)).toBe("admin");
   });
 
+  /**
+   * 승인은 신청의 `posterKey`를 **그대로 물려받는다**(seminar-requests.ts). 그래서
+   * 신청 흐름으로 올라온 세미나는 공개된 뒤에도 그 키를 신청 행과 함께 갖는다.
+   * "가장 엄격한 쪽"을 신청에까지 적용하면, 정상적으로 공개된 세미나의 포스터가
+   * 게스트에게 404가 된다 — 예외가 아니라 **보통 경로**다.
+   */
+  it("공개된 세미나의 포스터는 신청 행이 남아 있어도 공개다", async () => {
+    const poster = "seminars/posters/s1/aa-poster.png";
+    await mutate("seminars", () => [
+      seminarRow({
+        publicationStatus: "published" as const,
+        posterKey: poster,
+      }),
+    ]);
+    await mutate("seminar-requests", () => [
+      {
+        id: newId(),
+        title: "신청",
+        description: "",
+        prerequisites: "",
+        duration: "60",
+        preferredTiming: "",
+        presenterIds: [],
+        attachment: "",
+        posterKey: poster,
+        requesterId: newId(),
+        status: "approved",
+        createdAt: nowKstIso(),
+      },
+    ]);
+
+    expect(await resolveAssetAccess(poster)).toBe("public");
+  });
+
+  // 아직 공개되지 않은 세미나라면 신청 포스터와 같은 판정(관리자)이어야 한다.
+  it("공개 전 세미나의 포스터는 여전히 관리자 전용이다", async () => {
+    const poster = "seminars/posters/s2/bb-poster.png";
+    await mutate("seminars", () => [
+      seminarRow({
+        publicationStatus: "scheduled" as const,
+        posterKey: poster,
+      }),
+    ]);
+
+    expect(await resolveAssetAccess(poster)).toBe("admin");
+  });
+
   // 기본값이 허용이면 지워진 기록의 파일과 오타 경로가 그대로 나간다.
   it("어느 기록에도 속하지 않는 키는 거절한다", async () => {
     expect(await resolveAssetAccess("seminars/gone/zz-slides.pdf")).toBe(

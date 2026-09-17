@@ -38,6 +38,21 @@ export interface CancelActor {
  */
 
 /**
+ * 학기를 일정에서 다시 도출해도 되는가.
+ *
+ * `termOf`는 **정규 학기 둘만** 만든다(`YY-1`/`YY-2`). 저장된 학기가 방학
+ * (`YY-S`/`YY-W`)이면 그것은 사람이 적어 둔 값이고, 자동 도출은 그 값을
+ * 표현할 방법이 아예 없다 — 덮는 순간 정보가 사라진다. 운영 DB의 여름·겨울
+ * 세미나가 그 자리에 있다.
+ *
+ * `semesterPinned`(관리자가 직접 고친 기록)도 같은 이유로 건드리지 않는다.
+ */
+function mayDeriveSemester(row: Seminar): boolean {
+  if (row.semesterPinned) return false;
+  return !/^\d{2}-[SW]$/.test(row.semester);
+}
+
+/**
  * 이미 열린 세미나인가 — 취소 규칙이 갈리는 지점이라 판정은 한 곳에만 둔다.
  * 화면(관리자 보드·발표자 관리)이 서버와 다른 규칙으로 버튼을 그리면 "눌러도
  * 거절당하는 버튼"이나 그 반대가 생긴다.
@@ -131,9 +146,9 @@ export async function publishSeminar(id: string): Promise<{
       publicationStatus: "published",
       // 학기는 승인 시각이 아니라 실제로 열리는 날이 정한다 — 관리자가 직접
       // 정해 둔 경우는 그 결정이 위다.
-      semester: row.semesterPinned
-        ? row.semester
-        : termOf(new Date(row.schedule.startsAt)),
+      semester: mayDeriveSemester(row)
+        ? termOf(new Date(row.schedule.startsAt))
+        : row.semester,
     };
     seminar = rows[idx];
     return rows;
@@ -310,7 +325,7 @@ export async function updateSeminarSchedule(
       // 공개된 세미나만 학기가 확정된다 — 확정 전 학기는 공개 시 다시 계산된다.
       // 관리자가 직접 정한 학기(semesterPinned)는 자동 도출이 덮지 않는다.
       semester:
-        row.publicationStatus === "published" && !row.semesterPinned
+        row.publicationStatus === "published" && mayDeriveSemester(row)
           ? termOf(new Date(schedule.startsAt))
           : row.semester,
     };

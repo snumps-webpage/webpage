@@ -4,7 +4,6 @@
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { AdminSeminarRequestItem } from "$lib/domain/admin-seminars";
   import type { SeminarKind } from "$lib/domain/seminars";
-  import { thumbUrl } from "$lib/image";
 
   interface Props {
     request: AdminSeminarRequestItem;
@@ -95,9 +94,15 @@
         <div class="poster-preview">
           <strong>직접 업로드 포스터</strong>
           <a href={request.posterUrl} target="_blank" rel="noreferrer">
-            <!-- 220px로 렌더된다 — 480이면 2× DPR까지 덮는다. srcset은 불필요. -->
+            <!--
+              최적화를 태우지 않는다. 심사 중인 신청의 포스터는 **관리자 전용**이고
+              (services/asset-access.ts), Vercel 이미지 최적화는 원본을 **쿠키 없이**
+              서버에서 가져간다 — 그 요청은 세션이 없어 404를 받는다. 결과는 심사자가
+              무엇을 승인하는지 못 보는 깨진 썸네일이다. 원본을 그대로 쓰면 브라우저가
+              쿠키를 실어 보내므로 정상적으로 보인다.
+            -->
             <img
-              src={thumbUrl(request.posterUrl, 480)}
+              src={request.posterUrl}
               alt="{request.title} 포스터"
               loading="lazy"
               decoding="async"

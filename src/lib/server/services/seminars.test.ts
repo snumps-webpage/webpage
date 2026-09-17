@@ -731,6 +731,56 @@ describe("취소 권한은 캐시가 아니라 그 순간의 행으로 판정한
 });
 
 describe("학기 — 자동 도출과 관리자 결정", () => {
+  /**
+   * 방학 학기(`YY-S`/`YY-W`)는 `termOf`가 **만들 수 없는 값**이다 — 정규 학기
+   * 둘만 돌려준다. 그런 행에 자동 도출을 적용하면 사람이 적어 둔 라벨이 반드시
+   * 사라진다. 운영 DB에 여름·겨울 세미나가 8건 있고, 그 행들은 이주분이라
+   * `semesterPinned`도 false다.
+   */
+  it("방학 학기는 일정 변경이 덮지 않는다", async () => {
+    await approveSeminar((await pendingRequest()).id);
+    const [seminar] = await getTable("seminars");
+    await mutate("seminars", (rows) =>
+      rows.map((r) =>
+        r.id === seminar.id
+          ? {
+              ...r,
+              semester: "25-W",
+              publicationStatus: "published" as const,
+              semesterPinned: false,
+              schedule: SCHEDULE,
+            }
+          : r,
+      ),
+    );
+
+    await updateSeminarSchedule(seminar.id, {
+      ...SCHEDULE,
+      location: "다른 곳",
+    });
+
+    expect((await getTable("seminars"))[0].semester).toBe("25-W");
+  });
+
+  it("정규 학기는 종전대로 일정에서 도출한다", async () => {
+    await approveSeminar((await pendingRequest()).id);
+    const [seminar] = await getTable("seminars");
+    await scheduleSeminar(seminar.id, SCHEDULE);
+    await publishSeminar(seminar.id);
+
+    const moved = {
+      startsAt: at(400 * 24 * HOUR),
+      startTime: null,
+      endsAt: null,
+      location: "27동",
+    };
+    await updateSeminarSchedule(seminar.id, moved);
+
+    expect((await getTable("seminars"))[0].semester).toBe(
+      termOf(new Date(moved.startsAt)),
+    );
+  });
+
   it("관리자가 직접 정한 학기는 일정 변경이 덮지 않는다", async () => {
     await mutate("seminars", (rows) => [
       ...rows,

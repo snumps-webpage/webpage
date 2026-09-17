@@ -152,14 +152,22 @@ export const actions = {
       // 도달하지 못한다(실측).
       if (!parsed.success) return fail(400, parsed.failure);
 
+      // 이주된 세미나는 원본에 시각이 없어 `startTime: null`이다. 장소만 고치려고
+      // 일정 수정을 열었을 때 다이얼로그가 채워 보낸 자정이 **시각으로 굳으면**
+      // 공개 화면이 "오전 12:00"이라는 없던 사실을 말한다. 그래서 화면이 "시각
+      // 미정"을 명시적으로 보낼 수 있고, 그때는 날짜만 남긴다.
+      const timeUnknown = data.get("startTimeUnknown") === "yes";
+      const dateOnly = `${parsed.data.startsAtLocal.slice(0, 10)}T00:00`;
       const schedule = {
-        startsAt: kstInputToIso(parsed.data.startsAtLocal),
-        // 관리자가 직접 넣는 일정에는 시각이 반드시 있다 — 입력 폼이 요구한다.
-        // `null`은 이주분처럼 **원본에 시각이 없던** 경우만을 위한 값이다.
-        startTime: parsed.data.startsAtLocal.slice(11, 16),
-        endsAt: parsed.data.endsAtLocal
-          ? kstInputToIso(parsed.data.endsAtLocal)
-          : null,
+        startsAt: kstInputToIso(
+          timeUnknown ? dateOnly : parsed.data.startsAtLocal,
+        ),
+        startTime: timeUnknown ? null : parsed.data.startsAtLocal.slice(11, 16),
+        // 시작 시각을 모르는데 종료 시각만 있는 일정은 앞뒤가 맞지 않는다.
+        endsAt:
+          !timeUnknown && parsed.data.endsAtLocal
+            ? kstInputToIso(parsed.data.endsAtLocal)
+            : null,
         location: parsed.data.location,
       };
       // 공개된 세미나의 일정 변경은 활동·이벤트까지 함께 맞춰야 한다 —

@@ -131,7 +131,9 @@ export const load: LayoutServerLoad = async () => {
             s.schedule?.startsAt ??
             ((s.activityId && activityStart.get(s.activityId)) || null),
           startTimeKnown: s.schedule ? s.schedule.startTime !== null : false,
-          location: null,
+          // 장소는 세미나의 확정 일정에만 있다(활동·이벤트에는 자리가 없다).
+          // null로 고정돼 있던 탓에 목록이 늘 "장소 기록 없음"이라고 말했다.
+          location: s.schedule?.location ?? null,
           files: s.materials.map(fileReference),
         };
       }),
