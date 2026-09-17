@@ -18,6 +18,7 @@ const seminar = (over = {}) => ({
   publicationStatus: "published",
   schedule: null,
   activityId: null,
+  sourceRequestId: null, // 이주분 — 신청 흐름에서 온 것이 아니다
   ...over,
 });
 
@@ -133,6 +134,53 @@ describe("planSeminarRepairs", () => {
 
     expect(result.rows[0].schedule).toBeNull();
     expect(result.unresolved[0].reason).toBe("활동 없음");
+  });
+
+  /**
+   * 신청 흐름으로 만들어진 세미나는 **이주 사고의 피해자가 아니다.** 그 행의
+   * 활동은 예전 승인 경로가 만든 것이고, 그 시작 시각은 "승인을 누른 순간"이다
+   * (회장이 처음 신고한 그 버그). 그것을 일정으로 복사하면 버그를 데이터에
+   * 고착시킨다 — 이 행들의 일정은 관리자가 화면에서 직접 넣어야 한다.
+   */
+  it("신청에서 온 세미나는 복구 대상이 아니다", () => {
+    const result = plan({
+      seminars: [seminar({ activityId: "a1", sourceRequestId: "req1" })],
+      activities: [activity()],
+    });
+
+    expect(result.rows[0].schedule).toBeNull();
+    expect(result.planned).toEqual([]);
+    expect(result.unresolved[0].reason).toBe("신청 흐름 — 관리자가 입력");
+  });
+
+  it("이주분(신청 없음)은 그대로 복구한다", () => {
+    const result = plan({
+      seminars: [seminar({ activityId: "a1", sourceRequestId: null })],
+      activities: [activity()],
+    });
+
+    expect(result.planned).toHaveLength(1);
+  });
+
+  // 노션 `일정`이 날짜만인 경우가 많다 — 자정은 "시각 미상"이라는 뜻이다.
+  it("시각이 없는 날짜는 시각 미상으로 표시한다", () => {
+    const result = plan({
+      seminars: [seminar({ activityId: "a1" })],
+      activities: [
+        activity({ date: { start: "2025-02-20T00:00:00+09:00", end: null } }),
+      ],
+    });
+
+    expect(result.planned[0].timeUnknown).toBe(true);
+  });
+
+  it("시각이 있으면 미상이 아니다", () => {
+    const result = plan({
+      seminars: [seminar({ activityId: "a1" })],
+      activities: [activity()],
+    });
+
+    expect(result.planned[0].timeUnknown).toBe(false);
   });
 
   it("짝이 없으면 손댈 목록으로 남긴다", () => {

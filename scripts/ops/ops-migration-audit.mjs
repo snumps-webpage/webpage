@@ -18,9 +18,12 @@ import { loadDotenv } from "./lib-env.mjs";
 
 loadDotenv();
 
+// 노션 본문 스캔은 수백 페이지를 훑어 오래 걸린다. 앱 쪽 수치만 급할 때가 있다.
+const SKIP_NOTION = process.argv.includes("--skip-notion");
+
 const token = process.env.NOTION_API_KEY;
-if (!token) {
-  console.error("NOTION_API_KEY 없음");
+if (!token && !SKIP_NOTION) {
+  console.error("NOTION_API_KEY 없음 (--skip-notion 으로 앱 쪽만 볼 수 있다)");
   process.exit(1);
 }
 
@@ -129,12 +132,12 @@ const DATABASES = [
   ["settings", "NOTION_DB_SETTINGS", "Title"],
 ];
 
-console.log("# 노션 원본 감사\n");
+console.log(SKIP_NOTION ? "# 앱 감사 (노션 생략)\n" : "# 노션 원본 감사\n");
 
 /** @type {Record<string, number>} */
 const notionCounts = {};
 
-for (const [label, envName] of DATABASES) {
+for (const [label, envName] of SKIP_NOTION ? [] : DATABASES) {
   const dbId = process.env[envName];
   if (!dbId) {
     console.log(`\n## ${label} — ${envName} 미설정 (조회 불가)`);

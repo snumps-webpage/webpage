@@ -23,9 +23,9 @@
  * @typedef {{ start: string, end: string | null }} DateRange
  * @typedef {{ id: string, title: string, type: string, date: DateRange }} ActivityRow
  * @typedef {{ startsAt: string, endsAt: string | null, location: string }} Schedule
- * @typedef {{ id: string, title: string, semester: string, schedule: Schedule | null, activityId: string | null }} SeminarRow
+ * @typedef {{ id: string, title: string, semester: string, schedule: Schedule | null, activityId: string | null, sourceRequestId?: string | null }} SeminarRow
  * @typedef {{ id: string, sourceRequestId: string | null, activityId: string }} EventRow
- * @typedef {{ id: string, title: string, semester: string, via: string | null, sessions: number, startsAt: string, relinked: boolean }} Planned
+ * @typedef {{ id: string, title: string, semester: string, via: string | null, sessions: number, startsAt: string, relinked: boolean, timeUnknown: boolean }} Planned
  * @typedef {{ id: string, title: string, semester: string, reason: string }} Unresolved
  */
 
@@ -65,6 +65,20 @@ export function planSeminarRepairs({
   const rows = seminars.map((s) => {
     // 손으로 고쳐 둔 일정을 되돌려 놓지 않는다.
     if (s.schedule) return s;
+
+    // 신청 흐름으로 만들어진 세미나는 이주 사고의 피해자가 아니다. 그 행의
+    // 활동은 **예전 승인 경로**가 만든 것이라 시작 시각이 "승인을 누른 순간"이다
+    // — 그 값을 일정으로 복사하면 고친 버그를 데이터에 고착시킨다. 관리자가
+    // 화면에서 직접 넣어야 할 행이다.
+    if (s.sourceRequestId) {
+      unresolved.push({
+        id: s.id,
+        title: s.title,
+        semester: s.semester,
+        reason: "신청 흐름 — 관리자가 입력",
+      });
+      return s;
+    }
 
     /** @type {string | null} */
     let via = null;
@@ -123,6 +137,9 @@ export function planSeminarRepairs({
       return s;
     }
 
+    // 노션 `일정`이 날짜만인 행이 많다 — 자정은 시각을 모른다는 뜻이다.
+    const timeUnknown = /T00:00(:00)?/.test(activity.date.start);
+
     planned.push({
       id: s.id,
       title: s.title,
@@ -131,6 +148,7 @@ export function planSeminarRepairs({
       sessions,
       startsAt: activity.date.start,
       relinked: s.activityId !== activity.id,
+      timeUnknown,
     });
 
     return {
@@ -214,6 +232,7 @@ if (
         근거: p.via,
         회차: p.sessions,
         시작: p.startsAt.slice(0, 16).replace("T", " "),
+        시각: p.timeUnknown ? "미상" : "있음",
         재연결: p.relinked ? "예" : "-",
       })),
     );
@@ -230,9 +249,15 @@ if (
     );
   }
 
+  const unknownTimes = planned.filter((p) => p.timeUnknown).length;
   console.log(
     `\n장소는 노션 원본에 없었다 — 전부 "${location}" 으로 들어간다. 아는 값은 관리자 화면에서 고칠 것.`,
   );
+  if (unknownTimes) {
+    console.log(
+      `시각을 모르는 행 ${unknownTimes}건 — 노션 \`일정\`이 날짜만이라 자정으로 들어간다. 아는 시각은 관리자 화면에서 고칠 것.`,
+    );
+  }
 
   if (!APPLY) {
     console.log("\n(미리보기 — 적용하려면 'apply' 인자)");
