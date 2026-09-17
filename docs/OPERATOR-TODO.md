@@ -124,6 +124,32 @@ Vercel → `snumps` 프로젝트 → Settings → Environment Variables (Product
 - **제거**: `AWS_*` 5종 (남아 있으면 삭제).
 - dev 프로젝트의 `SUPABASE_URL`/`SUPABASE_SECRET_KEY`는 로컬 `.env`에만 등록 (`docs/SETUP.md` 로컬 개발 절 참조).
 
+## 3-0. 🔴 배포 전까지 **세미나 관리 화면을 쓰지 말 것** (기한부)
+
+**왜**: 운영 DB에는 이미 이주 복구분이 들어가 있다 — 세미나 24건의 일정(`schedule`),
+21건의 설명(`description`), 외부 발표자 1건. 그런데 **지금 배포돼 있는 코드(`main`)는
+그 필드들을 모른다.** 저장 스키마가 모르는 키는 읽는 순간 벗겨지므로, 배포 전에 라이브
+사이트에서 세미나 표에 쓰기가 일어나면 **복구한 값이 그 행에서 사라진다.**
+
+실측으로 확인했다 — `main`의 `SeminarSchema`에는 `publicationStatus`·`schedule`·
+`announcedAt`·`semesterPinned`·`description`이 **하나도 없다**.
+
+쓰기를 일으키는 동작(배포 전까지 피할 것):
+
+- 관리자 → 세미나 기록 편집(생성·수정·삭제), 파일 추가·제거
+- 세미나 개설 신청 **승인**
+
+**되돌릴 수 있다.** 복구 스크립트는 값이 있는 행을 건드리지 않으므로 배포 후 다시 돌리면
+사라진 것만 다시 채운다:
+
+```bash
+node scripts/ops/ops-repair-seminar-schedules.mjs        # 미리보기 → apply
+node scripts/ops/ops-notion-backfill-seminars.mjs        # 미리보기 → apply
+node scripts/ops/ops-migration-audit.mjs --skip-notion   # 확인
+```
+
+배포가 끝나면 이 절은 **삭제해도 된다** — 새 코드는 그 필드들을 알고 있다.
+
 ## 3-1. `assets` 버킷을 **비공개로 전환** (C-22)
 
 **왜**: 지금까지 `assets`는 공개 버킷이었고, 그래서 "URL을 아는 것"이 곧 권한이었다.
