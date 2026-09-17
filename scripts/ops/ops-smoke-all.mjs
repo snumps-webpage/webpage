@@ -32,12 +32,9 @@ const IS_LOCAL = /^https?:\/\/(127\.0\.0\.1|localhost)/.test(BASE);
 
 /** 운영 데이터에서 파라미터를 꺼낸다 (없으면 해당 라우트는 건너뛴다). */
 async function sampleIds() {
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY) return {};
-  const { createClient } = await import("@supabase/supabase-js");
-  const sb = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SECRET_KEY,
-  );
+  const { requireSupabase } = await import("./lib-env.mjs");
+  const sb = await requireSupabase({ optional: true });
+  if (!sb) return {};
   const { data } = await sb.from("app_tables").select("name, doc");
   const rowsOf = (name) =>
     (data ?? []).find((t) => t.name === name)?.doc?.rows ?? [];
@@ -184,6 +181,21 @@ if (ids.assetKey) {
 }
 ROUTES.push(["/media/없는/키.pdf", /^404$/, "자산 프록시·거절"]);
 ROUTES.push(["/존재하지-않는-경로", /^404$/, "없는 경로"]);
+
+// 서버가 없는데 66개를 전부 두드리면 "실패 66건"이라는 쓸모없는 표가 나온다.
+// 한 번 찔러 보고, 없으면 그 사실만 말한다.
+try {
+  await fetch(BASE, { method: "HEAD" });
+} catch {
+  console.error(
+    `서버에 닿지 않는다: ${BASE}\n` +
+      (IS_LOCAL
+        ? "로컬이라면 먼저 개발 서버를 띄울 것:\n" +
+          "  SUPABASE_URL=… SUPABASE_SECRET_KEY=… npx vite dev --port 5199"
+        : "BASE 주소를 확인할 것."),
+  );
+  process.exit(1);
+}
 
 /** SvelteKit 오류 페이지·스택 흔적 */
 const ERROR_MARKERS =

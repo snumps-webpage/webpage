@@ -130,6 +130,25 @@ const targets = PAGES.length
       "/admin/gallery?dev_preview=admin",
     ];
 
+// 브라우저가 없으면 화면마다 "렌더 실패"가 쌓인다 — 그건 앱의 문제가 아니다.
+try {
+  await run(BROWSER, ["--version"], { timeout: 20_000 });
+} catch {
+  console.error(
+    `브라우저를 실행할 수 없다: ${BROWSER}\n` +
+      "크로미움을 설치하거나 CHROMIUM=<실행파일 경로> 로 지정할 것.",
+  );
+  process.exit(1);
+}
+
+// 서버가 없으면 마찬가지다.
+try {
+  await fetch(BASE, { method: "HEAD" });
+} catch {
+  console.error(`서버에 닿지 않는다: ${BASE}`);
+  process.exit(1);
+}
+
 const rows = [];
 let failed = 0;
 for (const path of targets) {

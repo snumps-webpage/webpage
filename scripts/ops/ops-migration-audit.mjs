@@ -14,7 +14,7 @@
  *
  * 읽기 전용 — 노션에도 Supabase에도 아무것도 쓰지 않는다.
  */
-import { loadDotenv } from "./lib-env.mjs";
+import { loadDotenv, requireSupabase } from "./lib-env.mjs";
 
 loadDotenv();
 
@@ -205,12 +205,8 @@ for (const [label, envName] of SKIP_NOTION ? [] : DATABASES) {
 }
 
 // ---- 앱 쪽 (자격증명이 있을 때만) -------------------------------------------
-if (process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY) {
-  const { createClient } = await import("@supabase/supabase-js");
-  const sb = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SECRET_KEY,
-  );
+const sb = await requireSupabase({ optional: true });
+if (sb) {
   const { data, error } = await sb.from("app_tables").select("name, doc");
   if (error) {
     console.log(`\n# 앱 테이블 조회 실패: ${error.message}`);

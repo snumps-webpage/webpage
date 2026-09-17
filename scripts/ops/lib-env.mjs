@@ -67,3 +67,41 @@ export function loadDotenv(file = path.join(REPO_ROOT, ".env")) {
     if (!(key in process.env)) process.env[key] = value;
   }
 }
+
+/**
+ * Supabase 클라이언트를 만든다.
+ *
+ * `@supabase/supabase-js`는 **프로젝트 의존성**이다 — `node_modules`가 없는
+ * 상태에서 부르면 모듈 스택이 튀어나온다. 그 스택은 "npm ci 를 먼저 하라"는
+ * 뜻인데, 그렇게 읽히지 않는다. 여기서 한 번에 말해 준다.
+ *
+ * `optional`이면 없을 때 종료하지 않고 `null`을 준다 — Supabase가 있으면 더
+ * 보고, 없으면 그만큼만 보고하는 스크립트를 위한 것이다.
+ *
+ * @param {{ optional?: boolean }} [opts]
+ * @returns {Promise<import("@supabase/supabase-js").SupabaseClient | null>}
+ */
+export async function requireSupabase({ optional = false } = {}) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) {
+    if (optional) return null;
+    console.error(
+      "SUPABASE_URL / SUPABASE_SECRET_KEY 없음 — 리포 루트 .env 또는 환경변수에 넣을 것.",
+    );
+    process.exit(1);
+  }
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    return createClient(url, key);
+  } catch {
+    const message =
+      "@supabase/supabase-js 를 찾을 수 없다 — 리포에서 `npm ci` 를 먼저 실행할 것.";
+    if (optional) {
+      console.error(`${message} (Supabase가 필요한 부분은 건너뛴다)`);
+      return null;
+    }
+    console.error(message);
+    process.exit(1);
+  }
+}

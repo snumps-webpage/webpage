@@ -16,25 +16,16 @@
  * 필요한 env (리포 루트 `.env`를 있으면 읽는다):
  *   SUPABASE_URL, SUPABASE_SECRET_KEY, (선택) SUPABASE_ASSETS_BUCKET
  */
-import { createClient } from "@supabase/supabase-js";
-import { loadDotenv } from "./lib-env.mjs";
+import { loadDotenv, requireSupabase } from "./lib-env.mjs";
 
 loadDotenv();
 
 const apply = process.argv.includes("--apply");
 const makePublic = process.argv.includes("--public");
-const url = process.env.SUPABASE_URL;
-const key = process.env.SUPABASE_SECRET_KEY;
 const bucket = process.env.SUPABASE_ASSETS_BUCKET || "assets";
 
-if (!url || !key) {
-  console.error(
-    "env missing: SUPABASE_URL / SUPABASE_SECRET_KEY (리포 루트 .env 또는 환경변수)",
-  );
-  process.exit(1);
-}
-
-const sb = createClient(url, key);
+const sb = await requireSupabase();
+const url = process.env.SUPABASE_URL;
 const target = makePublic ? true : false;
 
 /** 버킷 목록에서 이름·공개여부를 읽는다. */

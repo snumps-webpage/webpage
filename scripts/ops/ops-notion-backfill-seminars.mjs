@@ -257,8 +257,7 @@ if (
   process.argv[1] &&
   process.argv[1].endsWith("ops-notion-backfill-seminars.mjs")
 ) {
-  const { createClient } = await import("@supabase/supabase-js");
-  const { loadDotenv } = await import("./lib-env.mjs");
+  const { loadDotenv, requireSupabase } = await import("./lib-env.mjs");
   loadDotenv();
 
   const APPLY = process.argv.includes("apply");
@@ -408,10 +407,7 @@ if (
     }
   }
 
-  const sb = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SECRET_KEY,
-  );
+  const sb = await requireSupabase();
   const readDoc = async (/** @type {string} */ name) => {
     const { data, error } = await sb
       .from("app_tables")

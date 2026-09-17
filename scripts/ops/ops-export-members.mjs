@@ -15,17 +15,10 @@
  */
 import { mkdirSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
-import { loadDotenv, REPO_ROOT } from "./lib-env.mjs";
+import { loadDotenv, REPO_ROOT, requireSupabase } from "./lib-env.mjs";
 import { buildXlsx } from "./lib-xlsx.mjs";
 
 loadDotenv();
-
-const url = process.env.SUPABASE_URL;
-const key = process.env.SUPABASE_SECRET_KEY;
-if (!url || !key) {
-  console.error("SUPABASE_URL / SUPABASE_SECRET_KEY 없음");
-  process.exit(1);
-}
 
 const termArg = process.argv.indexOf("--term");
 const term = termArg !== -1 ? process.argv[termArg + 1] : null;
@@ -37,8 +30,7 @@ const outArg = process.argv.indexOf("--out");
 const outDir =
   outArg !== -1 ? process.argv[outArg + 1] : path.join(REPO_ROOT, "exports");
 
-const { createClient } = await import("@supabase/supabase-js");
-const sb = createClient(url, key);
+const sb = await requireSupabase();
 
 const { data, error } = await sb.from("app_tables").select("name, doc");
 if (error) {

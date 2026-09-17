@@ -186,8 +186,7 @@ if (
   process.argv[1] &&
   process.argv[1].endsWith("ops-repair-seminar-schedules.mjs")
 ) {
-  const { createClient } = await import("@supabase/supabase-js");
-  const { loadDotenv } = await import("./lib-env.mjs");
+  const { loadDotenv, requireSupabase } = await import("./lib-env.mjs");
   loadDotenv();
 
   const APPLY = process.argv.includes("apply");
@@ -195,17 +194,7 @@ if (
   const location =
     locationArg !== -1 ? process.argv[locationArg + 1] : "기록 없음";
 
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY) {
-    console.error(
-      "env missing: SUPABASE_URL / SUPABASE_SECRET_KEY (리포 루트 .env 또는 환경변수)",
-    );
-    process.exit(1);
-  }
-
-  const sb = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SECRET_KEY,
-  );
+  const sb = await requireSupabase();
 
   /** @param {string} name */
   const doc = async (name) => {
