@@ -327,13 +327,21 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
   "photos": ["s3Key"],
   "posterKey": "s3Key | \"\"", // 직접 업로드 포스터. 빈 값이면 자동 생성
   "preferredTiming": "string", // 신청서의 선호 시점 (조율 참고 기록)
+  // 소개글. `note`(비고)와 다른 글이다 — 공개 상세의 "1. 개요"가 이것이다.
+  // 승인 시 신청서에서 복사되고, 이주분은 노션 페이지 본문에서 복구했다.
+  "description": "string",
   // 승인 → 일정 미정 → 확정 → 공개 (FRONTEND-DECISIONS §3-1).
   // 필드가 없는 기존 행은 "published" — 승인이 곧 공개이던 시절의 기록이다.
-  "publicationStatus": "unscheduled | scheduled | published | completed | cancelled",
+  // `completed`는 **없다** — 지나간 세미나도 `published`다(도메인 enum이 진실).
+  "publicationStatus": "unscheduled | scheduled | published | cancelled",
   // 확정 전에는 null. *의도된 일정*의 원천이며, 공개가 이 값을 event·activity로
   // 복사한다 (events.date는 *출석 창*의 원천). 장소는 여기에만 있다.
   "schedule": {
     "startsAt": "ISO",
+    // 시작 **시각** "HH:mm"(KST). `null`은 **모른다**는 뜻이다 — 이주분의 원본에는
+    // 날짜만 적혀 있었다. 화면은 null이면 날짜만 그린다(자정을 시각으로 말하지 않는다).
+    // 값이 있으면 `startsAt`의 KST 시각과 반드시 일치한다(저장 스키마가 강제).
+    "startTime": "HH:mm | null",
     "endsAt": "ISO | null",
     "location": "string",
   },
@@ -651,6 +659,31 @@ schedule 기록 나중** (실패 시 재실행이 events의 `sourceRequestId`+�
 - `POST /admin/events/connect?/publish`: `activityId` 지정 → **활동의 title·date·type을 복사**해 출석 세션 생성(active)
 
 ---
+
+## 7-5. `GET /media/<key>` — 자산 읽기 (C-22)
+
+비공개 `assets` 버킷의 **유일한** 읽기 통로다. 예전에는 버킷이 공개였고 그래서 "URL을
+아는 것"이 곧 권한이었다 — 세미나를 취소해도 이미 나간 절대 URL이 파일을 계속 내려 줬다.
+
+| 항목 | 내용                                                                                                        |
+| ---- | ----------------------------------------------------------------------------------------------------------- |
+| 경로 | `/media/<s3Key>` (앱 경로. `assetUrl()`이 만들어 페이로드에 싣는다)                                         |
+| 응답 | **302** → 수명 5분 서명 URL. 바이트는 이 함수를 통과하지 않는다                                             |
+| 거절 | **전부 404.** 403은 "그 파일은 존재한다"를 알려 주므로 쓰지 않는다                                          |
+| 캐시 | `private, no-store` + `vercel-cdn-cache-control: no-store` — 라우트가 직접 붙인다(응답이 요청자마다 다르다) |
+
+권한 판정은 **요청마다** `services/asset-access.ts`가 한다. 규칙은 화면과 같다:
+
+- **공개**: 공개된(`published`) 세미나의 자료·사진·포스터, 스터디·회식 사진
+- **관리자 전용**: 미공개·취소된 세미나의 자산, 심사 중인 신청의 포스터
+- **거절**: 어느 기록에도 속하지 않는 키 (지워진 기록의 잔여 파일·추측 경로)
+
+한 키를 여러 기록이 가리키면 **가장 엄격한** 답을 고른다. 관리자 삭제(`asset-cleanup.ts`)는
+그 기록이 실제로 가진 키만, 그리고 **다른 기록이 참조하지 않을 때만** 지운다. 백업 미러
+(`assets-mirror/`)는 남긴다 — 실수를 되돌릴 유일한 길이다.
+
+> 운영: 이 통로가 실제로 통제가 되려면 버킷이 **비공개**여야 한다 —
+> `docs/OPERATOR-TODO.md` §3-1 (`scripts/ops/ops-assets-private.mjs --apply`).
 
 ## 8. REST 엔드포인트
 

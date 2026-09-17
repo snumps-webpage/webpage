@@ -34,7 +34,14 @@ To enable the system to send automated alerts from a preset Gmail account:
 Rename `.env.example` to `.env.safe` or `.env` and configure the following variables. See [**Authentication Variables**](AUTH_VARS.md) for detailed information on how `ADMINS_EMAILS` and `AUTHORIZED_USERS` are used.
 
 ```env
-# Notion
+# 인증 (없으면 로그인 자체가 뜨지 않는다 — hooks.server.ts가 FATAL을 남긴다)
+AUTH_SECRET=              # openssl rand -base64 32
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+ADMINS_EMAILS=            # 콤마 구분. 관리자 부트스트랩 (docs/AUTH_VARS.md)
+ADMIN_REFRESH_TOKEN=      # Gmail API 발송용 (docs/AUTH_VARS.md)
+
+# Notion — 이주 원본 조회·복구 스크립트 전용 (앱 런타임은 쓰지 않는다)
 NOTION_API_KEY=your_integration_token
 NOTION_DB_MEMBERS=id_of_members_db
 NOTION_DB_PRIVATE_INFO=id_of_private_info_db

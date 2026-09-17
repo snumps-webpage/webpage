@@ -2,7 +2,7 @@
 
 ## Authorization source
 
-관리자 권한의 단일 원천은 AWS의 `members.isAdmin`이다. 이메일 allowlist 또는 환경변수로
+관리자 권한의 단일 원천은 Supabase `members.isAdmin`이다. 이메일 allowlist 또는 환경변수로
 관리자 권한을 부여하지 않는다. 세션 이메일은 `private-info.email`로 회원을 찾는 데만 사용한다.
 
 ## Environment variables
