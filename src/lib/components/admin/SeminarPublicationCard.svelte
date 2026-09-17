@@ -54,20 +54,28 @@
     }
   });
 
-  function formatSchedule(value: string) {
+  /**
+   * 시각을 모르면(`startTime === null`) **날짜만** 보여 준다. 이주된 세미나의
+   * 원본에는 날짜만 적혀 있어 자정으로 저장되는데, 그것을 "오전 12:00"으로
+   * 그리면 화면이 없던 사실을 말하게 된다.
+   */
+  function formatSchedule(value: string, timeKnown: boolean) {
     return new Intl.DateTimeFormat("ko-KR", {
       timeZone: "Asia/Seoul",
       month: "long",
       day: "numeric",
       weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
+      ...(timeKnown ? { hour: "2-digit" as const, minute: "2-digit" as const } : {}),
     }).format(new Date(value));
   }
 
-  function formatScheduleRange(startsAt: string, endsAt: string | null) {
-    const start = formatSchedule(startsAt);
-    if (!endsAt) return start;
+  function formatScheduleRange(
+    startsAt: string,
+    endsAt: string | null,
+    startTime: string | null,
+  ) {
+    const start = formatSchedule(startsAt, startTime !== null);
+    if (!endsAt || startTime === null) return start;
 
     return `${start} – ${new Intl.DateTimeFormat("ko-KR", {
       timeZone: "Asia/Seoul",
@@ -95,12 +103,18 @@
     <div class="schedule-sheet">
       <div>
         <span>일시</span>
-        <strong>{formatScheduleRange(seminar.schedule.startsAt, seminar.schedule.endsAt)}</strong>
+        <strong>{formatScheduleRange(seminar.schedule.startsAt, seminar.schedule.endsAt, seminar.schedule.startTime)}</strong>
       </div>
       <div>
         <span>장소</span>
         <strong>{seminar.schedule.location}</strong>
       </div>
+      {#if seminar.schedule.startTime === null}
+        <div>
+          <span>시각</span>
+          <strong>기록 없음 — 일정 수정에서 채워 주세요</strong>
+        </div>
+      {/if}
     </div>
   {:else}
     <p class="unscheduled-note">승인은 완료되었습니다. 발표자와 조율한 일정을 입력해 주세요.</p>

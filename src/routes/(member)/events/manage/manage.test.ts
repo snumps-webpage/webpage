@@ -48,6 +48,7 @@ async function publishedSeminar(startOffsetMs: number) {
   const [seminar] = await getTable("seminars");
   await scheduleSeminar(seminar.id, {
     startsAt: at(startOffsetMs),
+    startTime: null,
     endsAt: null,
     location: "27동",
   });

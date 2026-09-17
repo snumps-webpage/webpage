@@ -59,6 +59,7 @@ describe("planSessionLinks", () => {
     expect(result.rows[0].activityId).toBe("a1");
     expect(result.rows[0].schedule).toEqual({
       startsAt: "2025-02-20T19:00:00+09:00",
+      startTime: "19:00", // 원본에 시각이 있으면 그대로 적는다
       endsAt: null,
       location: "기록 없음",
     });

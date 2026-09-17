@@ -8,12 +8,21 @@ import {
 describe("seminarSchedulesEqual", () => {
   const schedule = {
     startsAt: "2026-09-09T18:30:00+09:00",
+    startTime: "18:30",
     endsAt: "2026-09-09T20:00:00+09:00",
     location: "27동 220호",
   };
 
   it("treats an identical schedule retry as unchanged", () => {
     expect(seminarSchedulesEqual({ ...schedule }, schedule)).toBe(true);
+  });
+
+  // 시각 미상(null)과 시각 있음은 다른 일정이다 — 아니면 복구 후 다시 저장할 때
+  // "바뀐 것 없음"으로 읽혀 변경 공지가 나가지 않는다.
+  it("detects a time that became known", () => {
+    expect(
+      seminarSchedulesEqual({ ...schedule, startTime: null }, schedule),
+    ).toBe(false);
   });
 
   it("detects a location change", () => {

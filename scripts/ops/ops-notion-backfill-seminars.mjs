@@ -22,7 +22,7 @@
 /**
  * @typedef {{ title: string, startsAt: string }} NotionSession
  * @typedef {{ id?: string, title: string, semester: string, externalPresenters: string, sessions?: NotionSession[] }} NotionSeminar
- * @typedef {{ startsAt: string, endsAt: string | null, location: string }} Schedule
+ * @typedef {{ startsAt: string, startTime: string | null, endsAt: string | null, location: string }} Schedule
  * @typedef {{ id: string, title: string, semester: string, externalPresenters: string, description?: string, schedule?: Schedule | null, activityId?: string | null }} SeminarRow
  * @typedef {{ id: string, title: string, semester: string, value: string }} Planned
  * @typedef {{ title: string, semester: string, reason: string }} Unmatched
@@ -193,6 +193,16 @@ export function planSessionLinks({
       activityId: activity.id,
       schedule: {
         startsAt: activity.date.start,
+        // 원본에 시각이 없으면 null — 없던 시각을 지어내지 않는다.
+        startTime: (() => {
+          const clock = new Intl.DateTimeFormat("en-GB", {
+            timeZone: "Asia/Seoul",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }).format(new Date(activity.date.start));
+          return clock === "00:00" ? null : clock;
+        })(),
         endsAt: activity.date.end ?? null,
         location,
       },

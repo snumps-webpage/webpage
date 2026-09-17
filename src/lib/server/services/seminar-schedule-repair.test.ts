@@ -48,6 +48,7 @@ describe("planSeminarRepairs", () => {
 
     expect(result.rows[0].schedule).toEqual({
       startsAt: "2024-10-15T19:00:00+09:00",
+      startTime: "19:00",
       endsAt: null,
       location: "기록 없음",
     });
@@ -160,6 +161,18 @@ describe("planSeminarRepairs", () => {
     });
 
     expect(result.planned).toHaveLength(1);
+  });
+
+  // 모르는 시각을 자정으로 적으면 화면이 "오전 12:00"을 사실처럼 말한다.
+  it("시각을 모르면 일정의 시각도 null이다", () => {
+    const result = plan({
+      seminars: [seminar({ activityId: "a1" })],
+      activities: [
+        activity({ date: { start: "2025-02-20T00:00:00+09:00", end: null } }),
+      ],
+    });
+
+    expect(result.rows[0].schedule?.startTime).toBeNull();
   });
 
   // 노션 `일정`이 날짜만인 경우가 많다 — 자정은 "시각 미상"이라는 뜻이다.

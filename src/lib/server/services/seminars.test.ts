@@ -51,6 +51,7 @@ const HOUR = 60 * 60 * 1000;
 const at = (offsetMs: number) => toKstIso(new Date(Date.now() + offsetMs));
 const SCHEDULE = {
   startsAt: at(30 * 24 * HOUR),
+  startTime: null,
   endsAt: at(30 * 24 * HOUR + 2 * HOUR),
   location: "27동 325호",
 };
@@ -238,6 +239,7 @@ describe("publishSeminar — 공개", () => {
     await scheduleSeminar(id, {
       ...SCHEDULE,
       startsAt: at(60 * 24 * HOUR),
+      startTime: null,
       endsAt: null,
     });
     await publishSeminar(id);
@@ -303,6 +305,7 @@ describe("updateSeminarSchedule — 확정 후 일정 변경", () => {
     const id = await published();
     const moved = {
       startsAt: at(45 * 24 * HOUR),
+      startTime: null,
       endsAt: at(45 * 24 * HOUR + 3 * HOUR),
       location: "302동 105호",
     };
@@ -392,6 +395,7 @@ describe("updateSeminarSchedule — 확정 후 일정 변경", () => {
 
     await updateSeminarSchedule(id, {
       startsAt: at(-3 * HOUR),
+      startTime: null,
       endsAt: null,
       location: "27동",
     });
@@ -491,6 +495,7 @@ describe("취소 공지", () => {
     const [seminar] = await getTable("seminars");
     await scheduleSeminar(seminar.id, {
       startsAt: at(startOffsetMs),
+      startTime: null,
       endsAt: null,
       location: "27동",
     });
@@ -604,6 +609,7 @@ describe("취소 권한 — 개설자와 관리자", () => {
     const [seminar] = await getTable("seminars");
     await scheduleSeminar(seminar.id, {
       startsAt: at(startOffsetMs),
+      startTime: null,
       endsAt: null,
       location: "27동",
     });
@@ -707,6 +713,7 @@ describe("취소 권한은 캐시가 아니라 그 순간의 행으로 판정한
     const [seminar] = await getTable("seminars");
     await scheduleSeminar(seminar.id, {
       startsAt: at(10 * 24 * HOUR),
+      startTime: null,
       endsAt: null,
       location: "27동",
     });

@@ -22,12 +22,23 @@
 /**
  * @typedef {{ start: string, end: string | null }} DateRange
  * @typedef {{ id: string, title: string, type: string, date: DateRange }} ActivityRow
- * @typedef {{ startsAt: string, endsAt: string | null, location: string }} Schedule
+ * @typedef {{ startsAt: string, startTime: string | null, endsAt: string | null, location: string }} Schedule
  * @typedef {{ id: string, title: string, semester: string, schedule: Schedule | null, activityId: string | null, sourceRequestId?: string | null }} SeminarRow
  * @typedef {{ id: string, sourceRequestId: string | null, activityId: string }} EventRow
  * @typedef {{ id: string, title: string, semester: string, via: string | null, sessions: number, startsAt: string, relinked: boolean, timeUnknown: boolean }} Planned
  * @typedef {{ id: string, title: string, semester: string, reason: string }} Unresolved
  */
+
+/** KST 벽시계 "HH:mm" — 저장된 시각이 어느 시간대로 적혀 있든. */
+/** @param {string} iso */
+function kstClock(iso) {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(iso));
+}
 
 /**
  * 복구 대상 활동이 되려면 세미나 종류여야 한다.
@@ -138,7 +149,10 @@ export function planSeminarRepairs({
     }
 
     // 노션 `일정`이 날짜만인 행이 많다 — 자정은 시각을 모른다는 뜻이다.
-    const timeUnknown = /T00:00(:00)?/.test(activity.date.start);
+    // 모르는 것은 `startTime: null`로 적는다: 화면이 "오전 12:00"이라는 없던
+    // 사실을 말하지 않게 하는 유일한 방법이다.
+    const clock = kstClock(activity.date.start);
+    const timeUnknown = clock === "00:00";
 
     planned.push({
       id: s.id,
@@ -156,6 +170,7 @@ export function planSeminarRepairs({
       activityId: activity.id,
       schedule: {
         startsAt: activity.date.start,
+        startTime: timeUnknown ? null : clock,
         endsAt: activity.date.end ?? null,
         location,
       },

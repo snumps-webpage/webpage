@@ -38,6 +38,8 @@ export interface AdminSeminarRequestItem {
 
 export interface SeminarSchedule {
   startsAt: string;
+  /** 시작 시각 "HH:mm" (KST). `null`은 **모른다**는 뜻 — 화면은 날짜만 보여 준다. */
+  startTime: string | null;
   endsAt: string | null;
   location: string;
 }
@@ -49,6 +51,7 @@ export function seminarSchedulesEqual(
   return (
     left !== null &&
     left.startsAt === right.startsAt &&
+    left.startTime === right.startTime &&
     left.endsAt === right.endsAt &&
     left.location === right.location
   );

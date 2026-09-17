@@ -60,6 +60,7 @@ describe("SeminarSchema — 공개 상태와 일정", () => {
   it("확정된 일정은 시작·종료·장소를 함께 보관한다", () => {
     const schedule = {
       startsAt: "2026-10-15T19:00:00+09:00",
+      startTime: null,
       endsAt: "2026-10-15T21:00:00+09:00",
       location: "27동 325호",
     };
@@ -73,6 +74,7 @@ describe("SeminarSchema — 공개 상태와 일정", () => {
   it("종료 시각은 비워 둘 수 있다", () => {
     const schedule = {
       startsAt: "2026-10-15T19:00:00+09:00",
+      startTime: null,
       endsAt: null,
       location: "27동",
     };
@@ -113,6 +115,7 @@ describe("SeminarSchema — 공개 상태와 일정", () => {
         ...base,
         schedule: {
           startsAt: "2026-10-15T19:00:00+09:00",
+          startTime: null,
           endsAt: null,
           location,
         },
@@ -121,6 +124,71 @@ describe("SeminarSchema — 공개 상태와 일정", () => {
     expect(withLocation("")).toBe(false);
     expect(withLocation("x".repeat(161))).toBe(false);
     expect(withLocation("27동 325호")).toBe(true);
+  });
+
+  /**
+   * 노션 원본의 `일정`은 **날짜만** 적힌 것이 대부분이다(24/24). 그것을 자정으로
+   * 저장하면 화면이 "오전 12:00"이라는 **없던 사실**을 말하게 된다. 그래서 시각은
+   * 따로, null을 가질 수 있게 둔다 — null은 "시각을 모른다"는 뜻이고, 화면은
+   * 그때 날짜만 보여 준다.
+   */
+  it("시각은 모를 수 있다 — null이 곧 미상이다", () => {
+    const parsed = SeminarSchema.parse({
+      ...base,
+      schedule: {
+        startsAt: "2025-03-21T00:00:00+09:00",
+        startTime: null,
+        endsAt: null,
+        location: "기록 없음",
+      },
+    });
+
+    expect(parsed.schedule?.startTime).toBeNull();
+  });
+
+  it("시각을 알면 HH:mm으로 함께 적는다", () => {
+    const parsed = SeminarSchema.parse({
+      ...base,
+      schedule: {
+        startsAt: "2026-10-15T19:00:00+09:00",
+        startTime: "19:00",
+        endsAt: null,
+        location: "27동",
+      },
+    });
+
+    expect(parsed.schedule?.startTime).toBe("19:00");
+  });
+
+  // 두 자리에 같은 사실이 사는 만큼, 어긋나면 어느 쪽을 믿을지 알 수 없다.
+  it("적어 둔 시각은 시작 시각과 같아야 한다", () => {
+    const withTime = (startTime: string) =>
+      SeminarSchema.safeParse({
+        ...base,
+        schedule: {
+          startsAt: "2026-10-15T19:00:00+09:00",
+          startTime,
+          endsAt: null,
+          location: "27동",
+        },
+      }).success;
+
+    expect(withTime("19:00")).toBe(true);
+    expect(withTime("07:30")).toBe(false);
+  });
+
+  it("시각 필드가 없던 기존 행은 미상으로 읽힌다", () => {
+    const parsed = SeminarSchema.parse({
+      ...base,
+      schedule: {
+        startsAt: "2026-10-15T19:00:00+09:00",
+        startTime: null,
+        endsAt: null,
+        location: "27동",
+      },
+    });
+
+    expect(parsed.schedule?.startTime).toBeNull();
   });
 
   it("종료 시각은 시작보다 늦어야 한다", () => {
@@ -143,6 +211,7 @@ describe("SeminarSchema — 공개 상태와 일정", () => {
   it("저장 일정 모양이 도메인 DTO와 같다", () => {
     const fromDomain: DomainSeminarSchedule = {
       startsAt: "2026-10-15T19:00:00+09:00",
+      startTime: null,
       endsAt: null,
       location: "27동",
     };

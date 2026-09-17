@@ -70,6 +70,7 @@ async function scheduledSeminar() {
   const [seminar] = await getTable("seminars");
   await scheduleSeminar(seminar.id, {
     startsAt: toKstIso(new Date(Date.now() + 10 * 24 * HOUR)),
+    startTime: null,
     endsAt: null,
     location: "27동",
   });

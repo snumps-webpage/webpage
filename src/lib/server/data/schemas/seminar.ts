@@ -21,15 +21,44 @@ export type SeminarPublicationStatus = z.infer<typeof SeminarPublicationStatus>;
  * 검증 강도는 입력 폼(`seminarScheduleInputSchema`)과 맞춘다 — 저장 계층이
  * 폼보다 헐거우면 "유일한 자리"라는 주장이 빈 문자열로 퇴화한다.
  */
+/** KST 기준 "HH:mm" — 화면이 읽는 시각. */
+const KST_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** 어떤 시간대로 적혀 있든 KST의 벽시계 시각을 뽑는다. */
+function kstClock(iso: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(iso));
+}
+
 export const SeminarScheduleSchema = z
   .object({
     startsAt: DateTime,
+    /**
+     * 시작 **시각**. `null`은 "모른다"는 뜻이다.
+     *
+     * 왜 따로 두나: 이주된 세미나의 원본(노션 `일정`)은 대부분 **날짜만** 적혀
+     * 있다. 그것을 자정 instant로만 저장하면 화면이 "오전 12:00"이라는 없던
+     * 사실을 말한다. 날짜는 사실이고 시각은 모르는 것이므로, 모르는 것을
+     * null로 적는다 — 화면은 그때 날짜만 보여 준다.
+     *
+     * `startsAt`은 활동·출석 이벤트가 쓰는 instant라 그대로 둔다(시각 미상이면
+     * 자정). 두 자리가 어긋나지 않도록 아래에서 묶는다.
+     */
+    startTime: z.string().regex(KST_TIME).nullable().default(null),
     endsAt: DateTime.nullable(),
     location: z.string().min(1).max(160),
   })
   .refine((s) => s.endsAt === null || s.endsAt > s.startsAt, {
     path: ["endsAt"],
     message: "endsAt must be later than startsAt",
+  })
+  .refine((s) => s.startTime === null || s.startTime === kstClock(s.startsAt), {
+    path: ["startTime"],
+    message: "startTime must match the KST clock time of startsAt",
   });
 export type SeminarSchedule = z.infer<typeof SeminarScheduleSchema>;
 

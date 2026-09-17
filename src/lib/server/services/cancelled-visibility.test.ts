@@ -54,6 +54,7 @@ async function cancelledSeminar() {
   const [seminar] = await getTable("seminars");
   await scheduleSeminar(seminar.id, {
     startsAt: future(10 * 24 * HOUR),
+    startTime: null,
     endsAt: future(10 * 24 * HOUR + 2 * HOUR),
     location: "27동",
   });

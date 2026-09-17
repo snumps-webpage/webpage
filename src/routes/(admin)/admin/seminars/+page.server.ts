@@ -154,6 +154,9 @@ export const actions = {
 
       const schedule = {
         startsAt: kstInputToIso(parsed.data.startsAtLocal),
+        // 관리자가 직접 넣는 일정에는 시각이 반드시 있다 — 입력 폼이 요구한다.
+        // `null`은 이주분처럼 **원본에 시각이 없던** 경우만을 위한 값이다.
+        startTime: parsed.data.startsAtLocal.slice(11, 16),
         endsAt: parsed.data.endsAtLocal
           ? kstInputToIso(parsed.data.endsAtLocal)
           : null,
