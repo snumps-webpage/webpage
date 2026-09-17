@@ -555,5 +555,9 @@ if (
     .select("name");
   if (writeError) throw writeError;
   if (!data.length) throw new Error("CAS 실패 — 다시 실행할 것");
-  console.log(`\n적용 완료: ${planned.length}건`);
+  // 한 번의 쓰기에 세 가지가 함께 들어간다 — 발표자 수만 말하면 나머지가
+  // 적용되지 않은 것처럼 읽힌다.
+  console.log(
+    `\n적용 완료 — 외부 발표자 ${planned.length}건 · 개요 ${overviews.length}건 · 활동 링크 ${links.planned.length}건`,
+  );
 }
