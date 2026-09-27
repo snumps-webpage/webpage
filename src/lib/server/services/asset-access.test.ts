@@ -106,6 +106,7 @@ describe("resolveAssetAccess", () => {
         requesterId: newId(),
         status: "pending",
         closedAs: null,
+        kind: null,
         createdAt: nowKstIso(),
       },
     ]);
@@ -197,6 +198,7 @@ describe("resolveAssetAccess", () => {
         requesterId: newId(),
         status: "approved",
         closedAs: null,
+        kind: null,
         createdAt: nowKstIso(),
       },
     ]);

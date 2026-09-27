@@ -30,6 +30,8 @@
       duration: data.request.duration,
       attachmentUrl: data.request.attachment,
       presenterIds: data.request.speakerIds,
+      preferredTiming: data.request.preferredTiming,
+      kind: data.request.kind ?? "",
     }}
     initialPresenters={data.request.initialSpeakers}
     {form}

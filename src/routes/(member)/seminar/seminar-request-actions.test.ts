@@ -17,7 +17,7 @@ import {
   withdrawSeminarRequest,
 } from "$lib/server/services/seminar-requests";
 import { actions as apply } from "./apply/+page.server";
-import { actions as edit } from "./edit/[id]/+page.server";
+import { actions as edit, load as editLoad } from "./edit/[id]/+page.server";
 
 /**
  * The seminar request form already renders per-field issues (kind, title,
@@ -102,7 +102,7 @@ beforeEach(async () => {
 });
 
 describe("seminar/apply", () => {
-  it("stores a valid request, trimmed, without the kind", async () => {
+  it("stores a valid request, trimmed, with its kind", async () => {
     const result = await apply.default(post(valid));
 
     expect(result).toMatchObject({ success: true });
@@ -117,8 +117,8 @@ describe("seminar/apply", () => {
       presenterIds: ["m1", "m2"],
       requesterId: MEMBER_ID,
       status: "pending",
+      kind: "regular",
     });
-    expect(row).not.toHaveProperty("kind");
     expect(mail.sendSeminarApplicationNotification).toHaveBeenCalledWith(
       "회원",
       "대수위상 세미나",
@@ -214,7 +214,7 @@ describe("seminar/edit/[id]", () => {
     id = row.id;
   });
 
-  it("updates the own pending request, trimmed, without the kind", async () => {
+  it("updates the own pending request, trimmed, with its kind", async () => {
     const result = await edit.update(post(valid, { id }));
 
     expect(result).toMatchObject({ success: true });
@@ -225,8 +225,25 @@ describe("seminar/edit/[id]", () => {
       duration: "90분",
       attachment: "https://drive.google.com/example",
       presenterIds: ["m1", "m2"],
+      kind: "regular",
     });
-    expect(row).not.toHaveProperty("kind");
+  });
+
+  // The edit form starts from what load returns: without kind and timing,
+  // every edit had to re-pick the kind and silently cleared the timing.
+  it("load hands the edit form the stored kind and preferred timing", async () => {
+    await edit.update(post({ ...valid, kind: "irregular" }, { id }));
+
+    const data = (await editLoad({
+      locals,
+      params: { id },
+      url: new URL("http://localhost/seminar/edit"),
+    } as never)) as { request: { kind: string; preferredTiming: string } };
+
+    expect(data.request).toMatchObject({
+      kind: "irregular",
+      preferredTiming: "9월 중반",
+    });
   });
 
   it.each(badFields)(

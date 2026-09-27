@@ -11,6 +11,7 @@ export type RequestStatus = z.infer<typeof RequestStatus>;
 
 // 선호 세미나 시점 옵션의 단일 소스는 domain 계층 — 서버는 재수출만 한다.
 export { SEMINAR_TIMING_OPTIONS } from "$lib/domain/seminars";
+import { SEMINAR_KINDS } from "$lib/domain/seminars";
 
 export const SeminarRequestSchema = z.object({
   id: Id,
@@ -24,6 +25,11 @@ export const SeminarRequestSchema = z.object({
   attachment: z.string(), // external material link (upload path arrives with SYS-03)
   // 직접 업로드한 포스터의 assets 키 (없으면 빈 문자열 — 자동 생성 포스터 사용)
   posterKey: z.string().default(""),
+  /**
+   * 정기/비정기 (FRONTEND-DECISIONS §3-1). The form always asks; rows from
+   * before it was stored read as null.
+   */
+  kind: z.enum(SEMINAR_KINDS).nullable().default(null),
   requesterId: Id,
   status: RequestStatus,
   /**

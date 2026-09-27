@@ -517,6 +517,7 @@ describe("referential-integrity deletes", () => {
         requesterId: "p1",
         status: "approved" as const,
         closedAs: null,
+        kind: null,
         createdAt: nowKstIso(),
       },
     ]);

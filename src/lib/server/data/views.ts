@@ -20,6 +20,8 @@ export function seminarRequestView(r: SeminarRequest) {
     prerequisites: r.prerequisites,
     duration: r.duration,
     attachment: r.attachment,
+    preferredTiming: r.preferredTiming,
+    kind: r.kind,
     status: r.status,
     speakerIds: r.presenterIds, // legacy UI name
     submittedAt: r.createdAt,

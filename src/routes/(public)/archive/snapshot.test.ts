@@ -140,6 +140,7 @@ async function seedFixture() {
       requesterId: "m1",
       status: "approved" as const,
       closedAs: null,
+      kind: null,
       createdAt: nowKstIso(),
     },
   ]);

@@ -119,6 +119,7 @@ describe("deleteSeminar re-checks the state it decided on", () => {
         requesterId: "p1",
         status: "approved" as const,
         closedAs: null,
+        kind: null,
         createdAt: nowKstIso(),
       },
     ]);
@@ -155,6 +156,7 @@ describe("deleteSeminar re-checks the state it decided on", () => {
         requesterId: "p1",
         status: "approved" as const,
         closedAs: null,
+        kind: null,
         createdAt: nowKstIso(),
       },
     ]);

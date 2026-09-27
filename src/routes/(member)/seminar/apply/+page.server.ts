@@ -44,9 +44,9 @@ export const actions: Actions = {
       const data = await request.formData();
       const parsed = validateSeminarRequestForm(data);
       if (!parsed.success) return fail(400, parsed.failure);
-      // `kind` is validated but not stored: seminar-requests has no column.
       const { title, description, prerequisites, duration } = parsed.data;
-      const { preferredTiming, presenterIds, attachmentUrl } = parsed.data;
+      const { preferredTiming, presenterIds, attachmentUrl, kind } =
+        parsed.data;
 
       await submitSeminarRequest({
         title,
@@ -56,6 +56,7 @@ export const actions: Actions = {
         preferredTiming,
         presenterIds,
         attachment: attachmentUrl,
+        kind,
         posterPendingKey: formText(data, "posterPendingKey"),
         requesterId: member.memberId,
       });

@@ -28,6 +28,7 @@ export async function submitSeminarRequest(input: {
   preferredTiming: string;
   presenterIds: string[];
   attachment: string;
+  kind?: SeminarRequest["kind"];
   posterPendingKey?: string;
   requesterId: string;
 }): Promise<SeminarRequest> {
@@ -39,6 +40,7 @@ export async function submitSeminarRequest(input: {
     posterKey: await promoteSeminarPoster(posterPendingKey),
     status: "pending",
     closedAs: null,
+    kind: input.kind ?? null,
     createdAt: nowKstIso(),
   };
   await mutate("seminar-requests", (rows) => [...rows, row]);
@@ -58,6 +60,7 @@ export async function updateSeminarRequest(
       | "preferredTiming"
       | "presenterIds"
       | "attachment"
+      | "kind"
     >
   >,
   posterPendingKey = "",
