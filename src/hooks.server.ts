@@ -1,7 +1,12 @@
 import { env } from "$env/dynamic/private";
 import { building } from "$app/environment";
 import { sequence } from "@sveltejs/kit/hooks";
-import { error, type Handle, type HandleServerError } from "@sveltejs/kit";
+import {
+  json,
+  type Handle,
+  type HandleServerError,
+  type RequestEvent,
+} from "@sveltejs/kit";
 import { handle as authHandle } from "./auth";
 import {
   buildDevPreviewSession,
@@ -33,13 +38,40 @@ if (!building && !env.AUTH_SECRET) {
  * 훅을 거치지 않으므로 영향 없다. 공개 페이지 캐시 재도입은 유출 원인의
  * 플랫폼 측 규명 이후에만 검토한다.
  */
+const NO_STORE = {
+  "cache-control": "private, no-store",
+  "vercel-cdn-cache-control": "no-store",
+  "cdn-cache-control": "no-store",
+} as const;
+
 const cacheShield: Handle = async ({ event, resolve }) => {
   const response = await resolve(event);
-  response.headers.set("cache-control", "private, no-store");
-  response.headers.set("vercel-cdn-cache-control", "no-store");
-  response.headers.set("cdn-cache-control", "no-store");
+  for (const [k, v] of Object.entries(NO_STORE)) response.headers.set(k, v);
   return response;
 };
+
+/**
+ * A guard refusal, returned rather than thrown (W-23): a throw leaves through
+ * Kit's fatal-error path and skips cacheShield, so 404/403/500 went out
+ * without no-store. Shaped like that path — JSON for data/JSON requests, the
+ * plain error page otherwise (a throw from `handle` never rendered
+ * +error.svelte either).
+ */
+function guardRefusal(event: RequestEvent, status: number, message: string) {
+  const accept = event.request.headers.get("accept") ?? "";
+  if (event.isDataRequest || accept.includes("application/json")) {
+    return json({ message }, { status, headers: NO_STORE });
+  }
+  const safe = message.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+  return new Response(
+    `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${status}</title></head>` +
+      `<body><h1>${status}</h1><p>${safe}</p><p><a href="/">처음으로</a></p></body></html>`,
+    {
+      status,
+      headers: { ...NO_STORE, "content-type": "text/html; charset=utf-8" },
+    },
+  );
+}
 
 const devPreviewHandle: Handle = async ({ event, resolve }) => {
   const devPreviewRole = resolveDevPreviewRole(event.url, event.cookies);
@@ -66,7 +98,7 @@ const devPreviewHandle: Handle = async ({ event, resolve }) => {
  * Zone guard (IMPLEMENTATION-SPEC BE-20): the route group IS the access zone.
  * Pure decisions live in guards/zone.ts; this handle only gathers context.
  */
-const zoneGuard: Handle = async ({ event, resolve }) => {
+export const zoneGuard: Handle = async ({ event, resolve }) => {
   const routeId = event.route.id;
 
   // Unmatched URL — let SvelteKit render its 404, never a 500.
@@ -128,7 +160,11 @@ const zoneGuard: Handle = async ({ event, resolve }) => {
       if (event.request.method === "POST" && zone === "(member)" && member) {
         const needed = memberPostCapability(routeId);
         if (needed && !member.capabilities.includes(needed)) {
-          throw error(403, "이번 학기 등록 회원만 할 수 있는 작업입니다.");
+          return guardRefusal(
+            event,
+            403,
+            "이번 학기 등록 회원만 할 수 있는 작업입니다.",
+          );
         }
       }
       return resolve(event); // 캐시 금지는 최외곽 cacheShield가 전 응답에 부착
@@ -137,18 +173,15 @@ const zoneGuard: Handle = async ({ event, resolve }) => {
       // throw 하면 실드 핸들을 우회한다 — 캐시 금지 헤더를 직접 부착해 반환.
       return new Response(null, {
         status: 303,
-        headers: {
-          location: decision.location,
-          "cache-control": "private, no-store",
-          "vercel-cdn-cache-control": "no-store",
-          "cdn-cache-control": "no-store",
-        },
+        headers: { location: decision.location, ...NO_STORE },
       });
     case "notFound":
-      throw error(404, "Not Found");
+      return guardRefusal(event, 404, "Not Found");
     case "misconfigured":
-      // A page outside every zone means the guard cannot protect it — fail closed.
-      throw error(500, "route without zone");
+      // A page outside every zone means the guard cannot protect it — fail
+      // closed. The route id goes to the log, not to the browser (W-35).
+      console.error(`[guard] route without zone: ${routeId}`);
+      return guardRefusal(event, 500, "Internal Error");
   }
 };
 
@@ -170,8 +203,10 @@ export const handle = sequence(
  *   2. The raw exception text (Postgres DSNs, fetch URLs) must not travel to a
  *      browser. It is logged here instead.
  *
- * Data-layer failures still leave as 500; moving them to 503 + Retry-After is
- * W-30, and needs SERVICE_UNAVAILABLE to be throwable first (W-32).
+ * A data-layer outage is thrown as AppError("SERVICE_UNAVAILABLE") by
+ * tables.ts; loads wrapped in httpGuard turn it into 503. One that escapes
+ * uncaught (from this hook or an /api handler) still leaves as 500 — Kit
+ * fixes the status before calling here. Retry-After is still missing (W-30).
  */
 export const handleError: HandleServerError = ({
   error: e,
