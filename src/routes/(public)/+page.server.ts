@@ -12,9 +12,10 @@ import {
   getPrivateInfoOf,
 } from "$lib/server/data/repos";
 import {
-  effectiveStatus,
   applyToEvent,
   cancelEventApplication,
+  isOpenForApplication,
+  isSeminarType,
 } from "$lib/server/services/events";
 import { seminarRequestView } from "$lib/server/data/views";
 import { currentTerm, termRange } from "$lib/server/core/semester";
@@ -99,16 +100,13 @@ function participationState(
   return {
     attended,
     isApplied,
-    // effectiveStatus, not the stored value — a lazily-expired event must
-    // not advertise an apply button it will reject (review low-16). Same for
-    // a member without PARTICIPATE (alumni, unregistered): the action 403s.
-    canApply:
-      mayParticipate &&
-      !!event &&
-      effectiveStatus(event, now) === "active" &&
-      !started,
+    // The service's own rule, not a copy — a lazily-expired event must not
+    // advertise an apply button it will reject (review low-16, audit LB20-3).
+    // Same for a member without PARTICIPATE (alumni, unregistered): the
+    // action 403s.
+    canApply: mayParticipate && !!event && isOpenForApplication(event, now),
     pendingAttendance:
-      isApplied && started && !attended && activity.type === "세미나",
+      isApplied && started && !attended && isSeminarType(activity.type),
   };
 }
 

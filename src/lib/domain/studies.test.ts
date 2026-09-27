@@ -71,6 +71,19 @@ describe("study domain", () => {
     }
   });
 
+  // Audit LA09-3: this module kept its own copy of the calendar check, which
+  // missed the 2000–2099 range kstInputToIso enforces — such a year passed the
+  // form and was then refused with no field issue.
+  it("refuses a session year kstInputToIso cannot store", () => {
+    for (const startedAtLocal of ["1999-12-31T18:30", "2100-01-01T10:00"]) {
+      const result = studySessionCorrectionSchema.safeParse({
+        title: "3회차",
+        startedAtLocal,
+      });
+      expect(result.success).toBe(false);
+    }
+  });
+
   it("validates a study request without a schedule field", () => {
     const result = studyRequestInputSchema.safeParse({
       title: "범주론 읽기 모임",

@@ -103,7 +103,7 @@ DB에 없으면 그 기능이 전부 500이 된다. 또 세미나 스키마가 `
 
 | 파일                                                                | 하는 일                                                               |
 | ------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `supabase/migrations/20260928000000_atomic_flows.sql`               | 헬퍼·흐름 함수 18개(백업 스냅숏 포함), `service_role` 전용 권한       |
+| `supabase/migrations/20260928000000_atomic_flows.sql`               | 헬퍼·흐름 함수 19개(백업 스냅숏 포함), `service_role` 전용 권한       |
 | `supabase/migrations/20260928000100_seminar_publication_status.sql` | `publicationStatus` 없는 세미나 행에 `"published"` 명시 (재실행 안전) |
 | `supabase/migrations/20260928000200_assets_bucket_private.sql`      | `assets` 버킷을 비공개로 (C-22, 3-1절과 같은 전환 — 재실행 안전)      |
 
@@ -121,7 +121,7 @@ DB에 없으면 그 기능이 전부 500이 된다. 또 세미나 스키마가 `
    dev에는 CLI 이력이 있으므로(2절, `db push`로 적용) 새 세 파일만 적용된다.
 2. ⬜ **dev 확인** (SQL Editor):
    ```sql
-   select count(*) from pg_proc where proname like 'flow\_%';          -- 18
+   select count(*) from pg_proc where proname like 'flow\_%';          -- 19
    select count(*) from app_tables t, jsonb_array_elements(t.doc->'rows') r
     where t.name = 'seminars' and not r ? 'publicationStatus';          -- 0
    select has_function_privilege('anon', 'flow_publish_seminar(jsonb)', 'execute'); -- false

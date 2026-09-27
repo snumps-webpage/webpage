@@ -1,36 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  seminarSchedulesEqual,
   seminarScheduleInputSchema,
   validateSeminarScheduleForm,
 } from "./admin-seminars";
 
-describe("seminarSchedulesEqual", () => {
-  const schedule = {
-    startsAt: "2026-09-09T18:30:00+09:00",
-    startTime: "18:30",
-    endsAt: "2026-09-09T20:00:00+09:00",
-    location: "27동 220호",
-  };
-
-  it("treats an identical schedule retry as unchanged", () => {
-    expect(seminarSchedulesEqual({ ...schedule }, schedule)).toBe(true);
-  });
-
-  // 시각 미상(null)과 시각 있음은 다른 일정이다 — 아니면 복구 후 다시 저장할 때
-  // "바뀐 것 없음"으로 읽혀 변경 공지가 나가지 않는다.
-  it("detects a time that became known", () => {
-    expect(
-      seminarSchedulesEqual({ ...schedule, startTime: null }, schedule),
-    ).toBe(false);
-  });
-
-  it("detects a location change", () => {
-    expect(
-      seminarSchedulesEqual(schedule, { ...schedule, location: "56동 105호" }),
-    ).toBe(false);
-  });
-});
+// The "has the schedule changed" rule lives in flow_update_seminar_schedule;
+// flow-contracts.test.ts pins it (audit LC04-2).
 
 describe("seminarScheduleInputSchema", () => {
   it("accepts a valid KST-local schedule form", () => {
@@ -64,6 +39,38 @@ describe("seminarScheduleInputSchema", () => {
     if (!result.success) {
       expect(result.error.issues[0]?.path).toEqual(["endsAtLocal"]);
     }
+  });
+});
+
+// Audit LA09-3 / LC04-4: this schema copied the datetime-local regex without
+// the calendar check, so 02-30 or 24:00 passed the form and kstInputToIso then
+// refused it with no field issue. It now uses the shared rule.
+describe("seminarScheduleInputSchema: impossible times", () => {
+  it.each(["2026-02-30T18:30", "2026-01-01T24:00", "1999-12-31T18:30"])(
+    "refuses a start of %s on its field",
+    (startsAtLocal) => {
+      const result = seminarScheduleInputSchema.safeParse({
+        startsAtLocal,
+        endsAtLocal: "",
+        location: "27동 220호",
+      });
+      expect(result.success).toBe(false);
+      if (!result.success)
+        expect(result.error.issues.map((i) => i.path)).toEqual([
+          ["startsAtLocal"],
+        ]);
+    },
+  );
+
+  it("reports an impossible end on its field, not as an order", () => {
+    const result = seminarScheduleInputSchema.safeParse({
+      startsAtLocal: "2026-09-09T18:30",
+      endsAtLocal: "2026-09-31T20:00",
+      location: "27동 220호",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success)
+      expect(result.error.issues.map((i) => i.path)).toEqual([["endsAtLocal"]]);
   });
 });
 

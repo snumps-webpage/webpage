@@ -5,31 +5,56 @@ vi.mock(
   () => import("$lib/server/data/store-memory"),
 );
 
-import { __reset } from "$lib/server/data/store-memory";
+import { __docs, __putRawDoc, __reset } from "$lib/server/data/store-memory";
 import {
   _resetDataLayerForTests,
   getTable,
   mutate,
 } from "$lib/server/data/tables";
+import { expectTablesValid } from "$lib/server/data/expect-tables-valid";
+import type { Seminar } from "$lib/server/data/schemas";
 import { invalidateCache } from "$lib/server/cache";
 import { AppError } from "$lib/server/core/errors";
 import { toKstIso } from "$lib/server/core/time";
+import { mergeAttendees } from "$lib/server/attendance";
+import { getMemberVisibleEvents } from "./visibility";
 import {
   applyToEvent,
   cancelEventApplication,
   checkIn,
   createEventWithActivity,
   getManagedSeminars,
+  isOpenForApplication,
   savePresenterAttendance,
 } from "./events";
 
 const future = () => toKstIso(new Date(Date.now() + 60 * 60 * 1000));
 const past = () => toKstIso(new Date(Date.now() - 60 * 60 * 1000));
 
+const cancelledSeminar: Seminar = {
+  id: "s1",
+  title: "세미나",
+  semester: "26-2",
+  note: "",
+  description: "",
+  presenterIds: ["presenter"],
+  externalPresenters: "",
+  materials: [],
+  photos: [],
+  posterKey: "",
+  preferredTiming: "",
+  publicationStatus: "cancelled",
+  schedule: null,
+  announcedAt: null,
+  semesterPinned: false,
+  activityId: null,
+  sourceRequestId: null,
+};
+
 beforeEach(async () => {
-  __reset();
+  await __reset();
   _resetDataLayerForTests({ backoffBaseMs: 1 });
-  for (const t of ["activities", "events", "members"])
+  for (const t of ["activities", "events", "members", "seminars"])
     await invalidateCache(`table_${t}`);
 });
 
@@ -72,6 +97,32 @@ describe("event application (EVT-02)", () => {
   });
 });
 
+// Audit LB20-3: the dashboard restated "open for application" to decide its
+// apply button; the service's rule was private. One exported predicate now
+// serves both, so the button cannot advertise an application the action refuses.
+describe("isOpenForApplication", () => {
+  it("is the rule applyToEvent enforces", async () => {
+    const cases = [
+      { startIso: future(), status: "active" as const },
+      { startIso: past(), status: "active" as const },
+      { startIso: future(), status: "draft" as const },
+      { startIso: future(), status: "expired" as const },
+    ];
+    for (const c of cases) {
+      const event = await createEventWithActivity({
+        title: "세미나",
+        type: "세미나",
+        ...c,
+      });
+      const applied = await applyToEvent(event.id, "m1").then(
+        () => true,
+        () => false,
+      );
+      expect(isOpenForApplication(event)).toBe(applied);
+    }
+  });
+});
+
 describe("presenter attendance management (PRES-02 / BE-44)", () => {
   async function seminarWithApplicants() {
     const event = await createEventWithActivity({
@@ -98,7 +149,7 @@ describe("presenter attendance management (PRES-02 / BE-44)", () => {
     await savePresenterAttendance(event.id, "presenter", ["a1"]);
 
     const attendees = (await getTable("activities"))[0].attendeeIds;
-    expect(attendees.sort()).toEqual(["a1", "walkin"].sort());
+    expect([...attendees].sort()).toEqual(["a1", "walkin"].sort());
 
     // Unchecking a1 later still keeps the walk-in.
     await savePresenterAttendance(event.id, "presenter", []);
@@ -145,6 +196,111 @@ describe("presenter attendance management (PRES-02 / BE-44)", () => {
     await approveAttendance(event.id, rec.id);
 
     expect(await getActivitiesOf("walkin-member")).toHaveLength(1);
+  });
+
+  // Audit LB20-2: the save decided "visible, mine, in the pool" on this
+  // instance's cached events and wrote the activity separately. A cancel (or
+  // a withdrawn application) committed elsewhere inside the cache window was
+  // not seen: attendance landed on a cancelled seminar and then blocked its
+  // deletion. The flow now decides on the stored event under a lock.
+  describe("decides on the stored event, not a cached copy", () => {
+    /** Another instance's write: straight to the store, no cache invalidation. */
+    const writeElsewhere = async (name: string, rows: unknown[]) =>
+      __putRawDoc("table", name, { schemaVersion: 1, rows });
+
+    it("refuses a seminar whose event was cancelled since the cache was filled", async () => {
+      const event = await seminarWithApplicants();
+      await getMemberVisibleEvents(); // this instance's cache holds it active
+      await writeElsewhere("events", [{ ...event, status: "cancelled" }]);
+
+      await expect(
+        savePresenterAttendance(event.id, "presenter", ["a1"]),
+      ).rejects.toSatisfy(
+        (e) => e instanceof AppError && e.code === "NOT_FOUND",
+      );
+      expect((await __docs("table")).get("activities")?.doc).toMatchObject({
+        rows: [{ attendeeIds: [] }],
+      });
+    });
+
+    it("refuses a seminar that stopped being published since the cache was filled", async () => {
+      const event = await seminarWithApplicants();
+      await getMemberVisibleEvents();
+      await writeElsewhere("seminars", [
+        { ...cancelledSeminar, activityId: event.activityId },
+      ]);
+
+      await expect(
+        savePresenterAttendance(event.id, "presenter", ["a1"]),
+      ).rejects.toSatisfy(
+        (e) => e instanceof AppError && e.code === "NOT_FOUND",
+      );
+    });
+
+    it("refuses an applicant who withdrew since the cache was filled", async () => {
+      const event = await seminarWithApplicants();
+      await getMemberVisibleEvents();
+      await writeElsewhere("events", [{ ...event, applicantIds: ["a2"] }]);
+
+      await expect(
+        savePresenterAttendance(event.id, "presenter", ["a1"]),
+      ).rejects.toSatisfy(
+        (e) => e instanceof AppError && e.code === "VALIDATION_FAILED",
+      );
+    });
+
+    it("refuses a presenter removed since the cache was filled", async () => {
+      const event = await seminarWithApplicants();
+      await getMemberVisibleEvents();
+      await writeElsewhere("events", [{ ...event, presenterIds: ["other"] }]);
+
+      await expect(
+        savePresenterAttendance(event.id, "presenter", ["a1"]),
+      ).rejects.toSatisfy(
+        (e) => e instanceof AppError && e.code === "FORBIDDEN",
+      );
+    });
+
+    it("refuses an event that is not a seminar", async () => {
+      const event = await createEventWithActivity({
+        title: "회의",
+        startIso: future(),
+        type: "회의",
+        status: "active",
+        presenterIds: ["presenter"],
+      });
+      await expect(
+        savePresenterAttendance(event.id, "presenter", []),
+      ).rejects.toSatisfy(
+        (e) => e instanceof AppError && e.code === "VALIDATION_FAILED",
+      );
+    });
+
+    // The flow restates mergeAttendees in SQL (studies still use the TS one);
+    // pinned against it here, order and duplicates included.
+    it.each([
+      [["walkin", "a2", "late"], ["a1"]],
+      [
+        ["walkin", "a2", "late"],
+        ["a1", "a1", "a2"],
+      ],
+      [["a1", "a2"], []],
+      [["x", "x", "a1"], ["a2"]],
+      [[], ["a2", "a1"]],
+    ])(
+      "merges %j with %j as mergeAttendees does",
+      async (current, selected) => {
+        const event = await seminarWithApplicants(); // pool: a1, a2
+        await mutate("activities", (rows) =>
+          rows.map((a) => ({ ...a, attendeeIds: current })),
+        );
+        await savePresenterAttendance(event.id, "presenter", selected);
+        expect((await getTable("activities"))[0].attendeeIds).toEqual(
+          mergeAttendees(current, event.applicantIds, selected),
+        );
+        await expectTablesValid();
+      },
+    );
   });
 
   it("lists managed seminars with applicant names and current checks", async () => {

@@ -453,8 +453,11 @@ begin
   if v_status in ('cancelled', 'unscheduled') then raise exception 'CONFLICT'; end if;
 
   v_old := app_nullable(v_sem -> 'schedule');
+  -- Every schedule field: a time that became known (or 미정 again) changes
+  -- what the notice and the member pages say (audit LC04-2).
   v_changed := v_old is null
     or v_old ->> 'startsAt' is distinct from v_new ->> 'startsAt'
+    or v_old ->> 'startTime' is distinct from v_new ->> 'startTime'
     or v_old ->> 'endsAt' is distinct from v_new ->> 'endsAt'
     or v_old ->> 'location' is distinct from v_new ->> 'location';
   v_sem := v_sem || jsonb_build_object(
@@ -760,6 +763,81 @@ begin
   return jsonb_build_object(
     'touched', to_jsonb(v_touched),
     'touchedQueues', jsonb_build_array(v_event_id));
+end $$;
+
+-- A presenter records which applicants attended their seminar (BE-44). The
+-- event decides everything — visible to members, the caller presents it, a
+-- seminar kind, the applicant pool — so it is read FOR SHARE and the activity
+-- written in the same transaction: decided on a cached copy, a cancel or a
+-- withdrawn application committed elsewhere was missed, and attendance on a
+-- cancelled seminar then blocked its deletion (audit LB20-2). Merge rule of
+-- server/attendance.ts mergeAttendees: attendees outside the pool always
+-- survive, the selection replaces the pool's part, and it must lie within
+-- the pool — so every id written is one already stored.
+--   p = { eventId, presenterId, attendeeIds: [...], seminarTypes: [...] }
+--   (seminarTypes: events.ts SEMINAR_TYPES — the kind rule's one owner)
+create or replace function flow_save_presenter_attendance(p jsonb) returns jsonb
+language plpgsql set search_path = public as $$
+declare
+  v_event_id text := p ->> 'eventId';
+  v_selected jsonb := p -> 'attendeeIds';
+  v_event    jsonb;
+  v_pool     jsonb;
+  v_acts     jsonb;
+  v_act      jsonb;
+  v_next     jsonb;
+begin
+  perform app_require(p, array['eventId', 'presenterId', 'attendeeIds', 'seminarTypes']);
+  if jsonb_typeof(v_selected) <> 'array' or jsonb_typeof(p -> 'seminarTypes') <> 'array' then
+    raise exception 'VALIDATION_FAILED';
+  end if;
+  perform app_lock(array['activities']);
+  perform 1 from app_tables where name in ('events', 'seminars') order by name for share;
+
+  -- Member-visible, as services/visibility.ts getMemberVisibleEvents: not
+  -- cancelled, and not on the activity of a seminar that is not published.
+  -- (Its other half — every event of the activity cancelled — cannot hold
+  -- for an event that is not cancelled itself.)
+  v_event := app_find(app_rows('events'), v_event_id);
+  if v_event is null or v_event ->> 'status' = 'cancelled'
+     or exists (select 1 from jsonb_array_elements(app_rows('seminars')) s
+                 where s ->> 'activityId' = v_event ->> 'activityId'
+                   and app_seminar_status(s) <> 'published') then
+    raise exception 'NOT_FOUND';
+  end if;
+  if not coalesce(v_event -> 'presenterIds', '[]'::jsonb) ? (p ->> 'presenterId') then
+    raise exception 'FORBIDDEN';
+  end if;
+  if not (p -> 'seminarTypes') ? (v_event ->> 'type') then
+    raise exception 'VALIDATION_FAILED';
+  end if;
+
+  v_acts := app_rows('activities');
+  v_act := app_find(v_acts, v_event ->> 'activityId');
+  if v_act is null then raise exception 'NOT_FOUND'; end if;
+  v_pool := coalesce(v_event -> 'applicantIds', '[]'::jsonb);
+  if exists (select 1 from jsonb_array_elements(v_selected) x
+              where jsonb_typeof(x) <> 'string' or not v_pool ? (x #>> '{}')) then
+    raise exception 'VALIDATION_FAILED';
+  end if;
+
+  -- outside-the-pool attendees first, then the selection; first occurrence wins
+  select coalesce(jsonb_agg(to_jsonb(id) order by part, n), '[]'::jsonb) into v_next
+    from (select distinct on (id) id, part, n
+            from (select a.id, 0 as part, a.n
+                    from jsonb_array_elements_text(v_act -> 'attendeeIds') with ordinality a(id, n)
+                   where not v_pool ? a.id
+                  union all
+                  select s.id, 1, s.n
+                    from jsonb_array_elements_text(v_selected) with ordinality s(id, n)) u
+           order by id, part, n) d;
+
+  if v_next = v_act -> 'attendeeIds' then
+    return jsonb_build_object('touched', '[]'::jsonb);
+  end if;
+  perform app_put('activities', app_replace(v_acts, v_act ->> 'id',
+    jsonb_set(v_act, '{attendeeIds}', v_next)));
+  return jsonb_build_object('touched', jsonb_build_array('activities'));
 end $$;
 
 -- Delete an event (admin) with its queue — refused while check-ins are still

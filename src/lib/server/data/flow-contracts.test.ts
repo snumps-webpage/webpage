@@ -13,7 +13,7 @@ import { expectTablesValid } from "./expect-tables-valid";
 import { _resetDataLayerForTests, getQueue, getTable } from "./tables";
 import { invalidateCache } from "$lib/server/cache";
 import { AppError } from "$lib/server/core/errors";
-import { callFlow } from "./flows";
+import { callFlow, type FlowResult } from "./flows";
 import type { Seminar } from "./schemas";
 import {
   cancelSeminar,
@@ -148,6 +148,14 @@ describe("flows refuse missing arguments", () => {
       },
     ],
     ["flow_check_in", { eventId: "e1", memberId: "m1", id: "r1" }],
+    [
+      "flow_save_presenter_attendance",
+      { eventId: "e1", presenterId: "p1", seminarTypes: ["세미나"] },
+    ],
+    [
+      "flow_save_presenter_attendance",
+      { eventId: "e1", presenterId: "p1", attendeeIds: [] },
+    ],
   ] as [`flow_${string}`, Record<string, unknown>][])(
     "%s",
     async (fn, args) => {
@@ -263,6 +271,33 @@ describe("app_seminar_started mirrors seminarHasStarted", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// LC04-2 — "changed" (which decides the change notice) compared startsAt,
+// endsAt and location only. A time that became known, or went back to 미정,
+// changes what the notice and the member pages say, yet counted as no change.
+describe("flow_update_seminar_schedule: changed", () => {
+  const schedule = legacySeminar().schedule!;
+  const changed = async (next: object) =>
+    (
+      await callFlow<FlowResult & { changed: boolean }>(
+        "flow_update_seminar_schedule",
+        { id: "s1", schedule: { ...schedule, ...next } },
+      )
+    ).changed;
+
+  it("is false for the same schedule saved again", async () => {
+    await put("seminars", [legacySeminar()]);
+    expect(await changed({})).toBe(false);
+  });
+
+  it("is true when only the start time became known or unknown", async () => {
+    await put("seminars", [
+      legacySeminar({ schedule: { ...schedule, startTime: null } }),
+    ]);
+    expect(await changed({ startTime: "19:00" })).toBe(true);
+    expect(await changed({ startTime: null })).toBe(true);
   });
 });
 

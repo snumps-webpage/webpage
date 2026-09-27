@@ -15,7 +15,6 @@ import type {
   AttendanceRecord,
   Event,
 } from "$lib/server/data/schemas";
-import { mergeAttendees } from "$lib/server/attendance";
 
 /**
  * Event lifecycle + attendance queue (API-SPEC §5-4, §7-2, §8-1).
@@ -187,10 +186,19 @@ export function isSeminarType(type: Event["type"]): boolean {
   return SEMINAR_TYPES.includes(type);
 }
 
+/**
+ * May members apply to (or withdraw from) this event now — open and not yet
+ * started. The one definition: the dashboard's apply button reads it too, so
+ * it cannot advertise an application this service refuses (audit LB20-3).
+ */
+export function isOpenForApplication(event: Event, now = new Date()): boolean {
+  return (
+    effectiveStatus(event, now) === "active" && new Date(event.date.start) > now
+  );
+}
+
 function assertOpenForApplication(event: Event, now = new Date()): void {
-  if (effectiveStatus(event, now) !== "active")
-    throw new AppError("EVENT_NOT_OPEN");
-  if (new Date(event.date.start) <= now) throw new AppError("EVENT_NOT_OPEN");
+  if (!isOpenForApplication(event, now)) throw new AppError("EVENT_NOT_OPEN");
 }
 
 export async function applyToEvent(
@@ -261,32 +269,28 @@ export async function getManagedSeminars(memberId: string) {
 }
 
 /**
- * BE-44 save: merge rule via mergeAttendees — attendees who arrived through
+ * BE-44 save: the mergeAttendees rule — attendees who arrived through
  * check-in (outside the applicant pool) always survive; selections outside
- * the pool are refused. Presenter authority is re-verified against the event.
+ * the pool are refused. Whether the event is still member-visible (취소된
+ * 세미나에는 기록을 남길 수 없다), whether the caller presents it, and the pool
+ * itself are decided on the stored event in the same transaction as the
+ * write (flow_save_presenter_attendance) — a cached copy missed a cancel or a
+ * withdrawn application committed elsewhere (audit LB20-2). Every id the
+ * flow writes is one already stored (it must lie in the pool), so the
+ * selection needs no schema check beyond its shape.
  */
 export async function savePresenterAttendance(
   eventId: string,
   presenterId: string,
   selectedApplicantIds: string[],
 ): Promise<void> {
-  // 발표자 저장도 회원 면의 단일 통로를 탄다 — 취소된 세미나에는 기록을 남길 수 없다.
-  const event = (await getMemberVisibleEvents()).find((e) => e.id === eventId);
-  if (!event) throw new AppError("NOT_FOUND");
-  if (!event.presenterIds.includes(presenterId))
-    throw new AppError("FORBIDDEN");
-  if (!isSeminarType(event.type)) throw new AppError("VALIDATION_FAILED");
-
-  await mutate("activities", (rows) => {
-    const idx = rows.findIndex((a) => a.id === event.activityId);
-    if (idx === -1) throw new AppError("NOT_FOUND");
-    const next = mergeAttendees(
-      rows[idx].attendeeIds,
-      event.applicantIds,
-      selectedApplicantIds,
-    );
-    rows[idx] = { ...rows[idx], attendeeIds: next };
-    return rows;
+  if (!selectedApplicantIds.every((id) => typeof id === "string"))
+    throw new AppError("VALIDATION_FAILED");
+  await callFlow("flow_save_presenter_attendance", {
+    eventId,
+    presenterId,
+    attendeeIds: selectedApplicantIds,
+    seminarTypes: SEMINAR_TYPES,
   });
 }
 

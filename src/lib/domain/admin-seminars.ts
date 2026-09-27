@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import { fieldIssues } from "$lib/domain/form-data";
+import { localDateTimeMs } from "$lib/domain/admin-dashboard";
 import type {
   MemberPickerItem,
   SeminarKind,
@@ -43,19 +44,6 @@ export interface SeminarSchedule {
   startTime: string | null;
   endsAt: string | null;
   location: string;
-}
-
-export function seminarSchedulesEqual(
-  left: SeminarSchedule | null,
-  right: SeminarSchedule,
-) {
-  return (
-    left !== null &&
-    left.startsAt === right.startsAt &&
-    left.startTime === right.startTime &&
-    left.endsAt === right.endsAt &&
-    left.location === right.location
-  );
 }
 
 export interface AdminSeminarItem {
@@ -134,24 +122,27 @@ export interface SeminarScheduleFormValues {
   location: string;
 }
 
+/**
+ * A KST `datetime-local` value naming a real time — the calendar rule is
+ * `localDateTimeMs`, the one the action's kstInputToIso applies (audit LA09-3:
+ * this schema had copied the shape regex only, so 02-30 or 24:00 passed).
+ */
 const localDateTime = z
   .string()
   .trim()
-  .regex(
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/,
-    "날짜와 시작 시간을 입력해 주세요.",
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, {
+    message: "날짜와 시작 시간을 입력해 주세요.",
+    abort: true,
+  })
+  .refine(
+    (v) => Number.isFinite(localDateTimeMs(v)),
+    "존재하지 않는 날짜나 시각입니다.",
   );
 
 export const seminarScheduleInputSchema = z
   .object({
     startsAtLocal: localDateTime,
-    endsAtLocal: z.union([
-      z.literal(""),
-      localDateTime.regex(
-        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/,
-        "올바른 종료 시간을 입력해 주세요.",
-      ),
-    ]),
+    endsAtLocal: z.union([z.literal(""), localDateTime]),
     location: z
       .string()
       .trim()
@@ -159,7 +150,11 @@ export const seminarScheduleInputSchema = z
       .max(160, "장소는 160자 이하로 입력해 주세요."),
   })
   .superRefine((values, context) => {
-    if (values.endsAtLocal && values.endsAtLocal <= values.startsAtLocal) {
+    // NaN (no end, or an impossible time already reported) compares false
+    if (
+      localDateTimeMs(values.endsAtLocal) <=
+      localDateTimeMs(values.startsAtLocal)
+    ) {
       context.addIssue({
         code: "custom",
         path: ["endsAtLocal"],

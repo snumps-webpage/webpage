@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 import { formText, fieldIssues } from "$lib/domain/form-data";
 import { mergeManagedAttendance } from "$lib/domain/attendance";
+import { localDateTimeMs } from "$lib/domain/admin-dashboard";
 
 export const STUDY_STATUSES = ["recruiting", "ongoing", "finished"] as const;
 export type StudyStatus = (typeof STUDY_STATUSES)[number];
@@ -82,29 +83,22 @@ export const studyRequestInputSchema = z.object({
     ),
 });
 
-const LOCAL_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
-
-/** A datetime-local value that names a real instant — no 02-30, no 25:00. */
-function isCalendarDateTime(value: string) {
-  const m = LOCAL_DATE_TIME.exec(value);
-  if (!m) return true; // the shape issue already reports it
-  const [y, mo, d, h, mi] = m.slice(1).map(Number);
-  const date = new Date(Date.UTC(y, mo - 1, d, h, mi));
-  return (
-    date.getUTCFullYear() === y &&
-    date.getUTCMonth() === mo - 1 &&
-    date.getUTCDate() === d &&
-    date.getUTCHours() === h &&
-    date.getUTCMinutes() === mi
-  );
-}
-
-/** "YYYY-MM-DDTHH:mm" in KST, as a datetime-local input posts it. */
+/**
+ * "YYYY-MM-DDTHH:mm" in KST, as a datetime-local input posts it, naming a
+ * real time — `localDateTimeMs` is the calendar rule kstInputToIso applies
+ * (audit LA09-3: a copy here missed its 2000–2099 range).
+ */
 const startedAtLocalSchema = z
   .string()
   .trim()
-  .regex(LOCAL_DATE_TIME, "날짜와 시작 시간을 입력해 주세요.")
-  .refine(isCalendarDateTime, "존재하지 않는 날짜나 시각입니다.");
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, {
+    message: "날짜와 시작 시간을 입력해 주세요.",
+    abort: true,
+  })
+  .refine(
+    (v) => Number.isFinite(localDateTimeMs(v)),
+    "존재하지 않는 날짜나 시각입니다.",
+  );
 
 const sessionTitleSchema = z
   .string()

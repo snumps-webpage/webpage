@@ -4,7 +4,7 @@
 > 옮기고, 메모리 백엔드를 PGlite(인프로세스 Postgres)로 바꿔 **같은 SQL을 테스트·로컬에서도 실행**한다.
 > 목적은 두 가지 — 원자성(부분 실패 제거)과 로직 일원화(같은 흐름의 구현을 한 곳에).
 >
-> **상태 (2026-09-27): 구현 완료.** 17개 쓰기 흐름과 백업 스냅숏(`flow_backup_snapshot`, 읽기 전용)이 `supabase/migrations/20260928000000_atomic_flows.sql`에 있고
+> **상태 (2026-09-27): 구현 완료.** 18개 쓰기 흐름과 백업 스냅숏(`flow_backup_snapshot`, 읽기 전용)이 `supabase/migrations/20260928000000_atomic_flows.sql`에 있고
 > TS 쪽 중복 구현은 지워졌다(§7). 운영·dev 적용은 아직이다 — 순서는 [OPERATOR-TODO](../OPERATOR-TODO.md) §2-2.
 
 ## 1. 왜
@@ -44,8 +44,9 @@ route action ─▶ service (TS)                       ─▶ callFlow(fn, args)
   규칙 위반은 `RAISE EXCEPTION 'CODE'`(`NOT_FOUND`, `CONFLICT`, `FORBIDDEN`, `VALIDATION_FAILED`,
   `EVENT_NOT_OPEN`)로 알리고 트랜잭션 전체가 롤백된다. 이유를 사용자 문구로 구분해야 하면
   `USING DETAIL = '<reason>'`을 붙인다(예: `session-slot-cancelled`).
-- **읽기만 하는 문서는 `FOR SHARE`** — 체크인은 이벤트 문서를, 탈퇴 신청은 스터디 문서를 공유 잠금으로 읽는다.
-  같은 문서를 읽는 흐름끼리는 서로 기다리지 않고, 그 문서를 바꾸는 흐름만 기다린다.
+- **읽기만 하는 문서는 `FOR SHARE`** — 체크인은 이벤트 문서를, 발표자 출석 저장은 이벤트·세미나 문서를,
+  탈퇴 신청은 스터디 문서를 공유 잠금으로 읽는다. 같은 문서를 읽는 흐름끼리는 서로 기다리지 않고,
+  그 문서를 바꾸는 흐름만 기다린다.
 - **TS** (`src/lib/server/data/flows.ts`의 `callFlow`): 오류 코드를 `AppError`로 변환(`messages`로 DETAIL →
   `userMessage`), `touched`/`touchedQueues`의 캐시 무효화. 호출하는 서비스는 입력 검증, id·시각 생성
   (SQL이 id를 만들지 않아 TS와 형식이 같다), 그리고 **트랜잭션 밖 부수효과**(메일, Storage 파일 정리)를 맡는다.
@@ -60,14 +61,15 @@ route action ─▶ service (TS)                       ─▶ callFlow(fn, args)
   분기로 빠졌다(감사 LA43-2).
 - **TS 규칙의 SQL 미러**와 고정 방식 (감사 LA43-4가 이 목록의 과장을 지적해 바로잡음):
 
-  | SQL                       | TS 원본                           | 고정                                        |
-  | ------------------------- | --------------------------------- | ------------------------------------------- |
-  | `app_term_of`             | `$lib/domain/term` `termOf`       | 경계값에서 TS와 대조 (`flow-rules.test.ts`) |
-  | `app_event_open`          | `events.ts` `effectiveStatus`     | 경계값에서 TS와 대조 (`flow-rules.test.ts`) |
-  | `app_seminar_started`     | `seminars.ts` `seminarHasStarted` | TS와 대조 (`flow-contracts.test.ts`)        |
-  | `app_may_derive_semester` | (TS 쪽 사본 없음 — SQL만 씀)      | 고정 값표 (`flow-rules.test.ts`)            |
-  | `app_seminar_status`      | (이주 규칙 — 스키마 기본값 제거)  | 고정 값표 (`flow-contracts.test.ts`)        |
-  | `app_is_seminar_event`    | (TS에 단일 함수 없음)             | 고정 값표 (`flow-contracts.test.ts`)        |
+  | SQL                       | TS 원본                           | 고정                                         |
+  | ------------------------- | --------------------------------- | -------------------------------------------- |
+  | `app_term_of`             | `$lib/domain/term` `termOf`       | 경계값에서 TS와 대조 (`flow-rules.test.ts`)  |
+  | `app_event_open`          | `events.ts` `effectiveStatus`     | 경계값에서 TS와 대조 (`flow-rules.test.ts`)  |
+  | `app_seminar_started`     | `seminars.ts` `seminarHasStarted` | TS와 대조 (`flow-contracts.test.ts`)         |
+  | `app_may_derive_semester` | (TS 쪽 사본 없음 — SQL만 씀)      | 고정 값표 (`flow-rules.test.ts`)             |
+  | `app_seminar_status`      | (이주 규칙 — 스키마 기본값 제거)  | 고정 값표 (`flow-contracts.test.ts`)         |
+  | `app_is_seminar_event`    | (TS에 단일 함수 없음)             | 고정 값표 (`flow-contracts.test.ts`)         |
+  | 발표자 출석 병합(흐름 안) | `attendance.ts` `mergeAttendees`  | 값표에서 TS와 대조 (`participation.test.ts`) |
 
 ## 3. 검증(zod)과 SQL 사이
 
@@ -106,7 +108,7 @@ PGlite에는 Supabase의 `storage` 스키마가 없어서, 마이그레이션 �
 | 파일                                            | 내용                                                                             |
 | ----------------------------------------------- | -------------------------------------------------------------------------------- |
 | `20260901000000_documents.sql` (기존)           | 표·큐·감사 로그. 수정하지 않는다                                                 |
-| `20260928000000_atomic_flows.sql`               | 헬퍼 + 흐름 18개(쓰기 17 + 백업 스냅숏) + 권한. 확장만 — 옛 코드는 부르지 않는다 |
+| `20260928000000_atomic_flows.sql`               | 헬퍼 + 흐름 19개(쓰기 18 + 백업 스냅숏) + 권한. 확장만 — 옛 코드는 부르지 않는다 |
 | `20260928000100_seminar_publication_status.sql` | `publicationStatus`가 없는 세미나 행에 `"published"`를 명시                      |
 | `20260928000200_assets_bucket_private.sql`      | `assets` 버킷을 비공개로(C-22). 흐름과 무관 — 배포 순서는 OPERATOR-TODO §2-2     |
 
@@ -127,6 +129,7 @@ PGlite에는 Supabase의 `storage` 스키마가 없어서, 마이그레이션 �
 | 세미나 취소              | `flow_cancel_seminar`              | `seminars.cancelSeminar`                              |
 | 체크인                   | `flow_check_in`                    | `events.checkIn`                                      |
 | 출석 승인·거절·삭제      | `flow_decide_attendance`           | `events.approve/reject/deleteAttendance…`             |
+| 발표자 출석 저장         | `flow_save_presenter_attendance`   | `events.savePresenterAttendance`                      |
 | 이벤트 삭제              | `flow_delete_event`                | `events.deleteEventChecked`                           |
 | 가입 승인                | `flow_approve_application`         | `membership.approveApplication`                       |
 | 세미나 신청 승인         | `flow_approve_seminar_request`     | `seminar-requests.approveSeminar`                     |
