@@ -48,8 +48,8 @@ export const POST: RequestHandler = async ({ request }) => {
 };
 
 /**
- * 저장된 **원본** 문서 — zod 기본값이 씌워지기 전이다. 예: 이주 세미나는
- * publicationStatus가 없다(앱은 "published"로 읽는다). 판정할 때 앱 규칙을 맞출 것.
+ * 저장된 **원본** 문서 — zod 기본값이 씌워지기 전이다(예: 옛 행에는
+ * `posterKey`·`schedule`이 없을 수 있다). 판정할 때 앱 규칙을 맞출 것.
  */
 export const GET: RequestHandler = async ({ request, url }) => {
   guard(request);

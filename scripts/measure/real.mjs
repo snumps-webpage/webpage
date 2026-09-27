@@ -17,6 +17,18 @@ import {
 } from "./lib.mjs";
 
 const snap = JSON.parse(fs.readFileSync(process.argv[2], "utf8")).tables;
+// Backups taken before migration 20260928000100 hold seminars without
+// publicationStatus; the app no longer defaults it. Apply the migration's
+// rule (missing → "published") to the snapshot, as the deploy would.
+let backfilled = 0;
+for (const t of snap.app_tables) {
+  if (t.name !== "seminars") continue;
+  t.doc.rows = t.doc.rows.map((s) => {
+    if (s.publicationStatus !== undefined) return s;
+    backfilled++;
+    return { ...s, publicationStatus: "published" };
+  });
+}
 await setClock(null);
 await probeSeed({
   op: "reset",
@@ -34,19 +46,11 @@ console.log("seeded:", JSON.stringify(counts));
 const admin = await session("admin@snu.ac.kr", "관리자 / 학부생 / 수리과학부");
 const members = await table("members");
 const infos = await table("private-info");
-// Raw docs lack zod defaults: migrated rows have no publicationStatus, which
-// the app reads as "published" (schemas/seminar.ts). Mirror that here.
 const seminars = (await table("seminars")).map((s) => ({
   ...s,
-  publicationStatus: s.publicationStatus ?? "published",
   presenterIds: s.presenterIds ?? [],
 }));
-const rawMissingStatus = (await table("seminars")).filter(
-  (s) => s.publicationStatus === undefined,
-).length;
-console.log(
-  `seminars stored without publicationStatus (read as published): ${rawMissingStatus}`,
-);
+console.log(`seminars backfilled with publicationStatus: ${backfilled}`);
 const byStatus = {};
 for (const s of seminars)
   byStatus[s.publicationStatus] = (byStatus[s.publicationStatus] ?? 0) + 1;

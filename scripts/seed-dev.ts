@@ -259,6 +259,7 @@ const seminars = [
     photos: [],
     posterKey: "",
     preferredTiming: "10월 초",
+    publicationStatus: "published",
     activityId: null,
     sourceRequestId: null,
   },

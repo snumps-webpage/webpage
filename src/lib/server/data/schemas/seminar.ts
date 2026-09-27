@@ -85,17 +85,16 @@ export const SeminarSchema = z.object({
   /**
    * 승인 → 일정 미정 → 확정 → 공개 수명주기 (FRONTEND-DECISIONS §3-1).
    *
-   * 기본값이 `published`인 것이 **이주 규칙**이다: 이 필드가 없는 기존 행은
-   * 승인 즉시 activity·event까지 만들던 시절의 것이라 이미 공개된 세미나다.
-   * 새로 만드는 세미나는 approveSeminar가 명시적으로 `unscheduled`를 넣는다.
-   *
-   * ⚠️ **일방통행이다.** 기본값은 읽을 때만 씌우는 렌즈가 아니다 — `mutate`가
-   * 표 문서 전체를 다시 쓰므로, 아무 세미나 한 건만 수정해도 그 순간 손대지
-   * 않은 행에까지 이 값이 **디스크에 기록**된다(실행으로 확인). "필드가
-   * 없었다"는 사실은 그때 영구 소멸하고 명시적 결정과 구분되지 않는다.
-   * 규칙을 바꿀 거라면 첫 쓰기 전에 바꿔야 한다.
+   * **필수 필드다 — 기본값이 없다.** 이 필드가 생기기 전의 행은 승인 즉시
+   * activity·event까지 만들던 시절의 것이라 이미 공개된 세미나이고, 그 이주
+   * 규칙은 한때 zod 기본값(`published`)이었다. 기본값은 `mutate`가 표 전체를
+   * 다시 쓸 때마다 디스크에 새겨져 "필드가 없었다"와 명시적 결정을 구분할 수
+   * 없게 만들었으므로, 규칙을 마이그레이션
+   * (supabase/migrations/20260928000100_seminar_publication_status.sql)에 한 번
+   * 적어 두고 기본값을 뺐다(2026-09-27 결정). SQL 흐름의 app_seminar_status는
+   * 같은 규칙을 방어적으로 한 번 더 적용한다.
    */
-  publicationStatus: SeminarPublicationStatus.default("published"),
+  publicationStatus: SeminarPublicationStatus,
   /** 확정 전에는 null. 공개 시 이 값으로 activity·event의 날짜를 만든다. */
   schedule: SeminarScheduleSchema.nullable().default(null),
   /**

@@ -19,17 +19,23 @@ const base = {
   externalPresenters: "",
   materials: [],
   photos: [],
+  publicationStatus: "published" as const,
   activityId: null,
   sourceRequestId: null,
 };
 
 describe("SeminarSchema — 공개 상태와 일정", () => {
-  // 이주 규칙: 필드가 없는 기존 행은 이미 공개된 세미나다.
-  it("기존 행은 published · 일정 없음으로 읽힌다", () => {
-    const parsed = SeminarSchema.parse(base);
+  // 이주 규칙("필드가 없던 행은 공개된 세미나")은 마이그레이션
+  // 20260928000100이 디스크에 한 번 적었다 — 스키마는 더 이상 추측하지 않는다.
+  it("공개 상태가 없는 행은 거부한다", () => {
+    const { publicationStatus: _omit, ...legacy } = base;
+    void _omit;
 
-    expect(parsed.publicationStatus).toBe("published");
-    expect(parsed.schedule).toBeNull();
+    expect(SeminarSchema.safeParse(legacy).success).toBe(false);
+  });
+
+  it("일정이 없던 기존 행은 일정 없음으로 읽힌다", () => {
+    expect(SeminarSchema.parse(base).schedule).toBeNull();
   });
 
   /**

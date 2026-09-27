@@ -437,6 +437,8 @@ async function main() {
       externalPresenters: "",
       materials: assetKeys(page.properties["강의 자료"], `${where} 강의 자료`),
       photos: assetKeys(page.properties["활동 사진"], `${where} 활동 사진`),
+      // archive seminars were held — the rule migration 20260928000100 applies
+      publicationStatus: "published",
       activityId: null,
       sourceRequestId: null,
     });

@@ -35,8 +35,10 @@ Google 값이 가짜라 메일은 한 통도 나가지 않는다.
 2. 파일 안의 가드: `dev`(`$app/environment`, 운영 빌드에선 항상 false) · `DATA_BACKEND=memory` ·
    `x-probe` 헤더 토큰이 모두 맞아야 응답하고, 아니면 404.
 
-`GET`이 돌려주는 것은 **zod 기본값이 씌워지기 전** 원본이다. 이주 세미나는
-`publicationStatus`가 없다 — 앱은 `published`로 읽는다. 판정할 때 앱 규칙을 맞출 것.
+`GET`이 돌려주는 것은 **zod 기본값이 씌워지기 전** 원본이다(옛 행에는 `posterKey`·
+`schedule` 같은 필드가 없을 수 있다). 판정할 때 앱 규칙을 맞출 것. `real.mjs`는 백업의
+세미나에 마이그레이션 20260928000100의 규칙(`publicationStatus` 없음 → `published`)을
+적용한 뒤 시드한다 — 배포 순서와 같다.
 
 ## 실행
 
