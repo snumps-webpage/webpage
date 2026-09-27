@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
+  import { actionErrorText } from "$lib/domain/api";
   import { tick } from "svelte";
   import type { StudyRequestFormIssues } from "$lib/domain/studies";
 
@@ -52,8 +53,7 @@
           message?: string;
         };
         issues = data.issues ?? {
-          _form:
-            data.message ?? data.error ?? "스터디 신청을 제출하지 못했습니다.",
+          _form: actionErrorText(data, "스터디 신청을 제출하지 못했습니다."),
         };
         await tick();
         formElement

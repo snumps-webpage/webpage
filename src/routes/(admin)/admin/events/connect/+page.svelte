@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
+  import { actionErrorText } from "$lib/domain/api";
   import { termOfDateString } from "$lib/domain/term";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import StatusBadge from "$lib/components/StatusBadge.svelte";
@@ -44,7 +45,7 @@
     기존 활동 이력은 그대로 두고, 선택한 활동에 새 출석 세션을 연결합니다.
   </p>
   {#if form?.error}<p class="form-error" role="alert">
-      {form.message ?? form.error}
+      {actionErrorText(form, "처리하지 못했습니다.")}
     </p>{/if}
 
   <ol class="paper-sections">

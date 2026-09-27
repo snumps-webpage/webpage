@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
+  import { actionErrorText } from "$lib/domain/api";
   import SignupMetadataFields from "$lib/components/signup/SignupMetadataFields.svelte";
   import SignupContactFields from "$lib/components/signup/SignupContactFields.svelte";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
@@ -28,7 +29,9 @@
   />
 
   {#if form?.error}
-    <p class="paper-status-note error">{form.message ?? form.error}</p>
+    <p class="paper-status-note error">
+      {actionErrorText(form, "저장하지 못했습니다.")}
+    </p>
   {/if}
 
   {#if form?.success}

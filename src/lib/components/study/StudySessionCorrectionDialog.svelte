@@ -14,6 +14,7 @@
 
 <script lang="ts">
   import { enhance } from "$app/forms";
+  import { actionErrorText } from "$lib/domain/api";
   import { untrack } from "svelte";
 
   interface Props {
@@ -56,7 +57,7 @@
             message?: string;
           };
           issues = data.issues ?? {
-            _form: data.message ?? data.error ?? "회차를 수정하지 못했습니다.",
+            _form: actionErrorText(data, "회차를 수정하지 못했습니다."),
           };
           return;
         }
