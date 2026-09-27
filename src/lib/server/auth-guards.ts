@@ -1,6 +1,16 @@
-import { redirect, error, fail, type ActionFailure } from "@sveltejs/kit";
+import {
+  redirect,
+  error,
+  fail,
+  isActionFailure,
+  isHttpError,
+  isRedirect,
+  type ActionFailure,
+  type HttpError,
+} from "@sveltejs/kit";
+import type { Session } from "@auth/sveltekit";
 import { hasCapability, type Capability } from "./core/capabilities";
-import { AppError } from "./core/errors";
+import { AppError, ERR, type ErrCode } from "./core/errors";
 import { resolveMember } from "./guards/resolve-member";
 import type { MemberContext } from "./guards/zone";
 import { invalidateCache } from "./cache";
@@ -10,9 +20,27 @@ export interface AuthenticatedSession {
   user: {
     name: string;
     email: string;
-    image?: string;
+    image?: string | null;
   };
   expires: string;
+}
+
+/**
+ * The one "signed in" predicate (LB02-1): a session with an email. The zone
+ * guard, /login and every gate here use it — ensureSession also demanded a
+ * name, so a Google account without one was sent to /login, bounced straight
+ * back, and looped. Auth.js does not promise a name; it becomes "" here, and
+ * the callers that need one already parse it with parseGoogleName.
+ */
+export function signedIn(
+  session: Session | null | undefined,
+): AuthenticatedSession | null {
+  const email = session?.user?.email;
+  if (!session || !email) return null;
+  return {
+    ...session,
+    user: { ...session.user, email, name: session.user?.name ?? "" },
+  };
 }
 
 /**
@@ -27,14 +55,14 @@ async function resolveMemberContext(locals: App.Locals): Promise<{
   session: AuthenticatedSession;
   member: MemberContext | null;
 } | null> {
-  const session = await locals.auth();
-  if (!session?.user?.email) return null;
+  const session = signedIn(await locals.auth());
+  if (!session) return null;
   const member =
     locals.member !== undefined
       ? locals.member
       : await resolveMember(session.user.email);
   locals.member = member;
-  return { session: session as AuthenticatedSession, member };
+  return { session, member };
 }
 
 /** Admin truth is the member record (D4). Resolves lazily for /api handlers. */
@@ -53,14 +81,14 @@ export async function ensureSession(
   locals: App.Locals,
   url?: URL,
 ): Promise<AuthenticatedSession> {
-  const session = await locals.auth();
-  if (!session?.user?.email || !session.user.name) {
+  const session = signedIn(await locals.auth());
+  if (!session) {
     const loginPath = url
       ? `/login?redirect=${encodeURIComponent(url.pathname)}`
       : "/login";
     throw redirect(302, loginPath);
   }
-  return session as AuthenticatedSession;
+  return session;
 }
 
 /**
@@ -87,10 +115,9 @@ export async function ensureAdmin(
 export async function resolveAdminAccess(
   locals: App.Locals,
 ): Promise<"ok" | "unauthenticated" | "not-admin"> {
-  const session = await locals.auth();
-  if (!session?.user?.email) return "unauthenticated";
-  const ctx = await resolveAdminContext(locals);
-  return ctx ? "ok" : "not-admin";
+  const ctx = await resolveMemberContext(locals);
+  if (!ctx) return "unauthenticated";
+  return ctx.member?.isAdmin ? "ok" : "not-admin";
 }
 
 /**
@@ -115,8 +142,10 @@ type ActionResult<T> =
 /**
  * The one action body shared by user and admin wrappers (§1-2):
  * ActionFailure pass-through, cache invalidation, redirect rethrow,
- * AppError → fail(status, { error: CODE, message?: 한국어 }). The CODE is the
- * contract; `message` is an optional human-facing detail for direct display.
+ * AppError → fail(status, { error: CODE, message?: 한국어 }), Kit HttpError →
+ * fail(status, { error: CODE }), anything else → 500 SERVICE_UNAVAILABLE. The
+ * CODE is the contract; `message` is an optional human-facing detail for
+ * direct display.
  */
 async function runAction<T extends Record<string, unknown>>(
   session: AuthenticatedSession,
@@ -128,13 +157,9 @@ async function runAction<T extends Record<string, unknown>>(
   try {
     const result = await logic(session);
 
-    if (
-      result &&
-      typeof result === "object" &&
-      "status" in result &&
-      typeof result.status === "number" &&
-      result.status >= 400
-    ) {
+    // `as unknown` keeps Kit's ActionFailure<undefined> guard from narrowing
+    // `result` into an intersection the return type cannot hold.
+    if (isActionFailure(result as unknown)) {
       return result as ActionFailure<Record<string, unknown>>;
     }
 
@@ -150,20 +175,38 @@ async function runAction<T extends Record<string, unknown>>(
     }
     return { success: true };
   } catch (e) {
-    if (
-      e &&
-      typeof e === "object" &&
-      "status" in e &&
-      (e as { status: number }).status >= 300 &&
-      (e as { status: number }).status < 400
-    )
-      throw e;
+    // Classified with Kit's own predicates, not guessed from `status` (LB02-2).
+    if (isRedirect(e)) throw e;
     if (e instanceof AppError) {
       return fail(e.status, { error: e.code, message: e.userMessage });
     }
+    if (isHttpError(e)) {
+      if (e.status >= 500) console.error(`[Action Error]`, e);
+      return fail(e.status, { error: httpErrorCode(e) });
+    }
+    // The raw text (zod issues, driver messages) is for the log only — the
+    // same rule handleError applies to loads (LB02-2).
     console.error(`[Action Error]`, e);
-    return fail(500, { error: (e as Error).message || "Action failed" });
+    return fail(500, { error: ERR.SERVICE_UNAVAILABLE });
   }
+}
+
+const CODE_BY_STATUS: Record<number, ErrCode> = {
+  400: "VALIDATION_FAILED",
+  401: "UNAUTHORIZED",
+  403: "FORBIDDEN",
+  404: "NOT_FOUND",
+  409: "CONFLICT",
+};
+
+/** A thrown `error(404, …)` keeps its status and answers a CODE, like AppError. */
+function httpErrorCode(e: HttpError): ErrCode {
+  const message = e.body?.message;
+  if (message && message in ERR) return message as ErrCode; // error(s, "CODE")
+  return (
+    CODE_BY_STATUS[e.status] ??
+    (e.status >= 500 ? "SERVICE_UNAVAILABLE" : "VALIDATION_FAILED")
+  );
 }
 
 /**
@@ -214,10 +257,10 @@ export async function handleUserAction<T extends Record<string, unknown>>(
   ) => Promise<T | void | ActionFailure<Record<string, unknown>>>,
   options: { invalidate?: string | string[] } = {},
 ): Promise<ActionResult<T> | ActionFailure<{ error: string }>> {
-  let session;
-  try {
-    session = await ensureSession(locals);
-  } catch {
+  // No catch around auth(): an auth backend failure is not "not signed in"
+  // and must not be reported as one (LB02-2).
+  const session = signedIn(await locals.auth());
+  if (!session) {
     // 401 with the code that means it (C-19). It said FORBIDDEN, which reads
     // as "you may not" when the truth is "you are not signed in".
     return fail(401, { error: "UNAUTHORIZED" });

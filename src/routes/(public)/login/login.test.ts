@@ -63,3 +63,13 @@ describe("/login redirect target", () => {
     },
   );
 });
+
+// LB02-1: /login bounced any `session.user`, while the zone guard counts only
+// a session with an email — one without was sent here and straight back.
+it("shows sign-in to a session without an email instead of bouncing it", async () => {
+  const data = await load({
+    url: new URL("https://snumps.vercel.app/login?redirect=%2Fsignup"),
+    locals: { auth: async () => ({ user: { name: "x" }, expires: "" }) },
+  } as unknown as LoadEvent);
+  expect(data).toMatchObject({ redirectTo: "/signup" });
+});

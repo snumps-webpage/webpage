@@ -1,5 +1,6 @@
 import { redirect } from "@sveltejs/kit";
 import { safeInternalRedirect } from "$lib/domain/navigation";
+import { signedIn } from "$lib/server/auth-guards";
 import type { PageServerLoad } from "./$types";
 
 /** Auth.js lands here with ?error=… (pages.error, signIn callback). */
@@ -14,8 +15,8 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
 export const load: PageServerLoad = async ({ locals, url }) => {
   // Only same-site relative paths — a browser reads `/\host` as `//host`.
   const target = safeInternalRedirect(url.searchParams.get("redirect"));
-  const session = await locals.auth();
-  if (session?.user) throw redirect(303, target);
+  // The same "signed in" as the zone guard, or the two bounce a user (LB02-1).
+  if (signedIn(await locals.auth())) throw redirect(303, target);
   const errorCode = url.searchParams.get("error");
   return {
     redirectTo: target,
