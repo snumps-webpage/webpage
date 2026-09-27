@@ -3,6 +3,8 @@ import { AppError } from "$lib/server/core/errors";
 import { newId } from "$lib/server/core/id";
 import { nowKstIso } from "$lib/server/core/time";
 import { getTable, mutate } from "$lib/server/data/tables";
+import type { MailRule } from "$lib/server/data/schemas/mail-rule";
+import type { MailRuleHistory } from "$lib/server/data/schemas/mail-rule-history";
 import {
   MAIL_EVENTS,
   RECIPIENTS,
@@ -13,6 +15,7 @@ import {
   MAIL_TEMPLATE_DEFAULTS,
   MAIL_VARIABLE_DEFAULTS,
   extractVariableTokens,
+  getGlobalMailVariables,
   renderMailTemplate,
 } from "$lib/server/mail/template-store";
 import { effectiveRules } from "$lib/server/mail/dispatch";
@@ -193,20 +196,34 @@ export async function createMailTemplate(input: {
   return key;
 }
 
-/** 커스텀 템플릿 삭제 (기본 템플릿은 삭제 불가 — 되돌리기만; 규칙 부착 시 거부). */
+/**
+ * 커스텀 템플릿 삭제 (기본 템플릿은 삭제 불가 — 되돌리기만). 규칙이나 되돌리기
+ * 이력의 규칙 세트가 쓰고 있으면 거부 — 이력을 보지 않으면 되돌리기가 없는
+ * 템플릿을 가리키는 규칙을 되살린다 (감사 LB23-7).
+ */
 export async function deleteMailTemplate(key: string): Promise<void> {
   if (Object.hasOwn(MAIL_TEMPLATE_DEFAULTS, key)) {
     throw new AppError("VALIDATION_FAILED", {
       userMessage: "기본 템플릿은 삭제할 수 없습니다.",
     });
   }
-  const referenced = (await getTable("mail-rules")).some(
-    (r) => r.templateKey === key,
-  );
-  if (referenced) {
+  const [rules, history] = await Promise.all([
+    getTable("mail-rules"),
+    getTable("mail-rule-history"),
+  ]);
+  if (rules.some((r) => r.templateKey === key)) {
     throw new AppError("CONFLICT", {
       userMessage:
         "이 템플릿을 쓰는 발송 규칙이 있습니다. 규칙을 먼저 제거해 주세요.",
+    });
+  }
+  const inHistory = history.find((h) =>
+    h.rules.some((r) => r.templateKey === key),
+  );
+  if (inHistory) {
+    const eventName = MAIL_EVENTS[inHistory.event]?.name ?? inHistory.event;
+    throw new AppError("CONFLICT", {
+      userMessage: `'${eventName}' 이벤트의 되돌리기용 직전 규칙 세트가 이 템플릿을 씁니다. 그 이벤트의 규칙을 한 번 더 바꾼 뒤 삭제해 주세요.`,
     });
   }
   await mutate("mail-templates", (rows) => {
@@ -334,21 +351,56 @@ function requireEvent(event: string): MailEventKey {
   return event as MailEventKey;
 }
 
-/** 규칙 변경 직전의 이벤트 규칙 세트를 스냅숏으로 저장 (이벤트당 1개, 덮어씀). */
-async function snapshotEventRules(event: MailEventKey): Promise<void> {
-  const current = (await getTable("mail-rules"))
-    .filter((r) => r.event === event)
-    .map((r) => ({
-      templateKey: r.templateKey,
-      recipient: r.recipient,
-      enabled: r.enabled,
-    }));
-  const rules = current.length
-    ? current
-    : MAIL_EVENTS[event].defaultRules.map((r) => ({ ...r, enabled: true }));
+type RuleSet = MailRuleHistory["rules"];
+
+const ruleSetOf = (rows: MailRule[]): RuleSet =>
+  rows.map((r) => ({
+    templateKey: r.templateKey,
+    recipient: r.recipient,
+    enabled: r.enabled,
+  }));
+
+/**
+ * 이벤트 규칙 변경의 단일 경로. 한 번의 mutate 안에서 최신 행으로 기본 규칙을
+ * 실체화하고 change가 검증·변경한다. 규칙 세트가 실제로 바뀌었을 때만, 그 쓰기가
+ * 성공한 뒤에 변경 전 세트를 되돌리기 이력(이벤트당 1개, 덮어씀)에 남긴다 —
+ * 거부되거나 아무것도 바꾸지 않은 편집이 이력을 덮어 진짜 직전 세트를 지우거나
+ * 이벤트를 실체화하지 않게 (감사 LB23-2).
+ */
+async function changeEventRules(
+  event: MailEventKey,
+  change: (rows: MailRule[]) => MailRule[],
+): Promise<void> {
+  let before: RuleSet = [];
+  let changed = false;
+  await mutate("mail-rules", (rows) => {
+    const own = rows.filter((r) => r.event === event);
+    const defaults = MAIL_EVENTS[event].defaultRules;
+    before = own.length
+      ? ruleSetOf(own)
+      : defaults.map((d) => ({ ...d, enabled: true }));
+    const materialized = own.length
+      ? [...rows]
+      : [
+          ...rows,
+          ...defaults.map((d) => ({
+            id: newId(),
+            event,
+            templateKey: d.templateKey,
+            recipient: d.recipient,
+            enabled: true,
+            updatedAt: nowKstIso(),
+          })),
+        ];
+    const next = change(materialized);
+    const after = ruleSetOf(next.filter((r) => r.event === event));
+    changed = JSON.stringify(after) !== JSON.stringify(before);
+    return changed ? next : rows;
+  });
+  if (!changed) return;
   await mutate("mail-rule-history", (rows) => {
     const idx = rows.findIndex((h) => h.event === event);
-    const entry = { event, rules, updatedAt: nowKstIso() };
+    const entry = { event, rules: before, updatedAt: nowKstIso() };
     if (idx === -1) rows.push(entry);
     else rows[idx] = entry;
     return rows;
@@ -366,39 +418,45 @@ export async function revertMailEvent(event: string): Promise<void> {
       userMessage: "되돌릴 직전 규칙이 없습니다.",
     });
   }
-  await snapshotEventRules(key); // 현재를 스냅숏으로 (스왑)
-  await mutate("mail-rules", (rows) => {
-    const others = rows.filter((r) => r.event !== key);
-    for (const r of history.rules) {
-      others.push({
-        id: newId(),
-        event: key,
-        templateKey: r.templateKey,
-        recipient: r.recipient,
-        enabled: r.enabled,
-        updatedAt: nowKstIso(),
-      });
-    }
-    return others;
-  });
+  // 이력 속 템플릿이 그 뒤 삭제됐을 수 있다 — 끊긴 참조를 되살리지 않는다 (감사 LB23-7).
+  const templateRows = await getTable("mail-templates");
+  const gone = history.rules.find(
+    (r) =>
+      !Object.hasOwn(MAIL_TEMPLATE_DEFAULTS, r.templateKey) &&
+      !templateRows.some((t) => t.key === r.templateKey),
+  );
+  if (gone) {
+    throw new AppError("CONFLICT", {
+      userMessage: `직전 규칙 세트가 삭제된 템플릿(${gone.templateKey})을 씁니다. 되돌릴 수 없습니다.`,
+    });
+  }
+  await changeEventRules(key, (rows) => [
+    ...rows.filter((r) => r.event !== key),
+    ...history.rules.map((r) => ({
+      id: newId(),
+      event: key,
+      templateKey: r.templateKey,
+      recipient: r.recipient,
+      enabled: r.enabled,
+      updatedAt: nowKstIso(),
+    })),
+  ]);
 }
 
-/** 이벤트의 기본 규칙을 행으로 실체화 (이미 실체화됐으면 no-op). */
-async function materializeEvent(event: MailEventKey): Promise<void> {
-  await mutate("mail-rules", (rows) => {
-    if (rows.some((r) => r.event === event)) return rows;
-    for (const d of MAIL_EVENTS[event].defaultRules) {
-      rows.push({
-        id: newId(),
-        event,
-        templateKey: d.templateKey,
-        recipient: d.recipient,
-        enabled: true,
-        updatedAt: nowKstIso(),
-      });
-    }
-    return rows;
-  });
+/** 규칙 찾기 — ruleId도 그 이벤트의 규칙이어야 한다 (감사 LB23-3). */
+function findRule(
+  rows: MailRule[],
+  event: MailEventKey,
+  input: { ruleId: string | null; templateKey?: string; recipient?: string },
+): number {
+  return rows.findIndex(
+    (r) =>
+      r.event === event &&
+      (input.ruleId
+        ? r.id === input.ruleId
+        : r.templateKey === input.templateKey &&
+          r.recipient === input.recipient),
+  );
 }
 
 /** 규칙 추가 — 이벤트가 허용하는 수신자만, 실존 템플릿만. */
@@ -422,9 +480,7 @@ export async function addMailRule(input: {
       userMessage: "존재하지 않는 템플릿입니다.",
     });
   }
-  await snapshotEventRules(event);
-  await materializeEvent(event);
-  await mutate("mail-rules", (rows) => {
+  await changeEventRules(event, (rows) => {
     if (
       rows.some(
         (r) =>
@@ -457,19 +513,10 @@ export async function removeMailRule(input: {
   recipient?: string;
 }): Promise<{ keptDisabled: boolean }> {
   const event = requireEvent(input.event);
-  await snapshotEventRules(event);
-  await materializeEvent(event);
   let keptDisabled = false;
-  await mutate("mail-rules", (rows) => {
+  await changeEventRules(event, (rows) => {
     keptDisabled = false; // CAS retries re-run this callback
-    const idx = input.ruleId
-      ? rows.findIndex((r) => r.id === input.ruleId)
-      : rows.findIndex(
-          (r) =>
-            r.event === event &&
-            r.templateKey === input.templateKey &&
-            r.recipient === input.recipient,
-        );
+    const idx = findRule(rows, event, input);
     if (idx === -1) throw new AppError("NOT_FOUND");
     // An event with no rows falls back to the code's default rules, so
     // deleting its last row would send the default mail again (audit
@@ -496,17 +543,8 @@ export async function setMailRuleEnabled(input: {
   enabled: boolean;
 }): Promise<void> {
   const event = requireEvent(input.event);
-  await snapshotEventRules(event);
-  await materializeEvent(event);
-  await mutate("mail-rules", (rows) => {
-    const idx = input.ruleId
-      ? rows.findIndex((r) => r.id === input.ruleId)
-      : rows.findIndex(
-          (r) =>
-            r.event === event &&
-            r.templateKey === input.templateKey &&
-            r.recipient === input.recipient,
-        );
+  await changeEventRules(event, (rows) => {
+    const idx = findRule(rows, event, input);
     if (idx === -1) throw new AppError("NOT_FOUND");
     rows[idx] = {
       ...rows[idx],
@@ -641,7 +679,6 @@ export async function deleteMailVariable(key: string): Promise<void> {
 // ---- 발송 테스트 --------------------------------------------------------------
 
 function sampleVars(tokens: string[]): Record<string, string> {
-  // 공용 변수는 render가 실제 값을 채우므로, 여기선 나머지 토큰만 예시로 채운다.
   return Object.fromEntries(tokens.map((t) => [t, `[예시 ${t}]`]));
 }
 
@@ -677,10 +714,13 @@ export async function sendTestTemplate(
     throw new AppError("NOT_FOUND", {
       userMessage: "존재하지 않는 템플릿입니다.",
     });
-  const rendered = await renderMailTemplate(
-    templateKey,
-    sampleVars(extractVariableTokens(text.subject, text.body)),
+  // 공용 변수는 render가 실제 값을 채우므로, 나머지 토큰만 예시로 채운다 —
+  // 예시 값이 공용 변수를 덮으면 확인하려던 링크가 가려진다 (감사 LB23-5).
+  const globals = await getGlobalMailVariables();
+  const tokens = extractVariableTokens(text.subject, text.body).filter(
+    (t) => !Object.hasOwn(globals, t),
   );
+  const rendered = await renderMailTemplate(templateKey, sampleVars(tokens));
   if (!rendered) {
     throw new AppError("CONFLICT", {
       userMessage: "이 템플릿은 발송이 꺼져 있습니다. 켠 뒤 테스트해 주세요.",
