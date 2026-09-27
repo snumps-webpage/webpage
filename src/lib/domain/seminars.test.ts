@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   seminarRequestInputSchema,
+  seminarTimingOptions,
   validateSeminarRequestForm,
 } from "./seminars";
 
@@ -101,5 +102,28 @@ describe("validateSeminarRequestForm", () => {
       expect(result.failure.issues.attachmentUrl).toBeUndefined();
       expect(result.failure.issues.presenterIds).toBeUndefined();
     }
+  });
+});
+
+describe("seminarTimingOptions", () => {
+  it("offers the term's teaching months and the open choice", () => {
+    expect(seminarTimingOptions("26-2")).toContain("9월 초");
+    expect(seminarTimingOptions("26-2")).not.toContain("3월 초");
+    expect(seminarTimingOptions("26-2").at(-1)).toBe("협의 후 결정");
+  });
+
+  // Editing a request after the term moved on: the stored timing was not
+  // among the options, the select posted "", and saving cleared it
+  // (audit LC15-1, confirmed).
+  it("keeps a stored timing from another term as an option", () => {
+    expect(seminarTimingOptions("27-1", "10월 중반")).toContain("10월 중반");
+    expect(seminarTimingOptions("27-1", "")).not.toContain("");
+    expect(
+      seminarTimingOptions("27-1", "3월 초").filter((o) => o === "3월 초"),
+    ).toHaveLength(1);
+  });
+
+  it("does not add a stored value outside the closed set", () => {
+    expect(seminarTimingOptions("27-1", "아무 말")).not.toContain("아무 말");
   });
 });

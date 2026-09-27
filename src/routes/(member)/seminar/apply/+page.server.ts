@@ -4,7 +4,7 @@ import { memberPickers } from "$lib/server/data/repos";
 import { submitSeminarRequest } from "$lib/server/services/seminar-requests";
 import { AppError } from "$lib/server/core/errors";
 import { parseGoogleName } from "$lib/utils";
-import { currentTerm } from "$lib/server/core/semester";
+import { proposalTerm } from "$lib/domain/term";
 import { formText } from "$lib/domain/form-data";
 import {
   seminarTimingOptions,
@@ -37,7 +37,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
       (m) => m.id === locals.member?.memberId,
     ),
     memberDirectoryUnavailable,
-    timingOptions: seminarTimingOptions(currentTerm()),
+    timingOptions: seminarTimingOptions(proposalTerm(new Date())),
   };
 };
 

@@ -9,7 +9,7 @@ import {
 import { AppError } from "$lib/server/core/errors";
 import { seminarRequestView } from "$lib/server/data/views";
 import { parseGoogleName } from "$lib/utils";
-import { currentTerm } from "$lib/server/core/semester";
+import { proposalTerm } from "$lib/domain/term";
 import { formText } from "$lib/domain/form-data";
 import {
   seminarTimingOptions,
@@ -52,7 +52,10 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     actualName: locals.member?.name || parseGoogleName(session.user.name).name,
     members: searchableMembers,
     memberDirectoryUnavailable,
-    timingOptions: seminarTimingOptions(currentTerm()),
+    timingOptions: seminarTimingOptions(
+      proposalTerm(new Date()),
+      request.preferredTiming,
+    ),
     request: {
       ...seminarRequestView(request),
       initialSpeakers,

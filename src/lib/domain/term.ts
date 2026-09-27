@@ -37,6 +37,18 @@ export function termOfDateString(value: string): string {
   return termOf(d);
 }
 
+/**
+ * The term a new proposal is for. Seminars run in the teaching months
+ * (Mar–Jun, Sep–Dec); in the vacation months that follow a term (Jul–Aug,
+ * Jan–Feb) a proposal is for the coming term, not the one just ended —
+ * the form offered only months already past (audit LC15-1).
+ */
+export function proposalTerm(now: Date): string {
+  const { year, month } = kstYearMonth(now);
+  if (month <= 6) return `${yy(year)}-1`;
+  return `${yy(year)}-2`;
+}
+
 /** "26-1" → "2026년 1학기". */
 export function termLabel(term: string): string {
   const [year, half] = term.split("-");

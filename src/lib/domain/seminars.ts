@@ -10,7 +10,8 @@ export type SeminarKind = (typeof SEMINAR_KINDS)[number];
  * 방학(1·2월 겨울, 7·8월 여름)은 세미나를 진행하지 않으므로 제외한다.
  *   - 1학기(YY-1) 활동월: 3·4·5·6월
  *   - 2학기(YY-2) 활동월: 9·10·11·12월
- * 폼은 현재 학기의 월만 노출하고(seminarTimingOptions), 서버 검증은 두 학기
+ * 폼은 제안 대상 학기(proposalTerm — 방학이면 다가올 학기)의 월만 노출하고
+ * (seminarTimingOptions), 서버 검증은 두 학기
  * 전체 활동월을 닫힌 집합(SEMINAR_TIMING_OPTIONS)으로 받아 학기 경계에서도 안전.
  */
 const SPRING_MONTHS = [3, 4, 5, 6] as const;
@@ -22,14 +23,26 @@ function monthsForTerm(term: string): readonly number[] {
   return term.endsWith("-1") ? SPRING_MONTHS : FALL_MONTHS;
 }
 
-/** 현재 학기의 활동월 선택지 (폼 노출용). */
-export function seminarTimingOptions(term: string): string[] {
-  return [
+/**
+ * 학기의 활동월 선택지 (폼 노출용). `keep`은 이미 저장된 값 — 학기가 바뀐 뒤
+ * 신청을 고칠 때 그 값이 선택지에 없으면 select가 빈 값을 보내 저장된 시점이
+ * 조용히 지워졌다(감사 LC15-1). 닫힌 집합 안의 값이면 선택지에 남긴다.
+ */
+export function seminarTimingOptions(term: string, keep = ""): string[] {
+  const options = [
     ...monthsForTerm(term).flatMap((m) =>
       TIMING_SEGMENTS.map((s) => `${m}월 ${s}`),
     ),
     NEGOTIATE,
   ];
+  if (
+    keep &&
+    !options.includes(keep) &&
+    (SEMINAR_TIMING_OPTIONS as readonly string[]).includes(keep)
+  ) {
+    options.unshift(keep);
+  }
+  return options;
 }
 
 /** 두 학기 전체 활동월 — 서버 검증용 닫힌 집합 (학기 무관). */
