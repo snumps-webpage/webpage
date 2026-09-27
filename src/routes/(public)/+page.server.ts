@@ -2,7 +2,7 @@ import { dev } from "$app/environment";
 import { fail } from "@sveltejs/kit";
 import { handleUserAction, requireCapability } from "$lib/server/auth-guards";
 import { getDirectoryIndex } from "$lib/server/data/directory";
-import { CAPABILITIES } from "$lib/server/core/capabilities";
+import { CAPABILITIES, hasCapability } from "$lib/server/core/capabilities";
 import { resolveDevPreviewRole } from "$lib/server/dev-preview";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { getMemberVisibleEvents } from "$lib/server/services/visibility";
@@ -21,7 +21,17 @@ import {
   normalizePhoneNumber,
 } from "$lib/utils";
 import type { ActivityType } from "$lib/constants";
-import type { RequestStatus, StudyStatus } from "$lib/server/data/schemas";
+import {
+  dashboardProfileInputSchema,
+  dashboardProfileIssues,
+  type DashboardActivityItem,
+} from "$lib/domain/dashboard";
+import type {
+  Activity,
+  Event,
+  RequestStatus,
+  StudyStatus,
+} from "$lib/server/data/schemas";
 import type { PageServerLoad } from "./$types";
 
 /** The streamed member-dashboard payload (FUNCTIONAL-SPEC MEM-04·05, EVT-02·03, STU-07). */
@@ -75,6 +85,84 @@ export type DashboardData = {
   semesters: string[];
   generatedAt: string;
 };
+
+/** EVT-02·03: one member's participation state for one activity row. */
+function participationState(
+  activity: Activity,
+  event: Event | undefined,
+  myIds: ReadonlySet<string>,
+  memberId: string,
+  now: Date,
+  mayParticipate: boolean,
+) {
+  const attended = activity.attendeeIds.some((id) => myIds.has(id));
+  const isApplied = event?.applicantIds.includes(memberId) ?? false;
+  const started = event ? new Date(event.date.start) <= now : true;
+  return {
+    attended,
+    isApplied,
+    // effectiveStatus, not the stored value — a lazily-expired event must
+    // not advertise an apply button it will reject (review low-16). Same for
+    // a member without PARTICIPATE (alumni, unregistered): the action 403s.
+    canApply:
+      mayParticipate &&
+      !!event &&
+      effectiveStatus(event, now) === "active" &&
+      !started,
+    pendingAttendance:
+      isApplied && started && !attended && activity.type === "세미나",
+  };
+}
+
+/**
+ * The ledger keeps its rows in local state and replaces one only from the
+ * action result (DashboardOperationResult) — so apply/cancel must answer with
+ * the row as it now stands, read back after the write.
+ */
+async function ledgerRowFor(
+  eventId: string,
+  memberId: string,
+): Promise<DashboardActivityItem> {
+  const [events, activities, members] = await Promise.all([
+    getTable("events"),
+    getTable("activities"),
+    getTable("members"),
+  ]);
+  const event = events.find((e) => e.id === eventId);
+  const activity = event && activities.find((a) => a.id === event.activityId);
+  if (!event || !activity) throw new AppError("NOT_FOUND");
+  const legacyId =
+    members.find((m) => m.id === memberId)?.legacyMemberId ?? null;
+  const myIds = new Set([memberId, ...(legacyId ? [legacyId] : [])]);
+  return {
+    id: activity.id,
+    title: activity.title,
+    type: activity.type,
+    startsAt: activity.date.start,
+    semester: getSemesterKeyFromDate(activity.date.start),
+    detailUrl: null,
+    eventId: event.id,
+    // Only reached after requireCapability(PARTICIPATE) passed.
+    ...participationState(activity, event, myIds, memberId, new Date(), true),
+  };
+}
+
+/**
+ * Checked BEFORE the write: an apply that succeeds and then cannot build its
+ * answer would report 404 for a change it already made. Member-visible events
+ * only — cancelled ones and those on a hidden seminar's activity do not exist
+ * for members (services/visibility.ts).
+ */
+async function assertLedgerTarget(eventId: string): Promise<void> {
+  const [events, activities] = await Promise.all([
+    getMemberVisibleEvents(),
+    getTable("activities"),
+  ]);
+  const event = events.find((e) => e.id === eventId);
+  if (!event || !activities.some((a) => a.id === event.activityId)) {
+    throw new AppError("NOT_FOUND");
+  }
+}
 
 function buildDevDashboardPreview(semesterKey: string): DashboardData {
   const today = new Date();
@@ -262,27 +350,22 @@ export const load: PageServerLoad = async (event) => {
 
       const currentActivities = currentRaw.map((a) => {
         const event = eventByActivityId.get(a.id);
-        const attended = a.attendeeIds.some((id) => myIds.has(id));
-        const isApplied =
-          event?.applicantIds.includes(member.memberId) ?? false;
-        const started = event ? new Date(event.date.start) <= now : true;
         return {
           id: a.id,
           name: a.title,
           date: a.date.start,
           type: a.type,
-          attended,
           url: "",
           semester: semester.key,
-          // EVT-02·03: participation state for the activity table
           eventId: event?.id ?? null,
-          isApplied,
-          // effectiveStatus, not the stored value — a lazily-expired event must
-          // not advertise an apply button it will reject (review low-16).
-          canApply:
-            !!event && effectiveStatus(event, now) === "active" && !started,
-          pendingAttendance:
-            isApplied && started && !attended && a.type === "세미나",
+          ...participationState(
+            a,
+            event,
+            myIds,
+            member.memberId,
+            now,
+            hasCapability(member.capabilities, CAPABILITIES.PARTICIPATE),
+          ),
         };
       });
 
@@ -397,9 +480,13 @@ export const actions = {
       const member = locals.member;
       if (!member) throw new AppError("FORBIDDEN");
       requireCapability(locals, CAPABILITIES.PARTICIPATE);
+      await assertLedgerTarget(eventId);
       const { applyToEvent } = await import("$lib/server/services/events");
       await applyToEvent(eventId, member.memberId);
-      return {};
+      return {
+        operation: "activityApplied" as const,
+        activity: await ledgerRowFor(eventId, member.memberId),
+      };
     });
   },
 
@@ -415,10 +502,14 @@ export const actions = {
       const member = locals.member;
       if (!member) throw new AppError("FORBIDDEN");
       requireCapability(locals, CAPABILITIES.PARTICIPATE);
+      await assertLedgerTarget(eventId);
       const { cancelEventApplication } =
         await import("$lib/server/services/events");
       await cancelEventApplication(eventId, member.memberId);
-      return {};
+      return {
+        operation: "activityCancelled" as const,
+        activity: await ledgerRowFor(eventId, member.memberId),
+      };
     });
   },
 
@@ -434,6 +525,8 @@ export const actions = {
     return handleUserAction(locals, async () => {
       const member = locals.member;
       if (!member) throw new AppError("FORBIDDEN");
+      // `/` is public-zone: the guard's POST capability gate never runs here.
+      requireCapability(locals, CAPABILITIES.PARTICIPATE);
       const { acceptTransfer } = await import("$lib/server/services/studies");
       await acceptTransfer(studyId, member.memberId);
       return {};
@@ -451,6 +544,7 @@ export const actions = {
     return handleUserAction(locals, async () => {
       const member = locals.member;
       if (!member) throw new AppError("FORBIDDEN");
+      requireCapability(locals, CAPABILITIES.PARTICIPATE);
       const { declineTransfer } = await import("$lib/server/services/studies");
       await declineTransfer(studyId, member.memberId);
       return {};
@@ -472,20 +566,30 @@ export const actions = {
     if (dev && devPreviewRole) return { success: true, preview: true };
 
     const data = await request.formData();
-    const phone = normalizePhoneNumber(data.get("phone") as string);
-    const background = (data.get("background") as string) ?? "";
+    const parsed = dashboardProfileInputSchema.safeParse({
+      phone: normalizePhoneNumber((data.get("phone") as string | null) ?? ""),
+      background: (data.get("background") as string | null) ?? "",
+    });
 
     return handleUserAction(locals, async () => {
       const member = locals.member;
       if (!member) throw new AppError("FORBIDDEN");
+      requireCapability(locals, CAPABILITIES.MANAGE_SELF);
+      if (!parsed.success) {
+        return fail(400, {
+          error: "VALIDATION_FAILED",
+          issues: dashboardProfileIssues(parsed.error),
+        });
+      }
+      const profile = parsed.data;
       // MEM-04: own row only — resolved from the session, never from the form.
       await mutate("private-info", (rows) => {
         const idx = rows.findIndex((p) => p.memberId === member.memberId);
         if (idx === -1) throw new AppError("NOT_FOUND");
-        rows[idx] = { ...rows[idx], phone, background };
+        rows[idx] = { ...rows[idx], ...profile };
         return rows;
       });
-      return {};
+      return { operation: "profileUpdated" as const, profile };
     });
   },
 
@@ -512,6 +616,7 @@ export const actions = {
     return handleUserAction(locals, async () => {
       const member = locals.member;
       if (!member) throw new AppError("FORBIDDEN");
+      requireCapability(locals, CAPABILITIES.PARTICIPATE);
       await mutate("seminars", (rows) => {
         const idx = rows.findIndex((s) => s.id === id);
         if (idx === -1) throw new AppError("NOT_FOUND");
