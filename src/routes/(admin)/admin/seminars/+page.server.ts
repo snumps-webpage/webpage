@@ -227,13 +227,8 @@ export const actions = {
     return handleAdminAction(locals, async () => {
       const seminarId = data.get("seminarId") as string;
       if (!seminarId) throw new AppError("VALIDATION_FAILED");
-      const { activityId, eventId, mailFailed, cancelledDuringPublish } =
+      const { activityId, eventId, mailFailed } =
         await publishSeminar(seminarId);
-      // 공개 도중 취소가 이겼다면 공개는 성립하지 않았다 — 성공 문구를 띄우면
-      // 보드는 "취소"로 새로 그려지는데 알림만 "공개했습니다"라고 말한다.
-      if (cancelledDuringPublish) {
-        return { operation: "cancelled", seminarId, mailFailed: false };
-      }
       return {
         operation: "published",
         seminarId,

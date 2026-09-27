@@ -76,7 +76,7 @@ export interface AdminSeminarItem {
   /**
    * 공개는 됐는데 **공지가 나가지 않은** 상태인가 (`announcedAt === null`).
    *
-   * 전 회원 메일이 실패하면 `announceOnce`가 앵커를 되돌려 놓는다 — 다시 공개를
+   * 전 회원 메일이 실패하면 `publishSeminar`가 앵커를 되돌려 놓는다 — 다시 공개를
    * 실행하면 재발송된다. 그런데 공개 후에는 `canPublish`가 false라 버튼이
    * 사라져서, 화면이 안내하는 복구 방법을 **실행할 수가 없었다**.
    */

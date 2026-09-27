@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const testEnv = vi.hoisted(() => ({}) as Record<string, string | undefined>);
 vi.mock("$env/dynamic/private", () => ({ env: testEnv }));
@@ -19,6 +19,7 @@ vi.mock("$lib/server/mail/dispatch", () => ({
 }));
 
 import { __docs, __putRawDoc, __reset } from "$lib/server/data/store-memory";
+import { expectTablesValid } from "$lib/server/data/expect-tables-valid";
 import {
   _resetDataLayerForTests,
   getTable,
@@ -68,6 +69,9 @@ async function pendingRequest() {
     requesterId: newId(),
   });
 }
+
+// Rows the SQL flows wrote must decode exactly as TS-written ones.
+afterEach(expectTablesValid);
 
 beforeEach(async () => {
   __reset();
@@ -548,7 +552,7 @@ describe("취소 공지", () => {
 
 describe("공지 재발송", () => {
   /**
-   * 메일이 실패하면 `announceOnce`가 앵커를 되돌려 놓는다. 그래서 같은 공개를
+   * 메일이 실패하면 `publishSeminar`가 앵커를 되돌려 놓는다. 그래서 같은 공개를
    * 다시 실행하는 것이 재발송이다 — 화면에는 그 버튼이 없어 안내가 헛말이었다
    * (이제 `canResendNotice`가 버튼을 되살린다).
    */

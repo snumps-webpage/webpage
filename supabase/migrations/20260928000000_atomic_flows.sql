@@ -100,6 +100,54 @@ language sql set search_path = public as $$
   delete from app_queues where event_id = p_event_id
 $$;
 
+-- JSON null and a missing key alike → SQL NULL.
+create or replace function app_nullable(p_value jsonb) returns jsonb
+language sql immutable as $$
+  select case when p_value is null or jsonb_typeof(p_value) = 'null' then null else p_value end
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 1b. Seminar rules (mirrors of services/seminars.ts and core/semester.ts —
+--     keep them in step)
+-- ---------------------------------------------------------------------------
+
+-- The regular term an instant falls in, by the KST calendar: Mar–Aug → YY-1,
+-- Sep–Feb → YY-2 (Jan/Feb belong to the previous year's second term).
+create or replace function app_term_of(p_at text) returns text
+language sql stable as $$
+  select case
+    when extract(month from k) between 3 and 8
+      then lpad((extract(year from k)::int % 100)::text, 2, '0') || '-1'
+    else lpad(((extract(year from k)::int
+                - case when extract(month from k) >= 9 then 0 else 1 end) % 100)::text,
+              2, '0') || '-2'
+  end
+  from (select (p_at::timestamptz at time zone 'UTC') + interval '9 hours' as k) as t
+$$;
+
+-- May the term be re-derived from the schedule? Not when an admin pinned it,
+-- nor for a vacation term (YY-S / YY-W), which derivation cannot express.
+create or replace function app_may_derive_semester(p_sem jsonb) returns boolean
+language sql immutable as $$
+  select not coalesce((p_sem ->> 'semesterPinned')::boolean, false)
+     and coalesce(p_sem ->> 'semester', '') !~ '^\d{2}-[SW]$'
+$$;
+
+-- Rows written before publicationStatus existed are published.
+create or replace function app_seminar_status(p_sem jsonb) returns text
+language sql immutable as $$
+  select coalesce(p_sem ->> 'publicationStatus', 'published')
+$$;
+
+-- Events that belong to a seminar: anchored to it ('seminar:<id>'), or —
+-- for migrated rows without an anchor — hanging off its activity.
+create or replace function app_is_seminar_event(p_event jsonb, p_sem jsonb)
+returns boolean language sql immutable as $$
+  select p_event ->> 'sourceRequestId' = 'seminar:' || (p_sem ->> 'id')
+      or (p_sem ->> 'activityId' is not null
+          and p_event ->> 'activityId' = p_sem ->> 'activityId')
+$$;
+
 -- ---------------------------------------------------------------------------
 -- 2. Flows
 -- ---------------------------------------------------------------------------
@@ -203,6 +251,241 @@ begin
     'touched', to_jsonb(v_touched),
     'touchedQueues', to_jsonb(v_sessions),
     'assets', v_assets);
+end $$;
+
+-- Publish a scheduled seminar (admin): flip it to published (deriving its
+-- term from the schedule), create its activity and attendance event if they
+-- do not exist yet (anchored 'seminar:<id>', so a re-run converges), link the
+-- activity, and claim the announcement (announcedAt) when none was sent. The
+-- caller sends the announcement after the commit only when `claimed`, and
+-- releases the claim if sending fails. Re-running on a published seminar
+-- fills in whatever is missing.
+--   p = { id, now, activityId, eventId, pathId, attendCode }
+--       (ids/tokens for rows that may need creating; now = KST ISO)
+create or replace function flow_publish_seminar(p jsonb) returns jsonb
+language plpgsql set search_path = public as $$
+declare
+  v_id       text := p ->> 'id';
+  v_anchor   text := 'seminar:' || (p ->> 'id');
+  v_seminars jsonb;
+  v_sem      jsonb;
+  v_sched    jsonb;
+  v_date     jsonb;
+  v_acts     jsonb;
+  v_act      jsonb;
+  v_events   jsonb;
+  v_event    jsonb;
+  v_claimed  boolean := false;
+  v_touched  text[] := array['seminars'];
+begin
+  perform app_lock(array['activities', 'events', 'seminars']);
+  v_seminars := app_rows('seminars');
+  v_sem := app_find(v_seminars, v_id);
+  if v_sem is null then raise exception 'NOT_FOUND'; end if;
+  v_sched := app_nullable(v_sem -> 'schedule');
+  -- a legacy published row that lost its schedule cannot be published again
+  if app_seminar_status(v_sem) not in ('scheduled', 'published') or v_sched is null then
+    raise exception 'CONFLICT';
+  end if;
+
+  if app_seminar_status(v_sem) = 'scheduled' then
+    v_sem := v_sem || jsonb_build_object(
+      'publicationStatus', 'published',
+      'semester', case when app_may_derive_semester(v_sem)
+                       then app_term_of(v_sched ->> 'startsAt')
+                       else v_sem ->> 'semester' end);
+  end if;
+  v_date := jsonb_build_object(
+    'start', v_sched -> 'startsAt',
+    'end', coalesce(v_sched -> 'endsAt', 'null'::jsonb));
+
+  v_acts := app_rows('activities');
+  select a into v_act from jsonb_array_elements(v_acts) a
+   where a ->> 'sourceRequestId' = v_anchor limit 1;
+  if v_act is null then
+    -- presenters are participants of their own seminar
+    v_act := jsonb_build_object(
+      'id', p ->> 'activityId',
+      'title', v_sem ->> 'title',
+      'date', v_date,
+      'type', '세미나',
+      'attendeeIds', coalesce(v_sem -> 'presenterIds', '[]'::jsonb),
+      'sourceRequestId', v_anchor);
+    perform app_put('activities', v_acts || jsonb_build_array(v_act));
+    v_touched := v_touched || array['activities'];
+  end if;
+
+  v_events := app_rows('events');
+  select e into v_event from jsonb_array_elements(v_events) e
+   where e ->> 'sourceRequestId' = v_anchor limit 1;
+  if v_event is null then
+    v_event := jsonb_build_object(
+      'id', p ->> 'eventId',
+      'title', v_sem ->> 'title',
+      'date', v_date,
+      'type', '세미나',
+      'status', 'active',
+      'pathId', p ->> 'pathId',
+      'attendCode', p ->> 'attendCode',
+      'activityId', v_act ->> 'id',
+      'applicantIds', '[]'::jsonb,
+      'presenterIds', coalesce(v_sem -> 'presenterIds', '[]'::jsonb),
+      'studyId', null,
+      'sessionNo', null,
+      'autoGenerated', false,
+      'sourceRequestId', v_anchor);
+    perform app_put('events', v_events || jsonb_build_array(v_event));
+    v_touched := v_touched || array['events'];
+  end if;
+
+  v_sem := v_sem || jsonb_build_object('activityId', v_act ->> 'id');
+  if v_sem ->> 'announcedAt' is null then
+    v_sem := v_sem || jsonb_build_object('announcedAt', p ->> 'now');
+    v_claimed := true;
+  end if;
+  perform app_put('seminars', app_replace(v_seminars, v_id, v_sem));
+
+  return jsonb_build_object(
+    'touched', to_jsonb(v_touched),
+    'seminar', v_sem,
+    'activityId', v_act ->> 'id',
+    'eventId', v_event ->> 'id',
+    'claimed', v_claimed);
+end $$;
+
+-- Change a seminar's schedule (admin). Before publication only the seminar
+-- row holds it; after, the same dates also live on its activity and
+-- attendance event, and all three change together. A published seminar's
+-- term follows the new date unless pinned. Also the way to give a legacy
+-- published row (schedule lost in migration) its schedule back.
+--   p = { id, schedule }  → { seminar, changed }
+create or replace function flow_update_seminar_schedule(p jsonb) returns jsonb
+language plpgsql set search_path = public as $$
+declare
+  v_id       text := p ->> 'id';
+  v_new      jsonb := p -> 'schedule';
+  v_seminars jsonb;
+  v_sem      jsonb;
+  v_old      jsonb;
+  v_status   text;
+  v_changed  boolean;
+  v_date     jsonb;
+  v_touched  text[] := array['seminars'];
+begin
+  perform app_lock(array['activities', 'events', 'seminars']);
+  v_seminars := app_rows('seminars');
+  v_sem := app_find(v_seminars, v_id);
+  if v_sem is null then raise exception 'NOT_FOUND'; end if;
+  v_status := app_seminar_status(v_sem);
+  if v_status in ('cancelled', 'unscheduled') then raise exception 'CONFLICT'; end if;
+
+  v_old := app_nullable(v_sem -> 'schedule');
+  v_changed := v_old is null
+    or v_old ->> 'startsAt' is distinct from v_new ->> 'startsAt'
+    or v_old ->> 'endsAt' is distinct from v_new ->> 'endsAt'
+    or v_old ->> 'location' is distinct from v_new ->> 'location';
+  v_sem := v_sem || jsonb_build_object(
+    'schedule', v_new,
+    'semester', case when v_status = 'published' and app_may_derive_semester(v_sem)
+                     then app_term_of(v_new ->> 'startsAt')
+                     else v_sem ->> 'semester' end);
+  perform app_put('seminars', app_replace(v_seminars, v_id, v_sem));
+
+  if v_status = 'published' then
+    v_date := jsonb_build_object(
+      'start', v_new -> 'startsAt',
+      'end', coalesce(v_new -> 'endsAt', 'null'::jsonb));
+    perform app_put('activities', (
+      select coalesce(jsonb_agg(
+               case when a ->> 'id' = v_sem ->> 'activityId'
+                      or a ->> 'sourceRequestId' = 'seminar:' || v_id
+                    then a || jsonb_build_object('date', v_date) else a end
+               order by n), '[]'::jsonb)
+        from jsonb_array_elements(app_rows('activities')) with ordinality as x(a, n)));
+    perform app_put('events', (
+      select coalesce(jsonb_agg(
+               case when app_is_seminar_event(e, v_sem)
+                    then e || jsonb_build_object('date', v_date) else e end
+               order by n), '[]'::jsonb)
+        from jsonb_array_elements(app_rows('events')) with ordinality as x(e, n)));
+    v_touched := v_touched || array['activities', 'events'];
+  end if;
+
+  return jsonb_build_object(
+    'touched', to_jsonb(v_touched),
+    'seminar', v_sem,
+    'changed', v_changed);
+end $$;
+
+-- Cancel a seminar and its attendance events (presenter or admin). A
+-- presenter may cancel only their own seminar and only before it starts; an
+-- admin may cancel a started one with `acknowledgeStarted`. Activities and
+-- attendance are kept (the read side hides them). Idempotent. "Started" is
+-- the schedule's start, or — for a legacy published row without one —
+-- "already held".
+--   p = { id, memberId, isAdmin, acknowledgeStarted, now }
+--   → { seminar, flipped, wasAnnounced, started }
+create or replace function flow_cancel_seminar(p jsonb) returns jsonb
+language plpgsql set search_path = public as $$
+declare
+  v_id        text := p ->> 'id';
+  v_is_admin  boolean := coalesce((p ->> 'isAdmin')::boolean, false);
+  v_seminars  jsonb;
+  v_sem       jsonb;
+  v_sched     jsonb;
+  v_status    text;
+  v_started   boolean;
+  v_flipped   boolean := false;
+  v_announced boolean := false;
+  v_events    jsonb;
+  v_next      jsonb;
+  v_touched   text[] := '{}';
+begin
+  perform app_lock(array['events', 'seminars']);
+  v_seminars := app_rows('seminars');
+  v_sem := app_find(v_seminars, v_id);
+  if v_sem is null then raise exception 'NOT_FOUND'; end if;
+  v_status := app_seminar_status(v_sem);
+  v_sched := app_nullable(v_sem -> 'schedule');
+  v_started := case when v_sched is not null
+                    then (v_sched ->> 'startsAt')::timestamptz <= (p ->> 'now')::timestamptz
+                    else v_status = 'published' end;
+
+  if not v_is_admin then
+    if not (coalesce(v_sem -> 'presenterIds', '[]'::jsonb) ? (p ->> 'memberId'))
+       or v_started then
+      raise exception 'FORBIDDEN';
+    end if;
+  elsif v_started and not coalesce((p ->> 'acknowledgeStarted')::boolean, false) then
+    raise exception 'CONFLICT';
+  end if;
+
+  if v_status <> 'cancelled' then
+    v_announced := v_status = 'published' and v_sem ->> 'announcedAt' is not null;
+    v_sem := v_sem || jsonb_build_object('publicationStatus', 'cancelled');
+    perform app_put('seminars', app_replace(v_seminars, v_id, v_sem));
+    v_touched := v_touched || array['seminars'];
+    v_flipped := true;
+  end if;
+
+  v_events := app_rows('events');
+  select coalesce(jsonb_agg(
+           case when app_is_seminar_event(e, v_sem) and e ->> 'status' <> 'cancelled'
+                then e || jsonb_build_object('status', 'cancelled') else e end
+           order by n), '[]'::jsonb)
+    into v_next
+    from jsonb_array_elements(v_events) with ordinality as x(e, n);
+  if v_next <> v_events then
+    perform app_put('events', v_next);
+    v_touched := v_touched || array['events'];
+  end if;
+
+  return jsonb_build_object(
+    'touched', to_jsonb(v_touched),
+    'seminar', v_sem,
+    'flipped', v_flipped,
+    'wasAnnounced', v_announced,
+    'started', v_started);
 end $$;
 
 -- ---------------------------------------------------------------------------

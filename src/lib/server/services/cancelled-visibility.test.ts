@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("$env/dynamic/private", () => ({ env: {} }));
 vi.mock(
@@ -7,6 +7,7 @@ vi.mock(
 );
 
 import { __reset } from "$lib/server/data/store-memory";
+import { expectTablesValid } from "$lib/server/data/expect-tables-valid";
 import {
   _resetDataLayerForTests,
   getTable,
@@ -79,6 +80,9 @@ async function scheduledOnlySeminar() {
   return (await getTable("seminars")).find((s) => s.title === "미확정 세미나")!
     .id;
 }
+
+// Rows the SQL flows wrote must decode exactly as TS-written ones.
+afterEach(expectTablesValid);
 
 beforeEach(async () => {
   __reset();

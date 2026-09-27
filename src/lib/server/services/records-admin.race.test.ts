@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock(
   "$lib/server/data/store",
@@ -19,6 +19,7 @@ vi.mock(
  * followed the state it found, not the one an earlier page load showed.
  */
 import { __reset } from "$lib/server/data/store-memory";
+import { expectTablesValid } from "$lib/server/data/expect-tables-valid";
 import { __reset as __resetStorage } from "$lib/server/data/storage-memory";
 import {
   _resetDataLayerForTests,
@@ -29,6 +30,9 @@ import { invalidateCache } from "$lib/server/cache";
 import { nowKstIso } from "$lib/server/core/time";
 import { createActivity, createSeminar, deleteSeminar } from "./records-admin";
 import { hiddenActivityIds } from "./visibility";
+
+// Rows the SQL flows wrote must decode exactly as TS-written ones.
+afterEach(expectTablesValid);
 
 beforeEach(async () => {
   await __reset();
