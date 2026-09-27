@@ -8,6 +8,11 @@ import {
 import { normalizePhoneNumber, parseGoogleName } from "$lib/utils";
 import { AppError } from "$lib/server/core/errors";
 import { stripInvisibles } from "$lib/server/core/strings";
+import { formText } from "$lib/domain/form-data";
+import {
+  membershipApplicationInputSchema,
+  membershipApplicationIssues,
+} from "$lib/domain/membership-applications";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
@@ -68,26 +73,25 @@ export const actions = {
       }
 
       const data = await request.formData();
-      const phone = normalizePhoneNumber(data.get("phone") as string);
-      const studentId = stripInvisibles(
-        (data.get("studentId") as string) ?? "",
-      ).trim();
-      const background = (data.get("background") as string) ?? "";
-      if (!/^\d{4}-?\d{4,6}$/.test(studentId)) {
-        throw new AppError("VALIDATION_FAILED", {
-          userMessage: "학번을 2024-12345 형식으로 입력해 주세요.",
+      const values = {
+        phone: normalizePhoneNumber(formText(data, "phone")),
+        studentId: stripInvisibles(formText(data, "studentId")),
+        background: formText(data, "background"),
+        agreement: formText(data, "agreement"),
+      };
+      const parsed = membershipApplicationInputSchema.safeParse(values);
+      if (!parsed.success) {
+        return fail(400, {
+          error: "VALIDATION_FAILED",
+          issues: membershipApplicationIssues(parsed.error),
+          values: {
+            phone: values.phone,
+            studentId: values.studentId,
+            background: values.background,
+          },
         });
       }
-      if (!data.get("agreement")) {
-        throw new AppError("VALIDATION_FAILED", {
-          userMessage: "개인정보 수집 및 이용에 동의해야 합니다.",
-        });
-      }
-      if (!phone) {
-        throw new AppError("VALIDATION_FAILED", {
-          userMessage: "전화번호를 입력해주세요.",
-        });
-      }
+      const { phone, studentId, background } = parsed.data;
 
       try {
         await submitApplication({

@@ -9,6 +9,7 @@ describe("membership application input", () => {
     expect(
       membershipApplicationInputSchema.safeParse({
         phone: "010-1234-5678",
+        studentId: "2024-12345",
         background: "조합론에 관심이 있습니다.",
         agreement: "on",
       }).success,
@@ -16,16 +17,32 @@ describe("membership application input", () => {
     expect(
       membershipApplicationInputSchema.safeParse({
         phone: "010-1234-5678",
+        studentId: "2024-12345",
         background: "",
         agreement: "",
       }).success,
     ).toBe(false);
   });
 
+  it("requires the student id in the 2024-12345 shape", () => {
+    const base = { phone: "010-1234-5678", background: "", agreement: "on" };
+    expect(
+      membershipApplicationInputSchema.safeParse({ ...base, studentId: "abc" })
+        .success,
+    ).toBe(false);
+    expect(
+      membershipApplicationInputSchema.safeParse({
+        ...base,
+        studentId: "202412345",
+      }).success,
+    ).toBe(true);
+  });
+
   it("does not request consent again when editing an existing application", () => {
     expect(
       membershipApplicationUpdateSchema.safeParse({
         phone: "010-1234-5678",
+        studentId: "2024-12345",
         background: "수정된 내용",
       }).success,
     ).toBe(true);
