@@ -129,7 +129,8 @@ export function adminStudyRequestItem(
   };
 }
 
-/** A stored s3Key rendered as an editor file row (size is not tracked). */
+/** A stored s3Key rendered as an editor file row. Its size is not tracked:
+ *  null, never 0, so the editor shows no size rather than "0.0 KB". */
 export function contentFileFromKey(key: string, kind: "pdf" | "image") {
   const name = key.slice(key.lastIndexOf("/") + 1);
   return {
@@ -141,6 +142,6 @@ export function contentFileFromKey(key: string, kind: "pdf" | "image") {
       kind === "pdf"
         ? "application/pdf"
         : `image/${name.split(".").pop() ?? "jpeg"}`,
-    size: 0,
+    size: null,
   };
 }

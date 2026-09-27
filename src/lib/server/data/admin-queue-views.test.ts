@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { adminSeminarRequestItem } from "./admin-queue-views";
+import {
+  adminSeminarRequestItem,
+  contentFileFromKey,
+} from "./admin-queue-views";
 import type { SeminarRequest } from "./schemas";
 
 /**
@@ -54,5 +57,13 @@ describe("adminSeminarRequestItem attachment link", () => {
     );
     expect(withAttachment("javascript:alert(1)")).toBeNull();
     expect(withAttachment("")).toBeNull();
+  });
+});
+
+// Storage does not report sizes here; the 0 stood in for "unknown" and the
+// record editors printed "0.0 KB" for every file (audit LA29-2).
+describe("contentFileFromKey", () => {
+  it("leaves an untracked size unknown", () => {
+    expect(contentFileFromKey("seminars/s1/notes.pdf", "pdf").size).toBeNull();
   });
 });

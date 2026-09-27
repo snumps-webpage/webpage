@@ -7,7 +7,8 @@ import type { SeminarKind } from "$lib/domain/seminars";
 export interface AdminContentFile extends Omit<PublicFileReference, "url"> {
   url: string | null;
   contentType: string;
-  size: number;
+  /** null when not known (files listed from stored keys) */
+  size: number | null;
 }
 
 export interface AdminSeminarRecord {

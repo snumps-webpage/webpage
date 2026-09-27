@@ -313,7 +313,8 @@
                 {#each record.files as file (file.id)}<li>
                     <div>
                       <strong>{file.name}</strong><span
-                        >{file.kind} · {(file.size / 1024).toFixed(1)} KB</span
+                        >{file.kind}{#if file.size !== null}
+                          · {(file.size / 1024).toFixed(1)} KB{/if}</span
                       >
                     </div>
                     <form
