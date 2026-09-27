@@ -34,14 +34,19 @@ import {
   sendSeminarScheduleChange,
 } from "./announcements";
 
-/** A member registered this term — announcements go only to those (and alumni). */
-async function seedInfo(email: string, announcements: boolean) {
-  const memberId = newId();
-  await mutate("members", (rows) => [
-    ...rows,
-    {
-      id: memberId,
-      name: email,
+async function seedInfos(entries: [email: string, announcements: boolean][]) {
+  const rows = entries.map(([email, announcements]) => ({
+    email,
+    announcements,
+    memberId: newId(),
+  }));
+  // One write per table, not per recipient: each write rewrites the whole
+  // table document, so seeding one-by-one is quadratic and times out under load.
+  await mutate("members", (existing) => [
+    ...existing,
+    ...rows.map((r) => ({
+      id: r.memberId,
+      name: r.email,
       department: "수리과학부",
       joinedAt: "2024-03-01",
       status: "regular" as const,
@@ -55,33 +60,37 @@ async function seedInfo(email: string, announcements: boolean) {
       project: null,
       legacyMemberId: null,
       sourceRequestId: null,
-    },
+    })),
   ]);
-  await mutate("registrations", (rows) => [
-    ...rows,
-    {
+  await mutate("registrations", (existing) => [
+    ...existing,
+    ...rows.map((r) => ({
       id: newId(),
-      memberId,
+      memberId: r.memberId,
       term: currentTerm(),
       registeredAt: nowKstIso(),
       sourceRequestId: null,
-    },
+    })),
   ]);
-  await mutate("private-info", (rows) => [
-    ...rows,
-    {
+  await mutate("private-info", (existing) => [
+    ...existing,
+    ...rows.map((r) => ({
       id: newId(),
-      memberId,
-      email,
+      memberId: r.memberId,
+      email: r.email,
       phone: "",
       studentId: "",
       background: "",
-      mailPrefs: { announcements },
+      mailPrefs: { announcements: r.announcements },
       hidePublicPhone: false,
       sourceRequestId: null,
-    },
+    })),
   ]);
 }
+
+/** A member registered this term — announcements go only to those (and alumni). */
+const seedInfo = (email: string, announcements: boolean) =>
+  seedInfos([[email, announcements]]);
 
 beforeEach(async () => {
   __reset();
@@ -135,7 +144,9 @@ describe("seminar announcement (SEM-04 / BE-45)", () => {
   });
 
   it("splits large recipient lists into batches", async () => {
-    for (let i = 0; i < 170; i++) await seedInfo(`m${i}@snu.ac.kr`, true);
+    await seedInfos(
+      Array.from({ length: 170 }, (_, i) => [`m${i}@snu.ac.kr`, true]),
+    );
     await sendSeminarAnnouncement({ title: "T", description: "D" });
     expect(sent.length).toBe(3); // 80 + 80 + 10
     expect(sent.every((s) => s.bcc)).toBe(true);
