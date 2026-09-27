@@ -5,7 +5,7 @@ vi.mock(
   () => import("$lib/server/data/store-memory"),
 );
 
-import { __reset } from "$lib/server/data/store-memory";
+import { __putRawDoc, __reset } from "$lib/server/data/store-memory";
 import {
   _resetDataLayerForTests,
   getTable,
@@ -16,7 +16,7 @@ import { AppError } from "$lib/server/core/errors";
 import { currentTerm } from "$lib/server/core/semester";
 import { nowKstIso } from "$lib/server/core/time";
 import type { Member } from "$lib/server/data/schemas";
-import { assignRole } from "./executives-admin";
+import { assignRole, unassignRole } from "./executives-admin";
 
 /**
  * The executives page offered only non-withdrawn candidates, but assignRole
@@ -85,6 +85,58 @@ describe("assignRole", () => {
     });
     expect((await getTable("members"))[0].roles).toEqual([
       { term: currentTerm(), title: "회장" },
+    ]);
+  });
+});
+
+// Assign and unassign read the member through the cache, built the whole
+// roles array from that row and overwrote the member's roles with it: an
+// edit another instance made within the cache's lifetime was silently
+// undone (audit LB22-1). The change is now applied to the latest row.
+describe("role changes apply to the latest row", () => {
+  const behindTheCache = async (roles: Member["roles"]) => {
+    await getTable("members"); // this instance caches the old row
+    await __putRawDoc("table", "members", {
+      schemaVersion: 1,
+      rows: [member({ roles })],
+    });
+  };
+
+  it("assignRole keeps a role added elsewhere", async () => {
+    await mutate("members", () => [member({})]);
+    await behindTheCache([{ term: currentTerm(), title: "총무" }]);
+
+    await assignRole({
+      memberId: "m1",
+      term: currentTerm(),
+      title: "회장",
+      actorId: "a",
+    });
+
+    expect((await getTable("members"))[0].roles).toEqual([
+      { term: currentTerm(), title: "총무" },
+      { term: currentTerm(), title: "회장" },
+    ]);
+  });
+
+  it("unassignRole keeps a role added elsewhere", async () => {
+    await mutate("members", () => [
+      member({ roles: [{ term: currentTerm(), title: "회장" }] }),
+    ]);
+    await behindTheCache([
+      { term: currentTerm(), title: "회장" },
+      { term: currentTerm(), title: "총무" },
+    ]);
+
+    await unassignRole({
+      memberId: "m1",
+      term: currentTerm(),
+      title: "회장",
+      actorId: "a",
+    });
+
+    expect((await getTable("members"))[0].roles).toEqual([
+      { term: currentTerm(), title: "총무" },
     ]);
   });
 });

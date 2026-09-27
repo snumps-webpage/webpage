@@ -100,6 +100,30 @@ export async function setRoles(
 }
 
 /**
+ * Change one member's roles by a function of the latest row, inside the
+ * write — for callers that add or remove one role. Building the whole array
+ * from a cached read and handing it to setRoles undid an edit another
+ * instance had just made (audit LB22-1). `change` may throw to refuse.
+ */
+export async function updateRoles(
+  targetId: string,
+  change: (member: Member) => MemberRole[],
+  actorId: string,
+): Promise<void> {
+  const updated = await patchMember(targetId, (m) => ({
+    ...m,
+    roles: change(m),
+  }));
+  await audit({
+    actorMemberId: actorId,
+    action: "member.set-roles",
+    targetTable: "members",
+    targetId,
+    detail: { count: updated.roles.length },
+  });
+}
+
+/**
  * Grant/revoke admin. Self-revocation is refused (API-SPEC), and so is
  * revoking the last admin: two admins revoking each other both passed the
  * self check and left none, which only SQL could undo (audit LB25-2). The

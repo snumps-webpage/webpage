@@ -4,7 +4,7 @@ import { TERM_PATTERN } from "$lib/server/core/semester";
 import { stripInvisibles } from "$lib/server/core/strings";
 import { nowKstIso } from "$lib/server/core/time";
 import { getTable, mutate } from "$lib/server/data/tables";
-import { setRoles } from "./members-admin";
+import { updateRoles } from "./members-admin";
 
 /**
  * /admin/executives — 학기별 임원진 배정 (관리자 전용).
@@ -148,26 +148,33 @@ export async function assignRole(input: {
       userMessage: "목록에 없는 직위입니다.",
     });
   }
-  const member = (await getTable("members")).find(
-    (m) => m.id === input.memberId,
-  );
-  if (!member)
-    throw new AppError("NOT_FOUND", {
-      userMessage: "회원을 찾을 수 없습니다.",
-    });
-  // The candidate list already leaves them out; the service must too — a
-  // withdrawing executive lands on the public roster (audit LB22-2).
-  if (member.status === "withdrawn") {
-    throw new AppError("CONFLICT", {
-      userMessage: "탈퇴 신청 중인 회원은 임원으로 지정할 수 없습니다.",
-    });
-  }
-  if (member.roles.some((r) => r.term === term && r.title === title)) {
-    throw new AppError("CONFLICT", {
-      userMessage: "이미 같은 학기에 같은 직위가 배정돼 있습니다.",
-    });
-  }
-  await setRoles(member.id, [...member.roles, { term, title }], input.actorId);
+  // Judged and applied on the latest row, inside the write (audit LB22-1).
+  await updateRoles(
+    input.memberId,
+    (member) => {
+      // The candidate list already leaves them out; the service must too — a
+      // withdrawing executive lands on the public roster (audit LB22-2).
+      if (member.status === "withdrawn") {
+        throw new AppError("CONFLICT", {
+          userMessage: "탈퇴 신청 중인 회원은 임원으로 지정할 수 없습니다.",
+        });
+      }
+      if (member.roles.some((r) => r.term === term && r.title === title)) {
+        throw new AppError("CONFLICT", {
+          userMessage: "이미 같은 학기에 같은 직위가 배정돼 있습니다.",
+        });
+      }
+      return [...member.roles, { term, title }];
+    },
+    input.actorId,
+  ).catch((e: unknown) => {
+    if (e instanceof AppError && e.code === "NOT_FOUND" && !e.userMessage) {
+      throw new AppError("NOT_FOUND", {
+        userMessage: "회원을 찾을 수 없습니다.",
+      });
+    }
+    throw e;
+  });
 }
 
 export async function unassignRole(input: {
@@ -177,15 +184,19 @@ export async function unassignRole(input: {
   actorId: string;
 }): Promise<void> {
   const term = requireTerm(input.term);
-  const member = (await getTable("members")).find(
-    (m) => m.id === input.memberId,
+  await updateRoles(
+    input.memberId,
+    (member) => {
+      const next = member.roles.filter(
+        (r) => !(r.term === term && r.title === input.title),
+      );
+      if (next.length === member.roles.length) {
+        throw new AppError("NOT_FOUND", {
+          userMessage: "해당 배정이 없습니다.",
+        });
+      }
+      return next;
+    },
+    input.actorId,
   );
-  if (!member) throw new AppError("NOT_FOUND");
-  const next = member.roles.filter(
-    (r) => !(r.term === term && r.title === input.title),
-  );
-  if (next.length === member.roles.length) {
-    throw new AppError("NOT_FOUND", { userMessage: "해당 배정이 없습니다." });
-  }
-  await setRoles(member.id, next, input.actorId);
 }
