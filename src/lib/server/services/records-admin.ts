@@ -48,21 +48,9 @@ export async function updateActivity(
 }
 
 export async function deleteActivity(id: string): Promise<void> {
-  const [events, galleries, seminars] = await Promise.all([
-    getTable("events"),
-    getTable("gallery-dinner"),
-    getTable("seminars"),
-  ]);
-  const referenced =
-    events.some((e) => e.activityId === id) ||
-    galleries.some((g) => g.activityId === id) ||
-    seminars.some((s) => s.activityId === id);
-  if (referenced) throw new AppError("CONFLICT");
-
-  await mutate("activities", (rows) => {
-    if (!rows.some((a) => a.id === id)) throw new AppError("NOT_FOUND");
-    return rows.filter((a) => a.id !== id);
-  });
+  // refused while an event, gallery entry or seminar points at it — checked
+  // and deleted under one lock (flow_delete_activity)
+  await callFlow("flow_delete_activity", { id });
 }
 
 /** Admin plenary overwrite — merge rule deliberately NOT applied (§7-4). */
@@ -250,16 +238,13 @@ export async function updateStudy(
 }
 
 export async function deleteStudy(id: string): Promise<void> {
-  const events = await getTable("events");
-  if (events.some((e) => e.studyId === id)) throw new AppError("CONFLICT");
-  let photos: string[] = [];
-  await mutate("studies", (rows) => {
-    const row = rows.find((s) => s.id === id);
-    if (!row) throw new AppError("NOT_FOUND");
-    photos = row.photos;
-    return rows.filter((s) => s.id !== id);
-  });
-  await forgetUnreferencedAssets(photos);
+  // refused while it has sessions — checked and deleted under one lock
+  // (flow_delete_study); photos are cleaned after the commit
+  const { assets } = await callFlow<FlowResult & { assets: string[] }>(
+    "flow_delete_study",
+    { id },
+  );
+  await forgetUnreferencedAssets(assets);
 }
 
 /**

@@ -1103,6 +1103,52 @@ begin
   return jsonb_build_object('touched', jsonb_build_array('members'));
 end $$;
 
+-- Delete an activity record (admin record editor) — refused while an event,
+-- a gallery entry or a seminar points at it; the check and the delete share
+-- one lock, so a reference added meanwhile cannot be orphaned.
+--   p = { id }
+create or replace function flow_delete_activity(p jsonb) returns jsonb
+language plpgsql set search_path = public as $$
+declare
+  v_id   text := p ->> 'id';
+  v_acts jsonb;
+begin
+  perform app_lock(array['activities', 'events', 'gallery-dinner', 'seminars']);
+  if exists (select 1 from jsonb_array_elements(app_rows('events')) e where e ->> 'activityId' = v_id)
+     or exists (select 1 from jsonb_array_elements(app_rows('gallery-dinner')) g where g ->> 'activityId' = v_id)
+     or exists (select 1 from jsonb_array_elements(app_rows('seminars')) s where s ->> 'activityId' = v_id)
+  then
+    raise exception 'CONFLICT';
+  end if;
+  v_acts := app_rows('activities');
+  if app_find(v_acts, v_id) is null then raise exception 'NOT_FOUND'; end if;
+  perform app_put('activities', app_without(v_acts, 'id', v_id));
+  return jsonb_build_object('touched', jsonb_build_array('activities'));
+end $$;
+
+-- Delete a study record (admin record editor) — refused while it has
+-- sessions. Returns its photo keys for cleanup after the commit.
+--   p = { id }  → { assets }
+create or replace function flow_delete_study(p jsonb) returns jsonb
+language plpgsql set search_path = public as $$
+declare
+  v_id      text := p ->> 'id';
+  v_studies jsonb;
+  v_study   jsonb;
+begin
+  perform app_lock(array['events', 'studies']);
+  if exists (select 1 from jsonb_array_elements(app_rows('events')) e where e ->> 'studyId' = v_id) then
+    raise exception 'CONFLICT';
+  end if;
+  v_studies := app_rows('studies');
+  v_study := app_find(v_studies, v_id);
+  if v_study is null then raise exception 'NOT_FOUND'; end if;
+  perform app_put('studies', app_without(v_studies, 'id', v_id));
+  return jsonb_build_object(
+    'touched', jsonb_build_array('studies'),
+    'assets', coalesce(v_study -> 'photos', '[]'::jsonb));
+end $$;
+
 -- ---------------------------------------------------------------------------
 -- 99. Privileges — flows and helpers run for the service role only.
 --     (Guarded: PGlite has no Supabase roles.)
