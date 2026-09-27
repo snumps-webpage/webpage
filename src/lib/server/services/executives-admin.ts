@@ -155,6 +155,13 @@ export async function assignRole(input: {
     throw new AppError("NOT_FOUND", {
       userMessage: "회원을 찾을 수 없습니다.",
     });
+  // The candidate list already leaves them out; the service must too — a
+  // withdrawing executive lands on the public roster (audit LB22-2).
+  if (member.status === "withdrawn") {
+    throw new AppError("CONFLICT", {
+      userMessage: "탈퇴 신청 중인 회원은 임원으로 지정할 수 없습니다.",
+    });
+  }
   if (member.roles.some((r) => r.term === term && r.title === title)) {
     throw new AppError("CONFLICT", {
       userMessage: "이미 같은 학기에 같은 직위가 배정돼 있습니다.",

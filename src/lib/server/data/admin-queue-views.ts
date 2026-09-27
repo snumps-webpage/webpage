@@ -82,9 +82,10 @@ export function adminSeminarRequestItem(
 ): AdminSeminarRequestItem {
   return {
     id: r.id,
-    // The stored request has no kind — proposals default to 비정기; the
-    // reviewer picks the final label in the UI (informational only).
-    kind: "irregular",
+    // The kind the requester chose; requests from before the form asked it
+    // (null) read as 비정기. The reviewer can still change the label in the
+    // UI (informational only).
+    kind: r.kind ?? "irregular",
     title: r.title,
     description: r.description,
     prerequisites: r.prerequisites,

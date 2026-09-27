@@ -569,9 +569,11 @@ export const actions = {
     if (dev && devPreviewRole) return { success: true, preview: true };
 
     const data = await request.formData();
+    // formText, not a cast: a File in `phone` reached .replace() here, before
+    // the wrapper, and answered 500 (audit LC09-3).
     const parsed = dashboardProfileInputSchema.safeParse({
-      phone: normalizePhoneNumber((data.get("phone") as string | null) ?? ""),
-      background: (data.get("background") as string | null) ?? "",
+      phone: normalizePhoneNumber(formText(data, "phone")),
+      background: formText(data, "background"),
     });
 
     return handleUserAction(locals, async () => {
