@@ -1,8 +1,7 @@
 import { SvelteKitAuth } from "@auth/sveltekit";
 import Google from "@auth/core/providers/google";
 import { env } from "$env/dynamic/private";
-
-const ALLOWED_DOMAIN = "snu.ac.kr";
+import { signInVerdict } from "$lib/server/core/sign-in";
 
 export const { handle, signIn, signOut } = SvelteKitAuth({
   providers: [
@@ -14,15 +13,11 @@ export const { handle, signIn, signOut } = SvelteKitAuth({
   secret: env.AUTH_SECRET,
   trustHost: true,
   callbacks: {
-    signIn: async ({ user }) => {
-      const email = user.email;
-      if (!email) return false;
-
-      // Strictly enforce Seoul National University email domain
-      if (!email.endsWith(`@${ALLOWED_DOMAIN}`)) {
-        return `/login?error=InvalidDomain`;
-      }
-
+    signIn: async ({ user, profile }) => {
+      // SNU Workspace only: suffix, verified address and issuing domain (hd).
+      const verdict = signInVerdict(user.email, profile);
+      if (verdict === "deny") return false;
+      if (verdict === "invalid-domain") return `/login?error=InvalidDomain`;
       return true;
     },
     session: async ({ session, token }) => {
