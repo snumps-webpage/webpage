@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
-import { fieldIssues, formText } from "./form-data";
+import { fieldIssues, formText, localDateTimeInput } from "./form-data";
 
 const schema = z.object({
   title: z.string().min(1, "제목"),
@@ -43,5 +43,31 @@ describe("formText", () => {
       formText(f, "file"),
       formText(f, "none"),
     ]).toEqual(["값", "", ""]);
+  });
+});
+
+// Audit LC04-4: three forms had their own copy of this field; one guarded the
+// calendar refine, two aborted on the shape. The shared piece keeps each
+// form's shape message and reports one issue per bad value.
+describe("localDateTimeInput", () => {
+  const field = localDateTimeInput("날짜와 시작 시간을 입력해 주세요.");
+  const messages = (v: string) =>
+    field.safeParse(v).error?.issues.map((issue) => issue.message);
+
+  it("gives a malformed value the form's shape message alone", () => {
+    expect(messages("")).toEqual(["날짜와 시작 시간을 입력해 주세요."]);
+    expect(messages("2026-09-03 18:30")).toEqual([
+      "날짜와 시작 시간을 입력해 주세요.",
+    ]);
+  });
+
+  it("gives a well-formed impossible time the calendar message", () => {
+    expect(messages("2026-02-30T10:00")).toEqual([
+      "존재하지 않는 날짜나 시각입니다.",
+    ]);
+  });
+
+  it("trims and accepts a real time", () => {
+    expect(field.parse(" 2026-09-03T18:30 ")).toBe("2026-09-03T18:30");
   });
 });

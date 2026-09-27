@@ -1,9 +1,6 @@
 import { z } from "zod/v4";
 import { RECORD_ACTIVITY_TYPES } from "$lib/constants";
-import {
-  localDateTimeMs,
-  localDateTimeSchema,
-} from "$lib/domain/admin-dashboard";
+import { localDateTimeMs, localDateTimeSchema } from "$lib/domain/form-data";
 import type { PublicFileReference } from "$lib/domain/public-content";
 import type { SeminarKind } from "$lib/domain/seminars";
 

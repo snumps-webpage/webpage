@@ -1,7 +1,10 @@
 import { z } from "zod/v4";
-import { formText, fieldIssues } from "$lib/domain/form-data";
+import {
+  formText,
+  fieldIssues,
+  localDateTimeInput,
+} from "$lib/domain/form-data";
 import { mergeManagedAttendance } from "$lib/domain/attendance";
-import { localDateTimeMs } from "$lib/domain/admin-dashboard";
 
 export const STUDY_STATUSES = ["recruiting", "ongoing", "finished"] as const;
 export type StudyStatus = (typeof STUDY_STATUSES)[number];
@@ -83,22 +86,10 @@ export const studyRequestInputSchema = z.object({
     ),
 });
 
-/**
- * "YYYY-MM-DDTHH:mm" in KST, as a datetime-local input posts it, naming a
- * real time — `localDateTimeMs` is the calendar rule kstInputToIso applies
- * (audit LA09-3: a copy here missed its 2000–2099 range).
- */
-const startedAtLocalSchema = z
-  .string()
-  .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, {
-    message: "날짜와 시작 시간을 입력해 주세요.",
-    abort: true,
-  })
-  .refine(
-    (v) => Number.isFinite(localDateTimeMs(v)),
-    "존재하지 않는 날짜나 시각입니다.",
-  );
+/** A session's start: a KST `datetime-local` value naming a real time (audit LA09-3, LC04-4). */
+const startedAtLocalSchema = localDateTimeInput(
+  "날짜와 시작 시간을 입력해 주세요.",
+);
 
 const sessionTitleSchema = z
   .string()

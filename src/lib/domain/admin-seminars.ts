@@ -1,6 +1,9 @@
 import { z } from "zod/v4";
-import { fieldIssues } from "$lib/domain/form-data";
-import { localDateTimeMs } from "$lib/domain/admin-dashboard";
+import {
+  fieldIssues,
+  localDateTimeInput,
+  localDateTimeMs,
+} from "$lib/domain/form-data";
 import type {
   MemberPickerItem,
   SeminarKind,
@@ -122,22 +125,8 @@ export interface SeminarScheduleFormValues {
   location: string;
 }
 
-/**
- * A KST `datetime-local` value naming a real time — the calendar rule is
- * `localDateTimeMs`, the one the action's kstInputToIso applies (audit LA09-3:
- * this schema had copied the shape regex only, so 02-30 or 24:00 passed).
- */
-const localDateTime = z
-  .string()
-  .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, {
-    message: "날짜와 시작 시간을 입력해 주세요.",
-    abort: true,
-  })
-  .refine(
-    (v) => Number.isFinite(localDateTimeMs(v)),
-    "존재하지 않는 날짜나 시각입니다.",
-  );
+/** A KST `datetime-local` value naming a real time (audit LA09-3, LC04-4). */
+const localDateTime = localDateTimeInput("날짜와 시작 시간을 입력해 주세요.");
 
 export const seminarScheduleInputSchema = z
   .object({

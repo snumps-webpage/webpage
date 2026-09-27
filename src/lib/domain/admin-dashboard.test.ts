@@ -5,9 +5,8 @@ import {
   adminAttendanceTimeInputSchema,
   adminEventCapabilities,
   adminEventInputSchema,
-  localDateTimeSchema,
 } from "$lib/domain/admin-dashboard";
-import { fieldIssues } from "$lib/domain/form-data";
+import { fieldIssues, localDateTimeSchema } from "$lib/domain/form-data";
 
 describe("admin dashboard rules", () => {
   it("derives event actions from lifecycle and pending queue state", () => {
