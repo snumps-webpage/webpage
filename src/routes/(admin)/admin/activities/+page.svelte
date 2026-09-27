@@ -64,6 +64,13 @@
       연결된 이벤트가 있어 삭제할 수 없습니다. 먼저 이벤트와 출석 큐를 정리해
       주세요.
     </p>{/if}
+  {#if form?.error === "VALIDATION_FAILED"}<p
+      class="paper-status-note error"
+      role="alert"
+    >
+      저장하지 않았습니다 — {Object.values(form.issues ?? {}).join(" · ") ||
+        "입력값을 확인해 주세요."}
+    </p>{/if}
 
   <section class="create-panel">
     <h2>1. 새 활동 기록</h2>

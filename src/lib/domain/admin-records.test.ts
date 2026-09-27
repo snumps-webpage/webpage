@@ -1,40 +1,43 @@
 import { describe, expect, it } from "vitest";
 import {
   adminActivityRecordSchema,
+  adminActivityRecordUpdateSchema,
   adminGalleryRecordSchema,
   adminSeminarRecordSchema,
+  adminStudyRecordCreateSchema,
   adminStudyRecordSchema,
   zodFieldIssues,
 } from "./admin-records";
 
 describe("admin record validation", () => {
-  it("accepts the closed activity type contract", () => {
-    expect(
+  it("accepts only the activity types a record can store", () => {
+    const activity = (type: string) =>
       adminActivityRecordSchema.safeParse({
-        title: "문제 풀이 모임",
-        type: "문제 풀이",
-        date: "2026-08-28",
-      }).success,
-    ).toBe(true);
-    expect(
-      adminActivityRecordSchema.safeParse({
-        title: "문제 풀이 모임",
-        type: "workshop",
-        date: "2026-08-28",
-      }).success,
-    ).toBe(false);
+        title: "정기 회의",
+        type,
+        start: "2026-08-28T19:00",
+        end: "",
+      }).success;
+    expect(activity("회의")).toBe(true);
+    expect(activity("workshop")).toBe(false);
+    // display vocabulary only — activities.type cannot store it
+    expect(activity("문제 풀이")).toBe(false);
   });
 
-  it("requires gallery alt text and returns field issues", () => {
+  it("requires the activity start on create but not on update", () => {
+    const input = { title: "회의", type: "회의", start: "", end: "" };
+    expect(adminActivityRecordSchema.safeParse(input).success).toBe(false);
+    expect(adminActivityRecordUpdateSchema.safeParse(input).success).toBe(true);
+  });
+
+  it("requires a gallery year and returns field issues", () => {
     const result = adminGalleryRecordSchema.safeParse({
-      title: "세미나 사진",
-      category: "seminar",
-      date: "2026-08-28",
-      alt: "",
+      year: " ",
+      activityId: "",
     });
     expect(result.success).toBe(false);
     if (!result.success)
-      expect(zodFieldIssues(result.error).alt).toContain("대체 텍스트");
+      expect(zodFieldIssues(result.error).year).toContain("연도");
   });
 
   it("validates seminar and study editor fields", () => {
@@ -42,10 +45,8 @@ describe("admin record validation", () => {
       adminSeminarRecordSchema.safeParse({
         title: "조합론 세미나",
         term: "26-2",
-        kind: "regular",
-        description: "확률적 방법의 기본 예제를 설명합니다.",
-        prerequisites: "이산수학",
-        durationMinutes: "90",
+        description: "",
+        externalPresenters: "",
       }).success,
     ).toBe(true);
     expect(
@@ -54,7 +55,25 @@ describe("admin record validation", () => {
         term: "2026-2",
         description: "소수의 분포를 예제와 함께 공부합니다.",
         material: "Apostol",
+        note: "",
       }).success,
     ).toBe(false);
+  });
+
+  it("bounds free text and requires an organizer on study create", () => {
+    const result = adminStudyRecordCreateSchema.safeParse({
+      title: "수론 스터디",
+      term: "26-2",
+      description: "가".repeat(2401),
+      material: "",
+      note: "",
+      organizerId: "",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success)
+      expect(Object.keys(zodFieldIssues(result.error)).sort()).toEqual([
+        "description",
+        "organizerId",
+      ]);
   });
 });

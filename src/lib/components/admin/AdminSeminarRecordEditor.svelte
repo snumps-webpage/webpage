@@ -245,7 +245,9 @@
                 ><span class="paper-label">학기</span><input
                   name="semester"
                   value={record.term}
-                /></label
+                  aria-invalid={!!updateIssues.term}
+                />{#if updateIssues.term}<small>{updateIssues.term}</small
+                  >{/if}</label
               ><label
                 ><span class="paper-label">구분</span><select name="kind"
                   ><option value="regular" selected={record.kind === "regular"}
@@ -271,8 +273,12 @@
               ><label class="wide"
                 ><span class="paper-label">설명</span><textarea
                   name="note"
-                  rows="3">{record.description}</textarea
-                ></label
+                  rows="3"
+                  aria-invalid={!!updateIssues.description}
+                  >{record.description}</textarea
+                >{#if updateIssues.description}<small
+                    >{updateIssues.description}</small
+                  >{/if}</label
               ><label class="wide"
                 ><span class="paper-label">선수지식</span><input
                   name="prerequisites"

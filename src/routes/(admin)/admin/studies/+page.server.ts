@@ -9,8 +9,14 @@ import {
   updateStudy,
 } from "$lib/server/services/records-admin";
 import { promotePendingUpload } from "$lib/server/services/uploads";
-import { AppError } from "$lib/server/core/errors";
-import { currentTerm, SEMESTER_PATTERN } from "$lib/server/core/semester";
+import { fail } from "@sveltejs/kit";
+import { formText } from "$lib/domain/form-data";
+import {
+  adminStudyRecordCreateSchema,
+  adminStudyRecordSchema,
+  zodFieldIssues,
+} from "$lib/domain/admin-records";
+import { currentTerm } from "$lib/server/core/semester";
 import { nowKstIso } from "$lib/server/core/time";
 import { StudyStatus } from "$lib/server/data/schemas";
 import {
@@ -66,22 +72,54 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 type Ctx = { request: Request; locals: App.Locals };
 
+/**
+ * The record editor posts `semester`/`textbook`; the schema names them
+ * term/material — the keys the editor renders issues and values under.
+ */
+function studyValues(data: FormData) {
+  return {
+    title: formText(data, "title"),
+    term: formText(data, "semester"),
+    description: formText(data, "description"),
+    material: formText(data, "textbook"),
+    note: formText(data, "note"),
+  };
+}
+
+function invalid(
+  scope: "record-create" | "record-update",
+  error: Parameters<typeof zodFieldIssues>[0],
+  values: Record<string, string>,
+  id?: string,
+) {
+  return fail(400, {
+    error: "VALIDATION_FAILED",
+    scope,
+    id,
+    issues: zodFieldIssues(error),
+    values,
+  });
+}
+
 export const actions = {
   create: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
-      const title = (data.get("title") as string)?.trim();
-      const semester = data.get("semester") as string;
-      const organizerId = data.get("organizerId") as string;
-      if (!title || !SEMESTER_PATTERN.test(semester) || !organizerId) {
-        throw new AppError("VALIDATION_FAILED");
-      }
+      const values = {
+        ...studyValues(data),
+        organizerId: formText(data, "organizerId"),
+      };
+      const parsed = adminStudyRecordCreateSchema.safeParse(values);
+      if (!parsed.success)
+        return invalid("record-create", parsed.error, values);
+      const { title, term, material, description, note, organizerId } =
+        parsed.data;
       await createStudy({
         title,
-        semester,
-        textbook: (data.get("textbook") as string) ?? "",
-        description: (data.get("description") as string) ?? "",
-        note: (data.get("note") as string) ?? "",
+        semester: term,
+        textbook: material,
+        description,
+        note,
         organizerIds: [organizerId],
       });
       return { operation: "studyRecordCreated" };
@@ -91,16 +129,22 @@ export const actions = {
   update: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
+      const id = data.get("id") as string;
+      const values = studyValues(data);
+      const parsed = adminStudyRecordSchema.safeParse(values);
+      if (!parsed.success)
+        return invalid("record-update", parsed.error, values, id);
+      const { title, term, material, description, note } = parsed.data;
       const statusRaw = data.get("status") as string | null;
       const status = statusRaw ? StudyStatus.parse(statusRaw) : undefined;
-      await updateStudy(data.get("id") as string, {
-        title: (data.get("title") as string)?.trim() || undefined,
-        semester: data.get("semester")
-          ? (data.get("semester") as string)
-          : undefined,
-        textbook: (data.get("textbook") as string) ?? undefined,
-        description: (data.get("description") as string) ?? undefined,
-        note: (data.get("note") as string) ?? undefined,
+      // 편집기가 보내지 않는 칸은 그대로 둔다 — 빈 값으로 지우지 않는다.
+      const sent = (key: string) => data.has(key);
+      await updateStudy(id, {
+        title,
+        semester: term,
+        textbook: sent("textbook") ? material : undefined,
+        description: sent("description") ? description : undefined,
+        note: sent("note") ? note : undefined,
         status,
       });
       return { operation: "studyRecordUpdated" };

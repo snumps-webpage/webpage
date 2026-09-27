@@ -7,7 +7,12 @@ import {
   updateGalleryEntry,
 } from "$lib/server/services/records-admin";
 import { promotePendingUpload } from "$lib/server/services/uploads";
-import { AppError } from "$lib/server/core/errors";
+import { fail } from "@sveltejs/kit";
+import { formText } from "$lib/domain/form-data";
+import {
+  adminGalleryRecordSchema,
+  zodFieldIssues,
+} from "$lib/domain/admin-records";
 import { nowKstIso } from "$lib/server/core/time";
 import type { PageServerLoad } from "./$types";
 
@@ -48,15 +53,29 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 type Ctx = { request: Request; locals: App.Locals };
 
+function galleryValues(data: FormData) {
+  return {
+    year: formText(data, "year"),
+    activityId: formText(data, "activityId"),
+  };
+}
+
 export const actions = {
   create: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
-      const year = (data.get("year") as string)?.trim();
-      if (!year) throw new AppError("VALIDATION_FAILED");
+      const values = galleryValues(data);
+      const parsed = adminGalleryRecordSchema.safeParse(values);
+      if (!parsed.success) {
+        return fail(400, {
+          error: "VALIDATION_FAILED",
+          issues: zodFieldIssues(parsed.error),
+          values,
+        });
+      }
       await createGalleryEntry({
-        year,
-        activityId: (data.get("activityId") as string) || null,
+        year: parsed.data.year,
+        activityId: parsed.data.activityId || null,
       });
       return { operation: "galleryCreated" };
     });
@@ -65,9 +84,20 @@ export const actions = {
   update: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
-      await updateGalleryEntry(data.get("id") as string, {
-        year: (data.get("year") as string)?.trim() || undefined,
-        activityId: (data.get("activityId") as string) || null,
+      const id = data.get("id") as string;
+      const values = galleryValues(data);
+      const parsed = adminGalleryRecordSchema.safeParse(values);
+      if (!parsed.success) {
+        return fail(400, {
+          error: "VALIDATION_FAILED",
+          id,
+          issues: zodFieldIssues(parsed.error),
+          values,
+        });
+      }
+      await updateGalleryEntry(id, {
+        year: parsed.data.year,
+        activityId: parsed.data.activityId || null,
       });
       return { operation: "galleryUpdated" };
     });

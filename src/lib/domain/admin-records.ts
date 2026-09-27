@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
-import { ACTIVITY_TYPES, type ActivityType } from "$lib/constants";
+import { RECORD_ACTIVITY_TYPES, type ActivityType } from "$lib/constants";
+import { localDateTimeSchema } from "$lib/domain/admin-dashboard";
 import type { PublicFileReference } from "$lib/domain/public-content";
 import type { SeminarKind } from "$lib/domain/seminars";
 
@@ -78,72 +79,79 @@ export interface AdminStudyRecord {
   files: AdminContentFile[];
 }
 
-const dateSchema = z
+/*
+ * Input rules for the record editors' ?/create and ?/update actions, keyed by
+ * the field names the editors render issues under; the actions check nothing
+ * by hand. Free text is bounded. Text that migrated rows often lack
+ * (descriptions, materials) is not required, so an old record can still be
+ * edited without inventing content for it.
+ */
+
+const termSchema = z
   .string()
   .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "날짜를 확인해 주세요.");
+  .regex(/^\d{2}-(?:[12SW])$/, "학기는 YY-1·YY-2·YY-S·YY-W 형식이어야 합니다.");
 
+/** A picked record id (activity, member); "" when nothing is picked. */
+const pickedIdSchema = z.string().trim().max(200, "선택 값을 확인해 주세요.");
+
+/** Fields: title, type, start / end (KST `datetime-local`, end optional). */
 export const adminActivityRecordSchema = z.object({
   title: z.string().trim().min(1, "활동명을 입력해 주세요.").max(160),
-  type: z.enum(ACTIVITY_TYPES, { message: "활동 유형을 선택해 주세요." }),
-  date: dateSchema,
-});
-
-export const adminGalleryRecordSchema = z.object({
-  title: z.string().trim().min(1, "기록 제목을 입력해 주세요.").max(160),
-  category: z.enum(["seminar", "study", "dinner"], {
-    message: "갤러리 분류를 선택해 주세요.",
+  type: z.enum(RECORD_ACTIVITY_TYPES, {
+    message: "활동 유형을 선택해 주세요.",
   }),
-  date: dateSchema,
-  alt: z.string().trim().min(1, "사진 대체 텍스트를 입력해 주세요.").max(240),
+  start: localDateTimeSchema,
+  end: z.union([z.literal(""), localDateTimeSchema]),
 });
 
+/** Update leaves the date alone when the editor sends no `start`. */
+export const adminActivityRecordUpdateSchema = adminActivityRecordSchema.extend(
+  { start: z.union([z.literal(""), localDateTimeSchema]) },
+);
+
+/** The dinner gallery: a year label ("2026", or "미상" from the migration). */
+export const adminGalleryRecordSchema = z.object({
+  year: z.string().trim().min(1, "연도를 입력해 주세요.").max(20),
+  activityId: pickedIdSchema,
+});
+
+/** Fields: title, term (posted as `semester`), description (posted as `note`). */
 export const adminSeminarRecordSchema = z.object({
   title: z.string().trim().min(1, "세미나 제목을 입력해 주세요.").max(160),
-  term: z
-    .string()
-    .trim()
-    .regex(
-      /^\d{2}-(?:[12SW])$/,
-      "학기는 YY-1·YY-2·YY-S·YY-W 형식이어야 합니다.",
-    ),
-  kind: z.enum(["regular", "irregular"]),
+  term: termSchema,
   description: z
     .string()
     .trim()
-    .min(10, "세미나 설명을 10자 이상 입력해 주세요.")
-    .max(2400),
-  prerequisites: z.string().trim().min(1, "선수지식을 입력해 주세요.").max(500),
-  durationMinutes: z.coerce
-    .number()
-    .int()
-    .min(10, "소요 시간은 10분 이상이어야 합니다.")
-    .max(600),
+    .max(2400, "세미나 설명은 2400자 이하로 입력해 주세요."),
+  externalPresenters: z
+    .string()
+    .trim()
+    .max(500, "외부 발표자는 500자 이하로 입력해 주세요."),
 });
 
+/** Fields: title, term (`semester`), description, material (`textbook`). */
 export const adminStudyRecordSchema = z.object({
   title: z
     .string()
     .trim()
     .min(2, "스터디 제목을 2자 이상 입력해 주세요.")
     .max(160),
-  term: z
-    .string()
-    .trim()
-    .regex(
-      /^\d{2}-(?:[12SW])$/,
-      "학기는 YY-1·YY-2·YY-S·YY-W 형식이어야 합니다.",
-    ),
+  term: termSchema,
   description: z
     .string()
     .trim()
-    .min(10, "스터디 설명을 10자 이상 입력해 주세요.")
-    .max(2400),
+    .max(2400, "스터디 설명은 2400자 이하로 입력해 주세요."),
   material: z
     .string()
     .trim()
-    .min(1, "교재 또는 자료를 입력해 주세요.")
-    .max(500),
+    .max(500, "교재 또는 자료는 500자 이하로 입력해 주세요."),
+  note: z.string().trim().max(2400, "메모는 2400자 이하로 입력해 주세요."),
+});
+
+/** Create also picks the organizer (update changes it via ?/setOrganizer). */
+export const adminStudyRecordCreateSchema = adminStudyRecordSchema.extend({
+  organizerId: pickedIdSchema.min(1, "주최자를 선택해 주세요."),
 });
 
 export function zodFieldIssues(error: z.ZodError) {

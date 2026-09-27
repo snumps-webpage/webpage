@@ -46,7 +46,9 @@
       {messages[form.operation as string]}
     </p>{/if}
   {#if form?.error}<p class="paper-status-note error" role="alert">
-      {form.message ?? "갤러리 기록을 처리하지 못했습니다."}
+      {form.error === "VALIDATION_FAILED" && form.issues
+        ? `저장하지 않았습니다 — ${Object.values(form.issues).join(" · ")}`
+        : (form.message ?? "갤러리 기록을 처리하지 못했습니다.")}
     </p>{/if}
 
   <section class="create-panel">

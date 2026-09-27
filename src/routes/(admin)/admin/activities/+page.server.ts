@@ -7,9 +7,15 @@ import {
   setAttendees,
   updateActivity,
 } from "$lib/server/services/records-admin";
-import { AppError } from "$lib/server/core/errors";
+import { fail } from "@sveltejs/kit";
 import { kstInputToIso, nowKstIso } from "$lib/server/core/time";
-import { ACTIVITY_TYPES, type Activity } from "$lib/server/data/schemas";
+import { ACTIVITY_TYPES } from "$lib/server/data/schemas";
+import { formText } from "$lib/domain/form-data";
+import {
+  adminActivityRecordSchema,
+  adminActivityRecordUpdateSchema,
+  zodFieldIssues,
+} from "$lib/domain/admin-records";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -35,28 +41,37 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 type Ctx = { request: Request; locals: App.Locals };
 
-function parseType(raw: string): Activity["type"] {
-  if (!(ACTIVITY_TYPES as readonly string[]).includes(raw)) {
-    throw new AppError("VALIDATION_FAILED");
-  }
-  return raw as Activity["type"];
+/** The editor's fields, read once for the schema and for re-rendering. */
+function activityValues(data: FormData) {
+  return {
+    title: formText(data, "title"),
+    type: formText(data, "type"),
+    start: formText(data, "start"),
+    end: formText(data, "end"),
+  };
 }
 
 export const actions = {
   create: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
-      const title = (data.get("title") as string)?.trim();
-      const start = data.get("start") as string;
-      if (!title || !start) throw new AppError("VALIDATION_FAILED");
-      const end = data.get("end") as string;
+      const values = activityValues(data);
+      const parsed = adminActivityRecordSchema.safeParse(values);
+      if (!parsed.success) {
+        return fail(400, {
+          error: "VALIDATION_FAILED",
+          issues: zodFieldIssues(parsed.error),
+          values,
+        });
+      }
+      const { title, type, start, end } = parsed.data;
       await createActivity({
         title,
         date: {
           start: kstInputToIso(start),
           end: end ? kstInputToIso(end) : null,
         },
-        type: parseType(data.get("type") as string),
+        type,
       });
       return { operation: "activityCreated" };
     });
@@ -66,13 +81,20 @@ export const actions = {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       const id = data.get("id") as string;
-      const start = data.get("start") as string;
-      const end = data.get("end") as string;
+      const values = activityValues(data);
+      const parsed = adminActivityRecordUpdateSchema.safeParse(values);
+      if (!parsed.success) {
+        return fail(400, {
+          error: "VALIDATION_FAILED",
+          id,
+          issues: zodFieldIssues(parsed.error),
+          values,
+        });
+      }
+      const { title, type, start, end } = parsed.data;
       await updateActivity(id, {
-        title: (data.get("title") as string)?.trim() || undefined,
-        type: data.get("type")
-          ? parseType(data.get("type") as string)
-          : undefined,
+        title,
+        type,
         date: start
           ? {
               start: kstInputToIso(start),

@@ -10,6 +10,19 @@ export const ACTIVITY_TYPES = [
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
 
+/**
+ * The closed set activities.type and events.type can store (the table schema
+ * imports it). ACTIVITY_TYPES above is the wider display vocabulary; an input
+ * that is saved must pick from this one, or the write gate refuses it.
+ */
+export const RECORD_ACTIVITY_TYPES = [
+  "세미나",
+  "스터디",
+  "회의",
+  "회식",
+  "기타",
+] as const satisfies readonly ActivityType[];
+
 // Chatroom configuration for welcome emails
 export const CHATROOM_NOTICE_LINK = "https://invite.kakao.com/tc/0PrN2Zk2VZ";
 export const CHATROOM_CHAT_LINK = "https://invite.kakao.com/tc/tGxjs2oKOV";

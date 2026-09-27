@@ -10,7 +10,7 @@ import {
 } from "$lib/server/services/records-admin";
 import { promotePendingUpload } from "$lib/server/services/uploads";
 import { AppError } from "$lib/server/core/errors";
-import { currentTerm, SEMESTER_PATTERN } from "$lib/server/core/semester";
+import { currentTerm } from "$lib/server/core/semester";
 import { kstInputToIso, nowKstIso } from "$lib/server/core/time";
 import {
   adminSeminarRequestItem,
@@ -19,6 +19,11 @@ import {
   byCreatedAtAsc,
 } from "$lib/server/data/admin-queue-views";
 import { validateSeminarScheduleForm } from "$lib/domain/admin-seminars";
+import {
+  adminSeminarRecordSchema,
+  zodFieldIssues,
+} from "$lib/domain/admin-records";
+import { formText } from "$lib/domain/form-data";
 import {
   cancelSeminar,
   publishSeminar,
@@ -137,9 +142,36 @@ const parseIds = (raw: string | null) =>
       ]
     : [];
 
-function requireTerm(raw: string): string {
-  if (!SEMESTER_PATTERN.test(raw)) throw new AppError("VALIDATION_FAILED");
-  return raw;
+/**
+ * The record editor posts `semester`/`note`; the schema names them
+ * term/description — the keys the editor renders issues and values under.
+ */
+function parseSeminarRecord(data: FormData) {
+  const values = {
+    title: formText(data, "title"),
+    term: formText(data, "semester"),
+    description: formText(data, "note"),
+    externalPresenters: formText(data, "externalPresenters"),
+  };
+  const parsed = adminSeminarRecordSchema.safeParse(values);
+  if (parsed.success) return { success: true as const, data: parsed.data };
+  return {
+    success: false as const,
+    fail: (scope: "record-create" | "record-update", id?: string) =>
+      fail(400, {
+        error: "VALIDATION_FAILED",
+        scope,
+        id,
+        issues: zodFieldIssues(parsed.error),
+        values: {
+          ...values,
+          kind: formText(data, "kind"),
+          durationMinutes: formText(data, "durationMinutes"),
+          prerequisites: formText(data, "prerequisites"),
+        },
+        presenterIds: parseIds(data.get("presenterIds") as string),
+      }),
+  };
 }
 
 export const actions = {
@@ -232,15 +264,16 @@ export const actions = {
   create: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
-      const title = (data.get("title") as string)?.trim();
-      if (!title) throw new AppError("VALIDATION_FAILED");
+      const parsed = parseSeminarRecord(data);
+      if (!parsed.success) return parsed.fail("record-create");
+      const { title, term, description, externalPresenters } = parsed.data;
       await createSeminar(
         {
           title,
-          semester: requireTerm(data.get("semester") as string),
-          note: (data.get("note") as string) ?? "",
+          semester: term,
+          note: description,
           presenterIds: parseIds(data.get("presenterIds") as string),
-          externalPresenters: (data.get("externalPresenters") as string) ?? "",
+          externalPresenters,
         },
         (data.get("posterPendingKey") as string) || "",
       );
@@ -251,19 +284,23 @@ export const actions = {
   update: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
+      const id = data.get("id") as string;
+      const parsed = parseSeminarRecord(data);
+      if (!parsed.success) return parsed.fail("record-update", id);
+      const { title, term, description, externalPresenters } = parsed.data;
       await updateSeminar(
-        data.get("id") as string,
+        id,
         {
-          title: (data.get("title") as string)?.trim() || undefined,
-          semester: data.get("semester")
-            ? requireTerm(data.get("semester") as string)
-            : undefined,
-          note: (data.get("note") as string) ?? undefined,
+          title,
+          semester: term,
+          // 편집기가 보내지 않는 칸은 그대로 둔다 — 빈 값으로 지우지 않는다.
+          note: data.has("note") ? description : undefined,
           presenterIds: data.get("presenterIds")
             ? parseIds(data.get("presenterIds") as string)
             : undefined,
-          externalPresenters:
-            (data.get("externalPresenters") as string) ?? undefined,
+          externalPresenters: data.has("externalPresenters")
+            ? externalPresenters
+            : undefined,
         },
         (data.get("posterPendingKey") as string) || "",
       );

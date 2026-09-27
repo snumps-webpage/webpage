@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { SEMESTER_PATTERN, TERM_PATTERN } from "$lib/server/core/semester";
+import { RECORD_ACTIVITY_TYPES } from "$lib/constants";
 
 /** Shared field primitives for the S3 table schemas (API-SPEC §2). */
 
@@ -15,14 +16,11 @@ export const Term = z.string().regex(TERM_PATTERN);
 /** Record semester — includes the vacation terms (YY-S/YY-W) found in club history. */
 export const Semester = z.string().regex(SEMESTER_PATTERN);
 
-/** Closed set shared by activities.type and events.type. */
-export const ACTIVITY_TYPES = [
-  "세미나",
-  "스터디",
-  "회의",
-  "회식",
-  "기타",
-] as const;
+/**
+ * Closed set shared by activities.type and events.type. Defined once in
+ * $lib/constants so the domain input schemas refuse what this cannot store.
+ */
+export const ACTIVITY_TYPES = RECORD_ACTIVITY_TYPES;
 export const ActivityType = z.enum(ACTIVITY_TYPES);
 
 export const DateRange = z.object({

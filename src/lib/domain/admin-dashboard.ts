@@ -115,10 +115,12 @@ export type AdminDashboardOperationResult =
 
 export const adminDashboardIdSchema = z.string().trim().min(1);
 
-const localDateTime = z
+/** A KST `datetime-local` input, "YYYY-MM-DDTHH:mm". */
+export const localDateTimeSchema = z
   .string()
   .trim()
   .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "날짜와 시간을 확인해 주세요.");
+const localDateTime = localDateTimeSchema;
 
 export const adminEventInputSchema = z
   .object({
