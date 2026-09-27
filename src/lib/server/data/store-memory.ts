@@ -219,6 +219,12 @@ export async function __ready(): Promise<void> {
   await ready();
 }
 
+/** Runs one query — for tests of the SQL helpers the flows are built on. */
+export async function __sql<T>(text: string, params: unknown[] = []) {
+  const pg = await ready();
+  return (await pg.query<T>(text, params)).rows;
+}
+
 export async function __auditRows(): Promise<AuditRow[]> {
   const pg = await ready();
   const { rows } = await pg.query<AuditRow>(
