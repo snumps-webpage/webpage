@@ -149,13 +149,19 @@ export const actions = {
   }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
-      await removeMailRule({
+      const { keptDisabled } = await removeMailRule({
         event: str(data, "event"),
         ruleId: str(data, "ruleId") || null,
         templateKey: str(data, "templateKey") || undefined,
         recipient: str(data, "recipient") || undefined,
       });
-      return { operation: "rule-removed" };
+      return keptDisabled
+        ? {
+            operation: "rule-disabled",
+            message:
+              "이벤트의 마지막 규칙이라 지우지 않고 껐습니다 — 규칙이 하나도 없으면 기본 규칙이 발송됩니다.",
+          }
+        : { operation: "rule-removed" };
     });
   },
 

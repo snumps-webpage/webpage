@@ -29,7 +29,7 @@
         update: () => Promise<void>;
       }) => {
         if (result.type === "success") {
-          notice = message;
+          notice = result.data?.message ?? message;
           errorMessage = null;
           openTemplateKey = null;
           openRuleEvent = null;

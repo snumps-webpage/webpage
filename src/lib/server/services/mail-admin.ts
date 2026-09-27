@@ -454,11 +454,13 @@ export async function removeMailRule(input: {
   ruleId: string | null;
   templateKey?: string;
   recipient?: string;
-}): Promise<void> {
+}): Promise<{ keptDisabled: boolean }> {
   const event = requireEvent(input.event);
   await snapshotEventRules(event);
   await materializeEvent(event);
+  let keptDisabled = false;
   await mutate("mail-rules", (rows) => {
+    keptDisabled = false; // CAS retries re-run this callback
     const idx = input.ruleId
       ? rows.findIndex((r) => r.id === input.ruleId)
       : rows.findIndex(
@@ -468,9 +470,20 @@ export async function removeMailRule(input: {
             r.recipient === input.recipient,
         );
     if (idx === -1) throw new AppError("NOT_FOUND");
-    rows.splice(idx, 1);
+    // An event with no rows falls back to the code's default rules, so
+    // deleting its last row would send the default mail again (audit
+    // LB23-1). The last rule is switched off instead: the event then sends
+    // nothing, which is what removing it means.
+    const others = rows.filter((r, i) => i !== idx && r.event === event);
+    if (others.length === 0) {
+      rows[idx] = { ...rows[idx], enabled: false, updatedAt: nowKstIso() };
+      keptDisabled = true;
+    } else {
+      rows.splice(idx, 1);
+    }
     return rows;
   });
+  return { keptDisabled };
 }
 
 /** 규칙 켬/끔. 미실체화 기본 규칙이면 먼저 실체화한다. */
