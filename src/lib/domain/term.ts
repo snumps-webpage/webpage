@@ -23,17 +23,26 @@ export function termOf(d: Date): string {
 }
 
 /**
- * The term of a stored date string — an ISO instant with any offset, or a
- * bare "YYYY-MM-DD" (read as that KST day). "Unknown" when it is not a date.
+ * The term of a stored date string — an ISO instant with an offset (Z,
+ * ±hh:mm or ±hhmm), or a bare "YYYY-MM-DD" (read as that KST day). "Unknown" for
+ * anything else: an offsetless time would be read in the runtime's zone, so
+ * server and browser disagreed (audit LC17-3), and `Date` rolls a day that
+ * does not exist into the next month, across the Feb/Mar boundary (LC17-4).
  */
 export function termOfDateString(value: string): string {
-  const bare = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  const d = bare
-    ? new Date(`${value}T12:00:00+09:00`) // midday KST: the day itself
-    : new Date(value);
+  const m =
+    /^(\d{4})-(\d{2})-(\d{2})(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2}))?$/.exec(
+      value,
+    );
+  if (!m) return "Unknown";
+  const [year, month, day] = [m[1], m[2], m[3]].map(Number);
+  // the written day must exist (2026-02-29 rolls over otherwise)
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) {
+    return "Unknown";
+  }
+  const d = m[4] ? new Date(value) : new Date(`${value}T12:00:00+09:00`); // midday KST: the day itself
   if (Number.isNaN(d.getTime())) return "Unknown";
-  // a bare date must name a real day (2026-02-29 rolls over otherwise)
-  if (bare && d.toISOString().slice(0, 10) !== value) return "Unknown";
   return termOf(d);
 }
 

@@ -31,6 +31,22 @@ describe("termOfDateString", () => {
   it("answers Unknown for nothing or garbage", () => {
     expect(termOfDateString("")).toBe("Unknown");
     expect(termOfDateString("미상")).toBe("Unknown");
+    expect(termOfDateString("2026/03/01")).toBe("Unknown");
+  });
+
+  // Without an offset, Date reads the time in the runtime's zone, so the
+  // server and the browser disagreed at a term boundary (audit LC17-3).
+  it("answers Unknown for a time without an offset", () => {
+    expect(termOfDateString("2026-02-28T23:30:00")).toBe("Unknown");
+  });
+
+  // V8 rolls an impossible day into the next month — across the Feb/Mar
+  // term boundary (audit LC17-4). The bare-date branch already refused it.
+  it("answers Unknown for an instant on a day that does not exist", () => {
+    expect(termOfDateString("2026-02-29T10:00:00+09:00")).toBe("Unknown");
+    expect(termOfDateString("2026-02-30T10:00:00+09:00")).toBe("Unknown");
+    expect(termOfDateString("2028-02-29T10:00:00+09:00")).toBe("27-2");
+    expect(termOfDateString("2026-09-01T00:00:00.000Z")).toBe("26-2");
   });
 });
 
