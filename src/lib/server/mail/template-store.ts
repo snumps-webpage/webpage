@@ -1,3 +1,4 @@
+import { lookupTable } from "$lib/server/core/lookup";
 import { CHATROOM_CHAT_LINK, CHATROOM_NOTICE_LINK } from "$lib/constants";
 import { getTable } from "$lib/server/data/tables";
 
@@ -23,26 +24,27 @@ export interface MailTemplateDefault {
   body: string;
 }
 
-export const MAIL_TEMPLATE_DEFAULTS: Record<string, MailTemplateDefault> = {
-  "signup-received": {
-    name: "가입 신청 접수 (관리자)",
-    description: "새 가입 신청이 접수되면 관리자 전원에게",
-    variables: ["applicantName"],
-    subject: "[SNUMPS] 새 회원 가입 신청: {{applicantName}}",
-    body: `안녕하세요, 관리자님.
+export const MAIL_TEMPLATE_DEFAULTS: Record<string, MailTemplateDefault> =
+  lookupTable({
+    "signup-received": {
+      name: "가입 신청 접수 (관리자)",
+      description: "새 가입 신청이 접수되면 관리자 전원에게",
+      variables: ["applicantName"],
+      subject: "[SNUMPS] 새 회원 가입 신청: {{applicantName}}",
+      body: `안녕하세요, 관리자님.
 
 새로운 회원 가입 신청이 접수되었습니다.
 
 신청자 이름: {{applicantName}}
 
 관리자 페이지에서 확인 후 승인해주세요.`,
-  },
-  welcome: {
-    name: "가입 승인 환영",
-    description: "가입/재가입 신청 승인 시 신청자에게",
-    variables: ["name", "noticeChatLink", "casualChatLink"],
-    subject: "[SNUMPS] 가입이 승인되었습니다!",
-    body: `안녕하세요, {{name}}님!
+    },
+    welcome: {
+      name: "가입 승인 환영",
+      description: "가입/재가입 신청 승인 시 신청자에게",
+      variables: ["name", "noticeChatLink", "casualChatLink"],
+      subject: "[SNUMPS] 가입이 승인되었습니다!",
+      body: `안녕하세요, {{name}}님!
 
 수학문제연구회 가입을 축하드립니다!
 
@@ -51,120 +53,120 @@ export const MAIL_TEMPLATE_DEFAULTS: Record<string, MailTemplateDefault> = {
 - 잡담방 : {{casualChatLink}}
 
 공지방에서는 채팅을 자제하시고, 문의 사항은 잡담방이나 회장을 통해 알려주세요. 동아리의 자료와 가이드라인은 공식 웹사이트에서 확인할 수 있습니다. 수학문제연구회에 오신 것을 환영합니다.`,
-  },
-  "application-rejected": {
-    name: "가입 신청 거절",
-    description: "가입 신청 거절 시 신청자에게 (인적사항 삭제 직전 발송)",
-    variables: ["name"],
-    subject: "[SNUMPS] 가입 신청 결과 안내",
-    body: `안녕하세요, {{name}}님.
+    },
+    "application-rejected": {
+      name: "가입 신청 거절",
+      description: "가입 신청 거절 시 신청자에게 (인적사항 삭제 직전 발송)",
+      variables: ["name"],
+      subject: "[SNUMPS] 가입 신청 결과 안내",
+      body: `안녕하세요, {{name}}님.
 
 서울대학교 수학문제연구회 가입 신청 검토 결과, 아쉽게도 이번에는 함께하지 못하게 되었습니다.
 
 문의 사항이 있으시면 회신으로 알려주세요. 감사합니다.`,
-  },
-  "attendance-request": {
-    name: "출석 승인 요청 (관리자)",
-    description: "회원이 행사 출석 승인을 요청하면 관리자 전원에게",
-    variables: ["userName", "eventName"],
-    subject: "[SNUMPS] 출석 승인 요청: {{userName}} - {{eventName}}",
-    body: `안녕하세요, 관리자님.
+    },
+    "attendance-request": {
+      name: "출석 승인 요청 (관리자)",
+      description: "회원이 행사 출석 승인을 요청하면 관리자 전원에게",
+      variables: ["userName", "eventName"],
+      subject: "[SNUMPS] 출석 승인 요청: {{userName}} - {{eventName}}",
+      body: `안녕하세요, 관리자님.
 
 {{userName}}님이 '{{eventName}}' 이벤트에 대한 출석 승인을 요청했습니다.
 
 입실 및 퇴장 시간이 모두 기록되었으니, 관리자 페이지에서 확인 후 승인해주세요.`,
-  },
-  "seminar-request-received": {
-    name: "세미나 개설 신청 접수 (관리자)",
-    description: "새 세미나 개설 신청이 접수되면 관리자 전원에게",
-    variables: ["applicantName", "title"],
-    subject: "[SNUMPS] 새 세미나 신청: {{title}}",
-    body: `안녕하세요, 관리자님.
+    },
+    "seminar-request-received": {
+      name: "세미나 개설 신청 접수 (관리자)",
+      description: "새 세미나 개설 신청이 접수되면 관리자 전원에게",
+      variables: ["applicantName", "title"],
+      subject: "[SNUMPS] 새 세미나 신청: {{title}}",
+      body: `안녕하세요, 관리자님.
 
 {{applicantName}}님으로부터 새로운 세미나 개설 신청이 접수되었습니다.
 
 주제: {{title}}
 
 관리자 페이지에서 확인 후 승인 또는 반려해주세요.`,
-  },
-  "study-request-received": {
-    name: "스터디 개설 신청 접수 (관리자)",
-    description: "새 스터디 개설 신청이 접수되면 관리자 전원에게",
-    variables: ["applicantName", "title"],
-    subject: "[SNUMPS] 새 스터디 개설 신청: {{title}}",
-    body: `안녕하세요, 관리자님.
+    },
+    "study-request-received": {
+      name: "스터디 개설 신청 접수 (관리자)",
+      description: "새 스터디 개설 신청이 접수되면 관리자 전원에게",
+      variables: ["applicantName", "title"],
+      subject: "[SNUMPS] 새 스터디 개설 신청: {{title}}",
+      body: `안녕하세요, 관리자님.
 
 {{applicantName}}님으로부터 새로운 스터디 개설 신청이 접수되었습니다.
 
 분야: {{title}}
 
 관리자 페이지에서 확인 후 승인 또는 반려해주세요.`,
-  },
-  "seminar-approved": {
-    name: "세미나 신청 승인",
-    description: "세미나 개설 신청 승인 시 신청자에게",
-    variables: ["name", "title"],
-    subject: "[SNUMPS] 세미나 신청 결과 안내: {{title}}",
-    body: `안녕하세요, {{name}}님.
+    },
+    "seminar-approved": {
+      name: "세미나 신청 승인",
+      description: "세미나 개설 신청 승인 시 신청자에게",
+      variables: ["name", "title"],
+      subject: "[SNUMPS] 세미나 신청 결과 안내: {{title}}",
+      body: `안녕하세요, {{name}}님.
 
 신청하신 세미나 '{{title}}'가 승인되었습니다.
 
 세부 일정은 발표자와 조율한 뒤 공식 웹사이트에 게시합니다. 일정이 확정되거나 이후 변경되면 별도 안내 메일을 보내드립니다.
 
 감사합니다.`,
-  },
-  "seminar-rejected": {
-    name: "세미나 신청 반려",
-    description: "세미나 개설 신청 반려 시 신청자에게",
-    variables: ["name", "title"],
-    subject: "[SNUMPS] 세미나 신청 결과 안내: {{title}}",
-    body: `안녕하세요, {{name}}님.
+    },
+    "seminar-rejected": {
+      name: "세미나 신청 반려",
+      description: "세미나 개설 신청 반려 시 신청자에게",
+      variables: ["name", "title"],
+      subject: "[SNUMPS] 세미나 신청 결과 안내: {{title}}",
+      body: `안녕하세요, {{name}}님.
 
 신청하신 세미나 '{{title}}'가 반려되었습니다.
 
 아쉽게도 이번 세미나는 개설이 어렵게 되었습니다.
 
 감사합니다.`,
-  },
-  "study-approved": {
-    name: "스터디 신청 승인",
-    description: "스터디 개설 신청 승인 시 신청자에게",
-    variables: ["name", "title"],
-    subject: "[SNUMPS] 스터디 개설 신청 결과 안내: {{title}}",
-    body: `안녕하세요, {{name}}님.
+    },
+    "study-approved": {
+      name: "스터디 신청 승인",
+      description: "스터디 개설 신청 승인 시 신청자에게",
+      variables: ["name", "title"],
+      subject: "[SNUMPS] 스터디 개설 신청 결과 안내: {{title}}",
+      body: `안녕하세요, {{name}}님.
 
 신청하신 스터디 '{{title}}'가 승인되었습니다.
 
 홈페이지의 스터디 관리 페이지에서 인원과 회차를 관리할 수 있습니다.
 
 감사합니다.`,
-  },
-  "study-rejected": {
-    name: "스터디 신청 반려",
-    description: "스터디 개설 신청 반려 시 신청자에게",
-    variables: ["name", "title"],
-    subject: "[SNUMPS] 스터디 개설 신청 결과 안내: {{title}}",
-    body: `안녕하세요, {{name}}님.
+    },
+    "study-rejected": {
+      name: "스터디 신청 반려",
+      description: "스터디 개설 신청 반려 시 신청자에게",
+      variables: ["name", "title"],
+      subject: "[SNUMPS] 스터디 개설 신청 결과 안내: {{title}}",
+      body: `안녕하세요, {{name}}님.
 
 신청하신 스터디 '{{title}}'가 반려되었습니다.
 
 아쉽게도 이번 스터디는 개설이 어렵게 되었습니다.
 
 감사합니다.`,
-  },
-  "seminar-announcement": {
-    name: "새 세미나 전체 공지",
-    description: "세미나 공개 시 수신 동의한 전 회원에게 (Bcc 배치)",
-    variables: [
-      "title",
-      "description",
-      "schedule",
-      "location",
-      "siteUrl",
-      "optOutUrl",
-    ],
-    subject: "[SNUMPS] 새 세미나 안내: {{title}}",
-    body: `안녕하세요, 서울대학교 수학문제연구회입니다.
+    },
+    "seminar-announcement": {
+      name: "새 세미나 전체 공지",
+      description: "세미나 공개 시 수신 동의한 전 회원에게 (Bcc 배치)",
+      variables: [
+        "title",
+        "description",
+        "schedule",
+        "location",
+        "siteUrl",
+        "optOutUrl",
+      ],
+      subject: "[SNUMPS] 새 세미나 안내: {{title}}",
+      body: `안녕하세요, 서울대학교 수학문제연구회입니다.
 
 새 세미나가 개설되었습니다.
 
@@ -179,13 +181,13 @@ export const MAIL_TEMPLATE_DEFAULTS: Record<string, MailTemplateDefault> = {
 ---
 이 공지 메일을 더 이상 받고 싶지 않으시면 아래에서 수신을 해제할 수 있습니다.
 {{optOutUrl}}`,
-  },
-  "seminar-schedule-changed": {
-    name: "세미나 일정 변경 공지",
-    description: "공개된 세미나의 일시·장소가 바뀌면 수신 동의한 전 회원에게",
-    variables: ["title", "schedule", "location", "siteUrl", "optOutUrl"],
-    subject: "[SNUMPS] 세미나 일정 변경 안내: {{title}}",
-    body: `안녕하세요, 서울대학교 수학문제연구회입니다.
+    },
+    "seminar-schedule-changed": {
+      name: "세미나 일정 변경 공지",
+      description: "공개된 세미나의 일시·장소가 바뀌면 수신 동의한 전 회원에게",
+      variables: ["title", "schedule", "location", "siteUrl", "optOutUrl"],
+      subject: "[SNUMPS] 세미나 일정 변경 안내: {{title}}",
+      body: `안녕하세요, 서울대학교 수학문제연구회입니다.
 
 아래 세미나의 일정이 변경되었습니다.
 
@@ -198,13 +200,13 @@ export const MAIL_TEMPLATE_DEFAULTS: Record<string, MailTemplateDefault> = {
 ---
 이 공지 메일을 더 이상 받고 싶지 않으시면 아래에서 수신을 해제할 수 있습니다.
 {{optOutUrl}}`,
-  },
-  "seminar-cancelled": {
-    name: "세미나 취소 공지",
-    description: "공지된 세미나가 취소되면 수신 동의한 전 회원에게",
-    variables: ["title", "siteUrl", "optOutUrl"],
-    subject: "[SNUMPS] 세미나 취소 안내: {{title}}",
-    body: `안녕하세요, 서울대학교 수학문제연구회입니다.
+    },
+    "seminar-cancelled": {
+      name: "세미나 취소 공지",
+      description: "공지된 세미나가 취소되면 수신 동의한 전 회원에게",
+      variables: ["title", "siteUrl", "optOutUrl"],
+      subject: "[SNUMPS] 세미나 취소 안내: {{title}}",
+      body: `안녕하세요, 서울대학교 수학문제연구회입니다.
 
 아래 세미나가 취소되었습니다.
 
@@ -215,14 +217,14 @@ export const MAIL_TEMPLATE_DEFAULTS: Record<string, MailTemplateDefault> = {
 ---
 이 공지 메일을 더 이상 받고 싶지 않으시면 아래에서 수신을 해제할 수 있습니다.
 {{optOutUrl}}`,
-  },
-  "withdrawal-executive-notice": {
-    name: "탈퇴 신청 통지 (회장단)",
-    description:
-      "회원이 탈퇴를 신청하면 현 학기 회장·부회장에게 (없으면 관리자)",
-    variables: ["memberName", "adminUrl"],
-    subject: "[SNUMPS] 회원 탈퇴 신청: {{memberName}}",
-    body: `안녕하세요, 회장단님.
+    },
+    "withdrawal-executive-notice": {
+      name: "탈퇴 신청 통지 (회장단)",
+      description:
+        "회원이 탈퇴를 신청하면 현 학기 회장·부회장에게 (없으면 관리자)",
+      variables: ["memberName", "adminUrl"],
+      subject: "[SNUMPS] 회원 탈퇴 신청: {{memberName}}",
+      body: `안녕하세요, 회장단님.
 
 {{memberName}} 회원이 탈퇴를 신청했습니다.
 
@@ -230,8 +232,8 @@ export const MAIL_TEMPLATE_DEFAULTS: Record<string, MailTemplateDefault> = {
 정보 보존이 필요하면 관리자 페이지의 회원 상세에서 보존을 집행해 주세요.
 
 {{adminUrl}}`,
-  },
-};
+    },
+  });
 
 export type MailTemplateKey = keyof typeof MAIL_TEMPLATE_DEFAULTS;
 
@@ -239,7 +241,7 @@ export type MailTemplateKey = keyof typeof MAIL_TEMPLATE_DEFAULTS;
 export const MAIL_VARIABLE_DEFAULTS: Record<
   string,
   { value: string; description: string }
-> = {
+> = lookupTable({
   noticeChatLink: {
     value: CHATROOM_NOTICE_LINK,
     description: "카카오톡 공지방 초대 링크",
@@ -248,7 +250,7 @@ export const MAIL_VARIABLE_DEFAULTS: Record<
     value: CHATROOM_CHAT_LINK,
     description: "카카오톡 잡담방 초대 링크",
   },
-};
+});
 
 /**
  * 현행 공용 변수 (기본값 + DB 오버라이드/추가). 조회 실패 시 기본값만 —

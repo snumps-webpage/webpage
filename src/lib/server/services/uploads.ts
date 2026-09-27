@@ -1,3 +1,4 @@
+import { lookupTable } from "$lib/server/core/lookup";
 import { AppError } from "$lib/server/core/errors";
 import { newId, randomToken } from "$lib/server/core/id";
 import {
@@ -38,7 +39,7 @@ function matchesSignature(head: Uint8Array, contentType: string): boolean {
 
 const IMG = ["image/jpeg", "image/png", "image/webp"];
 
-export const PURPOSES = {
+export const PURPOSES = lookupTable({
   "seminar-material": {
     prefix: "seminars",
     types: ["application/pdf"],
@@ -53,12 +54,12 @@ export const PURPOSES = {
   },
   "study-photo": { prefix: "studies", types: IMG, maxBytes: 10_000_000 },
   "gallery-photo": { prefix: "gallery", types: IMG, maxBytes: 10_000_000 },
-} as const;
+} as const);
 
 export type UploadPurpose = keyof typeof PURPOSES;
 
 export function isUploadPurpose(v: string): v is UploadPurpose {
-  return v in PURPOSES;
+  return Object.hasOwn(PURPOSES, v);
 }
 
 export function slugifyFilename(filename: string): {

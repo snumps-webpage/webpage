@@ -1,3 +1,4 @@
+import { lookupTable } from "$lib/server/core/lookup";
 /**
  * 자동 메일 이벤트 카탈로그 (S10) — 코드에 고정되는 닫힌 집합.
  *
@@ -10,12 +11,12 @@
  * 새 수신자 종류 추가 = RECIPIENTS에 해석기 등록.
  */
 
-export const RECIPIENTS = {
+export const RECIPIENTS = lookupTable({
   party: "당사자 (이벤트의 대상 본인 — 신청자·회원)",
   admins: "관리자 전원 (ADMINS_EMAILS)",
   executives: "현 학기 회장·부회장 (없으면 관리자)",
   "members-opted-in": "수신 동의한 전 회원 (Bcc 배치)",
-} as const;
+} as const);
 
 export type RecipientKind = keyof typeof RECIPIENTS;
 
@@ -30,7 +31,7 @@ export interface MailEventDef {
   defaultRules: { templateKey: string; recipient: RecipientKind }[];
 }
 
-export const MAIL_EVENTS: Record<string, MailEventDef> = {
+export const MAIL_EVENTS: Record<string, MailEventDef> = lookupTable({
   "application.submitted": {
     name: "가입 신청 접수",
     description: "회원 가입/재가입 신청서가 제출된 순간",
@@ -151,6 +152,6 @@ export const MAIL_EVENTS: Record<string, MailEventDef> = {
       { templateKey: "withdrawal-executive-notice", recipient: "executives" },
     ],
   },
-};
+});
 
 export type MailEventKey = keyof typeof MAIL_EVENTS;

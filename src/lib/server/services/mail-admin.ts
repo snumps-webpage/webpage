@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { AppError } from "$lib/server/core/errors";
 import { newId } from "$lib/server/core/id";
 import { nowKstIso } from "$lib/server/core/time";
@@ -67,7 +68,7 @@ export async function listMailTemplates(): Promise<MailTemplateView[]> {
   });
 
   const customs = rows
-    .filter((t) => !(t.key in MAIL_TEMPLATE_DEFAULTS))
+    .filter((t) => !Object.hasOwn(MAIL_TEMPLATE_DEFAULTS, t.key))
     .map((t) => ({
       key: t.key,
       name: t.name || t.key,
@@ -102,7 +103,7 @@ export async function saveMailTemplate(input: {
   await mutate("mail-templates", (rows) => {
     const idx = rows.findIndex((t) => t.key === input.key);
     if (idx === -1) {
-      if (!(input.key in MAIL_TEMPLATE_DEFAULTS)) {
+      if (!Object.hasOwn(MAIL_TEMPLATE_DEFAULTS, input.key)) {
         throw new AppError("NOT_FOUND", {
           userMessage: "존재하지 않는 템플릿입니다.",
         });
@@ -194,7 +195,7 @@ export async function createMailTemplate(input: {
 
 /** 커스텀 템플릿 삭제 (기본 템플릿은 삭제 불가 — 되돌리기만; 규칙 부착 시 거부). */
 export async function deleteMailTemplate(key: string): Promise<void> {
-  if (key in MAIL_TEMPLATE_DEFAULTS) {
+  if (Object.hasOwn(MAIL_TEMPLATE_DEFAULTS, key)) {
     throw new AppError("VALIDATION_FAILED", {
       userMessage: "기본 템플릿은 삭제할 수 없습니다.",
     });
@@ -325,7 +326,7 @@ export async function listMailEvents(): Promise<MailEventView[]> {
 }
 
 function requireEvent(event: string): MailEventKey {
-  if (!(event in MAIL_EVENTS)) {
+  if (!Object.hasOwn(MAIL_EVENTS, event)) {
     throw new AppError("VALIDATION_FAILED", {
       userMessage: "알 수 없는 이벤트입니다.",
     });
@@ -414,7 +415,7 @@ export async function addMailRule(input: {
     });
   }
   const templateExists =
-    input.templateKey in MAIL_TEMPLATE_DEFAULTS ||
+    Object.hasOwn(MAIL_TEMPLATE_DEFAULTS, input.templateKey) ||
     (await getTable("mail-templates")).some((t) => t.key === input.templateKey);
   if (!templateExists) {
     throw new AppError("VALIDATION_FAILED", {
@@ -547,7 +548,7 @@ export async function listMailVariables(): Promise<MailVariableView[]> {
     };
   });
   const customs = rows
-    .filter((r) => !(r.key in MAIL_VARIABLE_DEFAULTS))
+    .filter((r) => !Object.hasOwn(MAIL_VARIABLE_DEFAULTS, r.key))
     .map((r) => ({
       key: r.key,
       value: r.value,
@@ -626,7 +627,7 @@ export async function revertMailVariable(key: string): Promise<void> {
 
 /** 커스텀 변수 삭제 (기본 변수는 삭제 불가 — 되돌리기만). */
 export async function deleteMailVariable(key: string): Promise<void> {
-  if (key in MAIL_VARIABLE_DEFAULTS) {
+  if (Object.hasOwn(MAIL_VARIABLE_DEFAULTS, key)) {
     throw new AppError("VALIDATION_FAILED", {
       userMessage: "기본 변수는 삭제할 수 없습니다.",
     });
@@ -653,12 +654,20 @@ async function currentTemplateText(
   return def ? { subject: def.subject, body: def.body } : null;
 }
 
+/**
+ * A test recipient is exactly one address. The old unanchored pattern let
+ * "a@b.co\r\nBcc: …" through, which injected headers (audit LB23-6).
+ */
+function isTestAddress(to: string): boolean {
+  return !/[\r\n]/.test(to) && z.string().email().safeParse(to).success;
+}
+
 /** 템플릿 1종을 예시 변수로 렌더해 지정 주소로 실발송. */
 export async function sendTestTemplate(
   to: string,
   templateKey: string,
 ): Promise<void> {
-  if (!/.+@.+\..+/.test(to)) {
+  if (!isTestAddress(to)) {
     throw new AppError("VALIDATION_FAILED", {
       userMessage: "받는 주소를 확인해 주세요.",
     });
@@ -694,7 +703,7 @@ export async function sendTestEvent(
   to: string,
   event: string,
 ): Promise<number> {
-  if (!/.+@.+\..+/.test(to)) {
+  if (!isTestAddress(to)) {
     throw new AppError("VALIDATION_FAILED", {
       userMessage: "받는 주소를 확인해 주세요.",
     });
