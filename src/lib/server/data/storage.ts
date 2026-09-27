@@ -49,7 +49,13 @@ type StorageErrorLike = {
   code?: string;
 };
 
+/**
+ * The OBJECT is missing — not the bucket. Supabase answers a missing bucket
+ * with 404 "Bucket not found" too; reading that as "no such file" turned a
+ * mistyped bucket env var into silent 404s for every asset (audit LA38-1).
+ */
 function isNotFound(error: StorageErrorLike): boolean {
+  if (/bucket/i.test(error.message)) return false;
   return (
     error.status === 404 ||
     error.statusCode === "404" ||
@@ -94,8 +100,13 @@ export async function stagedInfo(
     if (isNotFound(error)) return null; // never uploaded or already reaped
     throw new Error(`stagedInfo(${path}) failed: ${error.message}`);
   }
+  // The size cap is enforced only here (a signed upload URL cannot limit
+  // size); an unknown size used to read as 0, under every cap (audit LA38-2).
+  if (typeof data.size !== "number") {
+    throw new Error(`stagedInfo(${path}) failed: no size in the response`);
+  }
   return {
-    size: data.size ?? 0,
+    size: data.size,
     contentType: data.contentType ?? "application/octet-stream",
   };
 }

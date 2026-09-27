@@ -15,6 +15,11 @@ const fake = vi.hoisted(() => ({
     limit?: number;
     offset?: number;
   }[],
+  /** what `.info` / `.createSignedUrl` answer */
+  answer: { data: null, error: null } as {
+    data: unknown;
+    error: { message: string; status?: number } | null;
+  },
 }));
 
 vi.mock("$env/dynamic/private", () => ({ env: {} }));
@@ -32,12 +37,19 @@ vi.mock("./supabase", () => ({
           const limit = opts?.limit ?? 100;
           return { data: fake.rows.slice(offset, offset + limit), error: null };
         },
+        info: async () => fake.answer,
+        createSignedUrl: async () => fake.answer,
       }),
     },
   }),
 }));
 
-import { listBackups, listStaged } from "./storage";
+import {
+  createSignedAssetUrl,
+  listBackups,
+  listStaged,
+  stagedInfo,
+} from "./storage";
 
 const file = (i: number) => ({
   name: `f${String(i).padStart(4, "0")}.png`,
@@ -76,5 +88,51 @@ describe("listBackups against Supabase", () => {
     fake.rows = Array.from({ length: 1200 }, (_, i) => file(i));
 
     expect(await listBackups("dumps")).toHaveLength(1200);
+  });
+});
+
+// Supabase answers 404 "Bucket not found" as well as "Object not found", and
+// both read as "no such file": a mistyped bucket env var turned every asset
+// into a silent 404 and every promotion into "never uploaded" — no 5xx, no
+// log (audit LA38-1). Only a missing object is "none" now.
+describe("a missing bucket is not a missing file", () => {
+  it("stagedInfo and createSignedAssetUrl throw on a missing bucket", async () => {
+    fake.answer = {
+      data: null,
+      error: { message: "Bucket not found", status: 404 },
+    };
+    await expect(stagedInfo("pending/x/a.png")).rejects.toThrow(/Bucket/);
+    await expect(createSignedAssetUrl("seminars/a.png", 60)).rejects.toThrow(
+      /Bucket/,
+    );
+  });
+
+  it("a missing object is still none", async () => {
+    fake.answer = {
+      data: null,
+      error: { message: "Object not found", status: 404 },
+    };
+    expect(await stagedInfo("pending/x/a.png")).toBeNull();
+    expect(await createSignedAssetUrl("seminars/a.png", 60)).toBeNull();
+  });
+});
+
+// Promotion's size cap is enforced only here (a signed upload URL cannot
+// limit size), and an unknown size read as 0 — under every cap (LA38-2).
+describe("stagedInfo without a size", () => {
+  it("refuses rather than answering 0", async () => {
+    fake.answer = { data: { contentType: "image/png" }, error: null };
+    await expect(stagedInfo("pending/x/a.png")).rejects.toThrow(/size/);
+  });
+
+  it("passes a known size through", async () => {
+    fake.answer = {
+      data: { size: 10, contentType: "image/png" },
+      error: null,
+    };
+    expect(await stagedInfo("pending/x/a.png")).toEqual({
+      size: 10,
+      contentType: "image/png",
+    });
   });
 });
