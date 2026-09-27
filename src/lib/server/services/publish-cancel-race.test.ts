@@ -34,10 +34,18 @@ import { toKstIso } from "$lib/server/core/time";
 import { approveSeminar, submitSeminarRequest } from "./seminar-requests";
 import { cancelSeminar, publishSeminar, scheduleSeminar } from "./seminars";
 import { getMemberVisibleEvents, hiddenActivityIds } from "./visibility";
-import { getPublicActivities } from "$lib/server/public/archive";
+import { load as archiveLoad } from "../../../routes/(public)/archive/+layout.server";
 
 const HOUR = 60 * 60 * 1000;
 const ADMIN = { memberId: "admin-1", isAdmin: true };
+
+/** The public calendar guests receive — the archive layout's snapshot. */
+async function publicCalendar() {
+  const data = (await archiveLoad({} as never)) as {
+    archive: { activities: unknown[] };
+  };
+  return data.archive.activities;
+}
 
 async function scheduledSeminar() {
   const request = await submitSeminarRequest({
@@ -103,7 +111,7 @@ describe("공개가 먼저 커밋되면", () => {
     expect(await getMemberVisibleEvents()).toEqual([]);
     // 숨김 규칙은 `seminars.activityId`를 본다 — 공개가 그 칸을 같은
     // 트랜잭션에서 채우므로 활동은 세미나와 이어진 채로 숨는다.
-    expect(await getPublicActivities()).toEqual([]);
+    expect(await publicCalendar()).toEqual([]);
     expect([...(await hiddenActivityIds())]).toHaveLength(1);
   });
 });
@@ -124,6 +132,6 @@ describe("동시에 던지면", () => {
       (await getTable("events")).filter((e) => e.status !== "cancelled"),
     ).toEqual([]);
     expect(await getMemberVisibleEvents()).toEqual([]);
-    expect(await getPublicActivities()).toEqual([]);
+    expect(await publicCalendar()).toEqual([]);
   });
 });

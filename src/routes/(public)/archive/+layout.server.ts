@@ -18,9 +18,10 @@ import type { LayoutServerLoad } from "./$types";
 
 /**
  * Archive shell: one real snapshot for every /archive child page.
- * Built from the same tables the PUB-09~13 public reads use — only D2-safe
- * fields (titles, terms, names, public files) ever enter the snapshot; no
- * attendee/applicant lists, no member ids, no operational state.
+ * This IS the PUB-09~13 public read — there is no separate accessor for these
+ * lists (audit LB16-5), and `snapshot.test.ts` is their guest-payload contract.
+ * Only D2-safe fields (titles, terms, names, public files) ever enter the
+ * snapshot; no attendee/applicant lists, no member ids, no operational state.
  */
 
 const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif"]);
@@ -96,9 +97,8 @@ export const load: LayoutServerLoad = async () => {
   const activityStart = new Map(activities.map((a) => [a.id, a.date.start]));
   const requestOf = new Map(seminarRequests.map((r) => [r.id, r]));
 
-  // 공개는 명시적 행위다. 이 로드는 공개 접근자(public/archive.ts)를 쓰지 않고
-  // 표를 직접 읽어 스냅샷을 만드므로, 필터도 **여기서** 걸어야 한다 — 접근자에만
-  // 걸면 아무도 안 보는 페이로드를 지키게 된다(ZR-8의 재발 형태).
+  // 공개는 명시적 행위다 — 승인·확정 단계의 세미나와 취소분은 게스트에게 없다.
+  // 이 로드가 표를 직접 읽어 스냅샷을 만드므로 필터도 **여기서** 건다(ZR-8).
   const publicSeminars = seminars.filter(
     (s) => s.publicationStatus === "published",
   );

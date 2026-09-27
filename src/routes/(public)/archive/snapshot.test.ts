@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const testEnv = vi.hoisted(() => ({}) as Record<string, string | undefined>);
+vi.mock("$env/dynamic/private", () => ({ env: testEnv }));
 vi.mock(
   "$lib/server/data/store",
   () => import("$lib/server/data/store-memory"),
 );
 
-import { __reset } from "$lib/server/data/store-memory";
+import { __putRawDoc, __reset } from "$lib/server/data/store-memory";
 import { _resetDataLayerForTests, mutate } from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { newId } from "$lib/server/core/id";
@@ -15,11 +17,12 @@ import { load } from "./+layout.server";
 /**
  * BE-64 for the path that actually renders.
  *
- * `lib/server/public/archive.test.ts` audits the `getPublic*` functions, but the
- * archive pages read `data.archive.*` from THIS layout — the child page loads
- * feed nothing. So the forbidden-key contract has to be asserted here too, or
- * the suite guards a payload no visitor receives while the one they do receive
- * is unchecked.
+ * The archive pages read `data.archive.*` from THIS layout — the child page
+ * loads feed nothing, and there is no other accessor for these lists. So the
+ * guest-payload contract for seminars, studies, the calendar, the gallery and
+ * the project board is asserted here, on the load itself. (The per-list
+ * `getPublic*` accessors that used to be audited instead were never rendered
+ * and had drifted from this path; they are gone — audit LB16-5.)
  */
 
 const FORBIDDEN_KEYS = [
@@ -197,7 +200,14 @@ async function loadArchive() {
   // The load reads nothing off the event — it is a pure snapshot builder.
   return (await load({} as never)) as {
     archive: {
-      seminars: { prerequisites: string; description: string | null }[];
+      seminars: {
+        prerequisites: string;
+        description: string | null;
+        presenterNames: string[];
+        files: { url: string }[];
+      }[];
+      activities: Record<string, unknown>[];
+      gallery: { thumbnailUrl: string; displayUrl: string }[];
       projects: { memberId: string; memberName: string }[];
     };
   };
@@ -237,5 +247,91 @@ describe("archive layout snapshot (BE-64, the rendered path)", () => {
     const json = JSON.stringify(archive);
     expect(json).not.toContain("운영용 설명");
     expect(json).not.toContain("internal.example");
+  });
+
+  // PUB-11: the calendar is the schedule only — the fixture's activity has an
+  // attendee list, and the entry carries exactly these four fields.
+  it("publishes the calendar without attendee lists", async () => {
+    const { archive } = await loadArchive();
+    expect(archive.activities).toEqual([
+      {
+        id: "act1",
+        title: "위상수학 세미나",
+        type: "세미나",
+        date: expect.any(String),
+      },
+    ]);
+  });
+
+  // 기본값은 앱 경로다 — 버킷이 비공개이므로 그것만이 유효한 링크다(C-22).
+  it("resolves asset keys to guarded app paths", async () => {
+    const { archive } = await loadArchive();
+    expect(archive.seminars[0].files[0].url).toBe("/media/seminars/sem1/a.pdf");
+    // seminar + study + dinner photos
+    expect(archive.gallery.map((g) => g.displayUrl)).toEqual([
+      "/media/seminars/sem1/p.png",
+      "/media/studies/st1/p.png",
+      "/media/gallery/g1/d.png",
+    ]);
+  });
+
+  // W-8: with no CDN the payload must carry nothing usable — and nothing that
+  // looks usable either, or the consumer's `{#if url}` guard renders a broken
+  // image instead of its placeholder. (직접 CDN 모드에서만 해당한다.)
+  it("emits empty URLs, not raw keys, when direct mode has no CDN", async () => {
+    testEnv.ASSETS_ACCESS = "public";
+    delete testEnv.ASSETS_CDN_URL;
+    try {
+      const { archive } = await loadArchive();
+      expect(archive.seminars[0].files[0].url).toBe("");
+      expect(archive.gallery).toHaveLength(3);
+      for (const g of archive.gallery) {
+        expect(g.displayUrl).toBe("");
+        expect(g.thumbnailUrl).toBe("");
+      }
+      expect(JSON.stringify(archive.gallery)).not.toContain("seminars/sem1");
+    } finally {
+      delete testEnv.ASSETS_ACCESS;
+    }
+  });
+});
+
+// Migrated seminars name presenters by their legacy id; the de-duplicated
+// roster drops that row once its person re-joins. The list resolves through
+// the directory index, so it names them by their current row (audit LB16-4).
+describe("presenters who re-joined", () => {
+  it("are named by their current row in the archive list", async () => {
+    await invalidateCache("table_legacy-members");
+    __putRawDoc("table", "legacy-members", {
+      schemaVersion: 1,
+      rows: [
+        {
+          id: "L1",
+          name: "옛이름",
+          department: "수리과학부",
+          joinedAt: "2019-03-01",
+          status: "regular",
+          statusChangedAt: nowKstIso(),
+          withdrawal: null,
+          isAlumni: true,
+          alumniRevoked: false,
+          roles: [],
+          isAdmin: false,
+          publicContact: null,
+          project: null,
+          legacyMemberId: null,
+          sourceRequestId: null,
+        },
+      ],
+    });
+    await mutate("members", (rows) =>
+      rows.map((m) => (m.id === "m1" ? { ...m, legacyMemberId: "L1" } : m)),
+    );
+    await mutate("seminars", (rows) =>
+      rows.map((s) => ({ ...s, presenterIds: ["L1"] })),
+    );
+
+    const { archive } = await loadArchive();
+    expect(archive.seminars[0].presenterNames).toEqual(["김수학"]);
   });
 });

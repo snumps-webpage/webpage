@@ -11,7 +11,7 @@ import { invalidateCache } from "$lib/server/cache";
 import { newId } from "$lib/server/core/id";
 import { toKstIso } from "$lib/server/core/time";
 import type { Event, Seminar, Study } from "$lib/server/data/schemas";
-import { getPublicActivities } from "$lib/server/public/archive";
+import { load as archiveLoad } from "../../../routes/(public)/archive/+layout.server";
 import { cancelSession, createStudySession } from "./studies";
 import { hiddenActivityIdsOf, withoutHiddenActivities } from "./visibility";
 import { getTable } from "$lib/server/data/tables";
@@ -73,7 +73,11 @@ describe("a cancelled study session", () => {
       await withoutHiddenActivities(await getTable("activities"))
     ).map((a) => a.id);
     expect(visible).toEqual([kept.activityId]);
-    expect(await getPublicActivities()).toHaveLength(1);
+    // the public calendar guests receive is the archive layout's snapshot
+    const { archive } = (await archiveLoad({} as never)) as {
+      archive: { activities: { id: string }[] };
+    };
+    expect(archive.activities.map((a) => a.id)).toEqual([kept.activityId]);
   });
 });
 

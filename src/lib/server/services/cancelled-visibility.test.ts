@@ -17,17 +17,13 @@ import { invalidateCache } from "$lib/server/cache";
 import { newId } from "$lib/server/core/id";
 import { toKstIso } from "$lib/server/core/time";
 import { getActivitiesOf } from "$lib/server/data/repos";
-import {
-  getPublicActivities,
-  getPublicGallery,
-  getPublicSeminars,
-} from "$lib/server/public/archive";
 import { getManagedSeminars, hasPresenterEvents } from "./events";
 import { cancelSeminar, publishSeminar, scheduleSeminar } from "./seminars";
 import { approveSeminar, submitSeminarRequest } from "./seminar-requests";
 import { deleteSeminar } from "./records-admin";
 import { getMemberVisibleEvents } from "./visibility";
 import { load as dashboardLoad } from "../../../routes/(public)/+page.server";
+import { load as archiveLoad } from "../../../routes/(public)/archive/+layout.server";
 
 /**
  * 취소된 세미나는 **회원과 게스트 양쪽에서 사라지고 관리자에게만 남는다**.
@@ -97,16 +93,32 @@ beforeEach(async () => {
     await invalidateCache(`table_${t}`);
 });
 
+/**
+ * 게스트가 받는 아카이브는 레이아웃 로드의 스냅숏 하나다 — 목록별 접근자는
+ * 없다(감사 LB16-5). 그래서 공개 면의 단언은 모두 실제 로드의 반환값을 본다.
+ */
+async function archiveSnapshot() {
+  const data = (await archiveLoad({} as never)) as {
+    archive: {
+      seminars: unknown[];
+      activities: unknown[];
+      gallery: unknown[];
+    };
+  };
+  return { archive: data.archive, payload: JSON.stringify(data) };
+}
+
 describe("공개 면", () => {
-  it("공개 아카이브 접근자에서 사라진다", async () => {
+  it("공개 아카이브의 세미나·일정에서 사라진다", async () => {
     await cancelledSeminar();
 
-    expect(await getPublicSeminars()).toEqual([]);
-    expect(await getPublicActivities()).toEqual([]);
+    const { archive } = await archiveSnapshot();
+    expect(archive.seminars).toEqual([]);
+    expect(archive.activities).toEqual([]);
     expect(await getTable("activities")).toHaveLength(1); // 기록 자체는 보존된다
   });
 
-  // 사진 격자는 세미나 표를 직접 읽는다 — 형제 접근자의 상태 필터가 여기에만
+  // 사진 격자는 세미나 표를 직접 읽는다 — 세미나 목록의 상태 필터가 여기에만
   // 빠져 있으면 취소된 세미나의 제목과 사진이 그대로 나간다.
   it("공개 갤러리에서도 사라진다", async () => {
     const id = await cancelledSeminar();
@@ -114,31 +126,19 @@ describe("공개 면", () => {
       rows.map((s) => (s.id === id ? { ...s, photos: ["photo-key.jpg"] } : s)),
     );
 
-    expect(await getPublicGallery()).toEqual([]);
+    const { archive, payload } = await archiveSnapshot();
+    expect(archive.gallery).toEqual([]);
+    expect(payload).not.toContain("photo-key.jpg");
   });
 
-  // 위 접근자들은 **게스트에게 실제로 나가는 경로가 아니다.** 아카이브
-  // 레이아웃이 표를 직접 읽어 스냅샷을 따로 만든다 — 필터를 접근자에만 걸면
-  // 아무도 안 보는 페이로드를 지키게 된다(ZR-8과 같은 형태의 재발).
-  // 그래서 단언은 실제 로드의 **직렬화된 반환값**을 본다.
+  // SvelteKit은 로드 반환값을 통째로 SSR HTML에 직렬화한다 — 그래서 목록이
+  // 비었는지만이 아니라 **직렬화된 반환값** 어디에도 없는지를 본다(ZR-8).
   it("아카이브 레이아웃이 실제로 내보내는 페이로드에 없다", async () => {
     await cancelledSeminar();
-    const { load } =
-      await import("../../../routes/(public)/archive/+layout.server");
 
-    const payload = JSON.stringify(await load({} as never));
+    const { payload } = await archiveSnapshot();
 
     expect(payload).not.toContain("취소될 세미나");
-  });
-
-  it("미공개 세미나도 그 페이로드에 없다", async () => {
-    await scheduledOnlySeminar();
-    const { load } =
-      await import("../../../routes/(public)/archive/+layout.server");
-
-    const payload = JSON.stringify(await load({} as never));
-
-    expect(payload).not.toContain("미확정 세미나");
   });
 });
 
@@ -190,10 +190,12 @@ describe("관리자 면 — 기록은 남는다", () => {
 });
 
 describe("공개되지 않은 세미나도 게스트에게 보이지 않는다", () => {
-  it("승인만 된 세미나는 아카이브에 없다", async () => {
+  it("승인만 된 세미나는 아카이브 페이로드에 없다", async () => {
     await scheduledOnlySeminar();
 
-    expect(await getPublicSeminars()).toEqual([]);
+    const { archive, payload } = await archiveSnapshot();
+    expect(archive.seminars).toEqual([]);
+    expect(payload).not.toContain("미확정 세미나");
   });
 });
 

@@ -14,20 +14,19 @@ import { newId } from "$lib/server/core/id";
 import { nowKstIso } from "$lib/server/core/time";
 import { currentTerm } from "$lib/server/core/semester";
 import {
-  getPublicActivities,
   getPublicExecutives,
-  getPublicGallery,
   getPublicMembers,
-  getPublicProjects,
   getPublicSeminar,
-  getPublicSeminars,
-  getPublicStudies,
 } from "./archive";
 
 /**
  * BE-64: the public-response audit. No public payload may ever contain a
  * PII or operational key — this suite serializes every public read over a
  * fully-populated fixture and asserts the forbidden keys are absent.
+ *
+ * The archive lists (seminars, studies, calendar, gallery, projects) are not
+ * read here: guests get them from the archive layout's snapshot, and
+ * `routes/(public)/archive/snapshot.test.ts` audits that path (audit LB16-5).
  */
 
 const FORBIDDEN_KEYS = [
@@ -195,23 +194,16 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
     const payloads: Record<string, unknown> = {
       members: await getPublicMembers(),
       executives: await getPublicExecutives(),
-      seminars: await getPublicSeminars(),
       seminar: await getPublicSeminar("sem1"),
-      studies: await getPublicStudies(),
-      activities: await getPublicActivities(),
-      gallery: await getPublicGallery(),
-      projects: await getPublicProjects(),
     };
     for (const [name, payload] of Object.entries(payloads)) {
       expect(forbiddenKeysIn(payload), `leak in ${name}`).toEqual([]);
     }
   });
 
-  it("excludes withdrawn members from the roster and the project board", async () => {
+  it("excludes withdrawn members from the roster", async () => {
     const roster = await getPublicMembers();
     expect(roster.map((m) => m.name)).toEqual(["김수학"]);
-    const projects = await getPublicProjects();
-    expect(projects.map((p) => p.project.title)).toEqual(["정수론 시각화"]);
   });
 
   it("auto-publishes the current-term executive's private-info phone as contact", async () => {
@@ -258,21 +250,10 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
     expect(past?.holders.every((h) => h.contact === null)).toBe(true);
   });
 
-  it("publishes the calendar without attendee lists", async () => {
-    const activities = await getPublicActivities();
-    expect(activities[0]).toEqual({
-      title: "위상수학 세미나",
-      date: expect.any(Object),
-      type: "세미나",
-    });
-  });
-
   // 기본값은 앱 경로다 — 버킷이 비공개이므로 그것만이 유효한 링크다(C-22).
   it("resolves asset keys to guarded app paths, never raw keys alone", async () => {
     const seminar = await getPublicSeminar("sem1");
     expect(seminar!.materials[0]).toBe("/media/seminars/sem1/a.pdf");
-    const gallery = await getPublicGallery();
-    expect(gallery).toHaveLength(3); // seminar + study + dinner photos
   });
 
   // W-8: with no CDN the payload must carry nothing usable — and nothing that
@@ -284,9 +265,6 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
 
     const seminar = await getPublicSeminar("sem1");
     expect(seminar!.materials[0]).toBe("");
-    expect(JSON.stringify(await getPublicGallery())).not.toContain(
-      "seminars/sem1",
-    );
 
     delete testEnv.ASSETS_ACCESS;
   });
@@ -296,9 +274,10 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
 // built from the de-duplicated roster, which drops a legacy row once its
 // person re-joins — so a returning member's seminar showed "Unknown" on the
 // detail page while the archive list, resolving through the directory index,
-// showed the name (audit LB16-4).
+// showed the name (audit LB16-4). The list half lives with the layout that
+// renders it (`routes/(public)/archive/snapshot.test.ts`).
 describe("presenters who re-joined", () => {
-  it("are named by their current row, list and detail alike", async () => {
+  it("are named by their current row on the detail page", async () => {
     await invalidateCache("table_legacy-members");
     __putRawDoc("table", "legacy-members", {
       schemaVersion: 1,
@@ -330,6 +309,5 @@ describe("presenters who re-joined", () => {
     );
 
     expect((await getPublicSeminar("sem1"))?.presenters).toEqual(["김수학"]);
-    expect((await getPublicSeminars())[0]?.presenters).toEqual(["김수학"]);
   });
 });
