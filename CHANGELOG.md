@@ -2,6 +2,55 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-09-27] — `chore/code-audit-v2`
+
+> The first entry since the move from Notion to Supabase. Deploy order matters:
+> apply the two new migrations **before** deploying this code (docs/OPERATOR-TODO.md §2-2).
+
+### Changed
+
+- **Multi-document writes run in one transaction.** Seminar publish/cancel/reschedule/delete,
+  check-in, attendance decisions, event delete, application and request approvals, study
+  sessions, withdrawal (with its audit row) and record deletes are plpgsql functions
+  (`supabase/migrations/20260928000000_atomic_flows.sql`, docs/spec/ATOMIC-FLOWS.md). This
+  closes races the tests reproduced on the old code — among them a rejected applicant left as
+  a member, a withdrawn request that still got its seminar, duplicate study session numbers,
+  and a withdrawal without its audit record.
+- **Local data backend is PGlite**, an in-process Postgres running the same migrations, so
+  tests and `DATA_BACKEND=memory` execute the production SQL.
+- **Every form action validates with its domain schema** and answers per-field issues
+  (signup, seminar/study requests, account settings, study management, admin dashboard,
+  record editors, event forms, upload presign).
+- **Seminar requests**: the form starts with the requester as presenter; the request stores
+  its kind; a deleted cancelled seminar keeps its request, shown as 취소됨.
+- **Login** admits only verified addresses issued by the SNU Workspace (`hd=snu.ac.kr`).
+- **Announcements** go to this term's registered members and alumni only.
+- `publicationStatus` is stored explicitly on every seminar (migration
+  `20260928000100_seminar_publication_status.sql`); the schema default is gone.
+- Tooling: pnpm, Prettier over the whole repo (CI checks it), zod ^3.25.
+
+### Fixed
+
+- `?redirect=` after login stays on this site (dot-segment open redirect).
+- A member re-applying for the term reaches `/wait`.
+- The dashboard ledger and profile panel answer with what they render; a refused apply says why.
+- Deleting a cancelled seminar no longer resurfaces its activity; bare 010XXXXXXXX phones display hyphenated.
+- Guard refusals carry `no-store`; admin notices no longer show raw error codes; an unknown
+  study status answers 400 instead of 500.
+- Terms are derived by one KST rule everywhere (`$lib/domain/term`) — the page helper
+  mis-filed UTC instants near a term boundary.
+
+### Removed
+
+- The dev fixture data layer (about 4,300 lines) the backend loads superseded, the
+  frontend branch's unused page-data types, helpers the flows replaced, and study session
+  auto-generation.
+
+### Added
+
+- `scripts/measure`: an end-to-end measurement harness (isolated copy + memory backend,
+  scenarios, parallel races, real-backup crawl, a browser check over CDP).
+
 ## [2026-03-02]
 
 ### Added

@@ -9,18 +9,20 @@
 
 ## 상태 요약
 
-| #   | 작업                                                                 | 상태                                                                                                          | 막고 있는 것                             |
-| --- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| 1   | 공용 계정 준비 (콘솔 5종 공용화 + MFA + 자격증명 인벤토리)           | ⬜ 미완                                                                                                       | 이하 전부 — 알림 수신·소유권의 전제      |
-| 2   | Supabase 프로젝트 2개 생성 (prod/dev) + SQL 실행 + sb_secret 키 발급 | ✅ 완료 (CLI, 2026-08-30) — org 공용화(1절)만 잔여                                                            | 데이터 계층·자산·이주 전부               |
-| 3   | Vercel env 등록                                                      | 🟡 CLI로 10종 등록 완료 (2026-08-30) — `HEALTHCHECKS_PING_URL`(5절)·`GITHUB_BACKUP_TOKEN`(6절)만 발급 후 추가 | 런타임 동작 전부                         |
-| 4   | cron-job.org 잡 3개 등록 + 알림 설정                                 | ⬜ 미완 (3 선행)                                                                                              | 만료 처리·회차 생성·keep-alive·주간 백업 |
-| 5   | Healthchecks.io 체크 생성                                            | ⬜ 미완 (1·3 선행)                                                                                            | 크론 침묵 감지 (dead-man's switch)       |
-| 6   | 백업 repo (`snumps-backups`) + fine-grained PAT                      | 🟡 repo 생성 완료 (2026-08-30) — **PAT 발급·등록만 남음**                                                     | off-platform 백업 (B2)                   |
-| 7   | 🔴 pause 런북 숙지                                                   | 상시                                                                                                          | — (장애 시 대응 속도)                    |
-| 8   | 복구 절차 숙지                                                       | 상시                                                                                                          | —                                        |
-| 9   | 정기 수칙 (학기말·분기)                                              | 🔁 반복                                                                                                       | —                                        |
-| 10  | Gmail 발신 계정 확인                                                 | ⬜ 미완                                                                                                       | 전 회원 공지 메일 (M4)                   |
+| #   | 작업                                                                    | 상태                                                                                                          | 막고 있는 것                        |
+| --- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| 1   | 공용 계정 준비 (콘솔 5종 공용화 + MFA + 자격증명 인벤토리)              | ⬜ 미완                                                                                                       | 이하 전부 — 알림 수신·소유권의 전제 |
+| 2   | Supabase 프로젝트 2개 생성 (prod/dev) + SQL 실행 + sb_secret 키 발급    | ✅ 완료 (CLI, 2026-08-30) — org 공용화(1절)만 잔여                                                            | 데이터 계층·자산·이주 전부          |
+| 3   | Vercel env 등록                                                         | 🟡 CLI로 10종 등록 완료 (2026-08-30) — `HEALTHCHECKS_PING_URL`(5절)·`GITHUB_BACKUP_TOKEN`(6절)만 발급 후 추가 | 런타임 동작 전부                    |
+| 4   | cron-job.org 잡 3개 등록 + 알림 설정                                    | ⬜ 미완 (3 선행)                                                                                              | 만료 처리·keep-alive·주간 백업      |
+| 5   | Healthchecks.io 체크 생성                                               | ⬜ 미완 (1·3 선행)                                                                                            | 크론 침묵 감지 (dead-man's switch)  |
+| 6   | 백업 repo (`snumps-backups`) + fine-grained PAT                         | 🟡 repo 생성 완료 (2026-08-30) — **PAT 발급·등록만 남음**                                                     | off-platform 백업 (B2)              |
+| 7   | 🔴 pause 런북 숙지                                                      | 상시                                                                                                          | — (장애 시 대응 속도)               |
+| 8   | 복구 절차 숙지                                                          | 상시                                                                                                          | —                                   |
+| 9   | 정기 수칙 (학기말·분기)                                                 | 🔁 반복                                                                                                       | —                                   |
+| 10  | Gmail 발신 계정 확인                                                    | ⬜ 미완                                                                                                       | 전 회원 공지 메일 (M4)              |
+| 11  | 🔴 원자적 흐름 마이그레이션 적용 (dev → prod, **코드 배포 전**) — 2-2절 | ⬜ 미완 (dev 프로젝트 일시정지 중)                                                                            | `chore/code-audit-v2` 배포 전부     |
+| 12  | 배포 전 확인 3건 (프리뷰 배포) — 2-2절                                  | ⬜ 미완                                                                                                       | 운영 배포                           |
 
 ---
 
@@ -90,6 +92,46 @@
 - 데이터 이관 스크립트: `bash scripts/ops/ops-legacy-split.sh dev|prod` (멱등 —
   legacy-members 존재 시 아무것도 안 함). dev는 2026-08-30 실행 완료, **prod는 S9 코드
   배포와 동시에 실행할 것** (코드가 legacy 테이블을 기대한다).
+
+## 2-2. 🔴 원자적 흐름 마이그레이션 적용 — **코드 배포 전에** (2026-09-28 추가)
+
+**왜**: `chore/code-audit-v2`의 코드는 여러 문서를 함께 바꾸는 흐름(세미나 게시·취소·삭제, 출석 결정,
+가입·신청 승인, 탈퇴 등)을 Postgres 함수로 실행한다([ATOMIC-FLOWS.md](./spec/ATOMIC-FLOWS.md)). 함수가
+DB에 없으면 그 기능이 전부 500이 된다. 또 세미나 스키마가 `publicationStatus`를 필수로 바꿨으므로, 보정
+마이그레이션 없이 배포하면 **세미나 표 읽기 자체가 실패한다.** 두 파일 모두 확장만(expand-only)이라
+지금 운영 중인 코드와 함께 있어도 무해하다 — 그래서 **먼저 적용하고, 그다음 배포**한다.
+
+| 파일                                                                | 하는 일                                                               |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `supabase/migrations/20260928000000_atomic_flows.sql`               | 헬퍼·흐름 함수 16개, `service_role` 전용 권한                         |
+| `supabase/migrations/20260928000100_seminar_publication_status.sql` | `publicationStatus` 없는 세미나 행에 `"published"` 명시 (재실행 안전) |
+
+1. ⬜ **dev** — `snumps-dev`가 **일시정지(INACTIVE)** 상태다(2026-09-27 확인). 대시보드에서 Restore한 뒤:
+   ```bash
+   supabase link --project-ref gcahkryexewswzvtfltj -p "$(tr -d '\n' < .env.devdbpass)"
+   supabase db push -p "$(tr -d '\n' < .env.devdbpass)"
+   ```
+   dev에는 CLI 이력이 있으므로(2절, `db push`로 적용) 새 두 파일만 적용된다.
+2. ⬜ **dev 확인** (SQL Editor):
+   ```sql
+   select count(*) from pg_proc where proname like 'flow\_%';          -- 16
+   select count(*) from app_tables t, jsonb_array_elements(t.doc->'rows') r
+    where t.name = 'seminars' and not r ? 'publicationStatus';          -- 0
+   select has_function_privilege('anon', 'flow_publish_seminar(jsonb)', 'execute'); -- false
+   ```
+3. ⬜ **prod** — 배포 직전에 `bash scripts/ops/ops-push-prod.sh` (`.env.proddbpass` 필요, 스크립트가
+   끝나면 링크를 dev로 되돌린다). 2의 확인 쿼리를 prod에서 다시 실행.
+4. ⬜ 그다음 코드 배포. 되돌릴 때는 코드만 되돌리면 된다(옛 코드는 함수를 부르지 않는다).
+
+**배포 전 확인 3건 (프리뷰 배포에서)**
+
+- ⬜ **패키지 매니저**: 레포가 pnpm으로 바뀌었다(`pnpm-lock.yaml`, `packageManager` 필드). Vercel 프리뷰
+  빌드 로그에서 pnpm(corepack)으로 설치되는지 확인. npm으로 설치되면 프로젝트 설정의 Install Command를
+  `pnpm install --frozen-lockfile`로.
+- ⬜ **로그인 검사 강화**: 로그인이 이제 Google `email_verified`와 `hd=snu.ac.kr`까지 확인한다. 실제 SNU
+  계정으로 한 번 로그인해 통과하는지 확인(`hd`가 없는 계정이면 거부된다 — 결정 대기 항목).
+- ⬜ **세미나 흐름 스모크**: 프리뷰(dev DB)에서 세미나 신청 → 승인 → 일정 → 게시 → 취소, 체크인 → 출석 승인을
+  한 번씩. 함수 권한이 빠졌으면 여기서 500이 난다.
 
 ## 3. Vercel env 등록
 
@@ -187,7 +229,8 @@ node scripts/ops/ops-assets-private.mjs --apply   # 비공개로 전환 + 확인
 ## 4. cron-job.org 잡 3개 등록
 
 **왜**: Vercel Hobby는 크론이 일 1회뿐 — 주 스케줄러는 cron-job.org가 맡는다 (S1).
-잡 3개가 만료 처리·회차 생성·keep-alive(7일 무활동 pause 방지)·주간 백업을 전부 굴린다.
+잡 3개가 만료 처리·keep-alive(7일 무활동 pause 방지)·주간 백업을 전부 굴린다. (스터디 회차 자동 생성은
+2026-09-27 제거됐다 — 회차는 개설자가 직접 만든다.)
 
 스펙 §5-1 표 그대로 등록:
 
