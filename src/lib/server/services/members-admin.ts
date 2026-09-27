@@ -120,10 +120,23 @@ export async function updatePrivateInfo(
   patch: Partial<{ phone: string; background: string; email: string }>,
   actorId: string,
 ): Promise<void> {
+  // The email is the login key (resolveMember takes the first match): stored
+  // normalized, and never shared — a second row with the same address would
+  // hand one member's login to the other's record (audit LB25-1).
+  const email =
+    patch.email === undefined ? undefined : patch.email.trim().toLowerCase();
   await mutate("private-info", (rows) => {
     const idx = rows.findIndex((p) => p.memberId === targetMemberId);
     if (idx === -1) throw new AppError("NOT_FOUND");
-    rows[idx] = { ...rows[idx], ...definedOnly(patch) };
+    if (
+      email &&
+      rows.some((p, i) => i !== idx && p.email.trim().toLowerCase() === email)
+    ) {
+      throw new AppError("CONFLICT", {
+        userMessage: "다른 회원이 이미 쓰는 이메일입니다.",
+      });
+    }
+    rows[idx] = { ...rows[idx], ...definedOnly({ ...patch, email }) };
     return rows;
   });
   await audit({
