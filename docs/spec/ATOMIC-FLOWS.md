@@ -54,10 +54,20 @@ route action ─▶ service (TS)                       ─▶ callFlow(fn, args)
   나머지 감사(`member.set-*` 등)는 설계상 best-effort라 TS의 `audit()`에 둔다.
 - **단일 문서 흐름**은 `mutate`(CAS)로 둔다 — 이미 원자적이다(§7 "옮기지 않은 것").
 - **공용 SQL 헬퍼**: `app_rows`, `app_lock`, `app_put`, `app_find`, `app_without`, `app_replace`,
-  큐용 `app_queue_lock/rows/put/delete`, `app_nullable`, `app_audit`.
-- **TS 규칙의 SQL 미러**: `app_term_of`(학기), `app_may_derive_semester`, `app_seminar_status`,
-  `app_is_seminar_event`, `app_event_open`(체크인 가능). 미러는 `src/lib/server/data/flow-rules.test.ts`가
-  원본(`$lib/domain/term`, `effectiveStatus`)과 경계값에서 대조한다 — 한쪽만 바꾸면 테스트가 깨진다.
+  큐용 `app_queue_lock/rows/put/delete`, `app_nullable`, `app_audit`, `app_require`.
+- **인자 검사**: 모든 흐름이 첫 줄에서 `app_require(p, [...])`로 필수 인자를 확인한다(없음·null·빈 문자열 →
+  `VALIDATION_FAILED`). 가드는 값을 비교하는데 NULL과의 비교는 참이 되지 않아, 인자가 빠지면 가장 파괴적인
+  분기로 빠졌다(감사 LA43-2).
+- **TS 규칙의 SQL 미러**와 고정 방식 (감사 LA43-4가 이 목록의 과장을 지적해 바로잡음):
+
+  | SQL                       | TS 원본                           | 고정                                        |
+  | ------------------------- | --------------------------------- | ------------------------------------------- |
+  | `app_term_of`             | `$lib/domain/term` `termOf`       | 경계값에서 TS와 대조 (`flow-rules.test.ts`) |
+  | `app_event_open`          | `events.ts` `effectiveStatus`     | 경계값에서 TS와 대조 (`flow-rules.test.ts`) |
+  | `app_seminar_started`     | `seminars.ts` `seminarHasStarted` | TS와 대조 (`flow-contracts.test.ts`)        |
+  | `app_may_derive_semester` | (TS 쪽 사본 없음 — SQL만 씀)      | 고정 값표 (`flow-rules.test.ts`)            |
+  | `app_seminar_status`      | (이주 규칙 — 스키마 기본값 제거)  | 고정 값표 (`flow-contracts.test.ts`)        |
+  | `app_is_seminar_event`    | (TS에 단일 함수 없음)             | 고정 값표 (`flow-contracts.test.ts`)        |
 
 ## 3. 검증(zod)과 SQL 사이
 
@@ -67,7 +77,10 @@ SQL이 쓴 행은 TS의 쓰기 게이트(zod)를 거치지 않는다. 대신:
 2. 흐름 테스트는 매 케이스 뒤 `expectTablesValid()`(`src/lib/server/data/expect-tables-valid.ts`)로 **저장된
    문서 전체를 엄격하게 다시 디코드**한다 — 모르는 키 거부(`.strict()`), 그리고 **기본값에 기댄 행 거부**
    (파싱 결과의 키가 저장된 행에 없으면 실패). 스키마와 SQL이 어긋나면 테스트가 깨진다.
-3. 입력 값은 호출 전에 TS가 도메인 스키마로 검증한다.
+3. 입력 값은 호출 전에 TS가 도메인 스키마로 검증하고, **흐름이 그대로 저장할 값은 저장 스키마의 규칙으로 한 번
+   더** 확인한다(`updateSeminarSchedule`의 `SeminarScheduleSchema`, 회차 날짜의 `isKstInstant`). 흐름이 쓴 행은
+   커밋 뒤에야 파싱되므로, 스키마가 거부할 값이 들어가면 그 표 전체가 읽히지 않게 된다 — 감사 🔴
+   LA26-2·LA09-5가 재현한 경로다.
 
 ## 4. 백엔드
 
@@ -98,7 +111,7 @@ PGlite에는 Supabase의 `storage` 스키마가 없어서, 마이그레이션 �
 
 - 순서는 **마이그레이션 둘 적용 → 코드 배포**. 새 코드는 흐름 함수를 부르고, `SeminarSchema`에서
   `publicationStatus` 기본값을 뺐으므로 보정 전 행이 있으면 세미나 표 읽기가 실패한다.
-- 두 파일 모두 재실행 안전하다(`create or replace`, 보정은 키가 없는 행이 있을 때만 쓴다).
+- 두 파일 모두 재실행 안전하다(`create or replace`, 보정은 문자열 값이 없는 행이 있을 때만 쓴다).
 - 되돌리기: 코드만 되돌리면 된다(옛 코드는 함수를 부르지 않고, 명시된 `publicationStatus`는 옛 기본값과 같다).
 - 축소(contract) 단계(예: `studies.schedule` 필드 제거)는 새 코드 배포 뒤 별도 마이그레이션으로.
 
@@ -129,9 +142,11 @@ PGlite에는 Supabase의 `storage` 스키마가 없어서, 마이그레이션 �
 
 **알려진 한계** (의도적으로 남김):
 
-- 기록 편집기(세미나·갤러리)와 `/admin/events/connect`가 `activityId`를 설정할 때 활동 존재를
-  `flow_delete_activity`의 잠금 아래서 다시 확인하지 않는다 — 관리자 ↔ 관리자 동시 조작에서만 생기는
-  끊긴 참조이고, 읽는 쪽은 없는 활동을 `NOT_FOUND`로 다룬다.
+- 활동을 가리키는 `activityId`는 세 곳에서 쓰이는데 존재 확인이 고르지 않다. `/admin/events/connect`는
+  캐시로 한 번 확인한다(그래도 `flow_delete_activity`의 잠금 밖이다). **갤러리 기록 편집기와
+  `records-admin`의 세미나 갱신은 아예 확인하지 않는다** — 동시 조작 없이도 없는 활동을 가리킬 수 있다
+  (감사 LB28-6; 초판은 이것을 "동시 조작에서만"이라고 잘못 적었다). 읽는 쪽은 없는 활동을 `NOT_FOUND`로
+  다룬다. 남은 과제로 둔다.
 - `createEventWithActivity`는 활동과 이벤트를 두 번에 쓴다 — 중간 실패는 이벤트 없는 활동을 남길 뿐이다.
 - `tables.ts`의 버전 캐시는 인스턴스 로컬이다. 흐름이 지운 큐 문서가 다른 인스턴스에서 버전 1로
   다시 만들어지면 낡은 캐시와 버전 번호가 겹칠 수 있다(이벤트 id가 유일하므로 이론상의 경우).

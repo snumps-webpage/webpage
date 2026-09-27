@@ -170,9 +170,34 @@ $$;
 -- for migrated rows without an anchor — hanging off its activity.
 create or replace function app_is_seminar_event(p_event jsonb, p_sem jsonb)
 returns boolean language sql immutable as $$
-  select p_event ->> 'sourceRequestId' = 'seminar:' || (p_sem ->> 'id')
-      or (p_sem ->> 'activityId' is not null
-          and p_event ->> 'activityId' = p_sem ->> 'activityId')
+  -- coalesce: a NULL (missing anchor or activity) is "no", not "unknown"
+  select coalesce(p_event ->> 'sourceRequestId' = 'seminar:' || (p_sem ->> 'id'), false)
+      or coalesce(p_event ->> 'activityId' = p_sem ->> 'activityId', false)
+$$;
+
+-- Refuse a call that lacks an argument: every guard below compares values,
+-- and a comparison with NULL is never true — so a missing argument slipped
+-- past `not in (...)` / `is distinct from` checks into the most destructive
+-- branch (audit LA43-2). A missing key, JSON null and "" all count as missing.
+create or replace function app_require(p jsonb, p_keys text[]) returns void
+language plpgsql immutable as $$
+declare k text;
+begin
+  foreach k in array p_keys loop
+    if coalesce(p ->> k, '') = '' then
+      raise exception 'VALIDATION_FAILED' using detail = 'missing-' || k;
+    end if;
+  end loop;
+end $$;
+
+-- Has the seminar started? Mirror of seminars.ts seminarHasStarted — the
+-- schedule's start, or for a row without one "published means already held"
+-- (pinned by flow-contracts.test.ts).
+create or replace function app_seminar_started(p_sem jsonb, p_now timestamptz)
+returns boolean language sql stable as $$
+  select case when app_nullable(p_sem -> 'schedule') is not null
+              then (p_sem -> 'schedule' ->> 'startsAt')::timestamptz <= p_now
+              else app_seminar_status(p_sem) = 'published' end
 $$;
 
 -- ---------------------------------------------------------------------------
@@ -205,6 +230,7 @@ declare
   v_assets   jsonb;
   v_touched  text[] := array['seminars'];
 begin
+  perform app_require(p, array['id']);
   perform app_lock(array['activities', 'events', 'gallery-dinner',
                          'seminar-requests', 'seminars']);
   v_seminars := app_rows('seminars');
@@ -305,6 +331,7 @@ declare
   v_claimed  boolean := false;
   v_touched  text[] := array['seminars'];
 begin
+  perform app_require(p, array['id', 'now', 'activityId', 'eventId', 'pathId', 'attendCode']);
   perform app_lock(array['activities', 'events', 'seminars']);
   v_seminars := app_rows('seminars');
   v_sem := app_find(v_seminars, v_id);
@@ -326,9 +353,15 @@ begin
     'start', v_sched -> 'startsAt',
     'end', coalesce(v_sched -> 'endsAt', 'null'::jsonb));
 
+  -- The seminar's own link wins: migrated seminars are published with an
+  -- activityId and no anchor, and looking up by anchor alone created a second
+  -- activity and event on every "공지 재발송" (audit LA43-1).
   v_acts := app_rows('activities');
-  select a into v_act from jsonb_array_elements(v_acts) a
-   where a ->> 'sourceRequestId' = v_anchor limit 1;
+  v_act := app_find(v_acts, v_sem ->> 'activityId');
+  if v_act is null then
+    select a into v_act from jsonb_array_elements(v_acts) a
+     where a ->> 'sourceRequestId' = v_anchor limit 1;
+  end if;
   if v_act is null then
     -- presenters are participants of their own seminar
     v_act := jsonb_build_object(
@@ -345,6 +378,12 @@ begin
   v_events := app_rows('events');
   select e into v_event from jsonb_array_elements(v_events) e
    where e ->> 'sourceRequestId' = v_anchor limit 1;
+  if v_event is null then
+    -- a migrated seminar's attendance event hangs off its activity
+    select e into v_event from jsonb_array_elements(v_events) e
+     where e ->> 'activityId' = v_act ->> 'id' and app_nullable(e -> 'studyId') is null
+     limit 1;
+  end if;
   if v_event is null then
     v_event := jsonb_build_object(
       'id', p ->> 'eventId',
@@ -399,6 +438,8 @@ declare
   v_date     jsonb;
   v_touched  text[] := array['seminars'];
 begin
+  perform app_require(p, array['id', 'schedule']);
+  perform app_require(p -> 'schedule', array['startsAt', 'location']);
   perform app_lock(array['activities', 'events', 'seminars']);
   v_seminars := app_rows('seminars');
   v_sem := app_find(v_seminars, v_id);
@@ -468,15 +509,15 @@ declare
   v_next      jsonb;
   v_touched   text[] := '{}';
 begin
+  perform app_require(p, array['id', 'now', 'isAdmin']);
+  if not v_is_admin then perform app_require(p, array['memberId']); end if;
   perform app_lock(array['events', 'seminars']);
   v_seminars := app_rows('seminars');
   v_sem := app_find(v_seminars, v_id);
   if v_sem is null then raise exception 'NOT_FOUND'; end if;
   v_status := app_seminar_status(v_sem);
   v_sched := app_nullable(v_sem -> 'schedule');
-  v_started := case when v_sched is not null
-                    then (v_sched ->> 'startsAt')::timestamptz <= (p ->> 'now')::timestamptz
-                    else v_status = 'published' end;
+  v_started := app_seminar_started(v_sem, (p ->> 'now')::timestamptz);
 
   if not v_is_admin then
     if not (coalesce(v_sem -> 'presenterIds', '[]'::jsonb) ? (p ->> 'memberId'))
@@ -529,6 +570,7 @@ declare
   v_rows     jsonb;
   v_record   jsonb;
 begin
+  perform app_require(p, array['eventId', 'memberId', 'id', 'now']);
   perform 1 from app_tables where name = 'events' for share;
   v_event := app_find(app_rows('events'), v_event_id);
   if v_event is null then raise exception 'NOT_FOUND'; end if;
@@ -570,6 +612,7 @@ declare
   v_event_id text := p ->> 'eventId';
   v_queue_id text := p ->> 'queueId';
   v_decision text := p ->> 'decision';
+  v_siblings text[] := '{}';
   v_rows     jsonb;
   v_row      jsonb;
   v_member   text;
@@ -578,16 +621,21 @@ declare
   v_act      jsonb;
   v_touched  text[] := '{}';
 begin
+  perform app_require(p, array['eventId', 'queueId', 'decision']);
   if v_decision not in ('approve', 'reject', 'delete') then
     raise exception 'VALIDATION_FAILED';
   end if;
   perform app_lock(array['activities', 'events']);
-  perform app_queue_lock(array[v_event_id]);
+  v_event := app_find(app_rows('events'), v_event_id);
+  -- every session of the same activity: their queues can justify the credit
+  select coalesce(array_agg(e ->> 'id'), '{}') into v_siblings
+    from jsonb_array_elements(app_rows('events')) e
+   where v_event is not null and e ->> 'activityId' = v_event ->> 'activityId';
+  perform app_queue_lock(array(select distinct x from unnest(v_siblings || v_event_id) as x));
   v_rows := app_queue_rows(v_event_id);
   v_row := app_find(v_rows, v_queue_id);
   if v_row is null then raise exception 'NOT_FOUND'; end if;
   v_member := v_row ->> 'memberId';
-  v_event := app_find(app_rows('events'), v_event_id);
   v_acts := app_rows('activities');
 
   if v_decision = 'approve' then
@@ -602,7 +650,22 @@ begin
     perform app_queue_put(v_event_id, app_replace(v_rows, v_queue_id,
       v_row || jsonb_build_object('status', 'approved')));
   else
-    if v_row ->> 'status' = 'approved' and v_event is not null then
+    -- Take the credit back only if nothing else justifies it: another
+    -- approved check-in on the same activity, or presenting one of its
+    -- sessions (presenters are credited automatically at publication).
+    -- Removing it unconditionally dropped credit those still justified
+    -- (audit LA43-3).
+    if v_row ->> 'status' = 'approved' and v_event is not null
+       and not exists (
+         select 1 from unnest(v_siblings) as sid,
+                       jsonb_array_elements(app_queue_rows(sid)) q
+          where q ->> 'memberId' = v_member and q ->> 'status' = 'approved'
+            and not (sid = v_event_id and q ->> 'id' = v_queue_id))
+       and not exists (
+         select 1 from jsonb_array_elements(app_rows('events')) e
+          where e ->> 'id' = any (v_siblings)
+            and coalesce(e -> 'presenterIds', '[]'::jsonb) ? v_member)
+    then
       v_act := app_find(v_acts, v_event ->> 'activityId');
       if v_act is not null and v_act -> 'attendeeIds' ? v_member then
         perform app_put('activities', app_replace(v_acts, v_act ->> 'id',
@@ -633,6 +696,7 @@ declare
   v_id     text := p ->> 'id';
   v_events jsonb;
 begin
+  perform app_require(p, array['id']);
   perform app_lock(array['events']);
   perform app_queue_lock(array[v_id]);
   if exists (select 1 from jsonb_array_elements(app_queue_rows(v_id)) q
@@ -677,6 +741,7 @@ declare
   v_regs      jsonb;
   v_touched   text[] := array['applications'];
 begin
+  perform app_require(p, array['id', 'now', 'today', 'term', 'memberId', 'privateInfoId', 'registrationId']);
   perform app_lock(array['applications', 'members', 'private-info', 'registrations']);
   v_apps := app_rows('applications');
   v_app := app_find(v_apps, v_id);
@@ -804,6 +869,7 @@ declare
   v_seminars jsonb;
   v_touched  text[] := array['seminar-requests'];
 begin
+  perform app_require(p, array['id', 'seminarId', 'term']);
   perform app_lock(array['seminar-requests', 'seminars']);
   v_requests := app_rows('seminar-requests');
   v_req := app_find(v_requests, v_id);
@@ -853,6 +919,7 @@ declare
   v_studies  jsonb;
   v_touched  text[] := array['study-requests'];
 begin
+  perform app_require(p, array['id', 'studyId']);
   perform app_lock(array['studies', 'study-requests']);
   v_requests := app_rows('study-requests');
   v_req := app_find(v_requests, v_id);
@@ -907,6 +974,7 @@ declare
   v_title    text;
   v_touched  text[] := '{}';
 begin
+  perform app_require(p, array['studyId', 'date', 'activityId', 'eventId', 'pathId', 'attendCode']);
   perform app_lock(array['activities', 'events', 'studies']);
   v_study := app_find(app_rows('studies'), v_study_id);
   if v_study is null then raise exception 'NOT_FOUND'; end if;
@@ -979,6 +1047,7 @@ declare
   v_date   jsonb := case when coalesce(p ->> 'date', '') = '' then null
                          else jsonb_build_object('start', p ->> 'date', 'end', null) end;
 begin
+  perform app_require(p, array['studyId', 'eventId']);
   perform app_lock(array['activities', 'events']);
   v_events := app_rows('events');
   select e into v_event from jsonb_array_elements(v_events) e
@@ -1025,6 +1094,7 @@ declare
   v_members jsonb;
   v_m       jsonb;
 begin
+  perform app_require(p, array['memberId', 'now', 'auditId', 'auditAt']);
   perform app_lock(array['members']);
   perform 1 from app_tables where name = 'studies' for share;
   v_members := app_rows('members');
@@ -1068,6 +1138,7 @@ declare
   v_w       jsonb;
   v_next    jsonb;
 begin
+  perform app_require(p, array['memberId', 'op', 'actorId', 'now', 'auditId', 'auditAt']);
   if v_op not in ('cancel', 'hold', 'release') then raise exception 'VALIDATION_FAILED'; end if;
   perform app_lock(array['members']);
   v_members := app_rows('members');
@@ -1113,6 +1184,7 @@ declare
   v_id   text := p ->> 'id';
   v_acts jsonb;
 begin
+  perform app_require(p, array['id']);
   perform app_lock(array['activities', 'events', 'gallery-dinner', 'seminars']);
   if exists (select 1 from jsonb_array_elements(app_rows('events')) e where e ->> 'activityId' = v_id)
      or exists (select 1 from jsonb_array_elements(app_rows('gallery-dinner')) g where g ->> 'activityId' = v_id)
@@ -1136,6 +1208,7 @@ declare
   v_studies jsonb;
   v_study   jsonb;
 begin
+  perform app_require(p, array['id']);
   perform app_lock(array['events', 'studies']);
   if exists (select 1 from jsonb_array_elements(app_rows('events')) e where e ->> 'studyId' = v_id) then
     raise exception 'CONFLICT';
