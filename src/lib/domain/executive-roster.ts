@@ -33,8 +33,9 @@ export function toExecutiveRoster(
       .split("·")
       .map((p) => p.trim())
       .filter(Boolean);
-    const email = parts.find((p) => p.includes("@")) ?? "";
-    const phone = parts.find((p) => !p.includes("@")) ?? "";
+    // null, not "": the components link only what is there (audit LC08-1)
+    const email = parts.find((p) => p.includes("@")) ?? null;
+    const phone = parts.find((p) => !p.includes("@")) ?? null;
     return {
       id: `${latest.term}-${title}`,
       name: holder.name,

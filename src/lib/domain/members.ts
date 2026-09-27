@@ -70,8 +70,9 @@ export interface PublicExecutive {
   id: string;
   name: string;
   title: "회장" | "부회장";
-  phone: string;
-  email: string;
+  /** null when not public */
+  phone: string | null;
+  email: string | null;
 }
 
 export interface PublicExecutiveRoster {

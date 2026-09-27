@@ -40,13 +40,17 @@
           {executive?.name ?? "공석"}<sup>{marker}</sup>
         </p>
         <p class="author-role">{title}</p>
-        {#if executive}
-          <p class="author-contact">
-            <a href={phoneHref(executive.phone)}>{executive.phone}</a>
-          </p>
-          <p class="author-contact">
-            <a href={`mailto:${executive.email}`}>{executive.email}</a>
-          </p>
+        {#if executive?.phone || executive?.email}
+          {#if executive.phone}
+            <p class="author-contact">
+              <a href={phoneHref(executive.phone)}>{executive.phone}</a>
+            </p>
+          {/if}
+          {#if executive.email}
+            <p class="author-contact">
+              <a href={`mailto:${executive.email}`}>{executive.email}</a>
+            </p>
+          {/if}
         {:else}
           <p class="author-contact muted">공개 연락처 미등록</p>
         {/if}
@@ -62,8 +66,10 @@
       <span class="executive-contact">
         <span class="no-sel">{title}:</span>
         <span>{executive?.name ?? "공석"}</span>
-        {#if executive}
+        {#if executive?.phone}
           <a href={phoneHref(executive.phone)}>{executive.phone}</a>
+        {/if}
+        {#if executive?.email}
           <a href={`mailto:${executive.email}`}>{executive.email}</a>
         {/if}
       </span>

@@ -1,5 +1,8 @@
 import { env } from "$env/dynamic/private";
-import { getMemberDirectory } from "$lib/server/data/directory";
+import {
+  getDirectoryIndex,
+  getMemberDirectory,
+} from "$lib/server/data/directory";
 import { getTable } from "$lib/server/data/tables";
 import { withoutHiddenActivities } from "$lib/server/services/visibility";
 import { currentTerm } from "$lib/server/core/semester";
@@ -44,9 +47,15 @@ export function assetUrl(s3Key: string): string {
   return `${cdn.replace(/\/$/, "")}/${s3Key}`;
 }
 
+/**
+ * id → name, legacy ids included. Migrated records name people by their
+ * legacy id; the de-duplicated roster drops that row once its person re-joins,
+ * so it cannot resolve them — the index maps the legacy id to the new row
+ * (audit LB16-4).
+ */
 async function memberNameMap(): Promise<Map<string, string>> {
-  const members = await getMemberDirectory();
-  return new Map(members.map((m) => [m.id, m.name]));
+  const index = await getDirectoryIndex();
+  return new Map([...index].map(([id, m]) => [id, m.name]));
 }
 
 /** PUB-15: the public roster — D2 fields, withdrawn members excluded. */

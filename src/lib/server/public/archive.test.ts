@@ -7,7 +7,7 @@ vi.mock(
   () => import("$lib/server/data/store-memory"),
 );
 
-import { __reset } from "$lib/server/data/store-memory";
+import { __putRawDoc, __reset } from "$lib/server/data/store-memory";
 import { _resetDataLayerForTests, mutate } from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { newId } from "$lib/server/core/id";
@@ -289,5 +289,47 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
     );
 
     delete testEnv.ASSETS_ACCESS;
+  });
+});
+
+// Migrated seminars name presenters by their legacy id. The name map was
+// built from the de-duplicated roster, which drops a legacy row once its
+// person re-joins — so a returning member's seminar showed "Unknown" on the
+// detail page while the archive list, resolving through the directory index,
+// showed the name (audit LB16-4).
+describe("presenters who re-joined", () => {
+  it("are named by their current row, list and detail alike", async () => {
+    await invalidateCache("table_legacy-members");
+    __putRawDoc("table", "legacy-members", {
+      schemaVersion: 1,
+      rows: [
+        {
+          id: "L1",
+          name: "옛이름",
+          department: "수리과학부",
+          joinedAt: "2019-03-01",
+          status: "regular",
+          statusChangedAt: nowKstIso(),
+          withdrawal: null,
+          isAlumni: true,
+          alumniRevoked: false,
+          roles: [],
+          isAdmin: false,
+          publicContact: null,
+          project: null,
+          legacyMemberId: null,
+          sourceRequestId: null,
+        },
+      ],
+    });
+    await mutate("members", (rows) =>
+      rows.map((m) => (m.id === "m1" ? { ...m, legacyMemberId: "L1" } : m)),
+    );
+    await mutate("seminars", (rows) =>
+      rows.map((s) => ({ ...s, presenterIds: ["L1"] })),
+    );
+
+    expect((await getPublicSeminar("sem1"))?.presenters).toEqual(["김수학"]);
+    expect((await getPublicSeminars())[0]?.presenters).toEqual(["김수학"]);
   });
 });
