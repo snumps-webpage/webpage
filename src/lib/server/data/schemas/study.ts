@@ -19,7 +19,10 @@ export const StudySchema = z.object({
   pendingTransfer: z
     .object({ toMemberId: Id, requestedAt: DateTime })
     .nullable(),
-  // STU-06 pre-registered schedule; the cron fills generatedEventId (events first, schedule second).
+  // DEPRECATED — schedule-driven session generation was removed (decision
+  // 2026-09-27; sessions are created by hand). Kept only so stored documents
+  // still validate: nothing reads it, new rows write []. Drop it in a data
+  // migration.
   schedule: z.array(
     z.object({ date: DateTime, generatedEventId: Id.nullable() }),
   ),

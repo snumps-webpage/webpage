@@ -25,8 +25,9 @@ export const load: PageServerLoad = async ({ locals }) => {
   await ensureAdmin(locals, { silent: true });
   // members(=memberPickers)는 조직자 지정용 운영 명단, summaries는 표시용
   // 통합 디렉터리 — 이주된 스터디의 organizerIds는 legacy id다.
-  const [studies, members, requests, summaries] = await Promise.all([
+  const [studies, events, members, requests, summaries] = await Promise.all([
     getTable("studies"),
+    getTable("events"),
     memberPickers(),
     getTable("study-requests"),
     directorySummaryIndex(),
@@ -53,7 +54,8 @@ export const load: PageServerLoad = async ({ locals }) => {
         changedAt: t.at,
         byAdmin: t.byAdmin,
       })),
-      sessionCount: s.schedule.length,
+      // gates the delete button — deleteStudy refuses while sessions exist
+      sessionCount: events.filter((e) => e.studyId === s.id).length,
       files: s.photos.map((key) => contentFileFromKey(key, "image")),
     })),
     members,

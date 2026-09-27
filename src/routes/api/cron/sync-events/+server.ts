@@ -1,13 +1,9 @@
 import { json } from "@sveltejs/kit";
 import { requireCronAuth } from "$lib/server/core/http";
 import { cronFailures } from "$lib/server/services/cron-status";
-import { registerCronStep, runCron } from "$lib/server/services/events";
+import { runCron } from "$lib/server/services/events";
 import { pingHeartbeat } from "$lib/server/services/maintenance";
-import { studySessionCronStep } from "$lib/server/services/studies";
 import type { RequestHandler } from "./$types";
-
-// BE-49: session auto-generation joins the cron here, not inside BE-35 code.
-registerCronStep(studySessionCronStep);
 
 export const GET: RequestHandler = async ({ request }) => {
   const denied = requireCronAuth(request);

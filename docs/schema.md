@@ -99,7 +99,7 @@ requesterId, status(pending|approved|rejected|withdrawn), createdAt`.
 ### `studies`
 
 `organizerIds[]`(현재 불변식: 1명), `participantIds[]`, `pendingParticipantIds[]`, `pendingTransfer`,
-`transferHistory[]`, `schedule[]`(명세상 폐기, 크론이 아직 읽는다), `photos[]`,
+`transferHistory[]`, `schedule[]`(폐기 — 기존 문서 검증용으로만 남음, 아무도 읽지 않음), `photos[]`,
 `status(recruiting|ongoing|finished)`.
 
 ## 기타

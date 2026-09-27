@@ -96,11 +96,11 @@ src/
 
 ## ⏱️ Scheduled Jobs
 
-| 엔드포인트              | 트리거                                   | 하는 일                                                                                                                                                                        |
-| ----------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `/api/cron/sync-events` | cron-job.org(매시) + Vercel 일 1회(백업) | `expire` — 만료 이벤트 정리 (판정 자체는 읽을 때 `effectiveStatus`로). `generate-study-sessions` — 스터디 `schedule[]`로 회차 생성 (명세는 폐기로 결정했으나 코드에 남아 있다) |
-| `/api/cron/maintenance` | cron-job.org 매일 04:00 KST              | keep-alive, 오래된 staging 삭제, 일요일 백업(버킷 + GitHub)                                                                                                                    |
-| `/api/health`           | cron-job.org 매일 09:00 KST              | Bearer 인증 + DB SELECT                                                                                                                                                        |
+| 엔드포인트              | 트리거                                   | 하는 일                                                                                                                   |
+| ----------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `/api/cron/sync-events` | cron-job.org(매시) + Vercel 일 1회(백업) | `expire` — 만료 이벤트 정리 (판정 자체는 읽을 때 `effectiveStatus`로). 스터디 회차는 주최자가 직접 만든다(자동 생성 없음) |
+| `/api/cron/maintenance` | cron-job.org 매일 04:00 KST              | keep-alive, 오래된 staging 삭제, 일요일 백업(버킷 + GitHub)                                                               |
+| `/api/health`           | cron-job.org 매일 09:00 KST              | Bearer 인증 + DB SELECT                                                                                                   |
 
 모든 단계가 성공했을 때만 200과 Healthchecks 핑을 보낸다. 실패는 500.
 

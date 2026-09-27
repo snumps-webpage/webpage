@@ -175,8 +175,7 @@ export const load: LayoutServerLoad = async () => {
           id: `study-${s.id}-${index}`,
           title: s.title,
           category: "study" as const,
-          date:
-            dateOnly(s.schedule[0]?.date) ?? termStartDateOrNull(s.semester),
+          date: termStartDateOrNull(s.semester),
           thumbnailUrl: thumbUrl(assetUrl(key), 640),
           displayUrl: assetUrl(key),
           alt: `${s.title} 활동 사진`,
