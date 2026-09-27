@@ -108,10 +108,11 @@ PGlite에는 Supabase의 `storage` 스키마가 없어서, 마이그레이션 �
 | `20260901000000_documents.sql` (기존)           | 표·큐·감사 로그. 수정하지 않는다                                                 |
 | `20260928000000_atomic_flows.sql`               | 헬퍼 + 흐름 18개(쓰기 17 + 백업 스냅숏) + 권한. 확장만 — 옛 코드는 부르지 않는다 |
 | `20260928000100_seminar_publication_status.sql` | `publicationStatus`가 없는 세미나 행에 `"published"`를 명시                      |
+| `20260928000200_assets_bucket_private.sql`      | `assets` 버킷을 비공개로(C-22). 흐름과 무관 — 배포 순서는 OPERATOR-TODO §2-2     |
 
-- 순서는 **마이그레이션 둘 적용 → 코드 배포**. 새 코드는 흐름 함수를 부르고, `SeminarSchema`에서
+- 순서는 **흐름·보정 마이그레이션 적용 → 코드 배포**. 새 코드는 흐름 함수를 부르고, `SeminarSchema`에서
   `publicationStatus` 기본값을 뺐으므로 보정 전 행이 있으면 세미나 표 읽기가 실패한다.
-- 두 파일 모두 재실행 안전하다(`create or replace`, 보정은 문자열 값이 없는 행이 있을 때만 쓴다).
+- 세 파일 모두 재실행 안전하다(`create or replace`, 보정은 문자열 값이 없는 행이 있을 때만 쓴다).
 - 되돌리기: 코드만 되돌리면 된다(옛 코드는 함수를 부르지 않고, 명시된 `publicationStatus`는 옛 기본값과 같다).
 - 축소(contract) 단계(예: `studies.schedule` 필드 제거)는 새 코드 배포 뒤 별도 마이그레이션으로.
 
