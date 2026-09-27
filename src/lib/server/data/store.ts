@@ -114,16 +114,6 @@ export async function listQueueIds(): Promise<string[]> {
   return (data ?? []).map((r: { event_id: string }) => r.event_id);
 }
 
-export async function deleteQueueDoc(eventId: string): Promise<void> {
-  if (isMemoryBackend()) return memory.deleteQueueDoc(eventId);
-  const { error } = await getSupabase()
-    .from("app_queues")
-    .delete()
-    .eq("event_id", eventId);
-  if (error)
-    throw new Error(`deleteQueueDoc(${eventId}) failed: ${error.message}`);
-}
-
 /**
  * Calls a multi-document flow function `flow_*(p jsonb) returns jsonb`
  * (docs/spec/ATOMIC-FLOWS.md). A RAISEd app error code arrives as the error

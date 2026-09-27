@@ -187,8 +187,6 @@ describe("publishSeminar — 공개", () => {
     );
   });
 
-  // 초판 테스트는 두 번째 호출을 그냥 이어 불렀는데, 그건 진입 검사에서 튕겨
-  // ensureCreated에 닿지도 않았다 — 멱등을 하나도 검증하지 못하는 공허한 단언이었다.
   it("공개 공지에는 확정된 일시와 장소가 실린다", async () => {
     await approveSeminar((await pendingRequest()).id);
     const [seminar] = await getTable("seminars");

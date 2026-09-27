@@ -193,10 +193,3 @@ export function __setCreatedAt(
   const obj = objects.get(keyOf(bucket, path));
   if (obj) obj.createdAt = iso;
 }
-
-export function __list(bucket: string): string[] {
-  const prefix = `${bucket}/`;
-  return [...objects.keys()]
-    .filter((k) => k.startsWith(prefix))
-    .map((k) => k.slice(prefix.length));
-}

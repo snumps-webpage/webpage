@@ -63,18 +63,6 @@ export async function hasPresenterEvents(memberId: string): Promise<boolean> {
   return events.some((e) => presentsEvent(e, memberId));
 }
 
-export async function getEventByPath(
-  pathId: string,
-  attendCode: string,
-): Promise<Event | null> {
-  // 회원이 링크로 도달하는 경로 — 취소된 세미나는 여기서도 없는 것이다.
-  const events = await getMemberVisibleEvents();
-  return (
-    events.find((e) => e.pathId === pathId && e.attendCode === attendCode) ??
-    null
-  );
-}
-
 // ---- creation ---------------------------------------------------------------
 
 export async function createEventWithActivity(input: {
@@ -386,10 +374,6 @@ const cronSteps: CronStep[] = [
     },
   },
 ];
-
-export function registerCronStep(step: CronStep): void {
-  if (!cronSteps.some((s) => s.name === step.name)) cronSteps.push(step);
-}
 
 export async function runCron(): Promise<Record<string, number>> {
   const results: Record<string, number> = {};

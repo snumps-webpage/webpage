@@ -139,11 +139,6 @@ export async function listQueueIds(): Promise<string[]> {
   return rows.map((r) => r.event_id);
 }
 
-export async function deleteQueueDoc(eventId: string): Promise<void> {
-  const pg = await ready();
-  await pg.query(`delete from app_queues where event_id = $1`, [eventId]);
-}
-
 export async function insertAuditRow(row: AuditRow): Promise<void> {
   const pg = await ready();
   await pg.query(

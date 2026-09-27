@@ -15,7 +15,6 @@ import {
   readVersion,
   writeDocIf,
   listQueueIds,
-  deleteQueueDoc,
   type DocKind,
 } from "./store";
 
@@ -215,13 +214,6 @@ export async function mutateQueue(
     QUEUE_ATTEMPTS,
     queueCacheKey(eventId),
   );
-}
-
-/** deleteEvent only — refuse elsewhere. */
-export async function deleteQueue(eventId: string): Promise<void> {
-  await deleteQueueDoc(eventId);
-  versionCache.delete(versionCacheKey("queue", queueKey(eventId)));
-  await invalidateCache(queueCacheKey(eventId));
 }
 
 export async function listQueues(): Promise<

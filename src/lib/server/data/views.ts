@@ -1,9 +1,4 @@
-import type {
-  Application,
-  Event,
-  SeminarRequest,
-  StudyRequest,
-} from "./schemas";
+import type { Application, SeminarRequest, StudyRequest } from "./schemas";
 
 /**
  * Client-facing projections (IMPLEMENTATION-SPEC 부록 3: never return raw
@@ -51,19 +46,5 @@ export function applicationView(a: Application) {
     background: a.background,
     accepted: false, // the table holds only unprocessed rows
     submittedAt: a.createdAt,
-  };
-}
-
-export function adminEventView(e: Event, status: Event["status"]) {
-  return {
-    id: e.id,
-    title: e.title,
-    date: e.date.start,
-    type: e.type,
-    status,
-    pathId: e.pathId,
-    attendCode: e.attendCode,
-    notionPageId: e.activityId, // legacy UI name
-    applicantCount: e.applicantIds.length,
   };
 }
