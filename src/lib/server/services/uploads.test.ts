@@ -174,10 +174,79 @@ describe("promotion — the real enforcement point (review §8-2)", () => {
 
 describe("slugifyFilename", () => {
   it("keeps hangul, lowercases, and defaults sensibly", () => {
-    expect(slugifyFilename("발표 자료 v2.PDF")).toEqual({
-      slug: "발표-자료-v2",
-      ext: "pdf",
+    expect(slugifyFilename("발표 자료 v2.PDF")).toBe("발표-자료-v2");
+    expect(slugifyFilename("...")).toBe("file");
+  });
+});
+
+// RIFF is a container: WAV and AVI start with the same four bytes, so the
+// "RIFF" check alone promoted any of them as image/webp (audit LB32-3).
+describe("WebP signature", () => {
+  const stageAs = async (head: number[]) => {
+    const { s3Key } = await createPresignedUpload({
+      purpose: "gallery-photo",
+      filename: "p.webp",
+      contentType: "image/webp",
+      size: 500,
     });
-    expect(slugifyFilename("...")).toEqual({ slug: "file", ext: "bin" });
+    __stage(s3Key, 500, "image/webp", undefined, new Uint8Array(head));
+    return s3Key;
+  };
+  const riff = [0x52, 0x49, 0x46, 0x46, 0x10, 0x00, 0x00, 0x00];
+
+  it("refuses a RIFF file that is not WebP", async () => {
+    const wave = await stageAs([...riff, 0x57, 0x41, 0x56, 0x45]);
+    await expect(
+      promotePendingUpload(wave, "gallery-photo", "rec"),
+    ).rejects.toSatisfy(
+      (e) => e instanceof AppError && e.code === "VALIDATION_FAILED",
+    );
+  });
+
+  it("accepts a real WebP", async () => {
+    const webp = await stageAs([...riff, 0x57, 0x45, 0x42, 0x50]);
+    const finalKey = await promotePendingUpload(webp, "gallery-photo", "rec");
+    expect(finalKey).toMatch(/\.webp$/);
+  });
+});
+
+// The extension was the client's, unsanitised: "?", "#", spaces and "/"
+// reached the stored key and broke its /media URL, and nothing compared it
+// with the checked type (audit LB32-4). It now follows the checked type.
+describe("storage key extension", () => {
+  const presign = (filename: string, contentType: string) =>
+    createPresignedUpload({
+      purpose:
+        contentType === "application/pdf"
+          ? "seminar-material"
+          : "seminar-photo",
+      filename,
+      contentType,
+      size: 500,
+    });
+
+  it("comes from the content type, not the filename", async () => {
+    expect((await presign("report.p d f?#", "application/pdf")).s3Key).toMatch(
+      /^pending\/seminar-material\/[0-9A-Z]+-report\.pdf$/,
+    );
+    expect((await presign("사진.JPEG", "image/jpeg")).s3Key).toMatch(
+      /-사진\.jpg$/,
+    );
+    expect((await presign("a.x/../../p", "image/png")).s3Key).toMatch(
+      /^pending\/seminar-photo\/[0-9A-Z]+-[a-z0-9-]+\.png$/, // no "/" left
+    );
+  });
+
+  it("is rebuilt at promotion for a key staged before the fix", async () => {
+    const legacy = "pending/seminar-photo/abc123-a.jpg ";
+    __stage(
+      legacy,
+      500,
+      "image/png",
+      undefined,
+      new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    );
+    const finalKey = await promotePendingUpload(legacy, "seminar-photo", "rec");
+    expect(finalKey).toMatch(/^seminars\/rec\/[a-z0-9]{8}-a\.png$/);
   });
 });
