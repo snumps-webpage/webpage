@@ -56,22 +56,10 @@ export const SEMINAR_PUBLICATION_STATUSES = [
 export type SeminarPublicationStatus =
   (typeof SEMINAR_PUBLICATION_STATUSES)[number];
 
-export type SeminarRequestStatus =
-  "pending" | "approved" | "rejected" | "withdrawn";
-
 export interface MemberPickerItem {
   id: string;
   name: string;
   department: string;
-}
-
-export interface SeminarRequestItem extends SeminarRequestInput {
-  id: string;
-  requesterId: string;
-  status: SeminarRequestStatus;
-  submittedAt: string;
-  canEdit: boolean;
-  canWithdraw: boolean;
 }
 
 export type SeminarRequestField =

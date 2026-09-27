@@ -37,14 +37,6 @@ export interface AdminEventItem {
   canDelete: boolean;
 }
 
-export interface AdminConnectableActivity {
-  id: string;
-  title: string;
-  type: ActivityType;
-  date: string;
-  attendeeCount: number;
-}
-
 export interface AdminAttendanceQueueItem {
   id: string;
   eventId: string;
@@ -83,35 +75,6 @@ export interface AdminDashboardData {
   withdrawals: AdminWithdrawalQueueItem[];
   generatedAt: string;
 }
-
-export type AdminDashboardOperationResult =
-  | {
-      success: true;
-      operation: "applicationApproved" | "applicationRejected";
-      applicationId: string;
-      mailFailed: boolean;
-    }
-  | {
-      success: true;
-      operation: "eventActivated" | "eventExpired" | "eventUpdated";
-      event: AdminEventItem;
-    }
-  | {
-      success: true;
-      operation: "eventDeleted";
-      eventId: string;
-    }
-  | {
-      success: true;
-      operation:
-        "attendanceApproved" | "attendanceRejected" | "attendanceUpdated";
-      attendance: AdminAttendanceQueueItem;
-    }
-  | {
-      success: true;
-      operation: "attendanceDeleted";
-      attendanceId: string;
-    };
 
 export const adminDashboardIdSchema = z
   .string()
@@ -183,10 +146,6 @@ export function adminAttendanceCapabilities(status: AdminAttendanceStatus) {
     canEdit: true,
     canDelete: true,
   };
-}
-
-export function localAdminDateTimeToIso(value: string) {
-  return `${value}:00+09:00`;
 }
 
 export function adminFormIssues(error: z.ZodError) {

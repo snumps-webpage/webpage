@@ -57,32 +57,6 @@ export function getSemesterInfo(date?: Date): SemesterInfo {
 }
 
 /**
- * Returns a KST-adjusted ISO string or YYYY-MM-DD string.
- * Useful for ensuring server-side 'now' matches Korean time.
- */
-export function getKSTDate(date?: Date, onlyDate = false): string {
-  const d = date || new Date();
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: onlyDate ? undefined : "2-digit",
-    minute: onlyDate ? undefined : "2-digit",
-    second: onlyDate ? undefined : "2-digit",
-    hour12: false,
-  });
-
-  const parts = formatter.formatToParts(d);
-  const getPart = (type: string) => parts.find((p) => p.type === type)!.value;
-
-  const yyyymmdd = `${getPart("year")}-${getPart("month")}-${getPart("day")}`;
-  if (onlyDate) return yyyymmdd;
-
-  return `${yyyymmdd}T${getPart("hour")}:${getPart("minute")}:${getPart("second")}.000Z`;
-}
-
-/**
  * Parses info from the SNU Google account name format: "Name / Status / Dept"
  */
 export function parseGoogleName(rawName?: string | null) {

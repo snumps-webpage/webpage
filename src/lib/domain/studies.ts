@@ -1,7 +1,6 @@
 import { z } from "zod/v4";
 import { formText } from "$lib/domain/form-data";
 import { mergeManagedAttendance } from "$lib/domain/attendance";
-import type { AdminStudyRecord } from "$lib/domain/admin-records";
 
 export const STUDY_STATUSES = ["recruiting", "ongoing", "finished"] as const;
 export type StudyStatus = (typeof STUDY_STATUSES)[number];
@@ -14,98 +13,14 @@ export const STUDY_REQUEST_STATUSES = [
 ] as const;
 export type StudyRequestStatus = (typeof STUDY_REQUEST_STATUSES)[number];
 
-export const STUDY_SESSION_STATUSES = [
-  "active",
-  "expired",
-  "cancelled",
-] as const;
-export type StudySessionStatus = (typeof STUDY_SESSION_STATUSES)[number];
-
 export interface StudyMemberSummary {
   id: string;
   name: string;
   department: string;
 }
 
-export interface StudySessionItem {
-  id: string;
-  sessionNo: number;
-  title: string;
-  startedAt: string;
-  status: StudySessionStatus;
-  activityId: string;
-  eventId: string;
-  attendancePath: string;
-  attendanceCount: number;
-  canEdit: boolean;
-  canCancel: boolean;
-}
-
-export interface StudyManagementCapabilities {
-  canCreateSession: boolean;
-  canManageParticipants: boolean;
-  canChangeStatus: boolean;
-  canTransferOrganizer: boolean;
-}
-
-export interface StudyManagementData {
-  id: string;
-  title: string;
-  semester: string;
-  textbook: string;
-  description: string;
-  note: string;
-  status: StudyStatus;
-  organizers: StudyMemberSummary[];
-  participants: StudyMemberSummary[];
-  pendingParticipants: StudyMemberSummary[];
-  sessions: StudySessionItem[];
-  pendingTransfer: {
-    toMember: StudyMemberSummary;
-    requestedAt: string;
-  } | null;
-  capabilities: StudyManagementCapabilities;
-  generatedAt: string;
-}
-
-export interface StudyListItem {
-  id: string;
-  title: string;
-  semester: string;
-  textbook: string;
-  description: string;
-  status: StudyStatus;
-  participantCount: number;
-  organizerNames: string[];
-  relationship: StudyRelationship;
-  canManage: boolean;
-}
-
 export type StudyRelationship =
   "organizer" | "participant" | "pending" | "none";
-
-export interface StudyDetailData {
-  id: string;
-  title: string;
-  semester: string;
-  textbook: string;
-  description: string;
-  note: string;
-  status: StudyStatus;
-  organizers: StudyMemberSummary[];
-  participantCount: number;
-  relationship: StudyRelationship;
-  canJoin: boolean;
-  canLeave: boolean;
-  canManage: boolean;
-}
-
-export interface StudyTransferOffer {
-  studyId: string;
-  studyTitle: string;
-  fromMember: StudyMemberSummary;
-  requestedAt: string;
-}
 
 export interface StudyRequestItem {
   id: string;
@@ -136,119 +51,7 @@ export type StudyRequestFormIssues = Partial<
   Record<StudyRequestFormField, string>
 >;
 
-export interface StudyAttendanceRow extends StudyMemberSummary {
-  attended: boolean;
-  checkedInAt: string | null;
-}
-
-export interface StudyAttendancePageData {
-  study: Pick<StudyManagementData, "id" | "title" | "semester">;
-  sessions: StudySessionItem[];
-  selectedSession: StudySessionItem;
-  attendees: StudyAttendanceRow[];
-  canSave: boolean;
-}
-
-export type StudyOperationResult =
-  | {
-      success: true;
-      operation: "requestSubmitted";
-      request: StudyRequestItem;
-    }
-  | {
-      success: true;
-      operation: "requestWithdrawn";
-      requestId: string;
-    }
-  | {
-      success: true;
-      operation: "studyJoined";
-      studyId: string;
-      relationship: "pending";
-    }
-  | {
-      success: true;
-      operation: "studyLeft";
-      studyId: string;
-      relationship: "none";
-    }
-  | {
-      success: true;
-      operation: "studyApproved";
-      requestId: string;
-      study: StudyListItem;
-      record: AdminStudyRecord;
-      mailSent: true;
-    }
-  | {
-      success: true;
-      operation: "studyRejected";
-      requestId: string;
-      mailSent: true;
-    }
-  | {
-      success: true;
-      operation: "transferProposed";
-      toMember: StudyMemberSummary;
-      requestedAt: string;
-    }
-  | {
-      success: true;
-      operation: "transferCancelled";
-    }
-  | {
-      success: true;
-      operation: "transferAccepted";
-      studyId: string;
-      study: StudyListItem;
-    }
-  | {
-      success: true;
-      operation: "transferDeclined";
-      studyId: string;
-    }
-  | {
-      success: true;
-      operation: "participantAccepted";
-      member: StudyMemberSummary;
-    }
-  | {
-      success: true;
-      operation: "participantRemoved";
-      memberId: string;
-    }
-  | {
-      success: true;
-      operation: "statusChanged";
-      status: StudyStatus;
-    }
-  | {
-      success: true;
-      operation: "sessionCreated";
-      operationId: string;
-      session: StudySessionItem;
-    }
-  | {
-      success: true;
-      operation: "sessionUpdated";
-      sessionId: string;
-      title: string;
-      startedAt: string;
-    }
-  | {
-      success: true;
-      operation: "sessionCancelled";
-      sessionId: string;
-    }
-  | {
-      success: true;
-      operation: "attendanceSaved";
-      eventId: string;
-      attendeeIds: string[];
-    };
-
 export const operationIdSchema = z.uuidv7("올바른 작업 식별자가 아닙니다.");
-export const studyIdSchema = z.string().trim().min(1);
 export const studyStatusSchema = z.enum(STUDY_STATUSES, {
   error: "지원하지 않는 스터디 상태입니다.",
 });

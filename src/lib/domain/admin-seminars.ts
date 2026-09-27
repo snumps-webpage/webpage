@@ -90,12 +90,6 @@ export interface AdminSeminarItem {
   canReapplyCancel: boolean;
 }
 
-export interface AdminSeminarDashboardData {
-  requests: AdminSeminarRequestItem[];
-  seminars: AdminSeminarItem[];
-  generatedAt: string;
-}
-
 /**
  * 공개 보드의 액션이 **실제로** 돌려주는 것. 예전에는 승인·반려 변형과
  * mailEvent 필드까지 선언돼 있었지만 어느 액션도 그것을 보내지 않았고,

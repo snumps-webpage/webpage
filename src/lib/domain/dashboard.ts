@@ -1,6 +1,5 @@
 import { z } from "zod/v4";
 import type { ActivityType } from "$lib/constants";
-import type { StudyListItem, StudyTransferOffer } from "$lib/domain/studies";
 
 export type DashboardActivityState =
   "available" | "applied" | "pending" | "attended" | "absent" | "scheduled";
@@ -37,17 +36,6 @@ export interface DashboardRequestItem {
   status: DashboardRequestStatus;
   submittedAt: string;
   actionPath: string | null;
-}
-
-export interface MemberDashboardData {
-  profile: DashboardProfile;
-  selectedSemester: string;
-  semesters: string[];
-  activities: DashboardActivityItem[];
-  myRequests: DashboardRequestItem[];
-  myStudies: StudyListItem[];
-  pendingTransfer: StudyTransferOffer | null;
-  generatedAt: string;
 }
 
 export type DashboardOperationResult =

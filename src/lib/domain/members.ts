@@ -80,54 +80,6 @@ export interface PublicExecutiveRoster {
   vicePresident: PublicExecutive | null;
 }
 
-export type MemberAdminOperationResult =
-  | {
-      success: true;
-      operation: "memberUpdated";
-      member: Pick<
-        AdminMemberDetail,
-        "name" | "department" | "joinedAt" | "project"
-      >;
-    }
-  | {
-      success: true;
-      operation: "statusUpdated";
-      status: Exclude<MemberStatus, "withdrawn">;
-      statusChangedAt: string;
-      isAlumni: boolean;
-    }
-  | {
-      success: true;
-      operation: "alumniRevoked";
-      isAlumni: false;
-      alumniRevoked: true;
-    }
-  | {
-      success: true;
-      operation: "rolesUpdated";
-      roles: MemberRoleAssignment[];
-    }
-  | {
-      success: true;
-      operation: "adminUpdated";
-      isAdmin: boolean;
-    }
-  | {
-      success: true;
-      operation: "publicContactUpdated";
-      publicContact: PublicContactState;
-    }
-  | {
-      success: true;
-      operation: "privateInfoUpdated";
-      privateInfo: MemberPrivateInfo;
-    }
-  | {
-      success: true;
-      operation: "withdrawalHoldUpdated";
-      withdrawal: MemberWithdrawal;
-    };
-
 /*
  * Member administration input — the single source of the rules. The
  * /admin/members/[id] actions validate with these and answer

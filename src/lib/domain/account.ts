@@ -1,19 +1,5 @@
 import { z } from "zod/v4";
 import { formText } from "$lib/domain/form-data";
-import type { MemberStatus } from "$lib/domain/members";
-
-export interface AccountSettingsData {
-  memberId: string;
-  name: string;
-  email: string;
-  status: MemberStatus;
-  announcementsEnabled: boolean;
-  withdrawal: {
-    requestedAt: string;
-    graceEndsAt: string;
-    holdBy: string | null;
-  } | null;
-}
 
 export interface MailPreferenceFormFailure {
   error: "VALIDATION_FAILED";

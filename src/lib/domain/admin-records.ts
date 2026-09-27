@@ -1,34 +1,8 @@
 import { z } from "zod/v4";
-import { RECORD_ACTIVITY_TYPES, type ActivityType } from "$lib/constants";
+import { RECORD_ACTIVITY_TYPES } from "$lib/constants";
 import { localDateTimeSchema } from "$lib/domain/admin-dashboard";
 import type { PublicFileReference } from "$lib/domain/public-content";
 import type { SeminarKind } from "$lib/domain/seminars";
-
-export interface AdminActivityRecord {
-  id: string;
-  title: string;
-  type: ActivityType;
-  date: string;
-  attendeeIds: string[];
-  linkedEventIds: string[];
-}
-
-export interface AdminGalleryPhoto {
-  name: string;
-  contentType: string;
-  size: number;
-  thumbnailUrl: string | null;
-  displayUrl: string | null;
-}
-
-export interface AdminGalleryRecord {
-  id: string;
-  title: string;
-  category: "seminar" | "study" | "dinner";
-  date: string;
-  alt: string;
-  photo: AdminGalleryPhoto | null;
-}
 
 export interface AdminContentFile extends Omit<PublicFileReference, "url"> {
   url: string | null;
