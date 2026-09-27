@@ -23,10 +23,12 @@ import {
 } from "$lib/utils";
 import type { ActivityType } from "$lib/constants";
 import {
+  dashboardEventIdSchema,
   dashboardProfileInputSchema,
   dashboardProfileIssues,
   type DashboardActivityItem,
 } from "$lib/domain/dashboard";
+import { formText } from "$lib/domain/form-data";
 import type {
   Activity,
   Event,
@@ -457,11 +459,22 @@ export const actions = {
     request: Request;
     locals: App.Locals;
   }) => {
-    const eventId = (await request.formData()).get("eventId") as string;
+    const data = await request.formData();
     return handleUserAction(locals, async () => {
       const member = locals.member;
       if (!member) throw new AppError("FORBIDDEN");
       requireCapability(locals, CAPABILITIES.PARTICIPATE);
+      // The id is checked before the ledger lookup — a bad one costs no read.
+      const parsed = dashboardEventIdSchema.safeParse(
+        formText(data, "eventId"),
+      );
+      if (!parsed.success) {
+        return fail(400, {
+          error: "VALIDATION_FAILED",
+          issues: { eventId: parsed.error.issues[0].message },
+        });
+      }
+      const eventId = parsed.data;
       await assertLedgerTarget(eventId);
       const { applyToEvent } = await import("$lib/server/services/events");
       await applyToEvent(eventId, member.memberId);
@@ -479,11 +492,22 @@ export const actions = {
     request: Request;
     locals: App.Locals;
   }) => {
-    const eventId = (await request.formData()).get("eventId") as string;
+    const data = await request.formData();
     return handleUserAction(locals, async () => {
       const member = locals.member;
       if (!member) throw new AppError("FORBIDDEN");
       requireCapability(locals, CAPABILITIES.PARTICIPATE);
+      // The id is checked before the ledger lookup — a bad one costs no read.
+      const parsed = dashboardEventIdSchema.safeParse(
+        formText(data, "eventId"),
+      );
+      if (!parsed.success) {
+        return fail(400, {
+          error: "VALIDATION_FAILED",
+          issues: { eventId: parsed.error.issues[0].message },
+        });
+      }
+      const eventId = parsed.data;
       await assertLedgerTarget(eventId);
       const { cancelEventApplication } =
         await import("$lib/server/services/events");

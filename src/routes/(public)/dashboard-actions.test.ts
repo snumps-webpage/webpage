@@ -301,3 +301,55 @@ describe("the dashboard carries no seminar editing", () => {
     expect(Object.keys(dashboard)).not.toContain("approvedSeminars");
   });
 });
+
+/**
+ * applyActivity/cancelActivity passed the form's eventId straight to the
+ * ledger lookup, so a blank id cost a table read and answered 404. The id now
+ * goes through dashboardEventIdSchema first: 400 VALIDATION_FAILED, no write.
+ */
+describe("dashboard activity actions — eventId validation", () => {
+  it.each([
+    ["applyActivity", ""],
+    ["applyActivity", "   "],
+    ["applyActivity", "e".repeat(201)],
+    ["cancelActivity", ""],
+    ["cancelActivity", "e".repeat(201)],
+  ] as const)("%s refuses a bad eventId with 400", async (name, eventId) => {
+    const event = await createEventWithActivity({
+      title: "정수론 세미나",
+      startIso: inAnHour(),
+      type: "세미나",
+      status: "active",
+    });
+
+    const result = await actions[name](actionEvent({ eventId }));
+
+    expect(result).toMatchObject({
+      status: 400,
+      data: {
+        error: "VALIDATION_FAILED",
+        issues: { eventId: expect.any(String) },
+      },
+    });
+    expect((await getTable("events"))[0]).toMatchObject({
+      id: event.id,
+      applicantIds: [],
+    });
+  });
+
+  it("applyActivity accepts a padded id and applies to that event", async () => {
+    const event = await createEventWithActivity({
+      title: "정수론 세미나",
+      startIso: inAnHour(),
+      type: "세미나",
+      status: "active",
+    });
+
+    const result = await actions.applyActivity(
+      actionEvent({ eventId: ` ${event.id} ` }),
+    );
+
+    expect(result).toMatchObject({ operation: "activityApplied" });
+    expect((await getTable("events"))[0].applicantIds).toEqual([MEMBER_ID]);
+  });
+});

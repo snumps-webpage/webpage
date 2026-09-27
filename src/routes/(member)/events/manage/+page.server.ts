@@ -1,5 +1,8 @@
 import { handleUserAction } from "$lib/server/auth-guards";
-import { AppError } from "$lib/server/core/errors";
+import { fail } from "@sveltejs/kit";
+import type { z } from "zod/v4";
+import { formText } from "$lib/domain/form-data";
+import { managedEventIdSchema } from "$lib/domain/attendance";
 import { getQueue, getTable } from "$lib/server/data/tables";
 import {
   cancelSeminar,
@@ -81,6 +84,14 @@ export const load: PageServerLoad = async ({ locals }) => {
   return { managedSeminars };
 };
 
+/** A bad id answers VALIDATION_FAILED with the field's issue, before any read. */
+function invalidId(field: string, error: z.ZodError) {
+  return fail(400, {
+    error: "VALIDATION_FAILED",
+    issues: { [field]: error.issues[0].message },
+  });
+}
+
 export const actions = {
   saveAttendance: async ({
     request,
@@ -90,8 +101,10 @@ export const actions = {
     locals: App.Locals;
   }) => {
     const data = await request.formData();
-    const eventId = data.get("eventId") as string;
     return handleUserAction(locals, async () => {
+      const parsed = managedEventIdSchema.safeParse(formText(data, "eventId"));
+      if (!parsed.success) return invalidId("eventId", parsed.error);
+      const eventId = parsed.data;
       await savePresenterAttendance(
         eventId,
         locals.member!.memberId,
@@ -131,9 +144,12 @@ export const actions = {
     locals: App.Locals;
   }) => {
     const data = await request.formData();
-    const seminarId = data.get("seminarId") as string;
     return handleUserAction(locals, async () => {
-      if (!seminarId) throw new AppError("VALIDATION_FAILED");
+      const parsed = managedEventIdSchema.safeParse(
+        formText(data, "seminarId"),
+      );
+      if (!parsed.success) return invalidId("seminarId", parsed.error);
+      const seminarId = parsed.data;
       const { mailFailed } = await cancelSeminar(seminarId, {
         memberId: locals.member!.memberId,
         isAdmin: locals.member!.isAdmin === true,

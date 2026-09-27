@@ -58,7 +58,11 @@ export type PresenterAttendanceOperationResult = {
   totalAttendanceCount: number;
 };
 
-export const managedEventIdSchema = z.string().trim().min(1);
+export const managedEventIdSchema = z
+  .string()
+  .trim()
+  .min(1, "대상을 선택해 주세요.")
+  .max(200, "대상 id를 확인해 주세요.");
 
 export function mergeManagedAttendance(
   existingAttendeeIds: string[],

@@ -6,6 +6,7 @@ import {
 import { AppError } from "$lib/server/core/errors";
 import { CAPABILITIES } from "$lib/server/core/capabilities";
 import { createPresignedUpload } from "$lib/server/services/uploads";
+import { presignBodySchema, uploadPurposeSchema } from "$lib/domain/api";
 import type { RequestHandler } from "./$types";
 
 /**
@@ -15,12 +16,7 @@ import type { RequestHandler } from "./$types";
  * stagedInfo가 크기·타입을 재검증하므로 서명 URL만으로는 오염이 불가능하다.
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
-  let body: {
-    purpose?: string;
-    filename?: string;
-    contentType?: string;
-    size?: number;
-  };
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
@@ -29,21 +25,28 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   // `locals.member` is NOT populated in the api zone — the guard returns before
   // resolving it — so the capability has to be resolved here, not read off locals.
+  const purpose = uploadPurposeSchema.safeParse(
+    typeof body === "object" && body !== null && "purpose" in body
+      ? body.purpose
+      : undefined,
+  );
   const isMemberPoster =
-    body.purpose === "seminar-poster" &&
+    purpose.data === "seminar-poster" &&
     (await requireCapabilityAction(locals, CAPABILITIES.PARTICIPATE)).allowed;
   if (!isMemberPoster) {
     const { allowed } = await requireAdminAction(locals);
     if (!allowed) return json({ error: "FORBIDDEN" }, { status: 403 });
   }
 
+  // The domain schema is the shape; the service still checks the type and
+  // size the purpose allows.
+  const parsed = presignBodySchema.safeParse(body);
+  if (!parsed.success) {
+    return json({ error: "VALIDATION_FAILED" }, { status: 400 });
+  }
+
   try {
-    const result = await createPresignedUpload({
-      purpose: body.purpose ?? "",
-      filename: body.filename ?? "",
-      contentType: body.contentType ?? "",
-      size: body.size ?? 0,
-    });
+    const result = await createPresignedUpload(parsed.data);
     return json({ success: true, ...result });
   } catch (e) {
     if (e instanceof AppError)

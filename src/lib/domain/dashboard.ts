@@ -62,7 +62,11 @@ export type DashboardOperationResult =
       activity: DashboardActivityItem;
     };
 
-export const dashboardEventIdSchema = z.string().trim().min(1);
+export const dashboardEventIdSchema = z
+  .string()
+  .trim()
+  .min(1, "활동을 선택해 주세요.")
+  .max(200, "활동 id를 확인해 주세요.");
 
 export const dashboardProfileInputSchema = z.object({
   phone: z

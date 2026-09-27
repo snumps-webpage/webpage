@@ -151,3 +151,75 @@ describe("?/cancelSeminar — 개설자", () => {
     expect((await loadFor(presenterId)).managedSeminars).toEqual([]);
   });
 });
+
+/**
+ * 두 액션 모두 폼의 id를 그대로 서비스에 넘겼다 — 빈 eventId는 NOT_FOUND로,
+ * 빈 seminarId는 손으로 쓴 검사로 걸렸다. 이제 managedEventIdSchema가
+ * 하나의 규칙이고, 잘못된 id는 400 VALIDATION_FAILED로 아무것도 쓰지 않는다.
+ */
+describe("id 검증 — managedEventIdSchema", () => {
+  it("?/saveAttendance는 올바른 eventId로 저장한다", async () => {
+    const { presenterId } = await publishedSeminar(10 * 24 * HOUR);
+    const [event] = await getTable("events");
+
+    const result = await actions.saveAttendance(
+      post(presenterId, { eventId: ` ${event.id} ` }),
+    );
+
+    expect(result).toMatchObject({
+      success: true,
+      operation: "presenterAttendanceSaved",
+      eventId: event.id,
+    });
+  });
+
+  it.each([
+    ["빈", ""],
+    ["공백뿐인", "   "],
+    ["너무 긴", "e".repeat(201)],
+  ])(
+    "?/saveAttendance는 %s eventId를 400으로 거절한다",
+    async (_label, eventId) => {
+      const { presenterId } = await publishedSeminar(10 * 24 * HOUR);
+      const before = await getTable("activities");
+
+      const result = await actions.saveAttendance(
+        post(presenterId, { eventId }),
+      );
+
+      expect(result).toMatchObject({
+        status: 400,
+        data: {
+          error: "VALIDATION_FAILED",
+          issues: { eventId: expect.any(String) },
+        },
+      });
+      expect(await getTable("activities")).toEqual(before);
+    },
+  );
+
+  it.each([
+    ["빈", ""],
+    ["너무 긴", "s".repeat(201)],
+  ])(
+    "?/cancelSeminar는 %s seminarId를 400으로 거절한다",
+    async (_label, seminarId) => {
+      const { presenterId } = await publishedSeminar(10 * 24 * HOUR);
+
+      const result = await actions.cancelSeminar(
+        post(presenterId, { seminarId }),
+      );
+
+      expect(result).toMatchObject({
+        status: 400,
+        data: {
+          error: "VALIDATION_FAILED",
+          issues: { seminarId: expect.any(String) },
+        },
+      });
+      expect((await getTable("seminars"))[0].publicationStatus).toBe(
+        "published",
+      );
+    },
+  );
+});

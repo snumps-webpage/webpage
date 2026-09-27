@@ -48,11 +48,19 @@ export type UploadPurpose = z.infer<typeof uploadPurposeSchema>;
 export const presignRequestSchema = z.object({
   operationId: z.uuid(),
   purpose: uploadPurposeSchema,
-  filename: z.string().trim().min(1),
-  contentType: z.string().trim().min(1),
+  filename: z.string().trim().min(1).max(200),
+  contentType: z.string().trim().min(1).max(100),
   size: z.int().positive(),
 });
 export type PresignRequest = z.infer<typeof presignRequestSchema>;
+
+/**
+ * What POST /api/uploads/presign reads: the operationId stays client-side
+ * (the editor's idempotent registration step), so the body omits it.
+ */
+export const presignBodySchema = presignRequestSchema.omit({
+  operationId: true,
+});
 
 /** Mirrors POST /api/uploads/presign — the endpoint shape is the contract. */
 export const presignSuccessSchema = z.object({
