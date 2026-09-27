@@ -152,9 +152,7 @@
           type="hidden"
           name="publicContact"
           value={member.publicContact
-            ? [member.publicContact.phone, member.publicContact.email]
-                .filter(Boolean)
-                .join(" · ")
+            ? `${member.publicContact.phone} · ${member.publicContact.email}`
             : ""}
         />
         <label class="paper-field">
@@ -220,6 +218,9 @@
         </div>
         {#if recordIssues._form}<p class="field-error">
             {recordIssues._form}
+          </p>{/if}
+        {#if recordIssues.phone || recordIssues.email}<p class="field-error">
+            공개 연락처: {recordIssues.phone ?? recordIssues.email}
           </p>{/if}
         <footer>
           <p>공개 회원 명단과 프로젝트 아카이브의 원본 데이터입니다.</p>

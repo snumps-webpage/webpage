@@ -23,9 +23,14 @@ describe("member administration domain", () => {
     expect(
       memberRolesSchema.safeParse([
         { term: "26-2", title: "회장" },
-        { term: "26-W", title: "학술부장" },
+        { term: "26-1", title: "학술부장" },
       ]).success,
     ).toBe(true);
+    // Terms follow the stored TERM_PATTERN: regular terms only.
+    expect(
+      memberRolesSchema.safeParse([{ term: "26-W", title: "학술부장" }])
+        .success,
+    ).toBe(false);
     expect(
       memberRolesSchema.safeParse([
         { term: "26-2", title: "회장" },

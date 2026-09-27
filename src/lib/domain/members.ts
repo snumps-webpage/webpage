@@ -208,34 +208,38 @@ export type MemberAdminOperationResult =
       withdrawal: MemberWithdrawal;
     };
 
-const memberProjectSchema = z
-  .object({
-    title: z
-      .string()
-      .trim()
-      .max(100, "프로젝트 제목은 100자 이하로 입력해 주세요."),
-    url: z
-      .string()
-      .trim()
-      .refine(
-        (value) => value === "" || URL.canParse(value),
-        "프로젝트 URL을 확인해 주세요.",
-      ),
-  })
-  .superRefine((project, context) => {
-    if (!project.title && project.url) {
-      context.addIssue({
-        code: "custom",
-        path: ["title"],
-        message: "URL을 저장하려면 프로젝트 제목을 입력해 주세요.",
-      });
-    }
-  });
+/*
+ * Member administration input — the single source of the rules. The
+ * /admin/members/[id] actions validate with these and answer
+ * {error: VALIDATION_FAILED, issues: memberFormIssues(…), values}.
+ */
+
+const PHONE_MESSAGE = "전화번호는 010-XXXX-XXXX 형식이어야 합니다.";
+
+const phoneSchema = z
+  .string()
+  .trim()
+  .regex(/^010-\d{4}-\d{4}$/, PHONE_MESSAGE);
+
+/** Trimmed before the format check, so a pasted trailing space is not "invalid". */
+const emailSchema = z
+  .string()
+  .trim()
+  .max(200, "이메일은 200자 이하로 입력해 주세요.")
+  .pipe(z.email("올바른 이메일 주소를 입력해 주세요."));
 
 export const memberRecordInputSchema = z
   .object({
-    name: z.string().trim().min(1, "이름을 입력해 주세요.").max(60),
-    department: z.string().trim().min(1, "학과를 입력해 주세요.").max(100),
+    name: z
+      .string()
+      .trim()
+      .min(1, "이름을 입력해 주세요.")
+      .max(60, "이름은 60자 이하로 입력해 주세요."),
+    department: z
+      .string()
+      .trim()
+      .min(1, "학과를 입력해 주세요.")
+      .max(100, "학과는 100자 이하로 입력해 주세요."),
     joinedAt: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, "가입일을 확인해 주세요.")
@@ -243,39 +247,48 @@ export const memberRecordInputSchema = z
         (value) => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)),
         "가입일을 확인해 주세요.",
       ),
-    projectTitle: z.string(),
-    projectUrl: z.string(),
+    projectTitle: z
+      .string()
+      .trim()
+      .max(100, "프로젝트 제목은 100자 이하로 입력해 주세요."),
+    // Rendered as a public link: http(s) only, never javascript: and friends.
+    projectUrl: z
+      .string()
+      .trim()
+      .max(200, "프로젝트 URL은 200자 이하로 입력해 주세요.")
+      .refine(
+        (value) =>
+          value === "" || (/^https?:\/\//i.test(value) && URL.canParse(value)),
+        "프로젝트 URL을 확인해 주세요.",
+      ),
   })
-  .transform((value, context) => {
-    const parsedProject = memberProjectSchema.safeParse({
-      title: value.projectTitle,
-      url: value.projectUrl,
-    });
-    if (!parsedProject.success) {
-      for (const issue of parsedProject.error.issues) {
-        context.addIssue({
-          ...issue,
-          path: [issue.path[0] === "url" ? "projectUrl" : "projectTitle"],
-        });
-      }
-      return z.NEVER;
+  .superRefine((value, context) => {
+    if (!value.projectTitle && value.projectUrl) {
+      context.addIssue({
+        code: "custom",
+        path: ["projectTitle"],
+        message: "URL을 저장하려면 프로젝트 제목을 입력해 주세요.",
+      });
     }
-    const project = parsedProject.data.title
-      ? {
-          title: parsedProject.data.title,
-          ...(parsedProject.data.url ? { url: parsedProject.data.url } : {}),
-        }
-      : null;
-    return {
-      name: value.name,
-      department: value.department,
-      joinedAt: value.joinedAt,
-      project,
-    };
-  });
+  })
+  .transform(({ projectTitle, projectUrl, ...record }) => ({
+    ...record,
+    project: projectTitle
+      ? { title: projectTitle, ...(projectUrl ? { url: projectUrl } : {}) }
+      : null,
+  }));
 
 export const memberStatusInputSchema = z.object({
-  status: z.enum(["associate", "regular"]),
+  status: z.enum(["associate", "regular"], {
+    message: "회원 지위를 확인해 주세요.",
+  }),
+});
+
+/** The ?/setAdmin toggle posts "true" or "false"; anything else is refused, not read as a revocation. */
+export const memberAdminInputSchema = z.object({
+  isAdmin: z
+    .enum(["true", "false"], { message: "관리자 권한 값을 확인해 주세요." })
+    .transform((value) => value === "true"),
 });
 
 export const alumniRevocationInputSchema = z.object({
@@ -287,30 +300,45 @@ export const alumniRevocationInputSchema = z.object({
 });
 
 export const privateInfoInputSchema = z.object({
-  email: z
-    .email("올바른 이메일 주소를 입력해 주세요.")
-    .refine(
-      (email) => email.toLowerCase().endsWith("@snu.ac.kr"),
-      "서울대학교 이메일(@snu.ac.kr)을 입력해 주세요.",
-    ),
-  phone: z
-    .string()
-    .trim()
-    .regex(/^010-\d{4}-\d{4}$/, "전화번호는 010-XXXX-XXXX 형식이어야 합니다."),
+  // The login key: only SNU Workspace addresses can sign in.
+  email: emailSchema.refine(
+    (email) => email.toLowerCase().endsWith("@snu.ac.kr"),
+    "서울대학교 이메일(@snu.ac.kr)을 입력해 주세요.",
+  ),
+  phone: phoneSchema,
   background: z
     .string()
     .trim()
     .max(2000, "배경지식은 2,000자 이하로 입력해 주세요."),
 });
 
+/** A blank field reads as "not given" (undefined) instead of failing. */
+function blankAsMissing<T extends z.ZodType>(schema: T) {
+  return z.preprocess(
+    (value) =>
+      typeof value === "string" && value.trim() === "" ? undefined : value,
+    schema.optional(),
+  );
+}
+
+/**
+ * The admin edit of a private-info row. Legacy rows may hold no email or
+ * phone, so a blank email/phone keeps the stored value; anything typed must
+ * pass the full rule.
+ */
+export const privateInfoUpdateSchema = z.object({
+  email: blankAsMissing(privateInfoInputSchema.shape.email),
+  phone: blankAsMissing(privateInfoInputSchema.shape.phone),
+  background: privateInfoInputSchema.shape.background,
+});
+
 export const memberRoleSchema = z.object({
+  // Mirrors TERM_PATTERN ($lib/server/core/semester), the stored Term: roles
+  // belong to regular terms only, never the YY-W/YY-S vacation terms.
   term: z
     .string()
     .trim()
-    .regex(
-      /^\d{2}-(?:[12]|W|S)$/,
-      "학기는 YY-1, YY-2, YY-W, YY-S 형식이어야 합니다.",
-    ),
+    .regex(/^\d{2}-[12]$/, "학기는 YY-1 또는 YY-2 형식이어야 합니다."),
   title: z
     .string()
     .trim()
@@ -338,11 +366,8 @@ export const memberRolesSchema = z
 
 const grantedPublicContactSchema = z.object({
   status: z.literal("granted"),
-  phone: z
-    .string()
-    .trim()
-    .regex(/^010-\d{4}-\d{4}$/, "전화번호는 010-XXXX-XXXX 형식이어야 합니다."),
-  email: z.email("올바른 이메일 주소를 입력해 주세요."),
+  phone: phoneSchema,
+  email: emailSchema,
 });
 
 const revokedPublicContactSchema = z.object({
@@ -356,10 +381,70 @@ export const publicContactInputSchema = z.discriminatedUnion("status", [
   revokedPublicContactSchema,
 ]);
 
+export type PublicContactInput = z.input<typeof publicContactInputSchema>;
+
+/**
+ * The stored members.publicContact is ONE nullable string joined as
+ * "phone · email" (executive-roster.ts), and that is what the forms post.
+ * Empty means revoked; anything else is a grant to validate as such.
+ */
+export function splitPublicContact(value: string): PublicContactInput {
+  if (!value.trim()) return { status: "revoked", phone: null, email: null };
+  const separator = value.indexOf("·");
+  const phone = separator === -1 ? value : value.slice(0, separator);
+  const email = separator === -1 ? "" : value.slice(separator + 1);
+  return { status: "granted", phone: phone.trim(), email: email.trim() };
+}
+
+/** The stored form of a validated contact: "phone · email", or null. */
+export function joinPublicContact(
+  contact: z.output<typeof publicContactInputSchema>,
+): string | null {
+  return contact.status === "granted"
+    ? `${contact.phone} · ${contact.email}`
+    : null;
+}
+
 export function parseRolesJson(value: string) {
   try {
     return memberRolesSchema.safeParse(JSON.parse(value));
   } catch {
     return memberRolesSchema.safeParse(null);
   }
+}
+
+/** The ?/setRoles wire format: one "26-2 회장" role per line, blank lines ignored. */
+export function parseRoleLines(value: string) {
+  const roles = value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const space = line.indexOf(" ");
+      return space === -1
+        ? { term: line, title: "" }
+        : { term: line.slice(0, space), title: line.slice(space + 1) };
+    });
+  return memberRolesSchema.safeParse(roles);
+}
+
+/** Per-field issues, first message per field; unpathed issues land on `_form`. */
+export function memberFormIssues(error: z.ZodError) {
+  const issues: Record<string, string> = {};
+  for (const issue of error.issues) {
+    issues[String(issue.path[0] ?? "_form")] ??= issue.message;
+  }
+  return issues;
+}
+
+/** The roles form has one field: its issue names the offending line. */
+export function memberRolesIssues(error: z.ZodError) {
+  const [issue] = error.issues;
+  const line = issue?.path[0];
+  return {
+    roles:
+      typeof line === "number"
+        ? `${line + 1}번째 직책: ${issue.message}`
+        : (issue?.message ?? "직책을 확인해 주세요."),
+  };
 }

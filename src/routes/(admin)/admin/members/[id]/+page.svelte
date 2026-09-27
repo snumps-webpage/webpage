@@ -75,6 +75,25 @@
     }
   }
 
+  /**
+   * ?/updateMember answers phone/email issues for the contact halves; any
+   * other issue is about the record fields riding along, shown form-wide.
+   */
+  function contactIssuesOf(
+    issues: Record<string, string> | undefined,
+    detail: string | undefined,
+  ): Record<string, string> {
+    if (!issues)
+      return { _form: detail ?? "공개 연락처를 저장하지 못했습니다." };
+    const { phone, email, ...rest } = issues;
+    const other = Object.values(rest)[0];
+    return {
+      ...(phone ? { phone } : {}),
+      ...(email ? { email } : {}),
+      ...(other ? { _form: other } : {}),
+    };
+  }
+
   function actionEnhancer(kind: "roles" | "admin" | "contact") {
     processing = kind;
     notice = null;
@@ -116,18 +135,23 @@
       }
       const failure =
         result.type === "failure"
-          ? (result.data as { error?: string; message?: string })
+          ? (result.data as {
+              error?: string;
+              message?: string;
+              issues?: Record<string, string>;
+            })
           : null;
       const detail = failure?.message ?? failure?.error;
-      if (kind === "roles") roleIssue = detail ?? "직책을 저장하지 못했습니다.";
+      const issues = failure?.issues;
+      if (kind === "roles")
+        roleIssue = issues?.roles ?? detail ?? "직책을 저장하지 못했습니다.";
       else if (kind === "contact")
-        contactIssues = {
-          _form: detail ?? "공개 연락처를 저장하지 못했습니다.",
-        };
+        contactIssues = contactIssuesOf(issues, detail);
       else
         notice = {
           tone: "error",
-          message: detail ?? "관리자 권한을 변경하지 못했습니다.",
+          message:
+            issues?.isAdmin ?? detail ?? "관리자 권한을 변경하지 못했습니다.",
         };
     };
   }
@@ -304,13 +328,13 @@
           name="projectUrl"
           value={member.project?.url ?? ""}
         />
+        <!-- Both halves always ride, so a missing one is reported in place
+             (granted needs phone AND email) instead of shifting position. -->
         <input
           type="hidden"
           name="publicContact"
           value={contactStatus === "granted"
-            ? [contactPhone.trim(), contactEmail.trim()]
-                .filter(Boolean)
-                .join(" · ")
+            ? `${contactPhone.trim()} · ${contactEmail.trim()}`
             : ""}
         />
         <fieldset>

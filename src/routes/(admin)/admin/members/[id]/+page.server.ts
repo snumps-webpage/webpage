@@ -1,4 +1,4 @@
-import { error } from "@sveltejs/kit";
+import { error, fail } from "@sveltejs/kit";
 import { ensureAdmin, handleAdminAction } from "$lib/server/auth-guards";
 import { getTable } from "$lib/server/data/tables";
 import { getPrivateInfoOf } from "$lib/server/data/repos";
@@ -13,10 +13,21 @@ import {
   updateMember,
   updatePrivateInfo,
 } from "$lib/server/services/members-admin";
-import { AppError } from "$lib/server/core/errors";
-import { TERM_PATTERN } from "$lib/server/core/semester";
 import { formatPhoneForDisplay, normalizePhoneNumber } from "$lib/utils";
-import type { MemberRole } from "$lib/server/data/schemas";
+import { formText } from "$lib/domain/form-data";
+import {
+  alumniRevocationInputSchema,
+  joinPublicContact,
+  memberAdminInputSchema,
+  memberFormIssues,
+  memberRecordInputSchema,
+  memberRolesIssues,
+  memberStatusInputSchema,
+  parseRoleLines,
+  privateInfoUpdateSchema,
+  publicContactInputSchema,
+  splitPublicContact,
+} from "$lib/domain/members";
 import type { PageServerLoad } from "./$types";
 
 /** ADM-07·12: member detail. Reading this page reads PII — that read is audited. */
@@ -73,78 +84,102 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   };
 };
 
-function parseRoles(raw: string): MemberRole[] {
-  // one per line: "26-1 회장"
-  const roles = raw
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const space = line.indexOf(" ");
-      if (space === -1) throw new AppError("VALIDATION_FAILED");
-      const term = line.slice(0, space).trim();
-      const title = line.slice(space + 1).trim();
-      if (!TERM_PATTERN.test(term) || !title)
-        throw new AppError("VALIDATION_FAILED");
-      return { term, title };
-    });
-  return roles;
-}
-
 type Ctx = { request: Request; locals: App.Locals; params: { id: string } };
+
+/** A refused input: every bad field at once, and what was sent to refill the form. */
+function invalid(
+  issues: Record<string, string>,
+  values: Record<string, string>,
+) {
+  return fail(400, { error: "VALIDATION_FAILED", issues, values });
+}
 
 export const actions = {
   updateMember: async ({ request, locals, params }: Ctx) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
-      const projectTitle = (data.get("projectTitle") as string)?.trim();
+      const values = {
+        name: formText(data, "name"),
+        department: formText(data, "department"),
+        joinedAt: formText(data, "joinedAt"),
+        projectTitle: formText(data, "projectTitle"),
+        projectUrl: formText(data, "projectUrl"),
+        publicContact: formText(data, "publicContact"),
+      };
+      const record = memberRecordInputSchema.safeParse(values);
+      // publicContact stays one stored string; its halves are validated as
+      // the domain's structured contact (phone normalized first).
+      const contactInput = splitPublicContact(values.publicContact);
+      const contact = publicContactInputSchema.safeParse(
+        contactInput.status === "granted"
+          ? { ...contactInput, phone: normalizePhoneNumber(contactInput.phone) }
+          : contactInput,
+      );
+      if (!record.success || !contact.success) {
+        return invalid(
+          {
+            ...(record.success ? {} : memberFormIssues(record.error)),
+            ...(contact.success ? {} : memberFormIssues(contact.error)),
+          },
+          values,
+        );
+      }
       await updateMember(params.id, {
-        name: (data.get("name") as string)?.trim(),
-        department: (data.get("department") as string)?.trim(),
-        joinedAt: (data.get("joinedAt") as string) || null,
-        publicContact: (data.get("publicContact") as string)?.trim() || null,
-        project: projectTitle
-          ? {
-              title: projectTitle,
-              url: (data.get("projectUrl") as string)?.trim() || undefined,
-            }
-          : null,
+        ...record.data,
+        publicContact: joinPublicContact(contact.data),
       });
       return {};
     });
   },
 
   setStatus: async ({ request, locals, params }: Ctx) => {
-    const status = (await request.formData()).get("status") as string;
+    const values = { status: formText(await request.formData(), "status") };
     return handleAdminAction(locals, async () => {
-      if (status !== "associate" && status !== "regular") {
-        throw new AppError("VALIDATION_FAILED");
+      const parsed = memberStatusInputSchema.safeParse(values);
+      if (!parsed.success) {
+        return invalid(memberFormIssues(parsed.error), values);
       }
-      await setStatus(params.id, status, locals.member!.memberId);
+      await setStatus(params.id, parsed.data.status, locals.member!.memberId);
       return {};
     });
   },
 
   revokeAlumni: async ({ request, locals, params }: Ctx) => {
-    const reason = ((await request.formData()).get("reason") as string) ?? "";
+    const values = { reason: formText(await request.formData(), "reason") };
     return handleAdminAction(locals, async () => {
-      await revokeAlumni(params.id, reason, locals.member!.memberId);
+      const parsed = alumniRevocationInputSchema.safeParse(values);
+      if (!parsed.success) {
+        return invalid(memberFormIssues(parsed.error), values);
+      }
+      await revokeAlumni(
+        params.id,
+        parsed.data.reason,
+        locals.member!.memberId,
+      );
       return {};
     });
   },
 
   setRoles: async ({ request, locals, params }: Ctx) => {
-    const raw = ((await request.formData()).get("roles") as string) ?? "";
+    const values = { roles: formText(await request.formData(), "roles") };
     return handleAdminAction(locals, async () => {
-      await setRoles(params.id, parseRoles(raw), locals.member!.memberId);
+      const parsed = parseRoleLines(values.roles);
+      if (!parsed.success) {
+        return invalid(memberRolesIssues(parsed.error), values);
+      }
+      await setRoles(params.id, parsed.data, locals.member!.memberId);
       return {};
     });
   },
 
   setAdmin: async ({ request, locals, params }: Ctx) => {
-    const grant = (await request.formData()).get("isAdmin") === "true";
+    const values = { isAdmin: formText(await request.formData(), "isAdmin") };
     return handleAdminAction(locals, async () => {
-      await setAdmin(params.id, grant, locals.member!.memberId);
+      const parsed = memberAdminInputSchema.safeParse(values);
+      if (!parsed.success) {
+        return invalid(memberFormIssues(parsed.error), values);
+      }
+      await setAdmin(params.id, parsed.data.isAdmin, locals.member!.memberId);
       return {};
     });
   },
@@ -152,13 +187,21 @@ export const actions = {
   updatePrivateInfo: async ({ request, locals, params }: Ctx) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
-      const phoneRaw = data.get("phone") as string;
+      const values = {
+        email: formText(data, "email"),
+        phone: normalizePhoneNumber(formText(data, "phone").trim()),
+        background: formText(data, "background"),
+      };
+      const parsed = privateInfoUpdateSchema.safeParse(values);
+      if (!parsed.success) {
+        return invalid(memberFormIssues(parsed.error), values);
+      }
       await updatePrivateInfo(
         params.id,
         {
-          phone: phoneRaw ? normalizePhoneNumber(phoneRaw) : undefined,
-          background: (data.get("background") as string) ?? undefined,
-          email: (data.get("email") as string)?.trim() || undefined,
+          phone: parsed.data.phone,
+          background: parsed.data.background,
+          email: parsed.data.email,
         },
         locals.member!.memberId,
       );
