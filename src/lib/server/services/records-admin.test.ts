@@ -516,6 +516,7 @@ describe("referential-integrity deletes", () => {
         posterKey: "",
         requesterId: "p1",
         status: "approved" as const,
+        closedAs: null,
         createdAt: nowKstIso(),
       },
     ]);
@@ -528,13 +529,22 @@ describe("referential-integrity deletes", () => {
 
   // Only the cancelled seminar kept its approved request off the presenter's
   // dashboard (cancelledRequestIds) — without it the request shows "승인" again.
-  it("takes the approved request of a deleted cancelled seminar with it", async () => {
+  it("keeps the request of a deleted hidden seminar, marked closed", async () => {
     const { seminarId } = await seminarHoldingActivity("cancelled");
     await withSourceRequest(seminarId);
+    await mutate("seminar-requests", (rows) =>
+      rows.map((r) => ({ ...r, posterKey: "seminar-requests/req1/p.png" })),
+    );
 
     await deleteSeminar(seminarId);
 
-    expect(await getTable("seminar-requests")).toEqual([]);
+    const [request] = await getTable("seminar-requests");
+    expect(request).toMatchObject({
+      id: "req1",
+      status: "approved",
+      closedAs: "deleted",
+      posterKey: "", // the file goes with the seminar
+    });
   });
 
   it("keeps the request of a deleted published seminar", async () => {

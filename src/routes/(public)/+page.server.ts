@@ -53,7 +53,7 @@ export type DashboardData = {
   seminarRequests: {
     id: string;
     title: string;
-    status: RequestStatus;
+    status: RequestStatus | "cancelled";
     submittedAt: string;
   }[];
   myStudies: {
@@ -316,9 +316,9 @@ export const load: PageServerLoad = async (event) => {
         allMembers.find((m) => m.id === member.memberId) ?? null;
       const now = new Date();
 
-      // 취소는 세미나 행만 뒤집는다 — 신청 행은 "승인됨"인 채로 남는다. 걸러
-      // 주지 않으면 취소된 세미나가 개설자와 공동 발표자의 첫 화면에 계속
-      // 남아, 관리자에게만 남기기로 한 결정이 여기서만 깨진다.
+      // 취소는 세미나 행만 뒤집는다 — 신청 행은 "승인됨"인 채로 남는다. 발표자
+      // 화면에는 "취소됨"으로 보여 준다(결정 2026-09-27, 예전의 "숨김"을 뒤집음).
+      // 세미나가 취소 상태이거나, 그 세미나가 삭제되며 신청에 closedAs를 남긴 경우.
       const cancelledRequestIds = new Set(
         allSeminars
           .filter(
@@ -329,11 +329,16 @@ export const load: PageServerLoad = async (event) => {
       const requests = allRequests
         .filter(
           (r) =>
-            !cancelledRequestIds.has(r.id) &&
-            (r.presenterIds.some((id) => myIds.has(id)) ||
-              myIds.has(r.requesterId)),
+            r.presenterIds.some((id) => myIds.has(id)) ||
+            myIds.has(r.requesterId),
         )
-        .map(seminarRequestView);
+        .map((r) => ({
+          ...seminarRequestView(r),
+          status:
+            r.closedAs || cancelledRequestIds.has(r.id)
+              ? ("cancelled" as const)
+              : r.status,
+        }));
 
       const currentActivities = currentRaw.map((a) => {
         const event = eventByActivityId.get(a.id);

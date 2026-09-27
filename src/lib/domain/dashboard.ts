@@ -28,7 +28,7 @@ export interface DashboardProfile {
 }
 
 export type DashboardRequestStatus =
-  "pending" | "approved" | "rejected" | "withdrawn";
+  "pending" | "approved" | "rejected" | "withdrawn" | "cancelled";
 
 export interface DashboardRequestItem {
   id: string;

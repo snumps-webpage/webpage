@@ -99,6 +99,7 @@ describe("queue order (W-6 · FRONTEND-DECISIONS §3-5)", () => {
       posterKey: "",
       requesterId: newId(),
       status: "pending" as const,
+      closedAs: null,
       createdAt: iso,
     });
     await mutate("seminar-requests", () => [

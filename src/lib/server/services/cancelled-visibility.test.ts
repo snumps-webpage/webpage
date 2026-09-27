@@ -24,6 +24,7 @@ import {
 import { getManagedSeminars, hasPresenterEvents } from "./events";
 import { cancelSeminar, publishSeminar, scheduleSeminar } from "./seminars";
 import { approveSeminar, submitSeminarRequest } from "./seminar-requests";
+import { deleteSeminar } from "./records-admin";
 import { getMemberVisibleEvents } from "./visibility";
 import { load as dashboardLoad } from "../../../routes/(public)/+page.server";
 
@@ -211,20 +212,35 @@ describe("개설자 본인의 대시보드", () => {
     } as never)) as {
       streamed: {
         dashboard: Promise<{
-          seminarRequests: { title: string }[];
-          approvedSeminars: { title: string }[];
+          seminarRequests: { title: string; status: string }[];
         } | null>;
       };
     };
     return (await result.streamed.dashboard)!;
   }
 
-  it("취소된 세미나는 신청 목록에서도 사라진다", async () => {
+  // Decision 2026-09-27 (reverses the earlier "hide it"): the presenter sees
+  // the request, marked cancelled — whether the seminar was cancelled or
+  // cancelled and then deleted by an admin.
+  it("취소된 세미나의 신청은 '취소됨'으로 보인다", async () => {
     await cancelledSeminar();
 
     const dashboard = await dashboardOf();
 
-    expect(dashboard.seminarRequests.map((r) => r.title)).toEqual([]);
+    expect(dashboard.seminarRequests.map((r) => [r.title, r.status])).toEqual([
+      ["취소될 세미나", "cancelled"],
+    ]);
+  });
+
+  it("삭제된 세미나의 신청도 '취소됨'으로 남는다", async () => {
+    const id = await cancelledSeminar();
+    await deleteSeminar(id);
+
+    const dashboard = await dashboardOf();
+
+    expect(dashboard.seminarRequests.map((r) => [r.title, r.status])).toEqual([
+      ["취소될 세미나", "cancelled"],
+    ]);
   });
 
   it("취소되지 않은 세미나의 신청은 그대로 보인다", async () => {

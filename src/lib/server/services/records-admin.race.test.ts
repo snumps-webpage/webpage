@@ -118,6 +118,7 @@ describe("deleteSeminar re-checks the state it decided on", () => {
         posterKey: "",
         requesterId: "p1",
         status: "approved" as const,
+        closedAs: null,
         createdAt: nowKstIso(),
       },
     ]);
@@ -153,12 +154,14 @@ describe("deleteSeminar re-checks the state it decided on", () => {
         posterKey: "",
         requesterId: "p1",
         status: "approved" as const,
+        closedAs: null,
         createdAt: nowKstIso(),
       },
     ]);
 
     await deleteSeminar(s1.id);
 
-    expect(await getTable("seminar-requests")).toHaveLength(1);
+    const [request] = await getTable("seminar-requests");
+    expect(request.closedAs).toBeNull(); // the published seminar still stands on it
   });
 });

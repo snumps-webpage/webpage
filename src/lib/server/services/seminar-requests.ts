@@ -38,6 +38,7 @@ export async function submitSeminarRequest(input: {
     preferredTiming: normalizeTiming(input.preferredTiming),
     posterKey: await promoteSeminarPoster(posterPendingKey),
     status: "pending",
+    closedAs: null,
     createdAt: nowKstIso(),
   };
   await mutate("seminar-requests", (rows) => [...rows, row]);

@@ -26,6 +26,14 @@ export const SeminarRequestSchema = z.object({
   posterKey: z.string().default(""),
   requesterId: Id,
   status: RequestStatus,
+  /**
+   * The seminar this request became was cancelled or deleted (decision
+   * 2026-09-27). The row stays as history and the presenter's dashboard shows
+   * it as "취소됨". `status` keeps what the review decided ("approved").
+   * A cancelled seminar is also recognised from the seminar row itself; the
+   * marker is what survives once that row is deleted.
+   */
+  closedAs: z.enum(["cancelled", "deleted"]).nullable().default(null),
   createdAt: DateTime,
 });
 

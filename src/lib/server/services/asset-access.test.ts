@@ -105,6 +105,7 @@ describe("resolveAssetAccess", () => {
         posterKey: "seminars/posters/r1/dd-poster.png",
         requesterId: newId(),
         status: "pending",
+        closedAs: null,
         createdAt: nowKstIso(),
       },
     ]);
@@ -195,6 +196,7 @@ describe("resolveAssetAccess", () => {
         posterKey: poster,
         requesterId: newId(),
         status: "approved",
+        closedAs: null,
         createdAt: nowKstIso(),
       },
     ]);

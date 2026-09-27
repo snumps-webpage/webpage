@@ -27,6 +27,7 @@
       approved: "승인",
       rejected: "반려",
       withdrawn: "철회",
+      cancelled: "취소됨",
     }[status];
   }
 
@@ -213,6 +214,9 @@
   }
   .record-action > span[data-status="rejected"] {
     color: var(--latex-accent);
+  }
+  .record-action > span[data-status="cancelled"] {
+    text-decoration: line-through;
   }
   .work-panel footer {
     padding: 0.55rem 0.8rem;

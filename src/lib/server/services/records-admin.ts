@@ -243,17 +243,22 @@ export async function deleteSeminar(id: string): Promise<void> {
     };
     return rows.filter((s) => s.id !== id);
   });
-  // The hidden seminar was also what kept its approved request off the
-  // presenter's dashboard (cancelledRequestIds); gone, the request would read
-  // "승인" for a seminar that no longer exists. After the delete, so a refused
-  // delete keeps it; unless another seminar still points at the same request.
+  // The request stays as history, marked closed, so the presenter's dashboard
+  // keeps showing it as "취소됨" once the seminar row that said "cancelled" is
+  // gone. Its poster goes with the seminar. After the delete, so a refused
+  // delete changes nothing; skipped when another seminar still stands on it.
+  let requestPoster = "";
   if (hidden && seminar.sourceRequestId) {
     const sharedBy = (await getTable("seminars")).some(
       (s) => s.sourceRequestId === seminar.sourceRequestId,
     );
     if (!sharedBy) {
       await mutate("seminar-requests", (rows) =>
-        rows.filter((r) => r.id !== seminar.sourceRequestId),
+        rows.map((r) => {
+          if (r.id !== seminar.sourceRequestId) return r;
+          requestPoster = r.posterKey;
+          return { ...r, closedAs: "deleted" as const, posterKey: "" };
+        }),
       );
     }
   }
@@ -261,6 +266,7 @@ export async function deleteSeminar(id: string): Promise<void> {
     ...removed!.materials,
     ...removed!.photos,
     removed!.posterKey,
+    requestPoster,
   ]);
 }
 

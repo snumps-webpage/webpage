@@ -139,6 +139,7 @@ async function seedFixture() {
       posterKey: "",
       requesterId: "m1",
       status: "approved" as const,
+      closedAs: null,
       createdAt: nowKstIso(),
     },
   ]);
