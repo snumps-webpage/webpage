@@ -1,7 +1,7 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
   import type { SubmitFunction } from "@sveltejs/kit";
-  import { ACTIVITY_TYPES } from "$lib/constants";
+  import { RECORD_ACTIVITY_TYPES } from "$lib/constants";
   import type { AdminEventItem } from "$lib/domain/admin-dashboard";
 
   interface Props {
@@ -191,11 +191,15 @@
             >{/if}
         </label>
         <label
-          ><span>활동 종류</span><select name="type" value={editing.type}
-            >{#each ACTIVITY_TYPES as type (type)}<option value={type}
+          ><span>활동 종류</span><select
+            name="type"
+            value={editing.type}
+            aria-invalid={Boolean(issues.type)}
+            >{#each RECORD_ACTIVITY_TYPES as type (type)}<option value={type}
                 >{type}</option
               >{/each}</select
-          ></label
+          >{#if issues.type}<small class="field-error">{issues.type}</small
+            >{/if}</label
         >
         <div class="time-grid">
           <label>

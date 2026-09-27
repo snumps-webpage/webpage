@@ -1,8 +1,9 @@
-import { redirect } from "@sveltejs/kit";
+import { fail, redirect, type ActionFailure } from "@sveltejs/kit";
 import { ensureAdmin, handleAdminAction } from "$lib/server/auth-guards";
 import { getTable } from "$lib/server/data/tables";
 import { connectActivity } from "$lib/server/services/events";
 import { termOf } from "$lib/server/core/semester";
+import { adminDashboardIdSchema } from "$lib/domain/admin-dashboard";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -34,23 +35,29 @@ export const actions = {
     locals: App.Locals;
   }) => {
     const data = await request.formData();
-    // §7-5: the session copies title/date/type from the activity — the id is
-    // the only client input we trust.
-    const activityId = (data.get("activityId") ??
-      data.get("notionPageId")) as string;
-    if (!activityId) {
-      const { fail } = await import("@sveltejs/kit");
-      return fail(400, {
-        error: "VALIDATION_FAILED",
-        message: "이벤트를 선택해주세요.",
-      });
-    }
-
     const result = await handleAdminAction(locals, async () => {
-      await connectActivity(activityId);
+      // §7-5: the session copies title/date/type from the activity — the id is
+      // the only client input we trust.
+      const raw = data.get("activityId") ?? data.get("notionPageId");
+      const parsed = adminDashboardIdSchema.safeParse(
+        typeof raw === "string" ? raw : "",
+      );
+      if (!parsed.success) {
+        return fail(400, {
+          error: "VALIDATION_FAILED",
+          message: "이벤트를 선택해주세요.",
+          issues: { activityId: parsed.error.issues[0].message },
+        });
+      }
+      await connectActivity(parsed.data);
       return {};
     });
-    if ("success" in result && result.success) throw redirect(302, "/admin");
-    return result;
+    // 303: a POST answered with a redirect must turn into a GET (audit W-26).
+    if ("success" in result && result.success) throw redirect(303, "/admin");
+    return result as ActionFailure<{
+      error: string;
+      message?: string;
+      issues?: Record<string, string>;
+    }>;
   },
 };

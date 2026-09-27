@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { ACTIVITY_TYPES, type ActivityType } from "$lib/constants";
+import { RECORD_ACTIVITY_TYPES, type ActivityType } from "$lib/constants";
 import type { AdminSeminarRequestItem } from "$lib/domain/admin-seminars";
 import type { AdminStudyRequestItem } from "$lib/domain/studies";
 
@@ -113,7 +113,20 @@ export type AdminDashboardOperationResult =
       attendanceId: string;
     };
 
-export const adminDashboardIdSchema = z.string().trim().min(1);
+export const adminDashboardIdSchema = z
+  .string()
+  .trim()
+  .min(1, "대상을 선택해 주세요.")
+  .max(200, "대상 id를 확인해 주세요.");
+
+/** The ids one dashboard action names (e.g. `eventId` + `id`), all required. */
+export function adminDashboardIdsSchema<K extends string>(...keys: K[]) {
+  return z.object(
+    Object.fromEntries(keys.map((key) => [key, adminDashboardIdSchema])) as {
+      [P in K]: typeof adminDashboardIdSchema;
+    },
+  );
+}
 
 /** A KST `datetime-local` input, "YYYY-MM-DDTHH:mm". */
 export const localDateTimeSchema = z
@@ -125,7 +138,9 @@ const localDateTime = localDateTimeSchema;
 export const adminEventInputSchema = z
   .object({
     title: z.string().trim().min(1, "이벤트 제목을 입력해 주세요.").max(160),
-    type: z.enum(ACTIVITY_TYPES, { message: "활동 종류를 선택해 주세요." }),
+    type: z.enum(RECORD_ACTIVITY_TYPES, {
+      message: "활동 종류를 선택해 주세요.",
+    }),
     startsAtLocal: localDateTime,
     endsAtLocal: z.union([z.literal(""), localDateTime]),
   })

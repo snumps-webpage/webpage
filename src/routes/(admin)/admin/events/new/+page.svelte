@@ -39,11 +39,14 @@
             id="date"
             name="date"
             required
-            aria-invalid={Boolean(form?.issues?.date)}
-            aria-describedby={form?.issues?.date ? "date-error" : undefined}
+            aria-invalid={Boolean(form?.issues?.startsAtLocal)}
+            aria-describedby={form?.issues?.startsAtLocal
+              ? "date-error"
+              : undefined}
           />
-          {#if form?.issues?.date}<small id="date-error" class="field-error"
-              >{form.issues.date}</small
+          {#if form?.issues?.startsAtLocal}<small
+              id="date-error"
+              class="field-error">{form.issues.startsAtLocal}</small
             >{/if}
         </div>
 

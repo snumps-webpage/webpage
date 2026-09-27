@@ -43,7 +43,9 @@
   <p class="desc">
     기존 활동 이력은 그대로 두고, 선택한 활동에 새 출석 세션을 연결합니다.
   </p>
-  {#if form?.error}<p class="form-error" role="alert">{form.error}</p>{/if}
+  {#if form?.error}<p class="form-error" role="alert">
+      {form.message ?? form.error}
+    </p>{/if}
 
   <ol class="paper-sections">
     <li class="paper-section">
