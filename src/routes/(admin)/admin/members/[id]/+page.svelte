@@ -246,11 +246,9 @@
           {/each}
         </div>
         <datalist id="role-titles">
-          <option value="회장"></option>
-          <option value="부회장"></option>
-          <option value="학술부장"></option>
-          <option value="총무"></option>
-          <option value="홍보부장"></option>
+          {#each data.roleTitles as title (title)}
+            <option value={title}></option>
+          {/each}
         </datalist>
         {#if roleIssue}<p class="field-error" role="alert">{roleIssue}</p>{/if}
         <footer>

@@ -13,7 +13,8 @@ import {
   updateMember,
   updatePrivateInfo,
 } from "$lib/server/services/members-admin";
-import { formatPhoneForDisplay, normalizePhoneNumber } from "$lib/utils";
+import { listRoleTitles } from "$lib/server/services/executives-admin";
+import { formatPhoneForDisplay } from "$lib/utils";
 import { formText, fieldIssues } from "$lib/domain/form-data";
 import {
   alumniRevocationInputSchema,
@@ -80,6 +81,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
           background: privateInfo.background,
         }
       : null,
+    // The role suggestions are the executives page's options, not a list of
+    // their own (audit LB22-3).
+    roleTitles: (await listRoleTitles()).map((o) => o.title),
   };
 };
 
@@ -107,12 +111,9 @@ export const actions = {
       };
       const record = memberRecordInputSchema.safeParse(values);
       // publicContact stays one stored string; its halves are validated as
-      // the domain's structured contact (phone normalized first).
-      const contactInput = splitPublicContact(values.publicContact);
+      // the domain's structured contact (the phone rule normalizes first).
       const contact = publicContactInputSchema.safeParse(
-        contactInput.status === "granted"
-          ? { ...contactInput, phone: normalizePhoneNumber(contactInput.phone) }
-          : contactInput,
+        splitPublicContact(values.publicContact),
       );
       if (!record.success || !contact.success) {
         return invalid(
@@ -188,7 +189,7 @@ export const actions = {
     return handleAdminAction(locals, async () => {
       const values = {
         email: formText(data, "email"),
-        phone: normalizePhoneNumber(formText(data, "phone").trim()),
+        phone: formText(data, "phone"),
         background: formText(data, "background"),
       };
       const parsed = privateInfoUpdateSchema.safeParse(values);

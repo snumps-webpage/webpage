@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import { fieldIssues } from "$lib/domain/form-data";
+import { backgroundInput, phoneInput } from "$lib/domain/members";
 import type { ActivityType } from "$lib/constants";
 
 export type DashboardActivityState =
@@ -57,15 +58,10 @@ export const dashboardEventIdSchema = z
   .min(1, "활동을 선택해 주세요.")
   .max(200, "활동 id를 확인해 주세요.");
 
+/** The member's own edit of the two private-info fields (audit LC11-4). */
 export const dashboardProfileInputSchema = z.object({
-  phone: z
-    .string()
-    .trim()
-    .regex(/^010-\d{4}-\d{4}$/, "전화번호는 010-XXXX-XXXX 형식이어야 합니다."),
-  background: z
-    .string()
-    .trim()
-    .max(2000, "배경지식은 2,000자 이하로 입력해 주세요."),
+  phone: phoneInput,
+  background: backgroundInput,
 });
 
 export function dashboardActivityState(

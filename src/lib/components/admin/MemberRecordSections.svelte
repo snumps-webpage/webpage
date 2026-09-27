@@ -11,7 +11,10 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
   import { untrack } from "svelte";
-  import type { AdminMemberDetail } from "$lib/domain/members";
+  import type {
+    ActiveMemberStatus,
+    AdminMemberDetail,
+  } from "$lib/domain/members";
 
   let {
     member,
@@ -37,7 +40,7 @@
   let joinedAt = $state(initialMember.joinedAt ?? "");
   let projectTitle = $state(initialMember.projectTitle);
   let projectUrl = $state(initialMember.projectUrl);
-  let selectedStatus = $state<"associate" | "regular">(
+  let selectedStatus = $state<ActiveMemberStatus>(
     initialMember.status === "regular" ? "regular" : "associate",
   );
   let alumniReason = $state("");

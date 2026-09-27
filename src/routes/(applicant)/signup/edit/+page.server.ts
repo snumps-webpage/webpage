@@ -5,7 +5,7 @@ import {
   updateOwnApplication,
 } from "$lib/server/services/membership";
 import { applicationView } from "$lib/server/data/views";
-import { normalizePhoneNumber, parseGoogleName } from "$lib/utils";
+import { parseGoogleName } from "$lib/utils";
 import { AppError } from "$lib/server/core/errors";
 import { stripInvisibles } from "$lib/server/core/strings";
 import { formText, fieldIssues } from "$lib/domain/form-data";
@@ -44,7 +44,7 @@ export const actions = {
 
       const data = await request.formData();
       const values = {
-        phone: normalizePhoneNumber(formText(data, "phone")),
+        phone: formText(data, "phone"),
         studentId: stripInvisibles(formText(data, "studentId")),
         background: formText(data, "background"),
       };

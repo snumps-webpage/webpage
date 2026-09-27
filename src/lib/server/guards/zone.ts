@@ -18,12 +18,13 @@ import {
   hasCapability,
   type Capability,
 } from "$lib/server/core/capabilities";
+import type { MemberStatus } from "$lib/domain/members";
 
 export interface MemberContext {
   memberId: string;
   privateInfoId: string | null;
   name: string;
-  status: "associate" | "regular" | "withdrawn";
+  status: MemberStatus;
   isAdmin: boolean;
   /** S9: 동문 지위 (정회원 취득 이력 — 영구) */
   isAlumni: boolean;

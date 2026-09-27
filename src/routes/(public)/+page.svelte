@@ -28,21 +28,9 @@
         requestedSemester && dashboard.semesters.includes(requestedSemester)
           ? requestedSemester
           : data.currentSemesterKey}
-      {@const activities = dashboard.activities
-        .filter((activity) => activity.semester === selectedSemester)
-        .map((activity) => ({
-          id: activity.id,
-          title: activity.name,
-          type: activity.type,
-          startsAt: activity.date,
-          semester: activity.semester,
-          detailUrl: activity.url || null,
-          eventId: activity.eventId,
-          isApplied: activity.isApplied,
-          canApply: activity.canApply,
-          pendingAttendance: activity.pendingAttendance,
-          attended: activity.attended,
-        }))}
+      {@const activities = dashboard.activities.filter(
+        (activity) => activity.semester === selectedSemester,
+      )}
       {@const requests = dashboard.seminarRequests.map((request) => ({
         id: request.id,
         type: "seminar" as const,

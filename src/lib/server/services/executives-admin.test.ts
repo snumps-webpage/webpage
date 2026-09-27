@@ -17,6 +17,7 @@ import { currentTerm } from "$lib/server/core/semester";
 import { nowKstIso } from "$lib/server/core/time";
 import type { Member } from "$lib/server/data/schemas";
 import { assignRole, unassignRole } from "./executives-admin";
+import { setRoles } from "./members-admin";
 
 /**
  * The executives page offered only non-withdrawn candidates, but assignRole
@@ -138,5 +139,49 @@ describe("role changes apply to the latest row", () => {
     expect((await getTable("members"))[0].roles).toEqual([
       { term: currentTerm(), title: "총무" },
     ]);
+  });
+});
+
+// /admin/executives and the member page wrote the same member.roles under
+// different rules: an assignment past 30 succeeded here, and from then on the
+// member page refused to save that member's roles at all (audit LB22-3).
+describe("both role entry points hold the finished array to one rule", () => {
+  const refused = (e: unknown) =>
+    e instanceof AppError && e.code === "VALIDATION_FAILED";
+
+  it("refuses a 31st role", async () => {
+    const thirty = Array.from({ length: 30 }, (_, i) => ({
+      term: `${String(i).padStart(2, "0")}-1`,
+      title: "회장",
+    }));
+    await mutate("members", () => [member({ roles: thirty })]);
+
+    await expect(
+      assignRole({
+        memberId: "m1",
+        term: currentTerm(),
+        title: "부회장",
+        actorId: "a",
+      }),
+    ).rejects.toSatisfy(refused);
+    expect((await getTable("members"))[0].roles).toHaveLength(30);
+  });
+
+  it("refuses the same term and title twice", async () => {
+    const role = { term: currentTerm(), title: "회장" };
+    await mutate("members", () => [member({ roles: [role] })]);
+
+    await expect(
+      assignRole({ memberId: "m1", ...role, actorId: "a" }),
+    ).rejects.toSatisfy(refused);
+    expect((await getTable("members"))[0].roles).toEqual([role]);
+  });
+
+  it("setRoles refuses what the member page's schema refuses", async () => {
+    await mutate("members", () => [member({})]);
+    const role = { term: currentTerm(), title: "회장" };
+
+    await expect(setRoles("m1", [role, role], "a")).rejects.toSatisfy(refused);
+    expect((await getTable("members"))[0].roles).toEqual([]);
   });
 });

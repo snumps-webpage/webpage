@@ -1,7 +1,9 @@
 import { z } from "zod";
+import { MEMBER_STATUSES } from "$lib/domain/members";
 import { DateOnly, DateTime, Id, SourceRequestId, Term } from "./common";
 
-export const MemberStatus = z.enum(["associate", "regular", "withdrawn"]);
+// 회원 지위의 닫힌 집합은 도메인이 단일 원천 (audit LA21-1).
+export const MemberStatus = z.enum(MEMBER_STATUSES);
 export type MemberStatus = z.infer<typeof MemberStatus>;
 
 export const MemberRole = z.object({
@@ -13,7 +15,7 @@ export type MemberRole = z.infer<typeof MemberRole>;
 /** MEM-07 lifecycle state. previousStatus restores on self-cancellation. */
 export const Withdrawal = z.object({
   requestedAt: DateTime,
-  previousStatus: z.enum(["associate", "regular"]),
+  previousStatus: MemberStatus.exclude(["withdrawn"]),
   holdBy: Id.nullable(),
   holdAt: DateTime.nullable(),
 });

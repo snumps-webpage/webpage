@@ -1,5 +1,8 @@
 import { fail } from "@sveltejs/kit";
-import { validateMailPreferenceForm } from "$lib/domain/account";
+import {
+  DEFAULT_MAIL_PREFS,
+  validateMailPreferenceForm,
+} from "$lib/domain/account";
 import { handleUserAction } from "$lib/server/auth-guards";
 import { AppError } from "$lib/server/core/errors";
 import { currentTerm } from "$lib/server/core/semester";
@@ -21,7 +24,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     (r) => r.term === currentTerm() && ["회장", "부회장"].includes(r.title),
   );
   return {
-    mailPrefs: info?.mailPrefs ?? { announcements: true },
+    mailPrefs: info?.mailPrefs ?? { ...DEFAULT_MAIL_PREFS },
     email: info?.email ?? "",
     isCurrentExecutive,
     hidePublicPhone: info?.hidePublicPhone ?? false,

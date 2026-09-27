@@ -20,14 +20,14 @@ import {
 import { seminarRequestView } from "$lib/server/data/views";
 import { currentTerm, termRange } from "$lib/server/core/semester";
 import { AppError } from "$lib/server/core/errors";
-import { formatPhoneForDisplay, normalizePhoneNumber } from "$lib/utils";
+import { formatPhoneForDisplay } from "$lib/utils";
 import { termLabel, termOfDateString } from "$lib/domain/term";
-import type { ActivityType } from "$lib/constants";
 import {
   dashboardEventIdSchema,
   dashboardProfileInputSchema,
   dashboardProfileIssues,
   type DashboardActivityItem,
+  type DashboardProfile,
 } from "$lib/domain/dashboard";
 import { formText } from "$lib/domain/form-data";
 import type {
@@ -41,19 +41,8 @@ import { acceptTransfer, declineTransfer } from "$lib/server/services/studies";
 
 /** The streamed member-dashboard payload (FUNCTIONAL-SPEC MEM-04·05, EVT-02·03, STU-07). */
 export type DashboardData = {
-  activities: {
-    id: string;
-    name: string;
-    date: string;
-    type: ActivityType;
-    attended: boolean;
-    url: string;
-    semester: string;
-    eventId: string | null;
-    isApplied: boolean;
-    canApply: boolean;
-    pendingAttendance: boolean;
-  }[];
+  /** The ledger's rows, in the shape the apply/cancel answer carries (audit LC07-1). */
+  activities: DashboardActivityItem[];
   seminarRequests: {
     id: string;
     title: string;
@@ -74,13 +63,7 @@ export type DashboardData = {
     requestedAt: string;
   }[];
   myAttendanceStats: { total: number; attended: number };
-  profile: {
-    name: string;
-    department: string;
-    email: string;
-    phone: string;
-    background: string;
-  };
+  profile: DashboardProfile;
   semesters: string[];
   generatedAt: string;
 };
@@ -111,6 +94,29 @@ function participationState(
 }
 
 /**
+ * One ledger row. The load and the apply/cancel answer both build it here: the
+ * ledger swaps a loaded row for the answered one, so the two must agree field
+ * for field (audit LC07-1).
+ */
+function ledgerRow(
+  activity: Activity,
+  semester: string,
+  eventId: string | null,
+  participation: ReturnType<typeof participationState>,
+): DashboardActivityItem {
+  return {
+    id: activity.id,
+    title: activity.title,
+    type: activity.type,
+    startsAt: activity.date.start,
+    semester,
+    detailUrl: null,
+    eventId,
+    ...participation,
+  };
+}
+
+/**
  * The ledger keeps its rows in local state and replaces one only from the
  * action result (DashboardOperationResult) — so apply/cancel must answer with
  * the row as it now stands, read back after the write.
@@ -130,17 +136,13 @@ async function ledgerRowFor(
   const legacyId =
     members.find((m) => m.id === memberId)?.legacyMemberId ?? null;
   const myIds = new Set([memberId, ...(legacyId ? [legacyId] : [])]);
-  return {
-    id: activity.id,
-    title: activity.title,
-    type: activity.type,
-    startsAt: activity.date.start,
-    semester: termOfDateString(activity.date.start),
-    detailUrl: null,
-    eventId: event.id,
+  return ledgerRow(
+    activity,
+    termOfDateString(activity.date.start),
+    event.id,
     // Only reached after requireCapability(PARTICIPATE) passed.
-    ...participationState(activity, event, myIds, memberId, new Date(), true),
-  };
+    participationState(activity, event, myIds, memberId, new Date(), true),
+  );
 }
 
 /**
@@ -170,11 +172,11 @@ function buildDevDashboardPreview(semesterKey: string): DashboardData {
   const activities: DashboardData["activities"] = [
     {
       id: "preview-activity-1",
-      name: "조합론 세미나",
-      date: toDate(-9),
+      title: "조합론 세미나",
+      startsAt: toDate(-9),
       type: "세미나",
       attended: true,
-      url: "https://example.com/preview/seminar-1",
+      detailUrl: "https://example.com/preview/seminar-1",
       semester: semesterKey,
       eventId: null,
       isApplied: false,
@@ -183,11 +185,11 @@ function buildDevDashboardPreview(semesterKey: string): DashboardData {
     },
     {
       id: "preview-activity-2",
-      name: "기하학 문제풀이",
-      date: toDate(-4),
+      title: "기하학 문제풀이",
+      startsAt: toDate(-4),
       type: "문제 풀이",
       attended: false,
-      url: "https://example.com/preview/geometry",
+      detailUrl: "https://example.com/preview/geometry",
       semester: semesterKey,
       eventId: null,
       isApplied: false,
@@ -196,11 +198,11 @@ function buildDevDashboardPreview(semesterKey: string): DashboardData {
     },
     {
       id: "preview-activity-3",
-      name: "수리논리 학습회",
-      date: toDate(-1),
+      title: "수리논리 학습회",
+      startsAt: toDate(-1),
       type: "스터디",
       attended: true,
-      url: "https://example.com/preview/logic",
+      detailUrl: "https://example.com/preview/logic",
       semester: semesterKey,
       eventId: null,
       isApplied: false,
@@ -344,15 +346,11 @@ export const load: PageServerLoad = async (event) => {
 
       const currentActivities = currentRaw.map((a) => {
         const event = eventByActivityId.get(a.id);
-        return {
-          id: a.id,
-          name: a.title,
-          date: a.date.start,
-          type: a.type,
-          url: "",
-          semester: semester.key,
-          eventId: event?.id ?? null,
-          ...participationState(
+        return ledgerRow(
+          a,
+          semester.key,
+          event?.id ?? null,
+          participationState(
             a,
             event,
             myIds,
@@ -360,7 +358,7 @@ export const load: PageServerLoad = async (event) => {
             now,
             hasCapability(member.capabilities, CAPABILITIES.PARTICIPATE),
           ),
-        };
+        );
       });
 
       const semesters = Array.from(
@@ -371,19 +369,14 @@ export const load: PageServerLoad = async (event) => {
 
       const pastAttended = attendedRaw
         .filter((a) => termOfDateString(a.date.start) !== semester.key)
-        .map((a) => ({
-          id: a.id,
-          name: a.title,
-          date: a.date.start,
-          type: a.type,
-          attended: true,
-          url: "",
-          semester: termOfDateString(a.date.start),
-          eventId: null,
-          isApplied: false,
-          canApply: false,
-          pendingAttendance: false,
-        }));
+        .map((a) =>
+          ledgerRow(a, termOfDateString(a.date.start), null, {
+            attended: true,
+            isApplied: false,
+            canApply: false,
+            pendingAttendance: false,
+          }),
+        );
 
       return {
         activities: [...currentActivities, ...pastAttended],
@@ -570,7 +563,7 @@ export const actions = {
     // formText, not a cast: a File in `phone` reached .replace() here, before
     // the wrapper, and answered 500 (audit LC09-3).
     const parsed = dashboardProfileInputSchema.safeParse({
-      phone: normalizePhoneNumber(formText(data, "phone")),
+      phone: formText(data, "phone"),
       background: formText(data, "background"),
     });
 

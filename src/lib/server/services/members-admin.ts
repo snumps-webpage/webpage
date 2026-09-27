@@ -1,6 +1,10 @@
 import { AppError, definedOnly } from "$lib/server/core/errors";
 import { nowKstIso } from "$lib/server/core/time";
 import { withdrawalGraceEndsAt } from "$lib/domain/account";
+import {
+  memberRolesSchema,
+  type ActiveMemberStatus,
+} from "$lib/domain/members";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { audit, auditStamp } from "$lib/server/data/audit";
 import { callFlow } from "$lib/server/data/flows";
@@ -42,7 +46,7 @@ export async function updateMember(
 /** associate↔regular. Promotion grants alumni — unless a revocation sticks. */
 export async function setStatus(
   targetId: string,
-  status: "associate" | "regular",
+  status: ActiveMemberStatus,
   actorId: string,
 ): Promise<void> {
   await patchMember(targetId, (m) => {
@@ -84,18 +88,36 @@ export async function revokeAlumni(
   });
 }
 
+/**
+ * The one rule for a member's finished roles array — format, the 30-role cap,
+ * no repeated (term, title) — whichever screen wrote it. The member page and
+ * /admin/executives used to check different things; an executives assignment
+ * past 30 then made the member page unable to save that member's roles at all
+ * (audit LB22-3).
+ */
+function checkedRoles(roles: MemberRole[]): MemberRole[] {
+  const parsed = memberRolesSchema.safeParse(roles);
+  if (!parsed.success) {
+    throw new AppError("VALIDATION_FAILED", {
+      userMessage: parsed.error.issues[0]?.message,
+    });
+  }
+  return parsed.data;
+}
+
 export async function setRoles(
   targetId: string,
   roles: MemberRole[],
   actorId: string,
 ): Promise<void> {
-  await patchMember(targetId, (m) => ({ ...m, roles }));
+  const checked = checkedRoles(roles);
+  await patchMember(targetId, (m) => ({ ...m, roles: checked }));
   await audit({
     actorMemberId: actorId,
     action: "member.set-roles",
     targetTable: "members",
     targetId,
-    detail: { count: roles.length },
+    detail: { count: checked.length },
   });
 }
 
@@ -103,7 +125,8 @@ export async function setRoles(
  * Change one member's roles by a function of the latest row, inside the
  * write — for callers that add or remove one role. Building the whole array
  * from a cached read and handing it to setRoles undid an edit another
- * instance had just made (audit LB22-1). `change` may throw to refuse.
+ * instance had just made (audit LB22-1). `change` may throw to refuse; what
+ * it returns is held to the same rule as setRoles (audit LB22-3).
  */
 export async function updateRoles(
   targetId: string,
@@ -112,7 +135,7 @@ export async function updateRoles(
 ): Promise<void> {
   const updated = await patchMember(targetId, (m) => ({
     ...m,
-    roles: change(m),
+    roles: checkedRoles(change(m)),
   }));
   await audit({
     actorMemberId: actorId,

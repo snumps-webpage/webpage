@@ -10,9 +10,9 @@ import { updateRoles } from "./members-admin";
  * /admin/executives — 학기별 임원진 배정 (관리자 전용).
  *
  * 배정의 저장처는 기존 그대로 member.roles[{term,title}] — 이 서비스는
- * 학기 단위로 보기 좋게 자르고, 배정/해제를 setRoles(감사 기록 포함 —
- * §1-5 ?/setRoles 대상)로 위임한다. 직위 옵션은 기본(코드) + 커스텀
- * (role-titles 테이블) 합집합이다.
+ * 학기 단위로 보기 좋게 자르고, 배정/해제를 updateRoles(감사 기록 포함 —
+ * §1-5 ?/setRoles 와 같은 검증)로 위임한다. 직위 옵션은 기본(코드) + 커스텀
+ * (role-titles 테이블) 합집합이다 — 회원 상세의 직책 제안 목록도 이것이다.
  */
 
 /** 기본 직위 — 역사적으로 쓰인 것들. 옵션 추가는 role-titles 테이블로. */
@@ -133,7 +133,11 @@ export async function getTermBoard(rawTerm: string): Promise<{
   return { term, assignments, candidates };
 }
 
-/** 배정 — 같은 (학기, 직위, 회원) 중복은 거부. 감사 기록은 setRoles가 남긴다. */
+/**
+ * 배정 — 목록에 있는 직위만. 완성된 배열의 규칙(같은 학기·직위 중복 금지,
+ * 30개 상한)은 회원 상세와 같은 memberRolesSchema가 updateRoles 안에서 본다
+ * (감사 LB22-3). 감사 기록도 updateRoles가 남긴다.
+ */
 export async function assignRole(input: {
   memberId: string;
   term: string;
@@ -157,11 +161,6 @@ export async function assignRole(input: {
       if (member.status === "withdrawn") {
         throw new AppError("CONFLICT", {
           userMessage: "탈퇴 신청 중인 회원은 임원으로 지정할 수 없습니다.",
-        });
-      }
-      if (member.roles.some((r) => r.term === term && r.title === title)) {
-        throw new AppError("CONFLICT", {
-          userMessage: "이미 같은 학기에 같은 직위가 배정돼 있습니다.",
         });
       }
       return [...member.roles, { term, title }];

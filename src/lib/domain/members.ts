@@ -1,7 +1,16 @@
 import { z } from "zod/v4";
+import { normalizePhoneNumber } from "$lib/utils";
+import type { MailPrefs } from "$lib/domain/account";
 
+/**
+ * The member status set — the one source; the stored schema
+ * (server/data/schemas/member.ts) and every narrower set derive from it
+ * (audit LA21-1).
+ */
 export const MEMBER_STATUSES = ["associate", "regular", "withdrawn"] as const;
 export type MemberStatus = (typeof MEMBER_STATUSES)[number];
+/** Every status but withdrawn: what an admin sets and a withdrawal restores. */
+export type ActiveMemberStatus = Exclude<MemberStatus, "withdrawn">;
 
 export interface MemberRoleAssignment {
   term: string;
@@ -15,7 +24,7 @@ export interface MemberProject {
 
 export interface MemberWithdrawal {
   requestedAt: string;
-  previousStatus: Exclude<MemberStatus, "withdrawn">;
+  previousStatus: ActiveMemberStatus;
   holdBy: string | null;
   holdAt: string | null;
 }
@@ -24,9 +33,7 @@ export interface MemberPrivateInfo {
   email: string;
   phone: string;
   background: string;
-  mailPrefs: {
-    announcements: boolean;
-  };
+  mailPrefs: MailPrefs;
 }
 
 export type PublicContactState =
@@ -87,12 +94,30 @@ export interface PublicExecutiveRoster {
  * {error: VALIDATION_FAILED, issues: fieldIssues(…), values}.
  */
 
-const PHONE_MESSAGE = "전화번호는 010-XXXX-XXXX 형식이어야 합니다.";
+/**
+ * The stored `private-info.phone` as every entry point takes it — signup,
+ * the member's own dashboard, the admin edit and the public-contact grant
+ * (audit LC11-4). Normalized first, so "01012345678" or "010 1234 5678"
+ * reads as "010-1234-5678"; what is left must be exactly that shape.
+ */
+export const phoneInput = z
+  .string()
+  .transform(normalizePhoneNumber)
+  .pipe(
+    z
+      .string()
+      .trim()
+      .regex(
+        /^010-\d{4}-\d{4}$/,
+        "전화번호는 010-XXXX-XXXX 형식이어야 합니다.",
+      ),
+  );
 
-const phoneSchema = z
+/** The stored `private-info.background`, from any entry point (audit LC11-4). */
+export const backgroundInput = z
   .string()
   .trim()
-  .regex(/^010-\d{4}-\d{4}$/, PHONE_MESSAGE);
+  .max(2000, "배경지식은 2,000자 이하로 입력해 주세요.");
 
 /** Trimmed before the format check, so a pasted trailing space is not "invalid". */
 const emailSchema = z
@@ -152,7 +177,8 @@ export const memberRecordInputSchema = z
   }));
 
 export const memberStatusInputSchema = z.object({
-  status: z.enum(["associate", "regular"], {
+  // withdrawn is the withdrawal lifecycle's, never set by hand
+  status: z.enum(MEMBER_STATUSES).exclude(["withdrawn"], {
     message: "회원 지위를 확인해 주세요.",
   }),
 });
@@ -178,11 +204,8 @@ export const privateInfoInputSchema = z.object({
     (email) => email.toLowerCase().endsWith("@snu.ac.kr"),
     "서울대학교 이메일(@snu.ac.kr)을 입력해 주세요.",
   ),
-  phone: phoneSchema,
-  background: z
-    .string()
-    .trim()
-    .max(2000, "배경지식은 2,000자 이하로 입력해 주세요."),
+  phone: phoneInput,
+  background: backgroundInput,
 });
 
 /** A blank field reads as "not given" (undefined) instead of failing. */
@@ -239,7 +262,7 @@ export const memberRolesSchema = z
 
 const grantedPublicContactSchema = z.object({
   status: z.literal("granted"),
-  phone: phoneSchema,
+  phone: phoneInput,
   email: emailSchema,
 });
 

@@ -21,8 +21,24 @@ export interface WithdrawalFormFailure {
   values: WithdrawalFormValues;
 }
 
+/**
+ * The mail types a member can turn off — the one list behind the toggle's
+ * rule, the stored `private-info.mailPrefs` keys and their defaults (audit
+ * LC01-3). A type added here is stored, not stripped by the table gate.
+ */
+export const MAIL_PREFERENCE_TYPES = ["announcements"] as const;
+export type MailPreferenceType = (typeof MAIL_PREFERENCE_TYPES)[number];
+export type MailPrefs = Record<MailPreferenceType, boolean>;
+
+/** Every type is on until the member turns it off. */
+export const DEFAULT_MAIL_PREFS: Readonly<MailPrefs> = Object.freeze(
+  Object.fromEntries(
+    MAIL_PREFERENCE_TYPES.map((type) => [type, true]),
+  ) as MailPrefs,
+);
+
 const mailPreferenceInputSchema = z.object({
-  type: z.literal("announcements", {
+  type: z.enum(MAIL_PREFERENCE_TYPES, {
     error: "지원하지 않는 알림 유형입니다.",
   }),
   enabled: z.enum(["true", "false"], {
