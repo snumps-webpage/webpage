@@ -18,6 +18,7 @@ import {
 import { currentTerm } from "$lib/server/core/semester";
 import { nowKstIso } from "$lib/server/core/time";
 import { StudyStatus } from "$lib/server/data/schemas";
+import { AppError } from "$lib/server/core/errors";
 import {
   adminStudyRequestItem,
   contentFileFromKey,
@@ -134,8 +135,9 @@ export const actions = {
       if (!parsed.success)
         return invalid("record-update", parsed.error, values, id);
       const { title, term, material, description, note } = parsed.data;
-      const statusRaw = data.get("status") as string | null;
-      const status = statusRaw ? StudyStatus.parse(statusRaw) : undefined;
+      const statusRaw = formText(data, "status");
+      const status = statusRaw ? StudyStatus.safeParse(statusRaw) : null;
+      if (status && !status.success) throw new AppError("VALIDATION_FAILED");
       // 편집기가 보내지 않는 칸은 그대로 둔다 — 빈 값으로 지우지 않는다.
       const sent = (key: string) => data.has(key);
       await updateStudy(id, {
@@ -144,7 +146,7 @@ export const actions = {
         textbook: sent("textbook") ? material : undefined,
         description: sent("description") ? description : undefined,
         note: sent("note") ? note : undefined,
-        status,
+        status: status?.data,
       });
       return { operation: "studyRecordUpdated" };
     });

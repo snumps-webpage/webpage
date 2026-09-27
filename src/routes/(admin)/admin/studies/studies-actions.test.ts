@@ -163,4 +163,25 @@ describe("?/update", () => {
     const [row] = await getTable("studies");
     expect(row).toMatchObject({ title: "수론 스터디", semester: "26-2" });
   });
+
+  // The editor never sends a status, but a crafted one used to reach
+  // StudyStatus.parse and answer 500.
+  it("refuses an unknown status with 400 and keeps the row", async () => {
+    const result = (await actions.update(
+      post({
+        id: await id(),
+        title: "수론 스터디",
+        semester: "26-2",
+        description: "",
+        textbook: "",
+        status: "archived",
+      }),
+    )) as unknown as Failure;
+
+    expect(result).toMatchObject({
+      status: 400,
+      data: { error: "VALIDATION_FAILED" },
+    });
+    expect((await getTable("studies"))[0].status).toBe("recruiting");
+  });
 });
