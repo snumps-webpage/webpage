@@ -3,9 +3,14 @@
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import AccountSettingsNav from "$lib/components/account/AccountSettingsNav.svelte";
   import { MANUSCRIPT } from "$lib/constants";
+  import type { MailPreferenceFormFailure } from "$lib/domain/account";
 
   let { data, form } = $props();
   let saving = $state(false);
+  // Both fields are hidden inputs, so a field issue shows in the one alert.
+  const issues = $derived(
+    (form as { issues?: MailPreferenceFormFailure["issues"] } | null)?.issues,
+  );
 </script>
 
 <svelte:head>
@@ -25,7 +30,9 @@
     <p class="result-note" role="status">공지 메일 설정을 저장했습니다.</p>
   {:else if form?.error}
     <p class="result-note error" role="alert">
-      설정을 저장하지 못했습니다. 다시 시도해 주세요.
+      {issues?.type ??
+        issues?.enabled ??
+        "설정을 저장하지 못했습니다. 다시 시도해 주세요."}
     </p>
   {/if}
 

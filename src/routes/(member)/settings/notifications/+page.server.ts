@@ -1,3 +1,5 @@
+import { fail } from "@sveltejs/kit";
+import { validateMailPreferenceForm } from "$lib/domain/account";
 import { handleUserAction } from "$lib/server/auth-guards";
 import { AppError } from "$lib/server/core/errors";
 import { currentTerm } from "$lib/server/core/semester";
@@ -37,9 +39,10 @@ export const actions = {
   }) => {
     const data = await request.formData();
     return handleUserAction(locals, async () => {
-      const type = data.get("type") as string;
-      const enabled = data.get("enabled") === "true";
-      if (type !== "announcements") throw new AppError("VALIDATION_FAILED");
+      // A malformed `enabled` used to read as false and unsubscribe silently.
+      const parsed = validateMailPreferenceForm(data);
+      if (!parsed.success) return fail(400, parsed.failure);
+      const { type, enabled } = parsed.data;
 
       const memberId = locals.member!.memberId;
       await mutate("private-info", (rows) => {

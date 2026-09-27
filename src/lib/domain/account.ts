@@ -18,6 +18,7 @@ export interface AccountSettingsData {
 export interface MailPreferenceFormFailure {
   error: "VALIDATION_FAILED";
   issues: Partial<Record<"type" | "enabled", string>>;
+  values: { type: string; enabled: string };
 }
 
 export interface WithdrawalFormValues {
@@ -43,13 +44,13 @@ const mailPreferenceInputSchema = z.object({
   }),
 });
 
+/** Mail preference rules — the single source; setMailPref validates with it. */
 export function validateMailPreferenceForm(formData: FormData) {
-  const type = formData.get("type");
-  const enabled = formData.get("enabled");
-  const result = mailPreferenceInputSchema.safeParse({
-    type: typeof type === "string" ? type : "",
-    enabled: typeof enabled === "string" ? enabled : "",
-  });
+  const values = {
+    type: formText(formData, "type"),
+    enabled: formText(formData, "enabled"),
+  };
+  const result = mailPreferenceInputSchema.safeParse(values);
 
   if (result.success) {
     return {
@@ -72,7 +73,8 @@ export function validateMailPreferenceForm(formData: FormData) {
     failure: {
       error: "VALIDATION_FAILED" as const,
       issues,
-    },
+      values,
+    } satisfies MailPreferenceFormFailure,
   };
 }
 
