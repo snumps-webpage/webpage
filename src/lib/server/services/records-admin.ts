@@ -1,10 +1,10 @@
 import { AppError, definedOnly } from "$lib/server/core/errors";
 import { newId } from "$lib/server/core/id";
-import { nowKstIso } from "$lib/server/core/time";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { audit } from "$lib/server/data/audit";
 import { promoteSeminarPoster } from "$lib/server/services/uploads";
 import { forgetUnreferencedAssets } from "./asset-cleanup";
+import { assertOrganizerCandidates, handOver } from "./studies";
 import { callFlow, type FlowResult } from "$lib/server/data/flows";
 import { SeminarSchema } from "$lib/server/data/schemas";
 import type {
@@ -242,10 +242,15 @@ export async function createStudy(
   >,
 ): Promise<Study> {
   if (input.organizerIds.length === 0) throw new AppError("VALIDATION_FAILED");
+  // The same organizer rule as a handover, and the organizer is a participant
+  // as the approve flow makes the requester one — an admin-made study left
+  // its organizer off the attendance sheet and put them on the waiting list
+  // when they joined (audit LB28-4).
+  await assertOrganizerCandidates(input.organizerIds);
   const row: Study = {
     id: newId(),
     ...input,
-    participantIds: [],
+    participantIds: [...new Set(input.organizerIds)],
     pendingParticipantIds: [],
     pendingTransfer: null,
     schedule: [],
@@ -295,31 +300,14 @@ export async function setOrganizer(
   newOrganizerId: string,
   actorId: string,
 ): Promise<void> {
-  // Same target validation as the two-phase proposal (review M6): a ghost or
-  // grace-period member as sole organizer leaves the study unmanageable.
-  const target = (await getTable("members")).find(
-    (m) => m.id === newOrganizerId,
-  );
-  if (!target || target.status === "withdrawn")
-    throw new AppError("VALIDATION_FAILED");
+  // Same target check and same handover write as the two-phase proposal and
+  // its acceptance (studies.ts, audit LB28-4).
+  await assertOrganizerCandidates([newOrganizerId]);
 
   await mutate("studies", (rows) => {
     const idx = rows.findIndex((s) => s.id === studyId);
     if (idx === -1) throw new AppError("NOT_FOUND");
-    const study = rows[idx];
-    const from = study.organizerIds[0] ?? "";
-    rows[idx] = {
-      ...study,
-      organizerIds: [newOrganizerId],
-      pendingTransfer: null,
-      participantIds: study.participantIds.includes(newOrganizerId)
-        ? study.participantIds
-        : [...study.participantIds, newOrganizerId],
-      transferHistory: [
-        ...study.transferHistory,
-        { from, to: newOrganizerId, at: nowKstIso(), byAdmin: true },
-      ],
-    };
+    rows[idx] = handOver(rows[idx], newOrganizerId, { byAdmin: true });
     return rows;
   });
   await audit({

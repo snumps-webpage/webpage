@@ -6,8 +6,13 @@ vi.mock(
 );
 
 import { __reset } from "$lib/server/data/store-memory";
-import { _resetDataLayerForTests, getTable } from "$lib/server/data/tables";
+import {
+  _resetDataLayerForTests,
+  getTable,
+  mutate,
+} from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
+import { nowKstIso } from "$lib/server/core/time";
 import { actions } from "./+page.server";
 
 /**
@@ -61,6 +66,26 @@ beforeEach(async () => {
   _resetDataLayerForTests({ backoffBaseMs: 1 });
   for (const t of ["studies", "events", "members", "study-requests"])
     await invalidateCache(`table_${t}`);
+  // A study's organizer must be a real member (audit LB28-4).
+  await mutate("members", () => [
+    {
+      id: "m1",
+      name: "회원",
+      department: "수리과학부",
+      joinedAt: "2024-03-01",
+      status: "regular",
+      statusChangedAt: nowKstIso(),
+      withdrawal: null,
+      isAlumni: false,
+      alumniRevoked: false,
+      roles: [],
+      isAdmin: false,
+      publicContact: null,
+      project: null,
+      legacyMemberId: null,
+      sourceRequestId: null,
+    },
+  ]);
 });
 
 describe("?/create", () => {

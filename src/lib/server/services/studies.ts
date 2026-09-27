@@ -265,15 +265,56 @@ export async function cancelSession(
 
 // ---- organizer handover (STU-07 / BE-50) ------------------------------------
 
+/**
+ * Who may organize a study: a member on the roster who is not withdrawing. A
+ * ghost or grace-period member as sole organizer leaves the study
+ * unmanageable (review M6). The one check for every way a study gets an
+ * organizer — creation, the two-phase proposal, the admin's direct transfer
+ * (audit LB28-4).
+ */
+export async function assertOrganizerCandidates(
+  memberIds: readonly string[],
+): Promise<void> {
+  const members = await getTable("members");
+  for (const id of memberIds) {
+    const member = members.find((m) => m.id === id);
+    if (!member || member.status === "withdrawn")
+      throw new AppError("VALIDATION_FAILED");
+  }
+}
+
+/**
+ * The study after `to` takes it over: the sole organizer, also a participant
+ * (the organizer is on the attendance sheet like the approve flow's
+ * requester), no proposal left in flight, the handover recorded. The one
+ * write for the member's acceptance and the admin's transfer (audit LB28-4).
+ */
+export function handOver(
+  study: Study,
+  to: string,
+  { byAdmin }: { byAdmin: boolean },
+): Study {
+  return {
+    ...study,
+    organizerIds: [to],
+    pendingTransfer: null,
+    participantIds: study.participantIds.includes(to)
+      ? study.participantIds
+      : [...study.participantIds, to],
+    transferHistory: [
+      ...study.transferHistory,
+      { from: study.organizerIds[0] ?? "", to, at: nowKstIso(), byAdmin },
+    ],
+  };
+}
+
 export async function proposeTransfer(
   studyId: string,
   organizerId: string,
   toMemberId: string,
 ): Promise<void> {
   if (toMemberId === organizerId) throw new AppError("VALIDATION_FAILED"); // self-transfer
-  const target = (await getTable("members")).find((m) => m.id === toMemberId);
-  if (!target || target.status === "withdrawn")
-    throw new AppError("VALIDATION_FAILED");
+  await assertOrganizerCandidates([toMemberId]);
 
   await patchStudy(studyId, (s) => {
     if (s.pendingTransfer) throw new AppError("CONFLICT");
@@ -294,19 +335,7 @@ export async function acceptTransfer(
     if (!s.pendingTransfer) throw new AppError("NOT_FOUND"); // withdrawn/expired proposal
     if (s.pendingTransfer.toMemberId !== memberId)
       throw new AppError("FORBIDDEN"); // §6-5
-    const from = s.organizerIds[0] ?? "";
-    return {
-      ...s,
-      organizerIds: [memberId],
-      pendingTransfer: null,
-      participantIds: s.participantIds.includes(memberId)
-        ? s.participantIds
-        : [...s.participantIds, memberId],
-      transferHistory: [
-        ...s.transferHistory,
-        { from, to: memberId, at: nowKstIso(), byAdmin: false },
-      ],
-    };
+    return handOver(s, memberId, { byAdmin: false });
   });
 }
 

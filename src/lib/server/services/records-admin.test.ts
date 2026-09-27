@@ -281,13 +281,14 @@ describe("삭제는 그 기록이 가진 파일만, 아무도 안 쓰는 것만"
   });
 
   it("스터디를 지우면 사진도 함께 지운다", async () => {
+    await seedMember("org");
     const study = await createStudy({
       title: "스터디",
       semester: "26-2",
       textbook: "",
       description: "",
       note: "",
-      organizerIds: [newId()],
+      organizerIds: ["org"],
     });
     __stage("pending/y.jpg", 10, "image/jpeg");
     await promoteToAssets("pending/y.jpg", "studies/st1/dd-photo.jpg");
@@ -593,6 +594,7 @@ describe("referential-integrity deletes", () => {
   });
 
   it("refuses to delete a study that still has sessions", async () => {
+    await seedMember("org");
     const study = await createStudy({
       title: "해석학",
       semester: "26-2",
@@ -677,6 +679,7 @@ describe("update actions cannot poison the table (review C1)", () => {
 
 describe("setOrganizer target validation (review M6)", () => {
   it("refuses ghosts and grace-period members; accepts a real member", async () => {
+    await seedMember("org");
     await seedMember("m-ok");
     await seedMember("m-gone", "withdrawn");
     const study = await createStudy({
@@ -696,6 +699,65 @@ describe("setOrganizer target validation (review M6)", () => {
     );
     await setOrganizer(study.id, "m-ok", "admin");
     expect((await getTable("studies"))[0].organizerIds).toEqual(["m-ok"]);
+  });
+});
+
+/**
+ * The invariant "the organizer is a real member and also a participant" was
+ * kept by the approve flow, the member's acceptance and setOrganizer — but not
+ * by createStudy: an admin-made study's organizer was off the attendance
+ * sheet and went to the waiting list when they joined, and a ghost could be
+ * its only organizer (audit LB28-4).
+ */
+describe("every way a study gets an organizer keeps one rule (LB28-4)", () => {
+  const input = (organizerIds: string[]) => ({
+    title: "해석학",
+    semester: "26-2",
+    textbook: "",
+    description: "",
+    note: "",
+    organizerIds,
+  });
+
+  it("createStudy makes the organizer a participant", async () => {
+    await seedMember("org");
+
+    const study = await createStudy(input(["org"]));
+
+    expect(study.participantIds).toEqual(["org"]);
+    expect((await getTable("studies"))[0].participantIds).toEqual(["org"]);
+  });
+
+  it("createStudy refuses a ghost or a withdrawing organizer", async () => {
+    await seedMember("m-gone", "withdrawn");
+    const refused = (e: unknown) =>
+      e instanceof AppError && e.code === "VALIDATION_FAILED";
+
+    await expect(createStudy(input(["ghost"]))).rejects.toSatisfy(refused);
+    await expect(createStudy(input(["m-gone"]))).rejects.toSatisfy(refused);
+    expect(await getTable("studies")).toEqual([]);
+  });
+
+  it("setOrganizer writes the same handover as an accepted proposal", async () => {
+    await seedMember("org");
+    await seedMember("next");
+    const study = await createStudy(input(["org"]));
+    await mutate("studies", (rows) =>
+      rows.map((s) => ({
+        ...s,
+        pendingTransfer: { toMemberId: "org", requestedAt: nowKstIso() },
+      })),
+    );
+
+    await setOrganizer(study.id, "next", "admin");
+
+    const [row] = await getTable("studies");
+    expect(row.organizerIds).toEqual(["next"]);
+    expect(row.participantIds).toEqual(["org", "next"]);
+    expect(row.pendingTransfer).toBeNull();
+    expect(row.transferHistory).toEqual([
+      expect.objectContaining({ from: "org", to: "next", byAdmin: true }),
+    ]);
   });
 });
 
