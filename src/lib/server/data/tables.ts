@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import { AppError } from "$lib/server/core/errors";
-import { withCache, invalidateCache } from "$lib/server/cache";
+import { deepFreeze, withCache, invalidateCache } from "$lib/server/cache";
 import {
   TABLES,
   envelope,
@@ -55,17 +55,40 @@ let backoffBaseMs = 50;
 const tableKey = (name: TableName) => name;
 const queueKey = (eventId: string) => eventId;
 
+// Cache keys live here and nowhere else: flows.ts invalidates through the
+// helpers below instead of re-spelling the format (audit LA32-1/LA41-2). A
+// queue key starts with `table_` on purpose — cache.ts caps the local tier of
+// `table_` keys at 15s, and queues need that bound as much as tables do.
+const tableCacheKey = (name: TableName) => `table_${name}`;
+const queueCacheKey = (eventId: string) => `table_attendance-queue_${eventId}`;
+
+/** Drops the cached read of a table written outside mutate() (a flow). */
+export function invalidateTable(name: TableName): Promise<void> {
+  return invalidateCache(tableCacheKey(name));
+}
+
+/** Drops the cached read of an event's queue written outside mutateQueue(). */
+export function invalidateQueue(eventId: string): Promise<void> {
+  return invalidateCache(queueCacheKey(eventId));
+}
+
 // Conditional-GET memory: last known version + parsed rows per document.
+// Its rows are deep-frozen: they are handed to every reader (through the
+// cache) and to mutate()'s caller, and this map has no TTL — an in-place edit
+// by any of them would live here until the next write (audit LA41-1).
 const versionCache = new Map<string, { version: number; rows: unknown[] }>();
 const versionCacheKey = (kind: DocKind, key: string) => `${kind}:${key}`;
 
-/** Wraps a store read so an unreachable data layer carries its own code. */
-async function unavailable<T>(read: () => Promise<T>): Promise<T> {
+/**
+ * Wraps a store call (read, write or listing) so an unreachable data layer
+ * carries its own code on every path, not only on reads (audit LA41-3).
+ */
+async function unavailable<T>(call: () => Promise<T>): Promise<T> {
   try {
-    return await read();
+    return await call();
   } catch (e) {
     if (e instanceof AppError) throw e;
-    console.error("[data] store read failed:", e);
+    console.error("[data] store call failed:", e);
     throw new AppError("SERVICE_UNAVAILABLE");
   }
 }
@@ -103,7 +126,7 @@ async function fetchRows<S extends z.ZodTypeAny>(
     versionCache.delete(cacheKey);
     return [];
   }
-  const rows = decode(schema, stored.doc);
+  const rows = deepFreeze(decode(schema, stored.doc));
   versionCache.set(cacheKey, { version: stored.version, rows });
   return rows;
 }
@@ -118,7 +141,7 @@ async function mutateObject<S extends z.ZodTypeAny>(
 ): Promise<z.infer<S>[]> {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     // Always read the store directly (never the cache) so the version matches the doc.
-    const stored = await readDoc(kind, key);
+    const stored = await unavailable(() => readDoc(kind, key));
     const rows = stored ? decode(schema, stored.doc) : ([] as z.infer<S>[]);
     const next = await fn(structuredClone(rows));
     if (JSON.stringify(next) === JSON.stringify(rows)) return next; // no-op: skip the write
@@ -141,16 +164,18 @@ async function mutateObject<S extends z.ZodTypeAny>(
     // so this instance cannot see a row other instances never will.
     const parsed = checked.data.rows as z.infer<S>[];
 
-    const written = await writeDocIf(
-      kind,
-      key,
-      { schemaVersion: SCHEMA_VERSION, rows: parsed },
-      stored ? stored.version : null,
+    const written = await unavailable(() =>
+      writeDocIf(
+        kind,
+        key,
+        { schemaVersion: SCHEMA_VERSION, rows: parsed },
+        stored ? stored.version : null,
+      ),
     );
     if (written) {
       versionCache.set(versionCacheKey(kind, key), {
         version: stored ? stored.version + 1 : 1,
-        rows: parsed,
+        rows: deepFreeze(parsed),
       });
       await invalidateCache(cacheKeyToInvalidate);
       return parsed;
@@ -169,11 +194,24 @@ export async function getTable<N extends TableName>(
   name: N,
 ): Promise<RowOf<N>[]> {
   return withCache(
-    `table_${name}`,
+    tableCacheKey(name),
     TTL_TABLE_MS,
     () => fetchRows("table", tableKey(name), TABLES[name]),
     FROZEN_TABLES.has(name) ? { localTtlMs: LOCAL_TTL_FROZEN_MS } : undefined,
   ) as Promise<RowOf<N>[]>;
+}
+
+/**
+ * The table as the store holds it right now: no cache tier, no version
+ * memory. For a decision that cannot be undone — deleting a file nobody seems
+ * to reference — where getTable may still be up to 15s behind another
+ * instance's write (audit LB18-1). Costs a full document read every call.
+ */
+export async function getTableFresh<N extends TableName>(
+  name: N,
+): Promise<RowOf<N>[]> {
+  const stored = await unavailable(() => readDoc("table", tableKey(name)));
+  return stored ? (decode(TABLES[name], stored.doc) as RowOf<N>[]) : [];
 }
 
 export async function mutate<N extends TableName>(
@@ -186,13 +224,11 @@ export async function mutate<N extends TableName>(
     TABLES[name],
     fn as (rows: unknown[]) => unknown[],
     TABLE_ATTEMPTS,
-    `table_${name}`,
+    tableCacheKey(name),
   ) as Promise<RowOf<N>[]>;
 }
 
 // ---- attendance queue (per-event documents) ---------------------------------
-
-const queueCacheKey = (eventId: string) => `table_attendance-queue_${eventId}`;
 
 export async function getQueue(eventId: string): Promise<AttendanceRecord[]> {
   return withCache(queueCacheKey(eventId), TTL_TABLE_MS, () =>
@@ -219,7 +255,7 @@ export async function mutateQueue(
 export async function listQueues(): Promise<
   { eventId: string; rows: AttendanceRecord[] }[]
 > {
-  const eventIds = await listQueueIds();
+  const eventIds = await unavailable(() => listQueueIds());
   return Promise.all(
     eventIds.map(async (eventId) => ({
       eventId,

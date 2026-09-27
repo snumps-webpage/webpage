@@ -1,6 +1,7 @@
-import { invalidateCache } from "$lib/server/cache";
 import { AppError, ERR, type ErrCode } from "$lib/server/core/errors";
+import type { TableName } from "./schemas";
 import { rpc } from "./store";
+import { invalidateQueue, invalidateTable } from "./tables";
 
 /**
  * The one way to run a multi-document flow (docs/spec/ATOMIC-FLOWS.md): a
@@ -14,8 +15,13 @@ import { rpc } from "./store";
  * with the caller, after this returns.
  */
 
+/**
+ * What the function says it wrote. Each flow builds these lists by hand; the
+ * test backend checks them against the rows the flow actually changed
+ * (store-memory `__checkFlowWrites`, audit LA32-2).
+ */
 export interface FlowResult {
-  touched?: string[];
+  touched?: TableName[];
   touchedQueues?: string[];
 }
 
@@ -42,9 +48,7 @@ export async function callFlow<T extends FlowResult>(
     }
     throw e;
   }
-  for (const name of out.touched ?? []) await invalidateCache(`table_${name}`);
-  for (const id of out.touchedQueues ?? []) {
-    await invalidateCache(`table_attendance-queue_${id}`);
-  }
+  for (const name of out.touched ?? []) await invalidateTable(name);
+  for (const id of out.touchedQueues ?? []) await invalidateQueue(id);
   return out;
 }

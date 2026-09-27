@@ -1,13 +1,17 @@
-import { getTable } from "$lib/server/data/tables";
+import { getTableFresh } from "$lib/server/data/tables";
 import { removeAssets } from "$lib/server/data/storage";
 
-/** 지금 이 순간 어느 기록이든 가리키고 있는 자산 키 전부. */
+/**
+ * 지금 이 순간 어느 기록이든 가리키고 있는 자산 키 전부. 캐시가 아니라 저장소를
+ * 직접 읽는다 — 캐시는 다른 인스턴스의 쓰기를 15초까지 못 보고, 이 판정 뒤에는
+ * 되돌릴 수 없는 삭제가 온다(LB18-1).
+ */
 async function referencedAssetKeys(): Promise<Set<string>> {
   const [seminars, requests, studies, dinners] = await Promise.all([
-    getTable("seminars"),
-    getTable("seminar-requests"),
-    getTable("studies"),
-    getTable("gallery-dinner"),
+    getTableFresh("seminars"),
+    getTableFresh("seminar-requests"),
+    getTableFresh("studies"),
+    getTableFresh("gallery-dinner"),
   ]);
   const keys = new Set<string>();
   for (const s of seminars) {

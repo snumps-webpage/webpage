@@ -14,6 +14,7 @@ vi.mock("$lib/server/cache", () => ({
     return fetcher();
   },
   invalidateCache: async () => {},
+  deepFreeze: <T>(value: T) => value,
 }));
 vi.mock("./store", () => import("./store-memory"));
 
