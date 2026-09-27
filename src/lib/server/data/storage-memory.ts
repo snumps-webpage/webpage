@@ -9,6 +9,8 @@ type StoredObject = {
   contentType: string;
   createdAt: string;
   head?: Uint8Array;
+  /** body of a text upload (backups) — kept so tests can read a dump back */
+  text?: string;
 };
 
 const objects = new Map<string, StoredObject>();
@@ -134,6 +136,7 @@ export async function uploadToBackups(
     bytes: body.length,
     contentType: "application/json",
     createdAt: new Date().toISOString(),
+    text: body,
   });
 }
 
@@ -182,6 +185,11 @@ export async function readStagedHead(
 
 export function __exists(bucket: string, path: string): boolean {
   return objects.has(keyOf(bucket, path));
+}
+
+/** The text body of an uploaded object (backups), or undefined. */
+export function __readText(bucket: string, path: string): string | undefined {
+  return objects.get(keyOf(bucket, path))?.text;
 }
 
 /** Backdates an object (e.g. a seeded dump) for retention tests. */

@@ -1222,6 +1222,25 @@ begin
     'assets', coalesce(v_study -> 'photos', '[]'::jsonb));
 end $$;
 
+-- Everything the weekly backup keeps, read by ONE statement — so one
+-- snapshot: an approval that commits mid-backup is either wholly in it or
+-- wholly out (it moves a person from applications to members). The same
+-- shape as scripts/ops/ops-backup-db.mjs. Read-only; `flow_` only because
+-- that is the RPC naming contract.
+--   p = {}  → { app_tables: [...], app_queues: [...], audit_log: [...] }
+create or replace function flow_backup_snapshot(p jsonb) returns jsonb
+language sql stable set search_path = public as $$
+  select jsonb_build_object(
+    'app_tables', coalesce((select jsonb_agg(jsonb_build_object(
+                    'name', name, 'version', version, 'doc', doc) order by name)
+                  from app_tables), '[]'::jsonb),
+    'app_queues', coalesce((select jsonb_agg(jsonb_build_object(
+                    'event_id', event_id, 'version', version, 'doc', doc) order by event_id)
+                  from app_queues), '[]'::jsonb),
+    'audit_log',  coalesce((select jsonb_agg(to_jsonb(a) order by a.at, a.id)
+                  from audit_log a), '[]'::jsonb))
+$$;
+
 -- ---------------------------------------------------------------------------
 -- 99. Privileges — flows and helpers run for the service role only.
 --     (Guarded: PGlite has no Supabase roles.)

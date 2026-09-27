@@ -1,5 +1,5 @@
 import { env } from "$env/dynamic/private";
-import { readDoc, readVersion } from "$lib/server/data/store";
+import { readVersion } from "$lib/server/data/store";
 import {
   listBackups,
   listStaged,
@@ -7,7 +7,7 @@ import {
   removeStaged,
   uploadToBackups,
 } from "$lib/server/data/storage";
-import { TABLE_NAMES } from "$lib/server/data/schemas";
+import { callFlow, type FlowResult } from "$lib/server/data/flows";
 
 /**
  * Maintenance job (SUPABASE-MIGRATION-SPEC §5 잡3, R2-9): staging cleanup,
@@ -146,27 +146,31 @@ async function pruneOldDumps(now: Date): Promise<void> {
 }
 
 /**
- * Weekly backup (spec §7 B1+B2): one JSON dump of every app_tables document
- * into the backups bucket, then the same JSON pushed off-platform to GitHub.
+ * Weekly backup (spec §7 B1+B2): one JSON dump into the backups bucket, then
+ * the same JSON pushed off-platform to GitHub.
  *
- * audit_log is SKIPPED: audit rows are append-only in Postgres, not a document
- * readable via readDoc. TODO(§7): audit_log export needs a select API that is
- * not yet on the store seam — do not invent one here; the same dump cadence
- * can cover it once that API exists.
+ * The dump is everything a restore needs — every table document, every
+ * attendance queue and the audit log — read by one SQL statement
+ * (flow_backup_snapshot), so it is one snapshot. It used to read app_tables
+ * only, one document at a time: queues and the audit log were never backed
+ * up, and an approval committing mid-dump could leave the person in neither
+ * table (audit LB24-1, LB24-4). The shape matches scripts/ops/ops-backup-db.mjs.
  */
-export async function runWeeklyBackup(
-  now: Date = new Date(),
-): Promise<{ dumped: number; pushed: boolean }> {
-  const tables: Record<string, unknown> = {};
-  let dumped = 0;
-  for (const name of TABLE_NAMES) {
-    const stored = await readDoc("table", name);
-    if (stored) {
-      tables[name] = stored.doc;
-      dumped++;
+export async function runWeeklyBackup(now: Date = new Date()): Promise<{
+  dumped: number;
+  queues: number;
+  auditRows: number;
+  pushed: boolean;
+  backup_push_failed?: number;
+}> {
+  const tables = await callFlow<
+    FlowResult & {
+      app_tables: unknown[];
+      app_queues: unknown[];
+      audit_log: unknown[];
     }
-  }
-  const body = JSON.stringify({ generatedAt: now.toISOString(), tables });
+  >("flow_backup_snapshot", {});
+  const body = JSON.stringify({ takenAt: now.toISOString(), tables });
   const path = `${DUMPS_PREFIX}/${now.toISOString().slice(0, 10)}.json`;
 
   await uploadToBackups(path, body); // B1
@@ -177,7 +181,9 @@ export async function runWeeklyBackup(
   // expires (spec §7), so a failed push has to reach the failure census — it
   // used to return `pushed: false`, which is also the not-configured value.
   return {
-    dumped,
+    dumped: tables.app_tables.length,
+    queues: tables.app_queues.length,
+    auditRows: tables.audit_log.length,
     pushed: push === "pushed",
     ...(push === "failed" ? { backup_push_failed: 1 } : {}),
   };

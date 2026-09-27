@@ -14,9 +14,11 @@ vi.mock(
 import {
   __putRawDoc,
   __reset as __resetStore,
+  __sql,
 } from "$lib/server/data/store-memory";
 import {
   __exists,
+  __readText,
   __reset as __resetStorage,
   __setCreatedAt,
   __stage,
@@ -90,6 +92,29 @@ describe("runWeeklyBackup", () => {
     expect(dumped).toBe(2);
     expect(pushed).toBe(false);
     expect(__exists("backups", dumpPathFor(SUNDAY_KST))).toBe(true);
+  });
+
+  // The dump used to hold app_tables only: attendance queues and the audit
+  // log were missing, and the tables were read one by one — an approval
+  // committing mid-dump could leave the person in neither table (audit
+  // LB24-1, LB24-4). It is now one snapshot of all three.
+  it("dumps tables, attendance queues and the audit log from one snapshot", async () => {
+    __putRawDoc("table", "members", { schemaVersion: 1, rows: [] });
+    __putRawDoc("queue", "e1", { schemaVersion: 1, rows: [] });
+    await __sql(
+      `insert into audit_log (id, actor, action, target_tb, target_id)
+       values ('audit-1', 'x', 'withdrawal.request', 'members', 'm1')`,
+    );
+
+    const result = await runWeeklyBackup(SUNDAY_KST);
+
+    const dump = JSON.parse(__readText("backups", dumpPathFor(SUNDAY_KST))!);
+    const ids = (rows: Record<string, string>[], key: string) =>
+      rows.map((r) => r[key]);
+    expect(ids(dump.tables.app_tables, "name")).toEqual(["members"]);
+    expect(ids(dump.tables.app_queues, "event_id")).toEqual(["e1"]);
+    expect(ids(dump.tables.audit_log, "id")).toEqual(["audit-1"]);
+    expect(result).toMatchObject({ dumped: 1, queues: 1, auditRows: 1 });
   });
 
   it("attempts the GitHub contents PUT when the B2 env is set", async () => {
