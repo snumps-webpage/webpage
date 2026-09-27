@@ -5,6 +5,7 @@ import type {
 import { thumbUrl } from "$lib/image";
 import { assetUrl } from "$lib/server/public/archive";
 import { getTable } from "$lib/server/data/tables";
+import { hiddenActivityIdsOf } from "$lib/server/services/visibility";
 import {
   getDirectoryIndex,
   getMemberDirectory,
@@ -70,6 +71,7 @@ export const load: LayoutServerLoad = async () => {
       getMemberDirectory(),
       getDirectoryIndex(),
       getTable("seminar-requests"),
+      getTable("events"),
     ]);
   } catch (e) {
     console.error("[archive] snapshot unavailable:", e);
@@ -87,6 +89,7 @@ export const load: LayoutServerLoad = async () => {
     members,
     directoryIndex,
     seminarRequests,
+    events,
   ] = tables;
 
   const nameOf = new Map([...directoryIndex].map(([id, m]) => [id, m.name]));
@@ -99,11 +102,8 @@ export const load: LayoutServerLoad = async () => {
   const publicSeminars = seminars.filter(
     (s) => s.publicationStatus === "published",
   );
-  const hiddenActivityIds = new Set(
-    seminars
-      .filter((s) => s.publicationStatus !== "published" && s.activityId)
-      .map((s) => s.activityId!),
-  );
+  // the member side's rule, not a copy (services/visibility.ts)
+  const hiddenActivityIds = hiddenActivityIdsOf(seminars, events);
   const publicActivities = activities.filter(
     (a) => !hiddenActivityIds.has(a.id),
   );
