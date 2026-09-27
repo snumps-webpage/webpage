@@ -135,6 +135,8 @@ describe("flows refuse missing arguments", () => {
     ["flow_member_withdrawal", { memberId: "m1", actorId: "a", now: FUTURE }],
     ["flow_cancel_seminar", { id: "s1", isAdmin: false, now: FUTURE }],
     ["flow_update_seminar_schedule", { id: "s1" }],
+    ["flow_update_seminar_record", { patch: { title: "x" } }],
+    ["flow_update_seminar_record", { id: "s1", patch: [] }],
     [
       "flow_create_study_session",
       {

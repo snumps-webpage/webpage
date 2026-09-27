@@ -490,6 +490,77 @@ begin
     'changed', v_changed);
 end $$;
 
+-- Edit a seminar record (admin record editor). Publication copied the title
+-- onto the seminar's activity and attendance event, and the presenters onto
+-- the event — whose presenterIds decide who may record attendance — so an
+-- edit of either carries over to those copies in the same transaction
+-- (audit LB28-1). Credit already on the activity is not moved. Changing the
+-- term pins it against later derivation; resaving the same term does not.
+-- The caller validates `patch` against the stored schema (flows have no zod
+-- gate) and promotes a new poster first.
+--   p = { id, patch, posterKey }  (posterKey: the promoted key, or null)
+--   → { seminar, replacedPoster }
+create or replace function flow_update_seminar_record(p jsonb) returns jsonb
+language plpgsql set search_path = public as $$
+declare
+  v_id       text := p ->> 'id';
+  v_patch    jsonb := coalesce(p -> 'patch', '{}'::jsonb);
+  v_poster   text := p ->> 'posterKey';
+  v_seminars jsonb;
+  v_sem      jsonb;
+  v_old      jsonb;
+  v_replaced text;
+  v_touched  text[] := array['seminars'];
+begin
+  perform app_require(p, array['id']);
+  if jsonb_typeof(v_patch) <> 'object' then
+    raise exception 'VALIDATION_FAILED' using detail = 'patch-not-object';
+  end if;
+  perform app_lock(array['activities', 'events', 'seminars']);
+  v_seminars := app_rows('seminars');
+  v_old := app_find(v_seminars, v_id);
+  if v_old is null then raise exception 'NOT_FOUND'; end if;
+
+  v_sem := v_old || v_patch;
+  if v_patch ? 'semester' and v_patch ->> 'semester' is distinct from v_old ->> 'semester' then
+    v_sem := v_sem || jsonb_build_object('semesterPinned', true);
+  end if;
+  if v_poster is not null and v_poster is distinct from v_old ->> 'posterKey' then
+    v_replaced := nullif(v_old ->> 'posterKey', '');
+    v_sem := v_sem || jsonb_build_object('posterKey', v_poster);
+  end if;
+  perform app_put('seminars', app_replace(v_seminars, v_id, v_sem));
+
+  if v_patch ? 'title' then
+    perform app_put('activities', (
+      select coalesce(jsonb_agg(
+               case when a ->> 'id' = v_sem ->> 'activityId'
+                      or a ->> 'sourceRequestId' = 'seminar:' || v_id
+                    then a || jsonb_build_object('title', v_sem -> 'title') else a end
+               order by n), '[]'::jsonb)
+        from jsonb_array_elements(app_rows('activities')) with ordinality as x(a, n)));
+    v_touched := v_touched || array['activities'];
+  end if;
+  if v_patch ?| array['title', 'presenterIds'] then
+    perform app_put('events', (
+      select coalesce(jsonb_agg(
+               case when app_is_seminar_event(e, v_sem)
+                         and app_nullable(e -> 'studyId') is null
+                    then e || jsonb_strip_nulls(jsonb_build_object(
+                           'title', v_patch -> 'title',
+                           'presenterIds', v_patch -> 'presenterIds'))
+                    else e end
+               order by n), '[]'::jsonb)
+        from jsonb_array_elements(app_rows('events')) with ordinality as x(e, n)));
+    v_touched := v_touched || array['events'];
+  end if;
+
+  return jsonb_build_object(
+    'touched', to_jsonb(v_touched),
+    'seminar', v_sem,
+    'replacedPoster', v_replaced);
+end $$;
+
 -- Cancel a seminar and its attendance events (presenter or admin). A
 -- presenter may cancel only their own seminar and only before it starts; an
 -- admin may cancel a started one with `acknowledgeStarted`. Activities and

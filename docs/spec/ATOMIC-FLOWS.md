@@ -4,7 +4,7 @@
 > 옮기고, 메모리 백엔드를 PGlite(인프로세스 Postgres)로 바꿔 **같은 SQL을 테스트·로컬에서도 실행**한다.
 > 목적은 두 가지 — 원자성(부분 실패 제거)과 로직 일원화(같은 흐름의 구현을 한 곳에).
 >
-> **상태 (2026-09-27): 구현 완료.** 16개 쓰기 흐름과 백업 스냅숏(`flow_backup_snapshot`, 읽기 전용)이 `supabase/migrations/20260928000000_atomic_flows.sql`에 있고
+> **상태 (2026-09-27): 구현 완료.** 17개 쓰기 흐름과 백업 스냅숏(`flow_backup_snapshot`, 읽기 전용)이 `supabase/migrations/20260928000000_atomic_flows.sql`에 있고
 > TS 쪽 중복 구현은 지워졌다(§7). 운영·dev 적용은 아직이다 — 순서는 [OPERATOR-TODO](../OPERATOR-TODO.md) §2-2.
 
 ## 1. 왜
@@ -106,7 +106,7 @@ PGlite에는 Supabase의 `storage` 스키마가 없어서, 마이그레이션 �
 | 파일                                            | 내용                                                                             |
 | ----------------------------------------------- | -------------------------------------------------------------------------------- |
 | `20260901000000_documents.sql` (기존)           | 표·큐·감사 로그. 수정하지 않는다                                                 |
-| `20260928000000_atomic_flows.sql`               | 헬퍼 + 흐름 17개(쓰기 16 + 백업 스냅숏) + 권한. 확장만 — 옛 코드는 부르지 않는다 |
+| `20260928000000_atomic_flows.sql`               | 헬퍼 + 흐름 18개(쓰기 17 + 백업 스냅숏) + 권한. 확장만 — 옛 코드는 부르지 않는다 |
 | `20260928000100_seminar_publication_status.sql` | `publicationStatus`가 없는 세미나 행에 `"published"`를 명시                      |
 
 - 순서는 **마이그레이션 둘 적용 → 코드 배포**. 새 코드는 흐름 함수를 부르고, `SeminarSchema`에서
@@ -117,22 +117,23 @@ PGlite에는 Supabase의 `storage` 스키마가 없어서, 마이그레이션 �
 
 ## 7. 구현 현황
 
-| 흐름                     | 함수                               | TS 호출부 (`src/lib/server/services/`)               |
-| ------------------------ | ---------------------------------- | ---------------------------------------------------- |
-| 세미나 기록 삭제         | `flow_delete_seminar`              | `records-admin.deleteSeminar`                        |
-| 세미나 게시              | `flow_publish_seminar`             | `seminars.publishSeminar` (+ 커밋 뒤 공지)           |
-| 세미나 일정 변경         | `flow_update_seminar_schedule`     | `seminars.updateSeminarSchedule`                     |
-| 세미나 취소              | `flow_cancel_seminar`              | `seminars.cancelSeminar`                             |
-| 체크인                   | `flow_check_in`                    | `events.checkIn`                                     |
-| 출석 승인·거절·삭제      | `flow_decide_attendance`           | `events.approve/reject/deleteAttendance…`            |
-| 이벤트 삭제              | `flow_delete_event`                | `events.deleteEventChecked`                          |
-| 가입 승인                | `flow_approve_application`         | `membership.approveApplication`                      |
-| 세미나 신청 승인         | `flow_approve_seminar_request`     | `seminar-requests.approveSeminar`                    |
-| 스터디 신청 승인         | `flow_approve_study_request`       | `studies.approveStudy`                               |
-| 스터디 회차 생성·정정    | `flow_create/update_study_session` | `studies.createStudySession`, `updateSession`        |
-| 탈퇴 신청                | `flow_request_withdrawal`          | `withdrawal.requestWithdrawal`                       |
-| 탈퇴 취소·보류·보류 해제 | `flow_member_withdrawal`           | `withdrawal.cancelWithdrawal`, `members-admin.*Hold` |
-| 활동·스터디 기록 삭제    | `flow_delete_activity/study`       | `records-admin.deleteActivity`, `deleteStudy`        |
+| 흐름                     | 함수                               | TS 호출부 (`src/lib/server/services/`)                |
+| ------------------------ | ---------------------------------- | ----------------------------------------------------- |
+| 세미나 기록 삭제         | `flow_delete_seminar`              | `records-admin.deleteSeminar`                         |
+| 세미나 게시              | `flow_publish_seminar`             | `seminars.publishSeminar` (+ 커밋 뒤 공지)            |
+| 세미나 일정 변경         | `flow_update_seminar_schedule`     | `seminars.updateSeminarSchedule`                      |
+| 세미나 기록 수정         | `flow_update_seminar_record`       | `records-admin.updateSeminar` (제목·발표자 사본 동기) |
+| 세미나 취소              | `flow_cancel_seminar`              | `seminars.cancelSeminar`                              |
+| 체크인                   | `flow_check_in`                    | `events.checkIn`                                      |
+| 출석 승인·거절·삭제      | `flow_decide_attendance`           | `events.approve/reject/deleteAttendance…`             |
+| 이벤트 삭제              | `flow_delete_event`                | `events.deleteEventChecked`                           |
+| 가입 승인                | `flow_approve_application`         | `membership.approveApplication`                       |
+| 세미나 신청 승인         | `flow_approve_seminar_request`     | `seminar-requests.approveSeminar`                     |
+| 스터디 신청 승인         | `flow_approve_study_request`       | `studies.approveStudy`                                |
+| 스터디 회차 생성·정정    | `flow_create/update_study_session` | `studies.createStudySession`, `updateSession`         |
+| 탈퇴 신청                | `flow_request_withdrawal`          | `withdrawal.requestWithdrawal`                        |
+| 탈퇴 취소·보류·보류 해제 | `flow_member_withdrawal`           | `withdrawal.cancelWithdrawal`, `members-admin.*Hold`  |
+| 활동·스터디 기록 삭제    | `flow_delete_activity/study`       | `records-admin.deleteActivity`, `deleteStudy`         |
 
 이전으로 사라진 TS: `ensureCreated`(`data/idempotency.ts`), `deleteQueue`/`deleteQueueDoc`,
 `retireHiddenActivity`, 공개 도중 취소를 사후 수습하던 `cancelledDuringPublish` 경로.

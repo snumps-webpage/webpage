@@ -6,6 +6,7 @@ import { audit } from "$lib/server/data/audit";
 import { promoteSeminarPoster } from "$lib/server/services/uploads";
 import { forgetUnreferencedAssets } from "./asset-cleanup";
 import { callFlow, type FlowResult } from "$lib/server/data/flows";
+import { SeminarSchema } from "$lib/server/data/schemas";
 import type {
   Activity,
   GalleryDinner,
@@ -113,31 +114,24 @@ export async function updateSeminar(
   >,
   posterPendingKey = "",
 ): Promise<void> {
+  // The flow has no zod gate: each field is checked by the stored schema
+  // here, before it is written (the lesson of audit LA09-1).
+  const checked = SeminarSchema.partial().safeParse(definedOnly(patch));
+  if (!checked.success) throw new AppError("VALIDATION_FAILED");
   const promotedPoster = posterPendingKey
     ? await promoteSeminarPoster(posterPendingKey)
     : null;
-  let replacedPoster: string | null = null;
-  await mutate("seminars", (rows) => {
-    const idx = rows.findIndex((s) => s.id === id);
-    if (idx === -1) throw new AppError("NOT_FOUND");
-    // CAS 재시도마다 다시 센다 — 진 시도의 값이 남으면 엉뚱한 키를 지운다.
-    replacedPoster =
-      promotedPoster !== null && rows[idx].posterKey !== promotedPoster
-        ? rows[idx].posterKey || null
-        : null;
-    // 학기를 **실제로 바꾸면** 그것은 관리자의 결정이고, 이후 자동 도출이
-    // 덮어서는 안 된다. 편집기는 바뀌지 않은 학기도 매번 보내므로 값이 같은
-    // 저장은 고정으로 읽지 않는다 — 한 번 저장했다는 이유로 모든 기록의 학기
-    // 자동화가 멈추게 된다.
-    const pinned =
-      patch.semester !== undefined && patch.semester !== rows[idx].semester;
-    rows[idx] = {
-      ...rows[idx],
-      ...definedOnly(patch),
-      ...(pinned ? { semesterPinned: true } : {}),
-      ...(promotedPoster !== null ? { posterKey: promotedPoster } : {}),
-    };
-    return rows;
+  // One transaction: the row, and — for a published seminar — the title and
+  // presenters its activity and attendance event carry (audit LB28-1). The
+  // flow also pins a term the admin actually changed: the editor resends an
+  // unchanged term every time, and reading that as a decision would stop
+  // every record's term derivation after one save.
+  const { replacedPoster } = await callFlow<
+    FlowResult & { replacedPoster: string | null }
+  >("flow_update_seminar_record", {
+    id,
+    patch: definedOnly(checked.data),
+    posterKey: promotedPoster,
   });
   // 교체된 포스터는 어느 기록도 가리키지 않는다 — 남겨 두면 용량과 백업만 먹는다.
   await forgetUnreferencedAssets([replacedPoster]);
