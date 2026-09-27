@@ -363,6 +363,7 @@
             name="attachment"
             bind:value={attachmentUrl}
             oninput={() => clearIssue("attachmentUrl")}
+            maxlength="2048"
             inputmode="url"
             aria-invalid={!!issues.attachmentUrl}
             aria-describedby={issues.attachmentUrl

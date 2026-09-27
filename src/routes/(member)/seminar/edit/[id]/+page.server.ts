@@ -1,4 +1,4 @@
-import { redirect } from "@sveltejs/kit";
+import { fail, redirect } from "@sveltejs/kit";
 import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
 import { getTable } from "$lib/server/data/tables";
 import { memberPickers } from "$lib/server/data/repos";
@@ -10,20 +10,12 @@ import { AppError } from "$lib/server/core/errors";
 import { seminarRequestView } from "$lib/server/data/views";
 import { parseGoogleName } from "$lib/utils";
 import { currentTerm } from "$lib/server/core/semester";
-import { seminarTimingOptions } from "$lib/domain/seminars";
+import { formText } from "$lib/domain/form-data";
+import {
+  seminarTimingOptions,
+  validateSeminarRequestForm,
+} from "$lib/domain/seminars";
 import type { PageServerLoad, Actions } from "./$types";
-
-function parsePresenterIds(raw: string | null): string[] {
-  if (!raw) return [];
-  return [
-    ...new Set(
-      raw
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
-    ),
-  ];
-}
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
   const session = await ensureSession(locals, url);
@@ -75,16 +67,11 @@ export const actions: Actions = {
       if (!member) throw new AppError("FORBIDDEN");
 
       const data = await request.formData();
-      const title = data.get("title") as string;
-      const description = data.get("description") as string;
-      if (!title || !description) {
-        throw new AppError("VALIDATION_FAILED", {
-          userMessage: "필수 항목을 입력해주세요.",
-        });
-      }
-
-      let presenterIds = parsePresenterIds(data.get("speakerIds") as string);
-      if (presenterIds.length === 0) presenterIds = [member.memberId];
+      const parsed = validateSeminarRequestForm(data);
+      if (!parsed.success) return fail(400, parsed.failure);
+      // `kind` is validated but not stored: seminar-requests has no column.
+      const { title, description, prerequisites, duration } = parsed.data;
+      const { preferredTiming, presenterIds, attachmentUrl } = parsed.data;
 
       await updateSeminarRequest(
         params.id,
@@ -92,13 +79,13 @@ export const actions: Actions = {
         {
           title,
           description,
-          prerequisites: (data.get("prerequisites") as string) || "",
-          duration: (data.get("duration") as string) || "",
-          preferredTiming: (data.get("preferredTiming") as string) || "",
+          prerequisites,
+          duration,
+          preferredTiming,
           presenterIds,
-          attachment: (data.get("attachment") as string) || "",
+          attachment: attachmentUrl,
         },
-        (data.get("posterPendingKey") as string) || "",
+        formText(data, "posterPendingKey"),
       );
     });
   },

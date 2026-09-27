@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { formText } from "$lib/domain/form-data";
 
 export const SEMINAR_KINDS = ["regular", "irregular"] as const;
 
@@ -85,11 +86,16 @@ export type SeminarRequestField =
 
 export type SeminarFormIssues = Partial<Record<SeminarRequestField, string>>;
 
-const httpsUrl = z.url({
-  protocol: /^https$/,
-  error: "올바른 HTTPS 주소를 입력해 주세요.",
-});
+const httpsUrl = z.url({ protocol: /^https$/ });
 
+/** Most presenters one request may name — a bound on the submitted list. */
+export const SEMINAR_MAX_PRESENTERS = 20;
+
+/**
+ * Seminar request rules — the single source; the apply and edit actions
+ * validate with this. `kind` is asked by the form and checked here, but the
+ * stored request has no column for it, so it is not persisted.
+ */
 export const seminarRequestInputSchema = z.object({
   kind: z.enum(SEMINAR_KINDS, {
     message: "정기 또는 비정기 세미나를 선택해 주세요.",
@@ -120,10 +126,23 @@ export const seminarRequestInputSchema = z.object({
         v === "" || (SEMINAR_TIMING_OPTIONS as readonly string[]).includes(v),
       "선택지에 없는 시점입니다.",
     ),
-  attachmentUrl: z.union([z.literal(""), httpsUrl]),
+  // A refine, not a union with the URL schema: a union swallows the length
+  // issue and answers a generic "Invalid input".
+  attachmentUrl: z
+    .string()
+    .trim()
+    .max(2_048, "외부 첨부 URL은 2,048자 이하로 입력해 주세요.")
+    .refine(
+      (v) => v === "" || httpsUrl.safeParse(v).success,
+      "올바른 HTTPS 주소를 입력해 주세요.",
+    ),
   presenterIds: z
-    .array(z.string().trim().min(1))
-    .min(1, "발표자를 한 명 이상 선택해 주세요."),
+    .array(z.string().trim().min(1).max(64))
+    .min(1, "발표자를 한 명 이상 선택해 주세요.")
+    .max(
+      SEMINAR_MAX_PRESENTERS,
+      `발표자는 ${SEMINAR_MAX_PRESENTERS}명까지 선택할 수 있습니다.`,
+    ),
 });
 
 export type SeminarRequestInput = z.infer<typeof seminarRequestInputSchema>;
@@ -145,36 +164,34 @@ export interface SeminarRequestFormFailure {
   values: SeminarRequestFormValues;
 }
 
-function parsePresenterIds(value: FormDataEntryValue | null): string[] {
-  if (typeof value !== "string" || value.trim() === "") return [];
-
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed)
-      ? parsed.filter((item): item is string => typeof item === "string")
-      : [];
-  } catch {
-    return [];
-  }
+/** The form posts the picked presenters as one comma-separated field. */
+function parsePresenterIds(value: string): string[] {
+  return [
+    ...new Set(
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
+/**
+ * Reads SeminarRequestForm's fields. The wire names are the form's own:
+ * `attachment` (→ attachmentUrl) and `speakerIds` (→ presenterIds).
+ */
 export function seminarRequestValuesFromFormData(
   formData: FormData,
 ): SeminarRequestFormValues {
-  const value = (name: string) => {
-    const entry = formData.get(name);
-    return typeof entry === "string" ? entry : "";
-  };
-
   return {
-    kind: value("kind") as SeminarRequestFormValues["kind"],
-    title: value("title"),
-    description: value("description"),
-    prerequisites: value("prerequisites"),
-    duration: value("duration"),
-    preferredTiming: value("preferredTiming"),
-    attachmentUrl: value("attachmentUrl"),
-    presenterIds: parsePresenterIds(formData.get("presenterIds")),
+    kind: formText(formData, "kind") as SeminarRequestFormValues["kind"],
+    title: formText(formData, "title"),
+    description: formText(formData, "description"),
+    prerequisites: formText(formData, "prerequisites"),
+    duration: formText(formData, "duration"),
+    preferredTiming: formText(formData, "preferredTiming"),
+    attachmentUrl: formText(formData, "attachment"),
+    presenterIds: parsePresenterIds(formText(formData, "speakerIds")),
   };
 }
 

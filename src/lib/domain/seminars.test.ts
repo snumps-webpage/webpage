@@ -67,8 +67,8 @@ describe("validateSeminarRequestForm", () => {
     formData.set("title", "");
     formData.set("description", "");
     formData.set("duration", "");
-    formData.set("attachmentUrl", "");
-    formData.set("presenterIds", "[]");
+    formData.set("attachment", "");
+    formData.set("speakerIds", "");
 
     const result = validateSeminarRequestForm(formData);
 
@@ -82,6 +82,24 @@ describe("validateSeminarRequestForm", () => {
         presenterIds: expect.any(String),
       });
       expect(result.failure.values.title).toBe("");
+    }
+  });
+
+  it("reads the form's own wire names and de-duplicates presenters", () => {
+    const formData = new FormData();
+    formData.set("attachment", "https://example.com/a.pdf");
+    formData.set("speakerIds", " m1, m2 ,m1,, ");
+
+    const result = validateSeminarRequestForm(formData);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.failure.values).toMatchObject({
+        attachmentUrl: "https://example.com/a.pdf",
+        presenterIds: ["m1", "m2"],
+      });
+      expect(result.failure.issues.attachmentUrl).toBeUndefined();
+      expect(result.failure.issues.presenterIds).toBeUndefined();
     }
   });
 });
