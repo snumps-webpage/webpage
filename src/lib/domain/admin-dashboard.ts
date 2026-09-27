@@ -147,3 +147,30 @@ export function adminAttendanceCapabilities(status: AdminAttendanceStatus) {
     canDelete: true,
   };
 }
+
+/**
+ * The notice for a refused dashboard action. The failure carries a code
+ * (`error`) and sometimes a Korean `message` (AppError.userMessage); the
+ * code is the contract, never the text — field-level messages already sit
+ * next to their fields, so VALIDATION_FAILED only needs a pointer to them.
+ */
+export function adminActionErrorMessage(
+  data: { error?: string; message?: string } | null | undefined,
+  fallback: string,
+): string {
+  if (data?.message) return data.message;
+  switch (data?.error) {
+    case "VALIDATION_FAILED":
+      return "입력값을 확인해 주세요.";
+    case "NOT_FOUND":
+      return "대상을 찾을 수 없습니다. 새로고침해 주세요.";
+    case "CONFLICT":
+      return "지금 상태에서는 처리할 수 없습니다. 새로고침 후 확인해 주세요.";
+    case "WRITE_CONFLICT":
+      return "동시에 다른 변경이 있었습니다. 다시 시도해 주세요.";
+    case "SERVICE_UNAVAILABLE":
+      return "잠시 후 다시 시도해 주세요.";
+    default:
+      return fallback;
+  }
+}

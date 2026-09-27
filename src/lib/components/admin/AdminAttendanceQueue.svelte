@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { adminActionErrorMessage } from "$lib/domain/admin-dashboard";
   import { enhance } from "$app/forms";
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { AdminAttendanceQueueItem } from "$lib/domain/admin-dashboard";
@@ -39,11 +40,14 @@
             result.type === "failure"
               ? (result.data as {
                   error?: string;
+                  message?: string;
                   issues?: Record<string, string>;
                 })
               : null;
           issues = data?.issues ?? {};
-          onError(data?.error ?? "출석 요청을 처리하지 못했습니다.");
+          onError(
+            adminActionErrorMessage(data, "출석 요청을 처리하지 못했습니다."),
+          );
         }
       };
     };
