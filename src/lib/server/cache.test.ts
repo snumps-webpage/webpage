@@ -80,3 +80,51 @@ describe("local tier TTL", () => {
     expect(calls()).toBe(2);
   });
 });
+
+describe("invalidation against an in-flight read", () => {
+  // LB03-1: a read that started before a write finished after it and planted
+  // the rows it had read — the invalidation was undone, and the writer's own
+  // next read (same instance, even without Redis) got the old rows for 15s.
+  it("does not let a read that began before it re-plant the old value", async () => {
+    let release!: (v: string) => void;
+    const slow = withCache(
+      "table_members",
+      300_000,
+      () => new Promise<string>((r) => (release = r)),
+    );
+    await Promise.resolve(); // the read is now waiting on its fetcher
+
+    await invalidateCache("table_members"); // a write committed meanwhile
+    release("rows from before the write");
+    expect(await slow).toBe("rows from before the write"); // its caller still gets them
+
+    let calls = 0;
+    const next = await withCache("table_members", 300_000, async () => {
+      calls++;
+      return "rows after the write";
+    });
+    expect(next).toBe("rows after the write");
+    expect(calls).toBe(1);
+  });
+});
+
+describe("what the cache hands out", () => {
+  // LB03-5: the local tier stored and returned the caller's object itself, so
+  // a caller that sorted or edited it in place changed what every later
+  // request on this instance read. The value is frozen, deeply: a mutation is
+  // an immediate TypeError instead of silent shared state.
+  it("is frozen all the way down", async () => {
+    const rows = await withCache("table_members", 300_000, async () => [
+      { id: "m1", tags: ["a"] },
+    ]);
+
+    expect(() => rows.push({ id: "m2", tags: [] })).toThrow(TypeError);
+    expect(() => {
+      rows[0].id = "changed";
+    }).toThrow(TypeError);
+    expect(() => rows[0].tags.push("b")).toThrow(TypeError);
+
+    const again = await withCache("table_members", 300_000, async () => []);
+    expect(again).toEqual([{ id: "m1", tags: ["a"] }]);
+  });
+});

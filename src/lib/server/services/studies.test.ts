@@ -323,7 +323,7 @@ describe("attendance (STU-05 / BE-51)", () => {
     );
 
     await saveStudyAttendance(s, event.id, ["p1"]);
-    expect((await getTable("activities"))[0].attendeeIds.sort()).toEqual(
+    expect([...(await getTable("activities"))[0].attendeeIds].sort()).toEqual(
       ["p1", "walkin"].sort(),
     );
 
