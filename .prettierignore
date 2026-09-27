@@ -1,0 +1,5 @@
+# pnpm rewrites this file itself — formatting it only makes the next install dirty
+pnpm-lock.yaml
+
+# standalone poster mockups, kept byte-for-byte as designed
+static/posters/
