@@ -39,13 +39,19 @@ export interface GuardContext {
   member: MemberContext | null | undefined;
   hasApplication: boolean;
   pathname: string;
+  /** The request method — anything but a safe method is a write (LB06-5). */
+  method: string;
 }
 
 export type GuardDecision =
   | { type: "allow" }
   | { type: "redirect"; location: string }
   | { type: "notFound" }
+  /** A member zone write without the route's capability. */
+  | { type: "forbidden" }
   | { type: "misconfigured" };
+
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 const WITHDRAW_PENDING = "/withdraw/pending";
 const ROOT_PAGE_ID = "/(public)";
@@ -56,11 +62,12 @@ export function zoneOf(routeId: string): Zone | null {
 }
 
 /**
- * S9: 회원 존 쓰기(POST)가 요구하는 capability — 라우트 단위 중앙 등록.
- * 등록 회원만 참여 행위 가능, 동문(열람 전용)은 본인 것 관리만.
- * 새 회원 존 라우트가 생기면 여기 한 줄이 늘어난다 (zone.test가 강제).
+ * S9: 회원 존 쓰기(안전 메서드가 아닌 모든 요청)가 요구하는 capability —
+ * 라우트 단위 중앙 등록. 등록 회원만 참여 행위 가능, 동문(열람 전용)은 본인 것 관리만.
+ * 새 회원 존 라우트가 쓰기를 가지면 여기 한 줄이 늘어난다 — zone.test가
+ * actions·쓰기 핸들러를 가진 라우트의 등록을 강제하고, 빠뜨려도 PARTICIPATE로 닫힌다(LB06-1).
  */
-const MEMBER_POST_CAPABILITY: Record<string, Capability> = {
+export const MEMBER_WRITE_CAPABILITY: Readonly<Record<string, Capability>> = {
   "/(member)/seminar/apply": CAPABILITIES.PARTICIPATE,
   "/(member)/seminar/edit/[id]": CAPABILITIES.PARTICIPATE,
   "/(member)/study": CAPABILITIES.PARTICIPATE,
@@ -75,9 +82,13 @@ const MEMBER_POST_CAPABILITY: Record<string, Capability> = {
   "/(member)/withdraw/pending": CAPABILITIES.MANAGE_SELF,
 };
 
-/** 회원 존 POST에 필요한 capability (null = 회원 존 밖이거나 미등록 라우트). */
-export function memberPostCapability(routeId: string): Capability | null {
-  return MEMBER_POST_CAPABILITY[routeId] ?? null;
+/**
+ * 회원 존 쓰기에 필요한 capability (null = 회원 존 밖). 표에 없는 회원 존
+ * 라우트는 통과가 아니라 PARTICIPATE를 요구한다 — 닫힌 기본값(LB06-1).
+ */
+export function memberWriteCapability(routeId: string): Capability | null {
+  if (zoneOf(routeId) !== "(member)") return null;
+  return MEMBER_WRITE_CAPABILITY[routeId] ?? CAPABILITIES.PARTICIPATE;
 }
 
 /**
@@ -153,16 +164,25 @@ export function decide(routeId: string, ctx: GuardContext): GuardDecision {
       ) {
         return { type: "redirect", location: WITHDRAW_PENDING };
       }
-      if (ctx.member.status === "withdrawn") return { type: "allow" };
       // S9 재등록 게이트: 회원 존 열람 capability가 없으면 재가입으로 보낸다.
-      // (등록 회원·동문은 통과 — 동문의 쓰기 행위는 PARTICIPATE 검사가 막는다.)
+      // (등록 회원·동문은 통과 — 동문의 쓰기 행위는 아래 쓰기 게이트가 막는다.)
+      // 탈퇴 신청 중 회원은 pending 페이지에만 있고 열람 capability가 없다.
       if (
+        ctx.member.status !== "withdrawn" &&
         !hasCapability(ctx.member.capabilities, CAPABILITIES.VIEW_MEMBER_ZONE)
       ) {
         return {
           type: "redirect",
           location: ctx.hasApplication ? "/wait" : "/signup",
         };
+      }
+      // 쓰기 게이트: 열람은 위가, 쓰기는 라우트의 capability가 막는다.
+      // POST만이 아니라 안전 메서드가 아닌 모든 요청이 쓰기다(LB06-5).
+      if (!SAFE_METHODS.has(ctx.method.toUpperCase())) {
+        const needed = memberWriteCapability(routeId);
+        if (needed && !hasCapability(ctx.member.capabilities, needed)) {
+          return { type: "forbidden" };
+        }
       }
       return { type: "allow" };
     }

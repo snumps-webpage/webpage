@@ -12,17 +12,13 @@ import {
   buildDevPreviewSession,
   resolveDevPreviewRole,
 } from "$lib/server/dev-preview";
-import {
-  decide,
-  memberPostCapability,
-  needsMemberResolution,
-  zoneOf,
-} from "$lib/server/guards/zone";
+import { decide, needsMemberResolution, zoneOf } from "$lib/server/guards/zone";
 import {
   hasApplication,
   resolveMember,
 } from "$lib/server/guards/resolve-member";
 import { capabilitiesFor } from "$lib/server/core/capabilities";
+import { signedIn } from "$lib/server/auth-guards";
 
 if (!building && !env.AUTH_SECRET) {
   console.error("FATAL: AUTH_SECRET is not set. Authentication will fail.");
@@ -164,7 +160,7 @@ export const zoneGuard: Handle = async ({ event, resolve }) => {
 
   const session =
     event.locals.member === undefined ? await event.locals.auth() : null;
-  const email = session?.user?.email ?? null;
+  const email = signedIn(session)?.user.email ?? null;
 
   if (event.locals.member === undefined) {
     event.locals.member = email ? await resolveMember(email) : null;
@@ -187,23 +183,19 @@ export const zoneGuard: Handle = async ({ event, resolve }) => {
     member,
     hasApplication: application,
     pathname: event.url.pathname,
+    method: event.request.method,
   });
 
   switch (decision.type) {
-    case "allow": {
-      // S9: 회원 존 쓰기 게이트 — 열람은 위 decide가, 쓰기는 capability가 막는다.
-      if (event.request.method === "POST" && zone === "(member)" && member) {
-        const needed = memberPostCapability(routeId);
-        if (needed && !member.capabilities.includes(needed)) {
-          return guardRefusal(
-            event,
-            403,
-            "이번 학기 등록 회원만 할 수 있는 작업입니다.",
-          );
-        }
-      }
+    case "allow":
       return resolve(event); // 캐시 금지는 최외곽 cacheShield가 전 응답에 부착
-    }
+    case "forbidden":
+      // S9: 회원 존 쓰기 게이트 — 판정은 decide가 한다(LB06-1/LB06-5).
+      return guardRefusal(
+        event,
+        403,
+        "이번 학기 등록 회원만 할 수 있는 작업입니다.",
+      );
     case "redirect":
       // throw 하면 실드 핸들을 우회한다 — 캐시 금지 헤더를 직접 부착해 반환.
       return guardRedirect(event, decision.location);

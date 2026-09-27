@@ -103,6 +103,22 @@ describe("zone guard refusals carry no-store", () => {
     expectNoStore(res);
   });
 
+  // LB06-5: the write gate ran for POST only; any other write method passed.
+  it.each(["PUT", "PATCH", "DELETE"])(
+    "403 when a member sends %s without the route's capability",
+    async (method) => {
+      const res = await refuse(
+        event("/(member)/study/apply", {
+          method,
+          accept: "application/json",
+          member: unregistered,
+        }),
+      );
+      expect(res.status).toBe(403);
+      expectNoStore(res);
+    },
+  );
+
   it("500 for a route outside every zone", async () => {
     const res = await refuse(event("/outside"));
     expect(res.status).toBe(500);

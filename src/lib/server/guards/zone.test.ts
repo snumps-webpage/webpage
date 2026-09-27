@@ -1,10 +1,11 @@
-import { readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { CAPABILITIES, capabilitiesFor } from "$lib/server/core/capabilities";
 import {
   decide,
-  memberPostCapability,
+  MEMBER_WRITE_CAPABILITY,
+  memberWriteCapability,
   zoneOf,
   type GuardContext,
   type MemberContext,
@@ -138,36 +139,42 @@ const ROLES: Record<string, GuardContext> = {
     member: null,
     hasApplication: false,
     pathname: "/x",
+    method: "GET",
   },
   newcomer: {
     hasSession: true,
     member: null,
     hasApplication: false,
     pathname: "/x",
+    method: "GET",
   },
   applicant: {
     hasSession: true,
     member: null,
     hasApplication: true,
     pathname: "/x",
+    method: "GET",
   },
   member: {
     hasSession: true,
     member: memberCtx(),
     hasApplication: false,
     pathname: "/x",
+    method: "GET",
   },
   withdrawn: {
     hasSession: true,
     member: memberCtx({ status: "withdrawn" }),
     hasApplication: false,
     pathname: "/x",
+    method: "GET",
   },
   admin: {
     hasSession: true,
     member: memberCtx({ isAdmin: true }),
     hasApplication: false,
     pathname: "/x",
+    method: "GET",
   },
   // S9: 준회원 이력만 있고 이번 학기 미등록 — capability 없음, 재가입 대상
   unregistered: {
@@ -175,6 +182,7 @@ const ROLES: Record<string, GuardContext> = {
     member: memberCtx({ registered: false, isAlumni: false, capabilities: [] }),
     hasApplication: false,
     pathname: "/x",
+    method: "GET",
   },
   // S9: 동문(정회원 이력) + 이번 학기 미등록 — 회원 존 열람은 유지
   alumni: {
@@ -186,6 +194,7 @@ const ROLES: Record<string, GuardContext> = {
     }),
     hasApplication: false,
     pathname: "/x",
+    method: "GET",
   },
 };
 
@@ -295,20 +304,111 @@ describe("guard matrix", () => {
   });
 });
 
-describe("memberPostCapability (S9)", () => {
+describe("memberWriteCapability (S9)", () => {
   it("maps participation routes to PARTICIPATE", () => {
-    expect(memberPostCapability("/(member)/study/apply")).toBe(
+    expect(memberWriteCapability("/(member)/study/apply")).toBe(
       CAPABILITIES.PARTICIPATE,
     );
   });
 
   it("maps self-management routes to MANAGE_SELF", () => {
-    expect(memberPostCapability("/(member)/settings/withdraw")).toBe(
+    expect(memberWriteCapability("/(member)/settings/withdraw")).toBe(
       CAPABILITIES.MANAGE_SELF,
     );
   });
 
   it("returns null outside the member zone", () => {
-    expect(memberPostCapability("/(public)/about")).toBeNull();
+    expect(memberWriteCapability("/(public)/about")).toBeNull();
+  });
+
+  // LB06-1: a member route missing from the table needed no capability at all.
+  it("closes an unregistered member route behind PARTICIPATE", () => {
+    expect(memberWriteCapability("/(member)/new-feature")).toBe(
+      CAPABILITIES.PARTICIPATE,
+    );
+  });
+});
+
+// LB06-1: the table's comment said "zone.test enforces" registration; nothing
+// did. Every member route that can be written to — a page with form actions,
+// an endpoint with a write handler — must be listed with its capability.
+it("registers every writable member route in MEMBER_WRITE_CAPABILITY", () => {
+  const writable = discoverRouteIds().filter((id) => {
+    if (zoneOf(id) !== "(member)") return false;
+    const dir = join(ROUTES_DIR, id);
+    const source = (file: string) =>
+      existsSync(join(dir, file)) ? readFileSync(join(dir, file), "utf8") : "";
+    return (
+      /export const actions\b/.test(source("+page.server.ts")) ||
+      /export (const|async function|function) (POST|PUT|PATCH|DELETE)\b/.test(
+        source("+server.ts"),
+      )
+    );
+  });
+  expect(writable.length).toBeGreaterThan(0);
+  expect(writable.filter((id) => !(id in MEMBER_WRITE_CAPABILITY))).toEqual([]);
+});
+
+// LB06-1 (③) and LB06-5: the write gate lived in the hook, outside decide, and
+// ran for POST only — a PUT/PATCH/DELETE on a member route skipped it, and an
+// unregistered route let any viewer write.
+describe("member zone write gate", () => {
+  const as = (role: string, method: string): GuardContext => ({
+    ...ROLES[role],
+    method,
+  });
+  const withdrawing: GuardContext = {
+    ...ROLES.withdrawn,
+    member: memberCtx({
+      status: "withdrawn",
+      capabilities: capabilitiesFor({
+        isAlumni: false,
+        registered: true,
+        withdrawn: true,
+      }),
+    }),
+    method: "POST",
+  };
+
+  it.each(["POST", "PUT", "PATCH", "DELETE"])(
+    "refuses an alumnus's %s on a participation route",
+    (method) => {
+      expect(decide("/(member)/study/apply", as("alumni", method))).toEqual({
+        type: "forbidden",
+      });
+    },
+  );
+
+  it.each(["GET", "HEAD", "OPTIONS"])(
+    "lets an alumnus read with %s",
+    (method) => {
+      expect(decide("/(member)/study/apply", as("alumni", method))).toEqual({
+        type: "allow",
+      });
+    },
+  );
+
+  it("lets an alumnus manage their own settings", () => {
+    expect(
+      decide("/(member)/settings/notifications", as("alumni", "POST")),
+    ).toEqual({ type: "allow" });
+  });
+
+  it("refuses an alumnus's write on an unregistered member route", () => {
+    expect(decide("/(member)/new-feature", as("alumni", "POST"))).toEqual({
+      type: "forbidden",
+    });
+  });
+
+  it("lets a registered member write on an unregistered member route", () => {
+    expect(decide("/(member)/new-feature", as("member", "POST"))).toEqual({
+      type: "allow",
+    });
+  });
+
+  it("lets a withdrawing member cancel on the pending page", () => {
+    expect(decide("/(member)/withdraw/pending", withdrawing)).toEqual({
+      type: "allow",
+    });
   });
 });
