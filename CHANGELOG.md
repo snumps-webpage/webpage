@@ -4,8 +4,47 @@ All notable changes to this project will be documented in this file.
 
 ## [2026-09-27] — `chore/code-audit-v2`
 
-> The first entry since the move from Notion to Supabase. Deploy order matters:
-> apply the two new migrations **before** deploying this code (docs/OPERATOR-TODO.md §2-2).
+> The first entry since the move from Notion to Supabase. Deploy order matters: apply the
+> flow and backfill migrations **before** deploying this code, and push the assets-bucket
+> migration only together with the deploy (docs/OPERATOR-TODO.md §2-2).
+
+### Fixed after the layer audit (2026-09-28, docs/code-audit/LAYER-AUDIT.md)
+
+- **Data safety**: flows no longer write values the stored schemas reject (an impossible date
+  could make the seminars, activities or events table unreadable); login emails stay unique; the
+  weekly backup includes attendance queues and the audit log as one snapshot and catches up the
+  day after a missed Sunday; cache invalidations are not undone by reads in flight, Redis keys are
+  per build, cached values are frozen; a dead store answers 503 on writes too.
+- **Privacy and security**: a returning executive's phone opt-out holds everywhere; no mail
+  header injection through the admin test address; stored `javascript:` URLs are not rendered as
+  links; the member-zone write gate is closed by default and covers every write method; an
+  action's raw exception text never reaches the browser; the PGlite backend stays out of the
+  production bundle; `assets` is private on any database built from the migrations.
+- **Mail**: removing an event's last rule stops its mail; failed reads of rules, templates or
+  shared variables send nothing instead of the defaults; rule rows with a recipient the event does
+  not allow are skipped; `announcedAt` means the announcement went out, so no double or spurious
+  change/cancel notices; rule edits keep the undo history and match rule ids to their event.
+- **Seminars and events**: re-announcing a migrated seminar reuses its activity and event;
+  editing a published seminar's title or presenters updates its activity and attendance event;
+  presenter attendance and a time-only schedule change are decided under a lock / noticed;
+  opening an expired event is refused instead of "succeeding"; admin date inputs refuse
+  impossible dates and reversed ranges; the request form offers the coming term's months.
+- **Members, studies, admin**: the last admin cannot be revoked; role assignment works on the
+  latest row; withdrawn members cannot be made executives, can always cancel and cannot
+  participate; cancelled study sessions refuse corrections and attendance; only pending
+  applicants can be accepted; rejecting a request judges the stored row.
+- **Uploads**: WebP is checked beyond `RIFF`; storage keys take their extension from the checked
+  type; a missing bucket is an error, not "no such file"; an unknown size is refused.
+- **Behaviour you may notice**: the cron endpoints report failures in a `failures` list only
+  (`keepalive_failed` replaces `keptAlive`; `<step>_failed` keys left the body); `member.roles`
+  is validated on both admin pages (at most 30, no repeated term+title); an admin-made study
+  checks its organizer and lists them as a participant; a record edit on a published seminar
+  updates its activity and attendance event; paired activities' title and date are edited in
+  their seminar or study; forms show a sentence, never a bare error code.
+- **Structure**: one owner each for the upload purpose table, the records that hold asset keys,
+  the mail event names, member statuses, phone/background rules, mail preference types and the
+  local-datetime input; the five dead public archive accessors are gone (tests assert on the
+  archive snapshot guests receive); under test every flow must report each table it writes.
 
 ### Changed
 
