@@ -51,7 +51,7 @@ async function seedMember(over: Partial<Member> = {}): Promise<Member> {
   return m;
 }
 
-const auditKeyCount = () => __auditRows().length;
+const auditKeyCount = async () => (await __auditRows()).length;
 
 beforeEach(async () => {
   __reset();
@@ -87,10 +87,10 @@ describe("status axis (D4 / §1-1)", () => {
 
   it("audits every status/privilege mutation", async () => {
     const m = await seedMember();
-    const before = auditKeyCount();
+    const before = await auditKeyCount();
     await setStatus(m.id, "regular", "admin-1");
     await setAdmin(m.id, true, "admin-1");
-    expect(auditKeyCount()).toBe(before + 2);
+    expect(await auditKeyCount()).toBe(before + 2);
   });
 });
 

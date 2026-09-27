@@ -76,7 +76,7 @@ describe("requestWithdrawal — triple confirmation (MEM-07)", () => {
 
   it("withdraws with previousStatus preserved and audits the destruction trigger", async () => {
     const m = await seed({ status: "associate" });
-    const auditBefore = __auditRows().length;
+    const auditBefore = (await __auditRows()).length;
 
     await requestWithdrawal(m.id, ok(m.name));
 
@@ -84,7 +84,7 @@ describe("requestWithdrawal — triple confirmation (MEM-07)", () => {
     expect(updated.status).toBe("withdrawn");
     expect(updated.withdrawal?.previousStatus).toBe("associate");
     expect(updated.withdrawal?.holdBy).toBeNull();
-    expect(__auditRows().length).toBe(auditBefore + 1);
+    expect((await __auditRows()).length).toBe(auditBefore + 1);
 
     const state = await getWithdrawalState(m.id);
     expect(state).not.toBeNull();

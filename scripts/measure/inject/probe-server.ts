@@ -29,18 +29,18 @@ export const POST: RequestHandler = async ({ request }) => {
   if (body.op === "reset") {
     // 테이블 캐시는 저장소보다 오래 산다 — 전부 지우지 않으면 다음 실행이
     // 로컬 TTL 동안 이전 실행의 행을 읽는다.
-    const queueIds = [...mem.__docs("queue").keys()];
-    mem.__reset();
+    const queueIds = [...(await mem.__docs("queue")).keys()];
+    await mem.__reset();
     for (const name of TABLE_NAMES) await invalidateCache(`table_${name}`);
     for (const id of queueIds)
       await invalidateCache(`table_attendance-queue_${id}`);
   }
   for (const t of body.tables ?? []) {
-    mem.__putRawDoc("table", t.name, t.doc);
+    await mem.__putRawDoc("table", t.name, t.doc);
     await invalidateCache(`table_${t.name}`);
   }
   for (const q of body.queues ?? []) {
-    mem.__putRawDoc("queue", q.event_id, q.doc);
+    await mem.__putRawDoc("queue", q.event_id, q.doc);
     await invalidateCache(`table_attendance-queue_${q.event_id}`);
   }
   _resetDataLayerForTests({ backoffBaseMs: 50 });
@@ -55,7 +55,7 @@ export const GET: RequestHandler = async ({ request, url }) => {
   guard(request);
   const kind = (url.searchParams.get("kind") ?? "table") as "table" | "queue";
   const key = url.searchParams.get("key");
-  const docs = mem.__docs(kind);
+  const docs = await mem.__docs(kind);
   if (key) return json(docs.get(key)?.doc ?? null);
   return json([...docs.keys()]);
 };

@@ -734,8 +734,8 @@ describe("취소 권한은 캐시가 아니라 그 순간의 행으로 판정한
    * 통과하면 이미 치른 세미나의 출석 기록이 회원 면에서 사라진다.
    * 캐시를 건드리지 않고 저장소만 바꿔 그 창을 그대로 만든다.
    */
-  function rewriteScheduleBehindTheCache(id: string, startsAt: string) {
-    const docs = __docs("table");
+  async function rewriteScheduleBehindTheCache(id: string, startsAt: string) {
+    const docs = await __docs("table");
     const stored = docs.get("seminars")!;
     const envelope = structuredClone(stored.doc) as {
       rows: { id: string; schedule: { startsAt: string } | null }[];
@@ -743,7 +743,7 @@ describe("취소 권한은 캐시가 아니라 그 순간의 행으로 판정한
     for (const row of envelope.rows) {
       if (row.id === id && row.schedule) row.schedule.startsAt = startsAt;
     }
-    __putRawDoc("table", "seminars", envelope);
+    await __putRawDoc("table", "seminars", envelope);
   }
 
   it("낡은 일정으로 이미 열린 세미나를 취소할 수 없다", async () => {
@@ -758,7 +758,7 @@ describe("취소 권한은 캐시가 아니라 그 순간의 행으로 판정한
     });
     await publishSeminar(seminar.id);
     await getTable("seminars"); // 캐시를 데운다 — 이후 판정이 이것을 본다
-    rewriteScheduleBehindTheCache(seminar.id, at(-3 * HOUR));
+    await rewriteScheduleBehindTheCache(seminar.id, at(-3 * HOUR));
 
     await expect(
       cancelSeminar(seminar.id, {

@@ -42,6 +42,7 @@
   "dependencies": {
     "@auth/core": "^0.41.1",
     "@auth/sveltekit": "^1.11.1",
+    "@electric-sql/pglite": "^0.5.8",
     "@notionhq/client": "^5.9.0",
     "@supabase/supabase-js": "^2.49.0",
     "@sveltejs/adapter-vercel": "^6.3.4",

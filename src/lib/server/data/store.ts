@@ -124,6 +124,18 @@ export async function deleteQueueDoc(eventId: string): Promise<void> {
     throw new Error(`deleteQueueDoc(${eventId}) failed: ${error.message}`);
 }
 
+/**
+ * Calls a multi-document flow function `flow_*(p jsonb) returns jsonb`
+ * (docs/spec/ATOMIC-FLOWS.md). A RAISEd app error code arrives as the error
+ * message; callers go through data/flows.ts, which maps it to AppError.
+ */
+export async function rpc<T>(fn: string, args: unknown): Promise<T> {
+  if (isMemoryBackend()) return memory.rpc<T>(fn, args);
+  const { data, error } = await getSupabase().rpc(fn, { p: args ?? {} });
+  if (error) throw new Error(error.message);
+  return data as T;
+}
+
 export async function insertAuditRow(row: AuditRow): Promise<void> {
   if (isMemoryBackend()) return memory.insertAuditRow(row);
   const { error } = await getSupabase().from("audit_log").insert(row);

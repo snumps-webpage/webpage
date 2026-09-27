@@ -93,7 +93,7 @@ async function storedPrivateInfo() {
   return (await getTable("private-info")).find((p) => p.memberId === ID)!;
 }
 
-function expectRefused(result: unknown, fields: string[]) {
+async function expectRefused(result: unknown, fields: string[]) {
   expect(result).toMatchObject({
     status: 400,
     data: { error: "VALIDATION_FAILED", values: expect.any(Object) },
@@ -102,7 +102,7 @@ function expectRefused(result: unknown, fields: string[]) {
     .issues;
   expect(Object.keys(issues).sort()).toEqual([...fields].sort());
   for (const field of fields) expect(issues[field]).toEqual(expect.any(String));
-  expect(__auditRows()).toEqual([]);
+  expect(await __auditRows()).toEqual([]);
 }
 
 beforeEach(async () => {
@@ -176,7 +176,7 @@ describe("updateMember", () => {
     async (field, over) => {
       const result = await post("updateMember", { ...valid, ...over });
 
-      expectRefused(result, [field]);
+      await expectRefused(result, [field]);
       expect(await storedMember()).toEqual(member);
     },
   );
@@ -191,7 +191,7 @@ describe("updateMember", () => {
       publicContact: "1 · 2",
     });
 
-    expectRefused(result, [
+    await expectRefused(result, [
       "department",
       "email",
       "joinedAt",
@@ -211,7 +211,9 @@ describe("setStatus", () => {
 
     expect(result).toMatchObject({ success: true });
     expect((await storedMember()).status).toBe("regular");
-    expect(__auditRows().map((r) => r.action)).toEqual(["member.set-status"]);
+    expect((await __auditRows()).map((r) => r.action)).toEqual([
+      "member.set-status",
+    ]);
   });
 
   it.each(["withdrawn", "", "admin"])(
@@ -219,7 +221,7 @@ describe("setStatus", () => {
     async (status) => {
       const result = await post("setStatus", { status });
 
-      expectRefused(result, ["status"]);
+      await expectRefused(result, ["status"]);
       expect((await storedMember()).status).toBe("regular");
     },
   );
@@ -236,7 +238,7 @@ describe("revokeAlumni", () => {
       isAlumni: false,
       alumniRevoked: true,
     });
-    const [row] = __auditRows();
+    const [row] = await __auditRows();
     expect(row).toMatchObject({
       action: "member.revoke-alumni",
       detail: { reason: "회칙상 유고 처리" },
@@ -250,7 +252,7 @@ describe("revokeAlumni", () => {
   ])("refuses a %s reason without writing or auditing", async (_, reason) => {
     const result = await post("revokeAlumni", { reason });
 
-    expectRefused(result, ["reason"]);
+    await expectRefused(result, ["reason"]);
     expect(await storedMember()).toMatchObject({
       isAlumni: true,
       alumniRevoked: false,
@@ -269,7 +271,7 @@ describe("setRoles", () => {
       { term: "26-2", title: "회장" },
       { term: "26-1", title: "학술 부장" },
     ]);
-    expect(__auditRows()).toMatchObject([
+    expect(await __auditRows()).toMatchObject([
       { action: "member.set-roles", detail: { count: 2 } },
     ]);
   });
@@ -294,7 +296,7 @@ describe("setRoles", () => {
   ])("refuses %s without writing or auditing", async (_, roles) => {
     const result = await post("setRoles", { roles });
 
-    expectRefused(result, ["roles"]);
+    await expectRefused(result, ["roles"]);
     expect((await storedMember()).roles).toEqual(member.roles);
   });
 
@@ -313,7 +315,7 @@ describe("setAdmin", () => {
 
     expect(result).toMatchObject({ success: true });
     expect((await storedMember()).isAdmin).toBe(true);
-    expect(__auditRows()).toMatchObject([
+    expect(await __auditRows()).toMatchObject([
       { action: "member.set-admin", detail: { isAdmin: true } },
     ]);
   });
@@ -333,7 +335,7 @@ describe("setAdmin", () => {
 
       const result = await post("setAdmin", { isAdmin });
 
-      expectRefused(result, ["isAdmin"]);
+      await expectRefused(result, ["isAdmin"]);
       expect((await storedMember()).isAdmin).toBe(true);
     },
   );
@@ -355,7 +357,7 @@ describe("updatePrivateInfo", () => {
       phone: "010-9999-8888",
       background: "대수학",
     });
-    const [row] = __auditRows();
+    const [row] = await __auditRows();
     expect(row).toMatchObject({
       action: "private-info.update",
       detail: { fields: ["phone", "background", "email"] },
@@ -389,7 +391,7 @@ describe("updatePrivateInfo", () => {
     async (field, over) => {
       const result = await post("updatePrivateInfo", { ...valid, ...over });
 
-      expectRefused(result, [field]);
+      await expectRefused(result, [field]);
       expect(await storedPrivateInfo()).toEqual(privateInfo);
     },
   );
@@ -401,6 +403,6 @@ describe("updatePrivateInfo", () => {
       background: "가".repeat(2001),
     });
 
-    expectRefused(result, ["background", "email", "phone"]);
+    await expectRefused(result, ["background", "email", "phone"]);
   });
 });
