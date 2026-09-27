@@ -734,6 +734,10 @@ const [termYear] = ANCHOR.split("-");
       String(self.data?.message ?? "").includes("본인"),
     brief(self),
   );
+  // The env bootstrap admin has no member row and stays admin, so revoking
+  // the only admin row leaves an admin (57ec5f9). With a member-row actor the
+  // actor itself remains, so the "last admin" refusal is reachable only by
+  // two admins revoking each other at once — covered by the unit tests.
   const last = await action(
     `/admin/members/${idD}`,
     "setAdmin",
@@ -744,10 +748,8 @@ const [termYear] = ANCHOR.split("-");
     (m) => m.id === idD,
   )?.isAdmin;
   check(
-    "S12 revoking the last admin → 409 with its message, still admin (c16f7c4)",
-    failed(last, 409, "CONFLICT") &&
-      String(last.data?.message ?? "").includes("마지막 관리자") &&
-      stillAdmin === true,
+    "S12 the env admin may revoke the only admin row (57ec5f9)",
+    last.type === "success" && stillAdmin === false,
     `${brief(last)} stillAdmin=${stillAdmin}`,
   );
 }
