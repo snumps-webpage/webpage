@@ -11,26 +11,13 @@ vi.mock(
 
 /**
  * Races found by the adversarial HTTP run (publish ∥ delete, cancel ∥ delete).
- * deleteSeminar decides "hidden or not" from a read; a publish or cancel that
- * commits between that read and the delete's own write used to be ignored.
- * Here the read is made stale on purpose — the deterministic form of the race.
+ * deleteSeminar used to decide "hidden or not" from a read and write later, so
+ * a publish or cancel committing in between was ignored. It now runs as one
+ * locked transaction (flow_delete_seminar): whatever committed before the
+ * lock is what the delete sees. The cases below commit the racing write just
+ * before the delete — the only interleaving left — and check the delete
+ * followed the state it found, not the one an earlier page load showed.
  */
-const stale = vi.hoisted(() => ({ seminars: null as unknown[] | null }));
-vi.mock("$lib/server/data/tables", async (importOriginal) => {
-  const real = await importOriginal<typeof import("$lib/server/data/tables")>();
-  return {
-    ...real,
-    getTable: (async (name: string) => {
-      if (name === "seminars" && stale.seminars) {
-        const rows = stale.seminars;
-        stale.seminars = null;
-        return rows;
-      }
-      return real.getTable(name as never);
-    }) as typeof real.getTable,
-  };
-});
-
 import { __reset } from "$lib/server/data/store-memory";
 import { __reset as __resetStorage } from "$lib/server/data/storage-memory";
 import {
@@ -39,15 +26,13 @@ import {
   mutate,
 } from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
-import { AppError } from "$lib/server/core/errors";
 import { nowKstIso } from "$lib/server/core/time";
 import { createActivity, createSeminar, deleteSeminar } from "./records-admin";
 import { hiddenActivityIds } from "./visibility";
 
 beforeEach(async () => {
-  __reset();
+  await __reset();
   __resetStorage();
-  stale.seminars = null;
   _resetDataLayerForTests({ backoffBaseMs: 1 });
   for (const t of [
     "activities",
@@ -79,11 +64,8 @@ const patch = (id: string, p: Patch) =>
     rows.map((r) => (r.id === id ? { ...r, ...p } : r)),
   );
 
-const isWriteConflict = (e: unknown) =>
-  e instanceof AppError && e.code === "WRITE_CONFLICT";
-
-describe("deleteSeminar re-checks the state it decided on", () => {
-  it("cancel ∥ delete: refuses when the seminar was cancelled after the read", async () => {
+describe("deleteSeminar acts on the state it locked", () => {
+  it("cancel then delete: retires the activity the cancel hid", async () => {
     const a = await createActivity({
       title: "세미나",
       date: { start: nowKstIso(), end: null },
@@ -91,15 +73,17 @@ describe("deleteSeminar re-checks the state it decided on", () => {
     });
     const s = await newSeminar();
     await patch(s.id, { publicationStatus: "published", activityId: a.id });
-    stale.seminars = await getTable("seminars"); // delete reads "published"
-    await patch(s.id, { publicationStatus: "cancelled" }); // cancel commits
+    await patch(s.id, { publicationStatus: "cancelled" }); // the admin saw "published"
 
-    await expect(deleteSeminar(s.id)).rejects.toSatisfy(isWriteConflict);
-    expect(await getTable("seminars")).toHaveLength(1);
-    expect(await hiddenActivityIds()).toContain(a.id);
+    await deleteSeminar(s.id);
+
+    expect(await getTable("seminars")).toHaveLength(0);
+    // no orphan: the hidden activity went with its seminar, nothing resurfaces
+    expect((await getTable("activities")).map((r) => r.id)).not.toContain(a.id);
+    expect(await hiddenActivityIds()).not.toContain(a.id);
   });
 
-  it("publish ∥ delete: refuses when the seminar was published after the read", async () => {
+  it("publish then delete: leaves the request open, as for any published seminar", async () => {
     const s = await newSeminar();
     await patch(s.id, {
       publicationStatus: "scheduled",
@@ -123,12 +107,13 @@ describe("deleteSeminar re-checks the state it decided on", () => {
         createdAt: nowKstIso(),
       },
     ]);
-    stale.seminars = await getTable("seminars"); // delete reads "scheduled"
-    await patch(s.id, { publicationStatus: "published" }); // publish's CAS
+    await patch(s.id, { publicationStatus: "published" }); // the admin saw "scheduled"
 
-    await expect(deleteSeminar(s.id)).rejects.toSatisfy(isWriteConflict);
-    expect(await getTable("seminars")).toHaveLength(1);
-    expect(await getTable("seminar-requests")).toHaveLength(1);
+    await deleteSeminar(s.id);
+
+    expect(await getTable("seminars")).toHaveLength(0);
+    const [request] = await getTable("seminar-requests");
+    expect(request.closedAs).toBeNull(); // not marked 취소됨: it was published
   });
 
   it("keeps a source request another seminar still points at", async () => {

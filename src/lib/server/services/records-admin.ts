@@ -1,15 +1,11 @@
 import { AppError, definedOnly } from "$lib/server/core/errors";
 import { newId } from "$lib/server/core/id";
 import { nowKstIso } from "$lib/server/core/time";
-import {
-  deleteQueue,
-  getQueue,
-  getTable,
-  mutate,
-} from "$lib/server/data/tables";
+import { getTable, mutate } from "$lib/server/data/tables";
 import { audit } from "$lib/server/data/audit";
 import { promoteSeminarPoster } from "$lib/server/services/uploads";
 import { forgetUnreferencedAssets } from "./asset-cleanup";
+import { callFlow, type FlowResult } from "$lib/server/data/flows";
 import type {
   Activity,
   GalleryDinner,
@@ -160,114 +156,21 @@ export async function updateSeminar(
 }
 
 /**
- * An unpublished or cancelled seminar is what hides its activity
- * (visibility.ts); without the seminar row that activity goes public again.
- * So the delete takes the hidden activity and its sessions with it — unless
- * someone besides the presenters was credited or a check-in is still open.
- * That is attendance evidence (it counts toward regular membership) and must
- * be cleared by hand (activity editor / attendance queue), not lost silently.
- * The presenters' own credit is stamped automatically at publication, so it
- * proves nothing and does not block.
- *
- * Anything else hanging off the activity — another seminar, a gallery entry,
- * a study session — would be left dangling, so that refuses too.
- *
- * Not atomic. Order: the activity (credit re-checked inside the write, so a
- * refusal leaves everything in place), then its sessions, then (in the
- * caller) the source request and the seminar. A failure part-way leaves the
- * seminar row, which keeps hiding whatever is left, and a retry finishes.
+ * Deletes a seminar record — one transaction in flow_delete_seminar
+ * (supabase/migrations/20260928000000_atomic_flows.sql, ATOMIC-FLOWS.md). A
+ * cancelled or unpublished seminar takes its hidden activity, sessions and
+ * queues with it (refused while attendance evidence or other references
+ * remain) and leaves its request marked closed. The function locks what it
+ * reads, so a publish or cancel racing the delete cannot slip between the
+ * decision and the write. Files are cleaned after the commit, only those
+ * nothing references any more.
  */
-async function retireHiddenActivity(seminar: Seminar): Promise<void> {
-  const activityId = seminar.activityId!;
-  const [seminars, activities, events, galleries] = await Promise.all([
-    getTable("seminars"),
-    getTable("activities"),
-    getTable("events"),
-    getTable("gallery-dinner"),
-  ]);
-  const sessions = events.filter((e) => e.activityId === activityId);
-  if (
-    seminars.some((s) => s.id !== seminar.id && s.activityId === activityId) ||
-    galleries.some((g) => g.activityId === activityId) ||
-    sessions.some((e) => e.studyId !== null)
-  ) {
-    throw new AppError("CONFLICT");
-  }
-  const credited = (a: Activity | undefined) =>
-    !!a && a.attendeeIds.some((id) => !seminar.presenterIds.includes(id));
-  if (credited(activities.find((a) => a.id === activityId))) {
-    throw new AppError("CONFLICT");
-  }
-  for (const e of sessions) {
-    if ((await getQueue(e.id)).some((r) => r.status !== "rejected")) {
-      throw new AppError("CONFLICT");
-    }
-  }
-
-  await mutate("activities", (rows) => {
-    if (credited(rows.find((a) => a.id === activityId))) {
-      throw new AppError("CONFLICT"); // credit landed after the check above
-    }
-    return rows.filter((a) => a.id !== activityId);
-  });
-  for (const e of sessions) await deleteQueue(e.id);
-  await mutate("events", (rows) =>
-    rows.filter((e) => e.activityId !== activityId),
-  );
-}
-
 export async function deleteSeminar(id: string): Promise<void> {
-  const seminar = (await getTable("seminars")).find((s) => s.id === id);
-  if (!seminar) throw new AppError("NOT_FOUND");
-  const hidden = seminar.publicationStatus !== "published";
-  if (hidden && seminar.activityId) await retireHiddenActivity(seminar);
-
-  let removed:
-    { materials: string[]; photos: string[]; posterKey: string } | undefined;
-  await mutate("seminars", (rows) => {
-    const row = rows.find((s) => s.id === id);
-    if (!row) throw new AppError("NOT_FOUND");
-    // Everything above was decided from a read. A publish or cancel that
-    // committed since (publish ∥ delete, cancel ∥ delete) changes what the
-    // delete must take with it — refuse and let the admin retry on fresh state.
-    if (
-      row.publicationStatus !== seminar.publicationStatus ||
-      row.activityId !== seminar.activityId
-    ) {
-      throw new AppError("WRITE_CONFLICT");
-    }
-    removed = {
-      materials: row.materials,
-      photos: row.photos,
-      posterKey: row.posterKey,
-    };
-    return rows.filter((s) => s.id !== id);
-  });
-  // The request stays as history, marked closed, so the presenter's dashboard
-  // keeps showing it as "취소됨" once the seminar row that said "cancelled" is
-  // gone. Its poster goes with the seminar. After the delete, so a refused
-  // delete changes nothing; skipped when another seminar still stands on it.
-  let requestPoster = "";
-  if (hidden && seminar.sourceRequestId) {
-    const sharedBy = (await getTable("seminars")).some(
-      (s) => s.sourceRequestId === seminar.sourceRequestId,
-    );
-    if (!sharedBy) {
-      await mutate("seminar-requests", (rows) =>
-        rows.map((r) => {
-          if (r.id !== seminar.sourceRequestId) return r;
-          requestPoster = r.posterKey;
-          return { ...r, closedAs: "deleted" as const, posterKey: "" };
-        }),
-      );
-    }
-  }
-  await forgetUnreferencedAssets([
-    ...removed!.materials,
-    ...removed!.photos,
-    removed!.posterKey,
-    requestPoster,
-  ]);
+  const { assets } = await callFlow<FlowResult & { assets: string[] }>(
+    "flow_delete_seminar",
+    { id },
+  );
+  await forgetUnreferencedAssets(assets);
 }
 
 /** One file-array editor for all three photo/material fields (review M11). */

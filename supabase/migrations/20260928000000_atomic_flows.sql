@@ -101,6 +101,111 @@ language sql set search_path = public as $$
 $$;
 
 -- ---------------------------------------------------------------------------
+-- 2. Flows
+-- ---------------------------------------------------------------------------
+
+-- Delete a seminar record (admin). A non-published (cancelled/unpublished)
+-- seminar is what hides its activity (services/visibility.ts), so deleting it
+-- also retires that activity with its sessions and queues — refused while
+-- attendance evidence remains (credit beyond the presenters' automatic one,
+-- or a pending/approved check-in) or while anything else hangs off the
+-- activity (another seminar, a gallery entry, a study session). Its request
+-- stays as history, marked closed (shown as 취소됨), unless another seminar
+-- still stands on it. Returns the asset keys the caller may clean up.
+--   p = { id }
+create or replace function flow_delete_seminar(p jsonb) returns jsonb
+language plpgsql set search_path = public as $$
+declare
+  v_id       text := p ->> 'id';
+  v_seminars jsonb;
+  v_sem      jsonb;
+  v_hidden   boolean;
+  v_act      text;
+  v_events   jsonb;
+  v_session  jsonb;
+  v_sessions text[] := '{}';
+  v_requests jsonb;
+  v_request  jsonb;
+  v_req_id   text;
+  v_assets   jsonb;
+  v_touched  text[] := array['seminars'];
+begin
+  perform app_lock(array['activities', 'events', 'gallery-dinner',
+                         'seminar-requests', 'seminars']);
+  v_seminars := app_rows('seminars');
+  v_sem := app_find(v_seminars, v_id);
+  if v_sem is null then raise exception 'NOT_FOUND'; end if;
+
+  -- Rows written before publicationStatus existed are published (§ migration).
+  v_hidden := coalesce(v_sem ->> 'publicationStatus', 'published') <> 'published';
+  v_act := v_sem ->> 'activityId';
+  v_assets := coalesce(v_sem -> 'materials', '[]') || coalesce(v_sem -> 'photos', '[]')
+              || jsonb_build_array(coalesce(v_sem ->> 'posterKey', ''));
+
+  if v_hidden and v_act is not null then
+    v_events := app_rows('events');
+    if exists (select 1 from jsonb_array_elements(v_seminars) s
+                where s ->> 'id' <> v_id and s ->> 'activityId' = v_act)
+       or exists (select 1 from jsonb_array_elements(app_rows('gallery-dinner')) g
+                   where g ->> 'activityId' = v_act)
+       or exists (select 1 from jsonb_array_elements(v_events) e
+                   where e ->> 'activityId' = v_act and e ->> 'studyId' is not null)
+    then
+      raise exception 'CONFLICT';
+    end if;
+    -- credit beyond the presenters' own (stamped automatically at publication)
+    if exists (
+      select 1
+        from jsonb_array_elements(app_rows('activities')) a,
+             jsonb_array_elements_text(a -> 'attendeeIds') as who
+       where a ->> 'id' = v_act
+         and not (coalesce(v_sem -> 'presenterIds', '[]') ? who)
+    ) then
+      raise exception 'CONFLICT';
+    end if;
+    for v_session in
+      select e from jsonb_array_elements(v_events) e where e ->> 'activityId' = v_act
+    loop
+      v_sessions := v_sessions || (v_session ->> 'id');
+    end loop;
+    perform app_queue_lock(v_sessions);
+    if exists (
+      select 1 from unnest(v_sessions) as sid,
+                    jsonb_array_elements(app_queue_rows(sid)) q
+       where q ->> 'status' <> 'rejected'
+    ) then
+      raise exception 'CONFLICT';
+    end if;
+    perform app_queue_delete(sid) from unnest(v_sessions) as sid;
+    perform app_put('events', app_without(v_events, 'activityId', v_act));
+    perform app_put('activities', app_without(app_rows('activities'), 'id', v_act));
+    v_touched := v_touched || array['events', 'activities'];
+  end if;
+
+  perform app_put('seminars', app_without(v_seminars, 'id', v_id));
+
+  v_req_id := v_sem ->> 'sourceRequestId';
+  if v_hidden and v_req_id is not null
+     and not exists (select 1 from jsonb_array_elements(v_seminars) s
+                      where s ->> 'id' <> v_id and s ->> 'sourceRequestId' = v_req_id)
+  then
+    v_requests := app_rows('seminar-requests');
+    v_request := app_find(v_requests, v_req_id);
+    if v_request is not null then
+      v_assets := v_assets || jsonb_build_array(coalesce(v_request ->> 'posterKey', ''));
+      perform app_put('seminar-requests', app_replace(v_requests, v_req_id,
+        v_request || jsonb_build_object('closedAs', 'deleted', 'posterKey', '')));
+      v_touched := v_touched || array['seminar-requests'];
+    end if;
+  end if;
+
+  return jsonb_build_object(
+    'touched', to_jsonb(v_touched),
+    'touchedQueues', to_jsonb(v_sessions),
+    'assets', v_assets);
+end $$;
+
+-- ---------------------------------------------------------------------------
 -- 99. Privileges — flows and helpers run for the service role only.
 --     (Guarded: PGlite has no Supabase roles.)
 -- ---------------------------------------------------------------------------
