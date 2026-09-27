@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { AdminStudyRecord } from "$lib/domain/admin-records";
   import AdminDirectUploadForm from "$lib/components/admin/AdminDirectUploadForm.svelte";
+  import { uploadLimitMb } from "$lib/domain/uploads";
 
   export interface StudyRecordFormState {
     success?: boolean;
@@ -283,8 +284,9 @@
               recordId={record.id}
               action="?/addFile"
               inputName="file"
-              accept="image/jpeg,image/png,image/webp"
-              label="활동 사진 · JPEG/PNG/WebP · 최대 10MB"
+              label="활동 사진 · JPEG/PNG/WebP · 최대 {uploadLimitMb(
+                'study-photo',
+              )}MB"
               imagePurpose="study-photo"
               issue={fileIssues.file}
               buttonLabel="사진 등록"

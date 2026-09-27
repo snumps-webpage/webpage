@@ -3,6 +3,7 @@
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import { MANUSCRIPT } from "$lib/constants";
   import AdminDirectUploadForm from "$lib/components/admin/AdminDirectUploadForm.svelte";
+  import { uploadLimitMb } from "$lib/domain/uploads";
 
   let { data, form } = $props();
   let query = $state("");
@@ -153,8 +154,9 @@
               recordId={record.id}
               action="?/addPhoto"
               inputName="photo"
-              accept="image/jpeg,image/png,image/webp"
-              label="사진 원본 · JPEG/PNG/WebP · 최대 10MB"
+              label="사진 원본 · JPEG/PNG/WebP · 최대 {uploadLimitMb(
+                'gallery-photo',
+              )}MB"
               imagePurpose="gallery-photo"
               buttonLabel="사진 등록"
             />

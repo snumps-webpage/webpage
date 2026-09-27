@@ -1,3 +1,9 @@
+import {
+  UPLOAD_PURPOSES,
+  uploadFileProblem,
+  uploadSpec,
+  type UploadPurpose,
+} from "$lib/domain/uploads";
 import { lookupTable } from "$lib/server/core/lookup";
 import { AppError } from "$lib/server/core/errors";
 import { newId, randomToken } from "$lib/server/core/id";
@@ -58,29 +64,25 @@ const extensionFor = (contentType: string) =>
  * TODO(BE-52): image derivatives (thumb/display) at promotion time.
  */
 
-const IMG = ["image/jpeg", "image/png", "image/webp"];
+/**
+ * The purpose table (names, types, size caps) is shared with the route schema
+ * and the editors (`$lib/domain/uploads`, audit LB32-2). What stays here is
+ * where each purpose's files land. `satisfies Record<UploadPurpose, …>` makes
+ * a purpose added to the table without a prefix a compile error, and
+ * lookupTable keeps prototype keys ("constructor", …) from answering.
+ */
+const PREFIXES = lookupTable({
+  "seminar-material": "seminars",
+  "seminar-photo": "seminars",
+  "seminar-poster": "seminars/posters",
+  "study-photo": "studies",
+  "gallery-photo": "gallery",
+} as const satisfies Record<UploadPurpose, string>);
 
-export const PURPOSES = lookupTable({
-  "seminar-material": {
-    prefix: "seminars",
-    types: ["application/pdf"],
-    maxBytes: 50_000_000,
-  },
-  "seminar-photo": { prefix: "seminars", types: IMG, maxBytes: 10_000_000 },
-  // 직접 업로드 포스터 — PNG/JPEG만 (자동 생성 포스터의 대안)
-  "seminar-poster": {
-    prefix: "seminars/posters",
-    types: ["image/png", "image/jpeg"],
-    maxBytes: 15_000_000,
-  },
-  "study-photo": { prefix: "studies", types: IMG, maxBytes: 10_000_000 },
-  "gallery-photo": { prefix: "gallery", types: IMG, maxBytes: 10_000_000 },
-} as const);
-
-export type UploadPurpose = keyof typeof PURPOSES;
+export type { UploadPurpose };
 
 export function isUploadPurpose(v: string): v is UploadPurpose {
-  return Object.hasOwn(PURPOSES, v);
+  return Object.hasOwn(UPLOAD_PURPOSES, v);
 }
 
 /** The filename without its extension, reduced to `[a-z0-9가-힣-]`. */
@@ -103,14 +105,11 @@ export async function createPresignedUpload(input: {
   size: number;
 }): Promise<{ uploadUrl: string; s3Key: string }> {
   if (!isUploadPurpose(input.purpose)) throw new AppError("VALIDATION_FAILED");
-  const spec = PURPOSES[input.purpose];
-  if (!(spec.types as readonly string[]).includes(input.contentType)) {
-    throw new AppError("VALIDATION_FAILED");
-  }
   if (
-    !Number.isFinite(input.size) ||
-    input.size <= 0 ||
-    input.size > spec.maxBytes
+    uploadFileProblem(input.purpose, {
+      type: input.contentType,
+      size: input.size,
+    })
   ) {
     throw new AppError("VALIDATION_FAILED");
   }
@@ -136,14 +135,11 @@ export async function promotePendingUpload(
   if (!pendingKey.startsWith(`pending/${purpose}/`)) {
     throw new AppError("VALIDATION_FAILED");
   }
-  const spec = PURPOSES[purpose];
+  const spec = uploadSpec(purpose);
 
   const info = await stagedInfo(pendingKey);
   if (!info) throw new AppError("NOT_FOUND"); // never uploaded or already reaped
-  if (
-    info.size > spec.maxBytes ||
-    !(spec.types as readonly string[]).includes(info.contentType)
-  ) {
+  if (info.size > spec.maxBytes || !spec.types.includes(info.contentType)) {
     // Oversize/claimed-type mismatch: refuse promotion; the cleanup job reaps it.
     throw new AppError("VALIDATION_FAILED");
   }
@@ -159,7 +155,7 @@ export async function promotePendingUpload(
   // staged before the extension was derived may still carry the client's.
   const filename = pendingKey.slice(pendingKey.lastIndexOf("/") + 1);
   const slug = slugifyFilename(filename.slice(filename.indexOf("-") + 1));
-  const finalKey = `${spec.prefix}/${recordId}/${randomToken(8)}-${slug}.${extensionFor(info.contentType)}`;
+  const finalKey = `${PREFIXES[purpose]}/${recordId}/${randomToken(8)}-${slug}.${extensionFor(info.contentType)}`;
 
   await promoteToAssets(pendingKey, finalKey);
   try {

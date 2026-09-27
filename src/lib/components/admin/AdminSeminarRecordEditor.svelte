@@ -2,6 +2,7 @@
   import type { AdminSeminarRecord } from "$lib/domain/admin-records";
   import AdminDirectUploadForm from "$lib/components/admin/AdminDirectUploadForm.svelte";
   import PosterUploadField from "$lib/components/poster/PosterUploadField.svelte";
+  import { uploadLimitMb } from "$lib/domain/uploads";
 
   export interface SeminarRecordFormState {
     success?: boolean;
@@ -191,7 +192,9 @@
       </fieldset>
       <div class="poster-field">
         <span class="paper-label">포스터 (선택 · PNG/JPEG)</span>
-        <PosterUploadField label="포스터 파일 (선택 · 최대 15MB)" />
+        <PosterUploadField
+          label="포스터 파일 (선택 · 최대 {uploadLimitMb('seminar-poster')}MB)"
+        />
       </div>
       <button class="paper-btn primary" type="submit">레코드 생성</button>
     </form>
@@ -347,8 +350,9 @@
               recordId={record.id}
               action="?/addFile"
               inputName="file"
-              accept="application/pdf,image/jpeg,image/png,image/webp"
-              label="PDF 50MB 이하 · 이미지 10MB 이하"
+              label="PDF {uploadLimitMb(
+                'seminar-material',
+              )}MB 이하 · 이미지 {uploadLimitMb('seminar-photo')}MB 이하"
               imagePurpose="seminar-photo"
               documentPurpose="seminar-material"
               issue={fileIssues.file}

@@ -1,13 +1,12 @@
 <script lang="ts">
   import { v7 as uuidv7 } from "uuid";
   import { uploadAdminFile } from "$lib/client/api";
-  import type { UploadPurpose } from "$lib/domain/api";
+  import { uploadAccept, type UploadPurpose } from "$lib/domain/uploads";
 
   let {
     recordId,
     action,
     inputName,
-    accept,
     label,
     imagePurpose,
     documentPurpose = null,
@@ -17,7 +16,6 @@
     recordId: string;
     action: string;
     inputName: string;
-    accept: string;
     label: string;
     imagePurpose: Extract<
       UploadPurpose,
@@ -27,6 +25,13 @@
     issue?: string | null;
     buttonLabel: string;
   } = $props();
+
+  // What the file picker offers is what the purposes accept (audit LB32-2).
+  const accept = $derived(
+    documentPurpose
+      ? uploadAccept(documentPurpose, imagePurpose)
+      : uploadAccept(imagePurpose),
+  );
 
   let input = $state<HTMLInputElement | null>(null);
   let uploading = $state(false);

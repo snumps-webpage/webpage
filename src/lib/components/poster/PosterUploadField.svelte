@@ -5,8 +5,17 @@
    * 채운다. 실제 승격·검증(크기/타입/매직바이트)은 서버가 담당한다.
    */
   import { uploadAdminFile } from "$lib/client/api";
+  import {
+    uploadAccept,
+    uploadFileProblem,
+    uploadLimitMb,
+  } from "$lib/domain/uploads";
 
-  let { label = "포스터 파일 (PNG · JPEG, 최대 15MB)" } = $props();
+  // Types and cap come from the purpose table the server checks (audit LB32-2).
+  const PURPOSE = "seminar-poster";
+  const maxMb = uploadLimitMb(PURPOSE);
+
+  let { label = `포스터 파일 (PNG · JPEG, 최대 ${maxMb}MB)` } = $props();
 
   let uploading = $state(false);
   let uploadError = $state("");
@@ -18,23 +27,21 @@
     const file = input.files?.[0];
     if (!file) return;
     uploadError = "";
-    if (!["image/png", "image/jpeg"].includes(file.type)) {
+    // An empty file is left to the server, as before.
+    const problem = uploadFileProblem(PURPOSE, file);
+    if (problem === "type") {
       uploadError = "PNG 또는 JPEG 파일만 올릴 수 있습니다.";
       input.value = "";
       return;
     }
-    if (file.size > 15_000_000) {
-      uploadError = "포스터 파일은 15MB 이하여야 합니다.";
+    if (problem === "size") {
+      uploadError = `포스터 파일은 ${maxMb}MB 이하여야 합니다.`;
       input.value = "";
       return;
     }
     uploading = true;
     try {
-      const result = await uploadAdminFile(
-        file,
-        "seminar-poster",
-        crypto.randomUUID(),
-      );
+      const result = await uploadAdminFile(file, PURPOSE, crypto.randomUUID());
       posterPendingKey = result.s3Key;
       uploadedName = file.name;
     } catch {
@@ -53,7 +60,7 @@
   <input
     id="poster-file"
     type="file"
-    accept="image/png,image/jpeg"
+    accept={uploadAccept(PURPOSE)}
     onchange={handleFile}
     disabled={uploading}
   />

@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { uploadPurposeSchema } from "./uploads";
 
 export const ADMIN_QUEUE_PATHS = [
   "/api/admin/applications",
@@ -35,15 +36,8 @@ export interface QueueResponse<T> {
   generatedAt: string;
 }
 
-export const UPLOAD_PURPOSES = [
-  "seminar-material",
-  "seminar-photo",
-  "seminar-poster",
-  "study-photo",
-  "gallery-photo",
-] as const;
-export const uploadPurposeSchema = z.enum(UPLOAD_PURPOSES);
-export type UploadPurpose = z.infer<typeof uploadPurposeSchema>;
+// The purpose names and limits live in one table (audit LB32-2).
+export { uploadPurposeSchema, type UploadPurpose } from "./uploads";
 
 export const presignRequestSchema = z.object({
   operationId: z.uuid(),
