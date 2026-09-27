@@ -24,6 +24,7 @@ import {
   effectiveStatus,
   rejectAttendance,
   runCron,
+  setEventStatus,
 } from "./events";
 
 async function clearCaches() {
@@ -120,6 +121,55 @@ describe("queue administration (ADM-03)", () => {
     await deleteEventChecked(event.id);
     expect(await getTable("events")).toHaveLength(0);
     expect(await getQueue(event.id)).toHaveLength(0);
+  });
+});
+
+describe("setEventStatus", () => {
+  async function eventWith(startIso: string, status: "draft" | "active") {
+    return createEventWithActivity({
+      title: "정기 회의",
+      startIso,
+      type: "회의",
+      status,
+    });
+  }
+
+  // Audit LB20-1: opening an event whose end has passed wrote the stored
+  // value (or skipped a no-op write) and reported success, while
+  // effectiveStatus kept it "expired" — a false success, check-in stayed shut.
+  it.each(["draft", "active"] as const)(
+    "refuses to open a %s event whose end has passed",
+    async (status) => {
+      const event = await eventWith(past(), status);
+
+      await expect(setEventStatus(event.id, "active")).rejects.toSatisfy(
+        (e) =>
+          e instanceof AppError && e.code === "CONFLICT" && !!e.userMessage,
+      );
+      expect((await getTable("events"))[0].status).toBe(status);
+    },
+  );
+
+  // Audit LB20-1: the same refusal after the cron stored "expired".
+  it("refuses to reopen a cron-expired event", async () => {
+    const event = await eventWith(past(), "active");
+    await runCron();
+
+    await expect(setEventStatus(event.id, "active")).rejects.toSatisfy(
+      (e) => e instanceof AppError && e.code === "CONFLICT",
+    );
+    expect((await getTable("events"))[0].status).toBe("expired");
+  });
+
+  it("reopens an event closed by hand before its end", async () => {
+    const event = await eventWith(future(), "active");
+    await setEventStatus(event.id, "expired");
+
+    await setEventStatus(event.id, "active");
+
+    const [row] = await getTable("events");
+    expect(row.status).toBe("active");
+    expect(effectiveStatus(row)).toBe("active");
   });
 });
 

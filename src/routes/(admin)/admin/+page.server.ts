@@ -15,6 +15,7 @@ import {
   deleteAttendanceRecord,
   deleteEventChecked,
   effectiveStatus,
+  expiryOf,
   getPendingAttendance,
   rejectAttendance,
   setEventStatus,
@@ -88,8 +89,9 @@ export const load: PageServerLoad = async (event) => {
             (pendingCount.get(row.eventId) ?? 0) + 1,
           );
         }
+        const now = new Date();
         return [...events].reverse().map((e) => {
-          const status = effectiveStatus(e);
+          const status = effectiveStatus(e, now);
           const count = pendingCount.get(e.id) ?? 0;
           return {
             id: e.id,
@@ -101,7 +103,7 @@ export const load: PageServerLoad = async (event) => {
             status,
             attendancePath: `/events/${e.pathId}/${e.attendCode}`,
             pendingAttendanceCount: count,
-            ...adminEventCapabilities(status, count),
+            ...adminEventCapabilities(status, count, expiryOf(e) < now),
           };
         });
       })(),

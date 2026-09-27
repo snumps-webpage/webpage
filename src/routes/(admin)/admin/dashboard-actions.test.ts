@@ -108,6 +108,8 @@ describe("?/updateEvent", () => {
     ["type", { type: "문제 풀이" }],
     ["startsAtLocal", { start: "2026-09-02" }],
     ["endsAtLocal", { end: "2026-09-02T17:00" }],
+    // audit LC02-2: an impossible time is a field issue, not a bare 400
+    ["startsAtLocal", { start: "2026-09-31T18:00" }],
     ["id", { id: " " }],
   ])(
     "refuses a bad %s with a field issue and keeps the row",
@@ -265,12 +267,30 @@ describe("id-taking actions", () => {
   });
 
   it("still runs the action for a present id", async () => {
-    const event = await draftEvent();
+    const event = await createEventWithActivity({
+      title: "정기 회의",
+      startIso: "2099-09-01T19:00:00+09:00",
+      type: "회의",
+    });
 
     const result = await actions.activateEvent(post({ id: event.id }));
 
     expect(result).toMatchObject({ success: true });
     expect((await getTable("events"))[0].status).toBe("active");
+  });
+
+  // Audit LB20-1: opening an event whose end has passed answered success and
+  // changed nothing; it is now a 409 whose message says to fix the date.
+  it("refuses to open an event whose end has passed, with a message", async () => {
+    const event = await draftEvent(); // 2026-09-01, long past
+
+    const result = await actions.activateEvent(post({ id: event.id }));
+
+    expect(result).toMatchObject({
+      status: 409,
+      data: { error: "CONFLICT", message: expect.stringContaining("날짜") },
+    });
+    expect((await getTable("events"))[0].status).toBe("draft");
   });
 
   it("keeps NOT_FOUND for a well-formed id that matches nothing", async () => {

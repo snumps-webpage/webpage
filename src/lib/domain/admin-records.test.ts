@@ -30,6 +30,56 @@ describe("admin record validation", () => {
     expect(adminActivityRecordUpdateSchema.safeParse(input).success).toBe(true);
   });
 
+  // Audit LC03-1: activity dates had no order rule, so a range ending before
+  // it starts was stored — and copied onto any session connected to it.
+  it.each([
+    ["before", "2026-08-28T18:00"],
+    ["equal to", "2026-08-28T19:00"],
+  ])("refuses an activity end %s its start", (_, end) => {
+    const input = {
+      title: "회의",
+      type: "회의",
+      start: "2026-08-28T19:00",
+      end,
+    };
+    for (const schema of [
+      adminActivityRecordSchema,
+      adminActivityRecordUpdateSchema,
+    ]) {
+      const result = schema.safeParse(input);
+      expect(result.success).toBe(false);
+      if (!result.success)
+        expect(Object.keys(fieldIssues(result.error))).toEqual(["end"]);
+    }
+  });
+
+  // Audit LC03-1: an update with an end but no start passed the schema, and
+  // the action then dropped the end without a word.
+  it("refuses an update that sends an end without a start", () => {
+    const result = adminActivityRecordUpdateSchema.safeParse({
+      title: "회의",
+      type: "회의",
+      start: "",
+      end: "2026-08-28T21:00",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success)
+      expect(Object.keys(fieldIssues(result.error))).toEqual(["start"]);
+  });
+
+  // Audit LC02-2 via LC03-1: an impossible date is refused, not ordered.
+  it("refuses an impossible activity date", () => {
+    const result = adminActivityRecordSchema.safeParse({
+      title: "회의",
+      type: "회의",
+      start: "2026-02-30T10:00",
+      end: "2026-03-01T12:00",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success)
+      expect(Object.keys(fieldIssues(result.error))).toEqual(["start"]);
+  });
+
   it("requires a gallery year and returns field issues", () => {
     const result = adminGalleryRecordSchema.safeParse({
       year: " ",

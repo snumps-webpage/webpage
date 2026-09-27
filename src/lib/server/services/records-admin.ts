@@ -36,13 +36,57 @@ export async function createActivity(
   return row;
 }
 
+const sameInstant = (a: string | null, b: string | null) =>
+  a === b || (a !== null && b !== null && Date.parse(a) === Date.parse(b));
+
+/**
+ * Title and date of a seminar's activity (flow_update_seminar_schedule /
+ * _record) and of a study session's activity (flow_update_study_session)
+ * move together with their seminar or attendance event. Changing them here
+ * alone split archive, attendance window and public detail, and the next
+ * seminar edit overwrote it anyway (audit LB28-2) — so those changes are
+ * refused with a pointer to the owning editor. Type stays editable, and a
+ * re-sent unchanged title or date is no change.
+ */
+function pairedOwner(
+  activity: Activity,
+  seminars: Seminar[],
+  events: { activityId: string; studyId: string | null }[],
+): string | null {
+  if (
+    seminars.some(
+      (s) =>
+        s.activityId === activity.id ||
+        activity.sourceRequestId === `seminar:${s.id}`,
+    )
+  )
+    return "세미나 활동의 제목·일정은 세미나 관리에서 수정해 주세요.";
+  if (events.some((e) => e.studyId !== null && e.activityId === activity.id))
+    return "스터디 회차 활동의 제목·일정은 스터디 관리에서 수정해 주세요.";
+  return null;
+}
+
 export async function updateActivity(
   id: string,
   patch: Partial<Pick<Activity, "title" | "date" | "type">>,
 ): Promise<void> {
+  const [seminars, events] = await Promise.all([
+    getTable("seminars"),
+    getTable("events"),
+  ]);
   await mutate("activities", (rows) => {
     const idx = rows.findIndex((a) => a.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
+    const current = rows[idx];
+    const moves =
+      (patch.title !== undefined && patch.title !== current.title) ||
+      (patch.date !== undefined &&
+        !(
+          sameInstant(patch.date.start, current.date.start) &&
+          sameInstant(patch.date.end, current.date.end)
+        ));
+    const owner = moves ? pairedOwner(current, seminars, events) : null;
+    if (owner) throw new AppError("CONFLICT", { userMessage: owner });
     rows[idx] = { ...rows[idx], ...definedOnly(patch) };
     return rows;
   });

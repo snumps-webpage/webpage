@@ -125,6 +125,12 @@ async function createSessionForActivity(
 
 // ---- lifecycle --------------------------------------------------------------
 
+/**
+ * Opening cannot outrun the clock: once an event's end has passed,
+ * effectiveStatus says "expired" whatever is stored, so writing "active"
+ * would report success and change nothing (audit LB20-1). Refused instead —
+ * the date has to be corrected first.
+ */
 export async function setEventStatus(
   id: string,
   status: "active" | "expired",
@@ -133,6 +139,12 @@ export async function setEventStatus(
     const idx = rows.findIndex((e) => e.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
     if (rows[idx].status === "cancelled") throw new AppError("CONFLICT"); // terminal
+    if (status === "active" && expiryOf(rows[idx]) < new Date()) {
+      throw new AppError("CONFLICT", {
+        userMessage:
+          "종료 시각이 지난 이벤트는 열 수 없습니다. 날짜를 먼저 수정해 주세요.",
+      });
+    }
     rows[idx] = { ...rows[idx], status };
     return rows;
   });

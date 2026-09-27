@@ -91,11 +91,41 @@ export function adminDashboardIdsSchema<K extends string>(...keys: K[]) {
   );
 }
 
-/** A KST `datetime-local` input, "YYYY-MM-DDTHH:mm". */
+const LOCAL_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+/**
+ * The instant a KST `datetime-local` value names, in ms; NaN unless it is a
+ * real wall-clock time in 2000–2099. This is kstInputToIso's rule
+ * (server/core/time.ts), restated because this module ships to the browser:
+ * a value this accepts is one the action can store. Ordering compares these
+ * instants, never the raw strings (audit LC02-2).
+ */
+export function localDateTimeMs(value: string): number {
+  const m = LOCAL_DATE_TIME.exec(value);
+  if (!m) return NaN;
+  const [y, mo, d, h, mi] = m.slice(1).map(Number);
+  if (y < 2000 || y > 2099) return NaN;
+  // Date.UTC rolls 02-30 or 24:00 over to another day; a rolled value differs
+  const wall = new Date(Date.UTC(y, mo - 1, d, h, mi));
+  const real =
+    wall.getUTCFullYear() === y &&
+    wall.getUTCMonth() === mo - 1 &&
+    wall.getUTCDate() === d &&
+    wall.getUTCHours() === h &&
+    wall.getUTCMinutes() === mi;
+  return real ? wall.getTime() - KST_OFFSET_MS : NaN;
+}
+
+/** A KST `datetime-local` input, "YYYY-MM-DDTHH:mm", naming a real time. */
 export const localDateTimeSchema = z
   .string()
   .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "날짜와 시간을 확인해 주세요.");
+  .regex(LOCAL_DATE_TIME, "날짜와 시간을 확인해 주세요.")
+  .refine(
+    (v) => !LOCAL_DATE_TIME.test(v) || Number.isFinite(localDateTimeMs(v)),
+    "존재하지 않는 날짜나 시각입니다.",
+  );
 const localDateTime = localDateTimeSchema;
 
 export const adminEventInputSchema = z
@@ -108,7 +138,10 @@ export const adminEventInputSchema = z
     endsAtLocal: z.union([z.literal(""), localDateTime]),
   })
   .superRefine((value, context) => {
-    if (value.endsAtLocal && value.endsAtLocal <= value.startsAtLocal) {
+    // NaN (no end, or an impossible time already reported) compares false
+    if (
+      localDateTimeMs(value.endsAtLocal) <= localDateTimeMs(value.startsAtLocal)
+    ) {
       context.addIssue({
         code: "custom",
         path: ["endsAtLocal"],
@@ -122,17 +155,31 @@ export const adminAttendanceTimeInputSchema = z
     startTimeLocal: localDateTime,
     endTimeLocal: localDateTime,
   })
-  .refine((value) => value.endTimeLocal >= value.startTimeLocal, {
-    path: ["endTimeLocal"],
-    message: "종료 시간은 시작 시간보다 빠를 수 없습니다.",
+  .superRefine((value, context) => {
+    if (
+      localDateTimeMs(value.endTimeLocal) <
+      localDateTimeMs(value.startTimeLocal)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["endTimeLocal"],
+        message: "종료 시간은 시작 시간보다 빠를 수 없습니다.",
+      });
+    }
   });
 
+/**
+ * `status` is the effective one, where "expired" also covers "its end has
+ * passed"; `endPassed` tells the two apart. Opening cannot undo a passed end
+ * (the server refuses it), so the button only shows while the end is ahead.
+ */
 export function adminEventCapabilities(
   status: AdminEventStatus,
   pendingAttendanceCount: number,
+  endPassed: boolean,
 ) {
   return {
-    canActivate: status === "draft" || status === "expired",
+    canActivate: (status === "draft" || status === "expired") && !endPassed,
     canExpire: status === "active",
     canEdit: true,
     canDelete: pendingAttendanceCount === 0,

@@ -1,6 +1,9 @@
 import { z } from "zod/v4";
 import { RECORD_ACTIVITY_TYPES } from "$lib/constants";
-import { localDateTimeSchema } from "$lib/domain/admin-dashboard";
+import {
+  localDateTimeMs,
+  localDateTimeSchema,
+} from "$lib/domain/admin-dashboard";
 import type { PublicFileReference } from "$lib/domain/public-content";
 import type { SeminarKind } from "$lib/domain/seminars";
 
@@ -70,20 +73,50 @@ const termSchema = z
 /** A picked record id (activity, member); "" when nothing is picked. */
 const pickedIdSchema = z.string().trim().max(200, "선택 값을 확인해 주세요.");
 
-/** Fields: title, type, start / end (KST `datetime-local`, end optional). */
-export const adminActivityRecordSchema = z.object({
+const optionalLocalDateTime = z.union([z.literal(""), localDateTimeSchema]);
+
+const activityRecordFields = {
   title: z.string().trim().min(1, "활동명을 입력해 주세요.").max(160),
   type: z.enum(RECORD_ACTIVITY_TYPES, {
     message: "활동 유형을 선택해 주세요.",
   }),
   start: localDateTimeSchema,
-  end: z.union([z.literal(""), localDateTimeSchema]),
-});
+  end: optionalLocalDateTime,
+};
+
+/**
+ * The date pair's own rules (audit LC03-1): an end needs a start — update
+ * drops the whole date when `start` is empty — and comes after it, compared
+ * as instants. A session connected to the activity copies this range.
+ */
+function checkActivityDates(
+  value: { start: string; end: string },
+  context: z.RefinementCtx,
+) {
+  if (value.end && !value.start) {
+    context.addIssue({
+      code: "custom",
+      path: ["start"],
+      message: "종료 시간을 바꾸려면 시작 시간도 입력해 주세요.",
+    });
+  } else if (localDateTimeMs(value.end) <= localDateTimeMs(value.start)) {
+    context.addIssue({
+      code: "custom",
+      path: ["end"],
+      message: "종료 시간은 시작 시간보다 뒤여야 합니다.",
+    });
+  }
+}
+
+/** Fields: title, type, start / end (KST `datetime-local`, end optional). */
+export const adminActivityRecordSchema = z
+  .object(activityRecordFields)
+  .superRefine(checkActivityDates);
 
 /** Update leaves the date alone when the editor sends no `start`. */
-export const adminActivityRecordUpdateSchema = adminActivityRecordSchema.extend(
-  { start: z.union([z.literal(""), localDateTimeSchema]) },
-);
+export const adminActivityRecordUpdateSchema = z
+  .object({ ...activityRecordFields, start: optionalLocalDateTime })
+  .superRefine(checkActivityDates);
 
 /** The dinner gallery: a year label ("2026", or "미상" from the migration). */
 export const adminGalleryRecordSchema = z.object({
