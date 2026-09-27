@@ -18,6 +18,7 @@ Google 값이 가짜라 메일은 한 통도 나가지 않는다.
 | `inject/probe-server.ts` | **시드 API** 원본. `start.sh`가 복사본에만 `src/routes/api/__probe/+server.ts`로 넣는다                                                                                                                                                                                                                          |
 | `lib.mjs`                | 공용 헬퍼 — 세션 쿠키 위조, `use:enhance` 형식 POST, 시드 API, 시계, PASS/FAIL 집계, 학기 기준 날짜. `applySeminar`는 세미나 신청을 폼과 같은 필드(정기/비정기, 소요 시간, 신청자를 발표자로)로 보낸다 — 액션이 도메인 스키마로 검증하므로 빈 `{title, description}`은 거부된다. `memberIdOf`는 이메일 → 회원 id |
 | `scenarios.mjs`          | 합성 데이터 끝-끝 시나리오 (로그인 리디렉트, 재가입·`/wait`, 대시보드, 세미나 삭제, 전화번호, 전체 크롤). S10은 취소·삭제된 세미나의 신청이 발표자에게 "취소됨"으로 남는지, S11은 취소된 이벤트 404·가드 거부의 `no-store`·없어진 `/?/updateSeminar`·관리자 스터디 목록을 본다                                   |
+| `audit-fixes.mjs`        | S12 — 감사 수정(6ab4f33..)마다 HTTP 탐침 하나, 체크 이름 끝에 커밋 해시. 수정본에선 전부 PASS, `--ref 6ab4f33` 서버에선 setup·대조 줄 말고 전부 FAIL이어야 탐침이 문 것이다                                                                                                                                      |
 | `race.mjs`               | 게시↔삭제, 취소↔삭제를 실제 병렬 요청으로 반복하고 불변식을 확인 (`RUNS`, 기본 10)                                                                                                                                                                                                                               |
 | `real.mjs`               | 백업 스냅숏을 올려 실데이터로 전 라우트·전 회원 화면 확인 — **개인정보 주의** (아래)                                                                                                                                                                                                                             |
 | `ui-setup.mjs`           | 브라우저 검사용 상태를 만들고 회원 쿠키를 파일로 남긴다                                                                                                                                                                                                                                                          |
@@ -55,6 +56,7 @@ scripts/measure/start.sh --ref HEAD --port 5198
 # 터미널 3
 node scripts/measure/scenarios.mjs                              # BASE 기본 :5199
 BASE=http://127.0.0.1:5198 node scripts/measure/scenarios.mjs   # 대조
+node scripts/measure/audit-fixes.mjs                            # S12 (대조는 --ref 6ab4f33 서버에)
 RUNS=12 node scripts/measure/race.mjs
 node scripts/measure/ui-setup.mjs && node scripts/measure/ui-cdp.mjs
 bash scripts/ops/smoke-routes.sh                                # 레포 기존 도구도 같은 서버에

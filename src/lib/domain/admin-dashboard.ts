@@ -133,9 +133,10 @@ export const adminAttendanceTimeInputSchema = z
   });
 
 /**
- * `status` is the effective one, where "expired" also covers "its end has
- * passed"; `endPassed` tells the two apart. Opening cannot undo a passed end
- * (the server refuses it), so the button only shows while the end is ahead.
+ * `status` is the effective one. For an active event "expired" also covers
+ * "its end has passed", but a draft whose end has passed stays "draft" — so
+ * `endPassed` is passed separately. Opening cannot undo a passed end (the
+ * server refuses it), so the button only shows while the end is ahead.
  */
 export function adminEventCapabilities(
   status: AdminEventStatus,
