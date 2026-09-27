@@ -13,4 +13,23 @@ describe("safeInternalRedirect", () => {
     expect(safeInternalRedirect("//example.com/path")).toBe("/");
     expect(safeInternalRedirect("/\\example.com/path")).toBe("/");
   });
+
+  // Found by the adversarial HTTP run: the URL parser resolves dot-segments,
+  // so a value that passes the raw-string check can come OUT as "//host".
+  it.each([
+    "/.//example.com",
+    "/%2e//example.com",
+    "/..//example.com",
+    "/a/..//example.com",
+    "/%2E%2E//example.com",
+    "/./\\example.com",
+    "/.\\\\example.com",
+    "/.///example.com/x",
+  ])("rejects %s, which normalizes to a protocol-relative path", (value) => {
+    expect(safeInternalRedirect(value)).toBe("/");
+  });
+
+  it("still resolves harmless dot-segments inside the site", () => {
+    expect(safeInternalRedirect("/study/../archive")).toBe("/archive");
+  });
 });
