@@ -126,8 +126,27 @@ export function validateWithdrawalRequestForm(
   };
 }
 
-export function withdrawalGraceEndsAt(requestedAt: string) {
-  const date = new Date(requestedAt);
-  date.setUTCMonth(date.getUTCMonth() + 1);
-  return date.toISOString();
+/**
+ * The end of the withdrawal grace period: one calendar month after the
+ * request (API-SPEC §4-7 — the "1개월" the pages promise), on the KST
+ * calendar, clamped to the last day of a shorter month (Jan 31 → Feb 28).
+ * The single definition — the services use it (audit LB27-1: they used a
+ * separate 30-day constant).
+ */
+export function withdrawalGraceEndsAt(requestedAt: string): string {
+  const KST = 9 * 60 * 60 * 1000;
+  const k = new Date(new Date(requestedAt).getTime() + KST); // KST wall clock in UTC fields
+  const y = k.getUTCFullYear();
+  const m = k.getUTCMonth() + 1;
+  const lastDay = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  const end = Date.UTC(
+    y,
+    m,
+    Math.min(k.getUTCDate(), lastDay),
+    k.getUTCHours(),
+    k.getUTCMinutes(),
+    k.getUTCSeconds(),
+    k.getUTCMilliseconds(),
+  );
+  return new Date(end - KST).toISOString();
 }

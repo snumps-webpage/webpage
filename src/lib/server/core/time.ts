@@ -4,9 +4,6 @@ import { AppError } from "./errors";
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
-/** MEM-07: the withdrawal grace period — single definition. */
-export const WITHDRAWAL_GRACE_MS = 30 * 24 * 60 * 60 * 1000;
-
 export function toKstIso(d: Date): string {
   const t = new Date(d.getTime() + KST_OFFSET_MS);
   const pad = (n: number, w = 2) => String(n).padStart(w, "0");

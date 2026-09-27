@@ -46,4 +46,20 @@ describe("account settings validation", () => {
       "2026-09-28T00:00:00.000Z",
     );
   });
+
+  // The grace period is one calendar month (API-SPEC §4-7, the "1개월" the
+  // UI promises); the services used 30 days (audit LB27-1). A month-end
+  // request clamps instead of rolling into the month after.
+  it("clamps to the last day of a shorter month, on the KST calendar", () => {
+    expect(withdrawalGraceEndsAt("2027-01-31T10:00:00+09:00")).toBe(
+      new Date("2027-02-28T10:00:00+09:00").toISOString(),
+    );
+    expect(withdrawalGraceEndsAt("2028-01-31T10:00:00+09:00")).toBe(
+      new Date("2028-02-29T10:00:00+09:00").toISOString(),
+    );
+    // 00:30 KST on Mar 31 is Mar 30 in UTC — the KST day decides
+    expect(withdrawalGraceEndsAt("2027-03-31T00:30:00+09:00")).toBe(
+      new Date("2027-04-30T00:30:00+09:00").toISOString(),
+    );
+  });
 });

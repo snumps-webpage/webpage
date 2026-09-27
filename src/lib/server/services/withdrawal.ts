@@ -1,4 +1,5 @@
-import { nowKstIso, WITHDRAWAL_GRACE_MS } from "$lib/server/core/time";
+import { nowKstIso } from "$lib/server/core/time";
+import { withdrawalGraceEndsAt } from "$lib/domain/account";
 import { getTable } from "$lib/server/data/tables";
 import { auditStamp } from "$lib/server/data/audit";
 import { callFlow } from "$lib/server/data/flows";
@@ -50,9 +51,7 @@ export async function getWithdrawalState(memberId: string) {
   if (!member?.withdrawal) return null;
   return {
     requestedAt: member.withdrawal.requestedAt,
-    deleteAfter: new Date(
-      new Date(member.withdrawal.requestedAt).getTime() + WITHDRAWAL_GRACE_MS,
-    ).toISOString(),
+    deleteAfter: withdrawalGraceEndsAt(member.withdrawal.requestedAt),
     held: !!member.withdrawal.holdBy,
   };
 }

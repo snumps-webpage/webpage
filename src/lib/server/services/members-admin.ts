@@ -1,5 +1,6 @@
 import { AppError, definedOnly } from "$lib/server/core/errors";
-import { nowKstIso, WITHDRAWAL_GRACE_MS } from "$lib/server/core/time";
+import { nowKstIso } from "$lib/server/core/time";
+import { withdrawalGraceEndsAt } from "$lib/domain/account";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { audit, auditStamp } from "$lib/server/data/audit";
 import { callFlow } from "$lib/server/data/flows";
@@ -189,9 +190,7 @@ export async function getWithdrawnPending() {
       name: m.name,
       department: m.department,
       requestedAt: m.withdrawal!.requestedAt,
-      deleteAfter: new Date(
-        new Date(m.withdrawal!.requestedAt).getTime() + WITHDRAWAL_GRACE_MS,
-      ).toISOString(),
+      deleteAfter: withdrawalGraceEndsAt(m.withdrawal!.requestedAt),
       held: !!m.withdrawal!.holdBy,
     }));
 }
