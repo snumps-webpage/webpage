@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { formText } from "$lib/domain/form-data";
 import type { MemberStatus } from "$lib/domain/members";
 
 export interface AccountSettingsData {
@@ -78,14 +79,18 @@ export function validateMailPreferenceForm(formData: FormData) {
 export function withdrawalValuesFromFormData(
   formData: FormData,
 ): WithdrawalFormValues {
-  const confirmName = formData.get("confirmName");
   return {
-    ackInfo: formData.get("ackInfo") === "on",
-    ackDataPolicy: formData.get("ackDataPolicy") === "on",
-    confirmName: typeof confirmName === "string" ? confirmName : "",
+    ackInfo: formText(formData, "ackInfo") === "on",
+    ackDataPolicy: formText(formData, "ackDataPolicy") === "on",
+    confirmName: formText(formData, "confirmName"),
   };
 }
 
+/**
+ * Withdrawal rules — the single source; the withdraw action validates with
+ * these, and services/withdrawal.ts re-checks the three factors atomically.
+ * The name is compared trimmed, as the service compares it.
+ */
 export function validateWithdrawalRequestForm(
   formData: FormData,
   expectedName: string,
@@ -99,7 +104,11 @@ export function validateWithdrawalRequestForm(
       ackDataPolicy: z
         .boolean()
         .refine(Boolean, "개인정보 처리 정책을 확인해 주세요."),
-      confirmName: z.string().min(1, "본인 이름을 입력해 주세요."),
+      confirmName: z
+        .string()
+        .trim()
+        .min(1, "본인 이름을 입력해 주세요.")
+        .max(200, "이름은 200자 이하로 입력해 주세요."),
     })
     .superRefine((value, context) => {
       if (value.confirmName !== expectedName) {

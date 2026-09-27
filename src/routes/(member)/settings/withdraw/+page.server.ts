@@ -1,4 +1,5 @@
-import { redirect } from "@sveltejs/kit";
+import { fail, redirect } from "@sveltejs/kit";
+import { validateWithdrawalRequestForm } from "$lib/domain/account";
 import { handleUserAction } from "$lib/server/auth-guards";
 import { requestWithdrawal } from "$lib/server/services/withdrawal";
 import { getTable } from "$lib/server/data/tables";
@@ -26,12 +27,12 @@ export const actions = {
     return handleUserAction(locals, async () => {
       const memberId = locals.member!.memberId;
 
-      // The server verifies all three factors atomically — client steps are UX.
-      await requestWithdrawal(memberId, {
-        ackInfo: data.get("ackInfo") === "on",
-        ackDataPolicy: data.get("ackDataPolicy") === "on",
-        confirmName: (data.get("confirmName") as string) ?? "",
-      });
+      // Every bad confirmation at once, per field; the service re-verifies
+      // all three atomically — client steps are UX.
+      const parsed = validateWithdrawalRequestForm(data, locals.member!.name);
+      if (!parsed.success) return fail(400, parsed.failure);
+      // A member who still organizes a study gets CONFLICT from the service.
+      await requestWithdrawal(memberId, parsed.data);
 
       // Notification failure must not undo the withdrawal itself.
       const { notifyExecutivesOfWithdrawal } =

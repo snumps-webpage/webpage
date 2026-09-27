@@ -14,7 +14,6 @@
     error?: string;
     issues?: WithdrawalFormFailure["issues"];
     values?: WithdrawalFormFailure["values"];
-    organizedStudies?: string[];
   };
   const actionForm = $derived(form as WithdrawalActionData | null);
 
@@ -47,13 +46,14 @@
     <li class:current={step === 3}>3. 본인 확인</li>
   </ol>
 
-  {#if actionForm?.error === "STUDY_ORGANIZER_CONFLICT" || hasOrganizerConflict}
+  <!-- CONFLICT (services/withdrawal.ts): still organizes an unfinished study. -->
+  {#if actionForm?.error === "CONFLICT" || hasOrganizerConflict}
     <aside class="conflict-note" role="note">
       <strong>먼저 주최자를 전달해야 합니다.</strong>
       <p>진행 중인 스터디의 주최자는 바로 탈퇴할 수 없습니다.</p>
       <ul>
         <!-- 제목 문자열 목록 — 같은 제목의 스터디가 있으면 값 키가 중복돼 클라이언트가 죽는다 -->
-        {#each actionForm?.organizedStudies ?? data.organizedStudies as study, i (i)}
+        {#each data.organizedStudies as study, i (i)}
           <li>{study}</li>
         {/each}
       </ul>
