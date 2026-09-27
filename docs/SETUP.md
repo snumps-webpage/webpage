@@ -32,7 +32,7 @@ To enable the system to send automated alerts from a preset Gmail account:
 
 ## ⚙️ Environment Configuration
 
-`.env.example`을 `.env`로 복사해 아래 값을 채운다 (`.env`는 gitignore 대상). See [**Authentication Variables**](AUTH_VARS.md) for detailed information on how `ADMINS_EMAILS` and `AUTHORIZED_USERS` are used.
+`.env.example`을 `.env`로 복사해 아래 값을 채운다 (`.env`는 gitignore 대상). See [**Authentication Variables**](AUTH_VARS.md) for how `ADMINS_EMAILS` is used (`AUTHORIZED_USERS` is no longer read).
 
 ```env
 # 인증 (없으면 로그인 자체가 뜨지 않는다 — hooks.server.ts가 FATAL을 남긴다)
@@ -66,9 +66,9 @@ ASSETS_ACCESS=            # 비워 두면 /media 프록시(기본·권장). publ
 HEALTHCHECKS_PING_URL=   # Healthchecks.io dead-man's switch (스펙 §5-3)
 GITHUB_BACKUP_REPO=snumps-webpage/snumps-backups   # 주간 백업 off-platform 사본 (§7 B2)
 GITHUB_BACKUP_TOKEN=     # fine-grained PAT, 해당 repo contents:write 한정
-DATA_BACKEND=supabase    # supabase | memory (memory = dev 오프라인 보조, 재시작 시 소멸)
+DATA_BACKEND=supabase    # supabase | memory (memory = 인프로세스 PGlite, 재시작 시 소멸)
 
-CRON_SECRET=             # required — /api/cron/* returns 501 when unset
+CRON_SECRET=             # required — /api/cron/* and /api/health answer 401 when unset
 REDIS_URL=               # optional — memory-only cache without it
 SITE_ORIGIN=https://snumps.vercel.app          # links inside outgoing mail (no PUBLIC_ prefix — Kit strips it from private env)
 ```
@@ -82,12 +82,16 @@ SITE_ORIGIN=https://snumps.vercel.app          # links inside outgoing mail (no 
 
 로컬 개발은 **2번째 무료 Supabase 프로젝트(dev)** 를 사용한다 (스펙 결정 S4 — prod와 완전 분리).
 
-1. Supabase에서 dev 프로젝트를 생성하고 `supabase/migrations/20260901000000_documents.sql`을 적용한다.
-   (2026-08-30 완료 — dev 프로젝트 `snumps-dev`, ref `gcahkryexewswzvtfltj`. 재구축 시 `scripts/ops/` 스크립트 참조.)
+1. Supabase에서 dev 프로젝트를 생성하고 `supabase/migrations/`의 파일을 **이름 순서대로 전부** 적용한다
+   (`20260901000000_documents.sql` → `20260928000000_atomic_flows.sql` → `20260928000100_seminar_publication_status.sql`).
+   앱의 여러 문서 쓰기는 `flow_*` 함수를 부르므로 두 번째 파일이 없으면 승인·게시·체크인 등이 실패한다.
+   (dev 프로젝트 `snumps-dev`, ref `gcahkryexewswzvtfltj` — 첫 파일은 2026-08-30 적용, 나머지 둘의 적용은
+   [OPERATOR-TODO](OPERATOR-TODO.md) §2-2. 재구축 시 `scripts/ops/` 스크립트 참조.)
 2. `.env`에 **dev 프로젝트의** `SUPABASE_URL` / `SUPABASE_SECRET_KEY`를 넣는다 (prod 키 금지).
 3. 시드 데이터 주입: `npx tsx scripts/seed-dev.ts`
-4. 오프라인 보조로는 `DATA_BACKEND=memory`를 쓸 수 있다 — 단 **프로세스 재시작 시 데이터가 소멸**하고
-   가짜(인메모리) 데이터임에 주의. 평상시 기본은 `DATA_BACKEND=supabase` + dev 프로젝트다.
+4. Supabase 없이 돌리려면 `DATA_BACKEND=memory` — 프로세스 안의 **PGlite**(Postgres)가 같은 마이그레이션 파일을
+   적용해 뜨므로 흐름 함수까지 운영과 똑같이 동작한다. 테스트와 `scripts/measure`도 이 백엔드를 쓴다.
+   단 **프로세스 재시작 시 데이터가 소멸**한다(빈 DB에서 시작).
 
 > The Gmail sender must be a **Google Workspace** account: consumer Gmail's
 > 500-recipients/day cap is nearly exhausted by two full-member announcements.
@@ -108,6 +112,8 @@ pnpm dev         # 개발 서버 (?dev_preview=member|admin 으로 로그인 없
 pnpm build       # 프로덕션 빌드
 pnpm test        # vitest
 pnpm check       # svelte-check
+pnpm lint        # prettier --check + eslint (CI와 같은 형식 검사)
+pnpm format      # prettier --write — 저장소 전체가 prettier 형식이다
 ```
 
 CI(`.github/workflows/ci.yml`)는 prettier → eslint → vitest → svelte-check → vite build를 비밀값 없이 실행한다.

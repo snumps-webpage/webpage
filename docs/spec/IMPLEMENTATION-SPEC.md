@@ -5,6 +5,10 @@
 > 기존 코드 컨벤션(`withCache`/`invalidateCache`, `handleUserAction`/`handleAdminAction` 래퍼,
 > Repository 패턴, `$env/dynamic/private`)을 따른다. 별도 세션의 리팩터링 결과와 이름이 충돌하면
 > **이 문서의 계약(시그니처·의미)을 유지한 채 배치만 조정**한다.
+>
+> **2026-09-27 개정**: 여러 문서를 바꾸는 흐름(승인·세미나 공개/일정/취소/삭제·체크인·출석 결정·이벤트 삭제·스터디 회차·
+> 탈퇴·기록 삭제)은 plpgsql 함수 한 트랜잭션으로 옮겨 갔다 — [`ATOMIC-FLOWS.md`](./ATOMIC-FLOWS.md). 아래 BE-11·14·32~~35·41·47~~51의
+> 다단계 알고리즘은 그 함수의 **규칙**으로는 유효하지만 "단계별 `mutate` + 멱등 재실행" 구현은 이력이다. 각 절의 ⚠️ 표시 참조.
 
 ---
 
@@ -20,6 +24,8 @@
 
 - 기존 `vitest.config.ts` 유지. 테스트 파일 규약: 구현 파일 옆 `*.test.ts` (기존 `notion/utils.test.ts` 관례)
 - CI: GitHub Actions `.github/workflows/ci.yml` — `lint` + `check` + `test` 3잡. push/PR 트리거
+  → 현행: 한 잡에서 `pnpm install --frozen-lockfile` → prettier `--check` → eslint → vitest → svelte-check → vite build.
+  패키지 매니저는 pnpm(`packageManager`), 테스트의 데이터 계층은 PGlite(§BE-15)
 
 ### BE-02 Terraform (`infra/`)
 
@@ -94,6 +100,10 @@ src/lib/server/core/
 └── semester.ts   # termOf(), currentTerm(), termRange()
 ```
 
+> **⚠️ 2026-09-27**: `termOf`의 정의는 브라우저 안전한 `$lib/domain/term.ts`로 옮겼다(`termOfDateString`, `termLabel` 포함).
+> `core/semester.ts`는 `termOf`를 재수출하고 `currentTerm`·`termRange`를 둔다. 페이지·시드·이주 스크립트도 같은 규칙을 쓰고,
+> SQL 미러 `app_term_of`는 `flow-rules.test.ts`가 대조한다.
+
 ```ts
 // errors.ts
 export const ERR = {
@@ -127,7 +137,8 @@ export function currentTerm(now?: Date): string;
 export function termRange(term: string): { start: Date; end: Date };
 ```
 
-전화번호 정규화·KST 유틸은 기존 것 재사용 (`getKSTDate` 등 — 위치는 리팩터링 결과 따름).
+전화번호 정규화·KST 유틸은 기존 것 재사용 — 현행: 전화번호는 `$lib/utils`(`normalizePhoneNumber`, `formatPhoneForDisplay`),
+KST 시각은 `server/core/time.ts`(`toKstIso`, `nowKstIso`, `kstInputToIso`). `getKSTDate`는 삭제됐다.
 
 ---
 
@@ -150,6 +161,9 @@ src/lib/server/data/
 ├── audit.ts          # 감사 로그
 └── idempotency.ts    # ensureCreated 헬퍼
 ```
+
+> **⚠️ 2026-09-27**: `idempotency.ts`는 삭제됐다(BE-14). 현행 배치에는 `store.ts`(문서 행 경계, `rpc` 포함),
+> `store-memory.ts` + `pglite-*.ts`(메모리 백엔드 = PGlite), `flows.ts`(`callFlow`), `expect-tables-valid.ts`(테스트 헬퍼)가 있다.
 
 ### BE-10 스키마
 
@@ -231,7 +245,7 @@ export async function mutateQueue(
   eventId: string,
   fn: (rows: AttendanceRecord[]) => AttendanceRecord[],
 ): Promise<AttendanceRecord[]>;
-export async function deleteQueue(eventId: string): Promise<void>; // deleteEvent 전용
+export async function deleteQueue(eventId: string): Promise<void>; // deleteEvent 전용 — ⚠️ 현행: 삭제됨. 큐 삭제는 flow_delete_event·flow_delete_seminar 안에서만
 export async function listPendingQueues(): Promise<
   { eventId: string; rows: AttendanceRecord[] }[]
 >;
@@ -265,6 +279,10 @@ throw new AppError("WRITE_CONFLICT")  // 409 (C-21)
   페처는 로컬 ETag 보관 시 `ifNoneMatch` 조건부 GET → 304면 캐시 유지
 - `mutate`는 **캐시를 우회**하고 항상 S3에서 직접 읽는다 (ETag 일관성)
 - gzip: Node `zlib` (`gzipSync`/`gunzipSync`). `Content-Encoding: gzip`, `Content-Type: application/json`
+- ⚠️ 2026-09-27: `mutate`는 게이트가 **파싱한** 행(zod 기본값이 채워진 모양)을 저장·캐시한다. 여러 문서를 함께 바꾸는
+  흐름은 `mutate`를 이어 부르지 않고 `callFlow(fn, args)` → `store.rpc` → `flow_*(p jsonb)`로 한 트랜잭션에서 실행한다.
+  `callFlow`는 RAISE된 에러 코드를 `AppError`로(`DETAIL` → `messages`로 사용자 문구), 결과의 `touched`/`touchedQueues`로
+  캐시 무효화를 한다
 
 ### BE-13 `audit.ts`
 
@@ -294,6 +312,10 @@ export async function audit(entry: {
 // 실패 시: 본 트랜잭션을 깨지 않되 console.error — 단 withdrawal.* 계열은 실패 시 본 액션도 실패 (파기 추적 필수)
 ```
 
+> **⚠️ 2026-09-27**: `withdrawal.*`는 이제 흐름 함수(`flow_request_withdrawal`, `flow_member_withdrawal`)가 상태 변경과
+> **같은 트랜잭션**에서 `app_audit`로 삽입한다 — 변경은 커밋됐는데 감사 삽입이 실패하는 틈이 없다. id·시각은
+> `auditStamp()`가 TS 쪽 `audit()`와 같은 형식으로 만들어 넘긴다. 나머지 항목은 위 `audit()` 그대로다.
+
 ### BE-14 `idempotency.ts`
 
 ```ts
@@ -307,6 +329,10 @@ export async function ensureCreated<N extends TableName>(
 
 승인 흐름은 `ensureCreated`를 단계 순서대로 나열 — 각 단계가 자체 재실행 안전.
 
+> **⚠️ 2026-09-27 — 삭제됨.** 이 헬퍼가 받치던 생성 흐름(가입·세미나/스터디 신청 승인, 세미나 공개, 스터디 회차)은 전부
+> 흐름 함수가 됐고, 같은 `sourceRequestId` 검사를 **잠금 아래서** 한다. 단계 사이에 반려·철회가 끼어들 틈이 없으므로
+> "중간 실패 후 재실행"이 아니라 "전부 아니면 없음"이다.
+
 ### BE-15 검증 (테스트 설계)
 
 | 테스트                | 방법                                                                                             |
@@ -317,6 +343,11 @@ export async function ensureCreated<N extends TableName>(
 | 재시도 소진           | put이 항상 412 → 5회 후 `WRITE_CONFLICT`                                                         |
 
 S3 목: `s3.ts`와 동일 시그니처의 `s3.mock.ts` (Map 기반, ETag = 내용 해시). vitest에서 모듈 목킹.
+
+> **⚠️ 현행**: 목은 `store-memory.ts` — PGlite(인프로세스 Postgres)에 운영과 같은 `supabase/migrations/*.sql`을 적용한다.
+> vitest는 `globalSetup`(`pglite-snapshot.setup.ts`)이 실행당 한 번 스냅숏을 만들고 파일마다 불러온다. 흐름 테스트는
+> 경합 쌍을 실제로 동시 실행하고, 매 케이스 뒤 `expectTablesValid()`로 저장 문서를 엄격히 재디코드한다
+> (모르는 키·기본값에 기댄 행 거부).
 
 ---
 
@@ -469,6 +500,14 @@ handleAdminAction(locals, async () => {
 `approve`(가입)는 마지막 단계가 **행 제거**: `mutate(applications, rows => rows.filter(r => r.id !== id))`.
 재실행: 행 없음 + `sourceRequestId` 레코드 존재 → `CONFLICT`(이미 완료) 반환.
 
+> **⚠️ 2026-09-27 — 알고리즘 교체.** 위 코드는 두 번 낡았다. (1) 세미나 승인은 활동·이벤트를 만들지 않고 `unscheduled`
+> 세미나만 만든다 — 활동·이벤트·공지는 공개(`flow_publish_seminar`)의 일이다(API-SPEC §7-2·§7-2-1). (2) 승인 셋은
+> 캐시된 행을 읽고 기록을 만든 뒤 마지막에 행을 뒤집었기 때문에, 그 사이 커밋된 반려·철회를 마지막에야 알아챘다
+> (승인 ∥ 반려 → 반려된 신청자가 회원으로 남음). 현행은 `flow_approve_application`·`flow_approve_seminar_request`·
+> `flow_approve_study_request`가 **지금 저장된 행**으로 판정하고 기록 생성과 행 전환/제거를 한 트랜잭션에서 한다.
+> 가입 승인은 이번 학기 `registrations`, 옛 기록(`legacy-*`) 상속, 부트스트랩 관리자 스탬프(이메일 sha256 해시로 전달)까지
+> 포함한다. 메일은 커밋 뒤. `{ invalidate: ["all_events"] }` 같은 파생 캐시 키도 없어졌다(캐시 무효화는 `touched`).
+
 ### BE-34 출석 병합 유틸 (공용 — BE-44·51·§7-2가 공유)
 
 ```ts
@@ -490,7 +529,13 @@ export function invalidateAttendanceCaches(
 // activities_${termRange} + user_activities_${id} 전부
 ```
 
+> ⚠️ `invalidateAttendanceCaches`와 파생 캐시 키는 없다(API-SPEC §1-4 2026-09-14 정정). 출석 큐의 승인·거절·삭제는
+> `flow_decide_attendance`가 큐 행과 활동 출석을 한 트랜잭션에서 바꾼다.
+
 ### BE-35 크론
+
+> **⚠️ 2026-09-27**: 2단계(회차 자동 생성)는 **제거됐다** — `registerCronStep`·스터디 schedule 경로가 없어지고
+> 크론은 고정된 단계 목록(`cronSteps` — 현재 `expire` 하나)을 돈다. 성공 응답은 `{ success, steps_total, expired }`.
 
 **BE-35의 범위는 크론 골격 + expire 단계 + lazy 판정 유틸까지다.** 회차 생성(2)은 BE-49가,
 익명화(3)는 BE-41이 각각 크론에 **단계를 추가**한다 — Phase 3의 BE-35가 Phase 4 코드를 참조하지 않는다
@@ -566,6 +611,11 @@ export async function anonymizeExpiredWithdrawals(now: Date): Promise<number> {
 }
 ```
 
+> **⚠️ 2026-09-27**: 1)~4)는 `flow_request_withdrawal` 한 트랜잭션이다 — 스터디는 공유 잠금으로 읽어 그 사이 수락된
+> 인계가 끼어들지 못하고, 감사 행이 상태 변경과 함께 커밋된다(예전에는 변경이 커밋된 뒤 감사 삽입이 실패할 수 있었다).
+> 액션은 그 전에 `validateWithdrawalRequestForm`으로 틀린 확인 항목을 한 번에 돌려준다. `cancelWithdrawal`·보류·보류 해제는
+> `flow_member_withdrawal`(`op: cancel | hold | release`). 5) 메일은 커밋 뒤.
+
 라우트: `(member)/settings/withdraw/+page.server.ts` (GET 안내 + `?/requestWithdrawal`),
 `(member)/withdraw/pending/+page.server.ts` (GET: 삭제 예정일 = requestedAt+30일, `?/cancelWithdrawal`).
 가드 특례: `withdrawn` 리디렉트 대상에서 `/withdraw/pending` 제외 (BE-20).
@@ -581,7 +631,10 @@ export async function anonymizeExpiredWithdrawals(now: Date): Promise<number> {
   attendUrl = `${origin}/events/${pathId}/${attendCode}`
   ```
 - `saveAttendance`: `ensurePresenter` → `mergeAttendees(current, applicantIds, selected)` →
-  `mutate(activities)` → `invalidateAttendanceCaches`
+  `mutate(activities)` → `invalidateAttendanceCaches` (⚠️ 현행: 무효화는 `mutate`가 자동으로 — 파생 캐시 없음)
+- ⚠️ 현행: `/`의 `applyActivity`·`cancelActivity`는 `PARTICIPATE`를 직접 확인하고(공개 존이라 존 가드의 POST 게이트가 없다),
+  `eventId`를 도메인 스키마로 거른 뒤 회원에게 보이는 이벤트인지(`getMemberVisibleEvents`) 먼저 확인한다 — 취소·숨김 이벤트는
+  `NOT_FOUND`, 쓰기 없음. 응답은 갱신된 원장 행
 
 ### BE-45 메일
 
@@ -592,6 +645,8 @@ export async function dispatchEmail(recipients: string[], subject: string, body:
 // bcc: true → To: 발신 계정, Bcc: recipients. 헤더 조립부만 분기
 
 // mail/templates.ts 추가
+// ⚠️ 현행: 수신자 = 이번 학기 등록 회원 ∪ 동문, 탈퇴 유예(status withdrawn) 제외, 그중 수신 동의자
+//   (mail/dispatch.ts optedInMemberEmails, 결정 2026-09-27). 공지 선점은 흐름 함수의 announcedAt, 발송은 커밋 뒤
 export async function sendSeminarAnnouncement(seminar): Promise<boolean> {
   const infos = await getTable("private-info");
   const recips = [...new Set(infos
@@ -625,6 +680,10 @@ export async function createStudySession(study: Study, date: string,
 ```
 
 - `sourceRequestId`에 **`${studyId}:${date}` 복합 키** — 크론·수동 중복 생성 차단의 실체
+- ⚠️ 2026-09-27: 위 코드는 `flow_create_study_session`으로 교체됐다. 회차 번호는 events 잠금 아래서 매겨(동시 생성해도
+  같은 번호가 둘 생기지 않는다) 스터디의 `finished`도 저장된 행으로 판정한다. 같은 앵커의 회차가 있으면 그것을 돌려주고,
+  그 회차가 취소됐으면 `CONFLICT`(DETAIL `session-slot-cancelled`). 크론 자동 생성은 없어졌으므로 앵커는 반복 클릭 방지용이다.
+  정정(`updateSession`)은 `flow_update_study_session` — 이벤트와 활동이 함께 옮겨 가고 앵커는 원래 일시를 유지한다
 - `proposeTransfer`: `toMemberId === me → VALIDATION_FAILED`, `pendingTransfer != null → CONFLICT`
 - `acceptTransfer`: `mutate(studies)` 단일 호출 안에서 organizerIds 교체 + history push + pendingTransfer 해제 + participants 보장 — 원자적
 - `setOrganizer`(관리자): 동일 + `pendingTransfer = null` + `byAdmin: true` + `audit("study.set-organizer")`
@@ -665,7 +724,12 @@ const PURPOSES = {
 
 - 각 라우트 load: `getTable` 전량 + 피커 목록. 페이지네이션은 기존 `Pagination` 컴포넌트/클라이언트 측 — 서버 페이징 없음 (605행)
 - `?/delete` 참조 검증: activities ← events.activityId·gallery.activityId / studies ← events.studyId. 참조 존재 → `CONFLICT`
+  → 현행: `flow_delete_activity`(이벤트·갤러리·**세미나**가 가리키면 거부)·`flow_delete_study`(회차가 있으면 거부)·
+  `flow_delete_seminar`(API-SPEC §7-4)가 검사와 삭제를 한 잠금 아래서 한다. 파일 정리는 커밋 뒤
 - `deleteEvent`: `getQueue(eventId)`에 pending 존재 → `CONFLICT`; 없으면 `mutate(events)` 제거 + `deleteQueue(eventId)`
+  → 현행: `flow_delete_event` 한 트랜잭션(그 사이 체크인이 끼어들지 못한다). `deleteQueue`는 삭제됐다
+- 현행: 편집기의 create/update는 `domain/admin-records.ts`의 스키마로, 회원 액션은 `domain/members.ts`의 스키마로 검증한다
+  (API-SPEC §1-2 실패 형식)
 - `setStatus` 승격 로직: `status: "regular"` && `!alumniRevoked` → `isAlumni = true`. `statusChangedAt = now`
 
 ---
@@ -683,7 +747,7 @@ const PURPOSES = {
 ```
 
 현행: 전 공개 라우트가 SSR이고, 최외곽 훅이 **모든 SSR 응답**에 `no-store`를 부착한다.
-근거와 이력은 `API-SPEC` §1-4 (v0.8). 이미지만 예외로 `/_vercel/image`가 30일 엣지 캐시를 유지한다.
+근거와 이력은 `API-SPEC` §1-4 (v0.8). 이미지만 예외로 `/_vercel/image`가 24시간 엣지 캐시를 유지한다.
 
 - 공개 로드는 `MemberSchema.pick` 파생 타입만 반환 — **로드 반환부에 원시 row 전달 금지** (lint 규칙 또는 리뷰 체크)
 - BE-64 스냅샷: 각 공개 load를 직접 호출해 `JSON.stringify` 결과에
@@ -728,14 +792,21 @@ scripts/migration/          # tsx로 로컬 실행, snumps-migration 역할 사�
 
 전부 store/storage 인메모리 목 위에서 실행 — 실 Supabase 불요. 통합(실 프로젝트) 검증은 이주 리허설(30-verify)로 갈음.
 
+> **⚠️ 2026-09-27 현행**: store 목은 PGlite(같은 마이그레이션)라 흐름 함수까지 실제로 실행된다. 흐름별 테스트
+> (`services/*-flow.test.ts`, `attendance-race.test.ts`, `publish-cancel-race.test.ts`, `records-admin.race.test.ts`)가
+> 경합 쌍을 동시 실행하고 `expectTablesValid()`로 저장 문서를 재검증한다. SQL 미러 규칙은 `data/flow-rules.test.ts`,
+> 라우트 액션의 입력 검증은 각 라우트 옆 `*-actions.test.ts`. 학기 경계는 `domain/term.test.ts`. 실제 서버를 띄운 끝-끝
+> 검증은 `scripts/measure/`(README 참조).
+
 ---
 
 ## 부록 — 구현 중 금지 사항 (리뷰 체크리스트)
 
 1. `data/supabase.ts`·`store.ts`·`storage.ts` 밖에서 supabase-js 직접 호출
-2. `mutate` 밖에서 테이블 객체 PUT
+2. `mutate` 밖에서 테이블 객체 PUT — 예외는 `flow_*` 함수(`callFlow` 경유)뿐이다
 3. 공개 로드에서 원시 row 반환 (pick 파생 타입 강제)
 4. 경로 문자열 `startsWith` 가드 판정
 5. `attendeeIds` 통째 대입 (`mergeAttendees` 미경유) — 유일 예외 `admin setAttendees`
 6. env 추가 시 `SETUP.md`·`.env.example` 미갱신
 7. 새 라우트를 가드 매트릭스에 미등록 (glob 수집이 잡지만, PR에서 확인)
+8. 여러 문서를 바꾸는 흐름을 `mutate` 여러 번으로 구현 — 흐름 함수로 (ATOMIC-FLOWS)

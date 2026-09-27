@@ -17,8 +17,8 @@
 | `CopyButton`        | 클립보드 복사 (출석 링크 등)                                             |
 | `Toasts`            | 전역 토스트 — `$lib/toasts`의 store를 구독, 루트 레이아웃에 포함         |
 
-사용처가 없는 컴포넌트: `ActionButton`, `ApplicationDetails`, `Pagination`, `SectionHeader`
-(그리고 `src/lib/state.svelte.ts`). 새로 쓰기 전에 되살릴지 지울지 먼저 정한다.
+사용처가 없는 컴포넌트: `ActionButton`, `ApplicationDetails`, `Pagination`, `SectionHeader`.
+새로 쓰기 전에 되살릴지 지울지 먼저 정한다.
 
 ## 2. 영역별
 
@@ -38,17 +38,69 @@
 
 ### `src/lib/utils.ts`
 
-- `getSemesterInfo(date?)` — 현재 학기 이름·키·기간 (3–8월 = 1학기, 9–2월 = 2학기, 1–2월은 전년도 2학기).
-  서버의 학기 판정은 `server/core/semester.ts`(`currentTerm`, `termRange`)가 원천이다.
-- `getSemesterKeyFromDate(iso)` — 날짜 → `YY-1`/`YY-2`.
-- `getKSTDate(date?, onlyDate?)` — 서버 위치와 무관한 KST 문자열.
 - `parseGoogleName(raw)` — SNU 계정 표시 이름 `"이름 / 신분 / 학과"` 분해.
 - `normalizePhoneNumber(raw)` — 10·11자리 숫자를 하이픈 형식으로. 형식 검증은 domain 스키마(`010-XXXX-XXXX`)가 한다.
+- `formatPhoneForDisplay(phone)` — Notion 보관본에 남은 `010XXXXXXXX` 한 형태만 하이픈을 넣어 보여 준다
+  (저장값은 그대로, `tel:` 링크는 숫자만).
+
+### `src/lib/domain/term.ts` — 학기 규칙 (브라우저 안전)
+
+학기 판정의 단일 정의다 — 페이지·서버·스크립트가 모두 이것을 쓰고(`server/core/semester.ts`는 `termOf`를
+재수출), SQL 흐름의 `app_term_of`는 `flow-rules.test.ts`가 경계값에서 대조한다. 경계는 전부 KST다.
+
+- `termOf(date)` — 3–8월 = `YY-1`, 9–2월 = `YY-2` (1–2월은 전년도 2학기).
+- `termOfDateString(value)` — 저장된 날짜 문자열의 학기. ISO 시각은 KST 날짜로, `YYYY-MM-DD`는 그 KST 날로 읽고,
+  날짜가 아니면 `"Unknown"`.
+- `termLabel("26-1")` → `"2026년 1학기"`.
+
+현재 학기·기간은 서버의 `currentTerm`, `termRange`(`server/core/semester.ts`)가 준다.
+
+### `src/lib/domain/form-data.ts` — 폼 액션 검증
+
+입력을 받는 폼 액션은 도메인 zod 스키마로 검증하고, 실패하면 쓰기 없이
+`fail(400, { error: "VALIDATION_FAILED", issues, values })`로 **틀린 필드를 한 번에** 돌려준다. 규칙의 원천은
+도메인 스키마 하나이고, 폼 컴포넌트는 `issues[field]`를 필드 옆에 보여 준다.
+
+- `formText(formData, key)` — 스키마로 검증하는 액션의 필드 읽기 방법. 없는 필드와 `File`은 `""`로 읽어, 액션이 `null`로
+  죽는 대신 스키마가 "필수"라고 답하게 한다.
+- `fieldIssues(error, fields?)` — zod 실패 → 최상위 필드별 첫 메시지. 경로가 없거나 `fields` 밖의 문제는
+  `_form`으로 모아 화면에 없는 필드 때문에 메시지가 사라지지 않게 한다.
+
+```ts
+// 도메인 (예: domain/studies.ts)
+export function validateStudyRequestForm(formData: FormData) {
+  const values = studyRequestValuesFromFormData(formData); // formText로 읽음
+  const result = studyRequestInputSchema.safeParse(values);
+  if (result.success) return result;
+  return {
+    ...result,
+    failure: {
+      error: "VALIDATION_FAILED" as const,
+      issues: fieldIssues(result.error, [
+        "title",
+        "textbook",
+        "description",
+        "semester",
+      ]),
+      values,
+    },
+  };
+}
+
+// 액션
+const parsed = validateStudyRequestForm(await request.formData());
+if (!parsed.success) return fail(400, parsed.failure);
+```
 
 ### 기타
 
 - `src/lib/image.ts` — `thumbUrl`, `thumbSrcset`: Vercel 이미지 최적화 URL (dev에서는 원본). 폭은 `svelte.config.js`의 `images.sizes` 중 하나여야 한다.
 - `src/lib/theme.ts` — 라이트/다크/시스템 테마.
-- `src/lib/domain/navigation.ts` — `safeInternalRedirect`: 외부·`//`·`/\` 경로를 `/`로.
+- `src/lib/domain/navigation.ts` — `safeInternalRedirect`: 외부·`//`·`/\` 경로와, URL 해석 뒤에야 `//host`가 되는
+  점 세그먼트 형태(`/.//evil.example`)를 `/`로.
+- `src/lib/domain/admin-dashboard.ts` — `adminActionErrorMessage`: 거부된 관리자 액션의 알림 문구
+  (서버가 보낸 메시지 → 알려진 코드별 한국어 문구 → 호출자의 기본 문구 순). 오류 코드를 그대로 보이지 않는다.
+- `src/lib/domain/dashboard.ts` — `dashboardActivityErrorMessage`: 참가 신청·취소 거부 사유(이미 시작, 사라짐,
+  참여 권한 없음, 기타).
 - `src/lib/client/api.ts` — `requestJson`(에러 봉투 검증), `fetchAdminQueue`, `uploadAdminFile`(presign → PUT, 5xx 재시도).
 - `src/lib/client/admin-queue-poller.ts` — 탭이 보이고 온라인일 때만 도는 폴러.

@@ -10,7 +10,8 @@
   페이지가 다른 사용자에게 서빙됐다. ISR은 그때 제거됐고(`9035cad`), 프리렌더도 제거됐다(결정 C-17).
 - 재도입은 유출 원인이 플랫폼 측에서 규명된 뒤에만 검토한다 (`spec/API-SPEC.md` §1-4).
 - 예외: 정적 자산(`/_app/**`)과 `/_vercel/image` 파생본(`minimumCacheTTL` 24시간 — 자산 회수가 늦게 듣는 기간이다).
-- 알려진 구멍: 가드가 `throw`하는 404/403/500은 `cacheShield`를 거치지 않는다 (감사 W-23, 방식 결정 대기).
+- 가드의 거부(404/403/500)와 리디렉션(303)은 throw하지 않고 `no-store`를 붙인 응답을 직접 돌려준다. handle에서
+  throw하면 Kit의 치명 오류 경로로 나가 `cacheShield`를 건너뛰기 때문이다 (감사 W-23, 해결).
 
 ## 2. 테이블 캐시 (`src/lib/server/cache.ts`)
 
@@ -22,7 +23,9 @@
 | L2 공유 | Redis (`REDIS_URL` 있을 때만)        | 호출자 TTL 그대로 (테이블 300초)                                          |
 
 - 쓰는 키는 두 종류뿐: `table_<name>`, `table_attendance-queue_<eventId>`. 파생 캐시는 없다.
-- `mutate`/`mutateQueue`가 쓰기 성공 후 해당 키를 **자동 무효화**한다. 직접 `invalidateCache`를 부를 일은 없다.
+- `mutate`/`mutateQueue`가 쓰기 성공 후 해당 키를 **자동 무효화**한다. SQL 흐름(`callFlow`, `data/flows.ts`)은
+  함수가 결과로 알려 준 `touched`(표)·`touchedQueues`(큐)의 키를 무효화한다. 서비스가 직접 `invalidateCache`를
+  부를 일은 없다.
 - 무효화는 쓴 인스턴스의 로컬 + Redis에만 닿는다 — 다른 인스턴스는 로컬 TTL(15초)만큼 옛 값을 볼 수 있다.
   그래서 로컬 상한이 짧다.
 - 캐시 아래에는 **version 조건부 읽기**가 한 겹 더 있다 (`data/tables.ts`): 저장된 `version`이 같으면
