@@ -148,8 +148,8 @@
 ## 12. 변경 시 기본 검증
 
 - 정적 검사:
-  - `npm run check`
-  - `npm run lint` (환경 의존성 설치 시)
+  - `pnpm check`
+  - `pnpm lint` (환경 의존성 설치 시)
 - 기능 회귀:
   - 비로그인 `/`에서 `signIn('google')` 정상 동작
   - 로그인 이후 `/` 대시보드 동작 불변

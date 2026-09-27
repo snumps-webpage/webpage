@@ -27,9 +27,6 @@ vite.config.ts.timestamp-*
 .oauth_client.json
 *-oauthclient.json
 
-# Alternative package manager lockfile
-pnpm-lock.yaml
-
 # Tools & Local Scripts
 tools/
 query-db.js

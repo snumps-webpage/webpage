@@ -22,10 +22,10 @@
 ## 빠른 시작
 
 ```bash
-npm ci
+pnpm install
 cp .env.example .env     # dev Supabase 프로젝트 값을 채운다 — prod 키 금지
 npx tsx scripts/seed-dev.ts
-npm run dev
+pnpm dev
 ```
 
 자세한 절차는 [SETUP](docs/SETUP.md). 품질 게이트는 CI와 같다:

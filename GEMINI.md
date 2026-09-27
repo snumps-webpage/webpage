@@ -25,30 +25,30 @@
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Start development server
-npm run dev
+pnpm dev
 ```
 
 ### Production
 
 ```bash
 # Build for production
-npm run build
+pnpm build
 
 # Preview production build
-npm run preview
+pnpm preview
 ```
 
 ### Quality Assurance
 
 ```bash
 # Run type checks and svelte-check
-npm run check
+pnpm check
 
 # Lint code
-npm run lint
+pnpm lint
 ```
 
 ## 3. Architecture & Conventions
@@ -71,7 +71,7 @@ npm run lint
 
 #### 1. Version Control (Git)
 
-- **Integrity Checks**: Always check for errors (e.g., `npm run check`), and only keep versions if all the errors were handled.
+- **Integrity Checks**: Always check for errors (e.g., `pnpm check`), and only keep versions if all the errors were handled.
 - **Atomic Commits**: Commit changes by **functional unit** or **feature**, not by file or session end.
 - **Frequency**: Execute `git add` and `git commit` frequently to maintain a granular, industry-standard history.
 - **Messages**: Use explicit, descriptive commit messages that clearly explain the context of the change.

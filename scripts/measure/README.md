@@ -40,7 +40,7 @@ Google 값이 가짜라 메일은 한 통도 나가지 않는다.
 
 ## 실행
 
-필요한 것: `node`(>=22), `rsync`, `git`, 레포에서 `npm ci` 한 번. 브라우저 검사만 `chromium`
+필요한 것: `node`(>=22), `rsync`, `git`, 레포에서 `pnpm install` 한 번. 브라우저 검사만 `chromium`
 (`CHROMIUM` env로 경로 지정 가능).
 
 ```bash

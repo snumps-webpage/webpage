@@ -12,7 +12,7 @@
 ```bash
 git clone <repository-url>
 cd webpage
-npm ci      # Vercel과 같은 package-lock.json 기준
+pnpm install      # Vercel·CI와 같은 pnpm-lock.yaml 기준
 ```
 
 ## ✉️ Automated Email Setup
@@ -104,10 +104,10 @@ SITE_ORIGIN=https://snumps.vercel.app          # links inside outgoing mail (no 
 ## 🚀 Running & Building
 
 ```bash
-npm run dev      # 개발 서버 (?dev_preview=member|admin 으로 로그인 없이 화면 확인)
-npm run build    # 프로덕션 빌드
-npm test         # vitest
-npm run check    # svelte-check
+pnpm dev         # 개발 서버 (?dev_preview=member|admin 으로 로그인 없이 화면 확인)
+pnpm build       # 프로덕션 빌드
+pnpm test        # vitest
+pnpm check       # svelte-check
 ```
 
-CI(`.github/workflows/ci.yml`)는 eslint → vitest → svelte-check → vite build를 비밀값 없이 실행한다.
+CI(`.github/workflows/ci.yml`)는 prettier → eslint → vitest → svelte-check → vite build를 비밀값 없이 실행한다.
