@@ -212,6 +212,24 @@ describe("SeminarSchema — 공개 상태와 일정", () => {
     ).toBe(true);
   });
 
+  // 감사 LA26-1: 순서를 문자열로 비교해서, 오프셋이 다르면 판정이 뒤집혔다.
+  it("오프셋이 달라도 instant로 순서를 본다", () => {
+    const range = (startsAt: string, endsAt: string) =>
+      SeminarSchema.safeParse({
+        ...base,
+        schedule: { startsAt, endsAt, location: "27동" },
+      }).success;
+
+    // 종료 = 19:30 KST, 시작 30분 뒤 — 문자열로는 앞선다
+    expect(range("2026-10-15T19:00:00+09:00", "2026-10-15T10:30:00Z")).toBe(
+      true,
+    );
+    // 시작 = 16일 07:00 KST, 종료는 그보다 10시간 앞 — 문자열로는 뒤다
+    expect(
+      range("2026-10-15T19:00:00-03:00", "2026-10-15T21:00:00+09:00"),
+    ).toBe(false);
+  });
+
   // 같은 모양이 도메인 DTO와 저장 스키마 두 곳에 선언돼 있다. 갈라지면 zod가
   // 미지의 키를 조용히 벗겨내므로(저장 시 소실) 컴파일 시점에 묶어 둔다.
   it("저장 일정 모양이 도메인 DTO와 같다", () => {

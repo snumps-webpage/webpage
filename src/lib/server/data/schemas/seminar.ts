@@ -52,10 +52,14 @@ export const SeminarScheduleSchema = z
     endsAt: DateTime.nullable(),
     location: z.string().min(1).max(160),
   })
-  .refine((s) => s.endsAt === null || s.endsAt > s.startsAt, {
-    path: ["endsAt"],
-    message: "endsAt must be later than startsAt",
-  })
+  // instant 비교 — ISO 문자열의 사전식 순서는 오프셋이 같을 때만 맞다(LA26-1)
+  .refine(
+    (s) => s.endsAt === null || Date.parse(s.endsAt) > Date.parse(s.startsAt),
+    {
+      path: ["endsAt"],
+      message: "endsAt must be later than startsAt",
+    },
+  )
   .refine((s) => s.startTime === null || s.startTime === kstClock(s.startsAt), {
     path: ["startTime"],
     message: "startTime must match the KST clock time of startsAt",
