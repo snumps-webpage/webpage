@@ -81,21 +81,24 @@ export async function getPublicExecutives() {
     getTable("private-info"),
     getTable("legacy-private-info"),
   ]);
-  // memberId → phone (운영 우선, 없으면 legacy). 현 회장단 전화 조회 전용.
-  // hidePublicPhone=true인 회원은 애초에 맵에 넣지 않는다 (거부 존중).
-  const phoneByMemberId = new Map<string, string>();
-  for (const i of legacyInfos)
-    if (i.phone && !i.hidePublicPhone) phoneByMemberId.set(i.memberId, i.phone);
-  for (const i of infos) {
-    if (i.hidePublicPhone)
-      phoneByMemberId.delete(i.memberId); // 운영 행이 legacy를 덮는다
-    else if (i.phone) phoneByMemberId.set(i.memberId, i.phone);
-  }
+  // 현 회장단 전화 조회 전용. 운영 행이 우선이고, 운영 행에 번호가 없을 때만
+  // legacy(재가입 전 아카이브)로 내려간다. **공개 거부는 사람 단위다** — 운영
+  // 행의 hidePublicPhone은 legacy 번호까지 막는다. 예전에는 거부가 새 id의
+  // 항목만 지워 legacy id로 옛 번호가 그대로 나갔다(audit LB16-1).
+  const infoByMember = new Map(infos.map((i) => [i.memberId, i]));
+  const legacyByMember = new Map(legacyInfos.map((i) => [i.memberId, i]));
 
   const contactFor = (m: (typeof members)[number]): string | null => {
+    // 탈퇴 신청 중인 회원의 번호는 자동 공개하지 않는다(audit LB16-2)
+    if (m.status === "withdrawn") return null;
+    const own = infoByMember.get(m.id) ?? legacyByMember.get(m.id);
+    if (own?.hidePublicPhone) return null;
+    const archived = m.legacyMemberId
+      ? legacyByMember.get(m.legacyMemberId)
+      : undefined;
     const phone =
-      phoneByMemberId.get(m.id) ??
-      (m.legacyMemberId ? phoneByMemberId.get(m.legacyMemberId) : undefined);
+      own?.phone ||
+      (archived && !archived.hidePublicPhone ? archived.phone : "");
     return phone ? formatPhoneForDisplay(phone) : null;
   };
 
