@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { formText } from "$lib/domain/form-data";
 import { mergeManagedAttendance } from "$lib/domain/attendance";
 import type { AdminStudyRecord } from "$lib/domain/admin-records";
 
@@ -250,6 +251,7 @@ export const operationIdSchema = z.uuidv7("올바른 작업 식별자가 아닙�
 export const studyIdSchema = z.string().trim().min(1);
 export const studyStatusSchema = z.enum(STUDY_STATUSES);
 
+/** Study request rules — the single source; study/apply validates with this. */
 export const studyRequestInputSchema = z.object({
   title: z
     .string()
@@ -327,29 +329,21 @@ export function localKstDateTimeToIso(value: string) {
   return `${value}:00+09:00`;
 }
 
-function formString(formData: FormData, name: string) {
-  const entry = formData.get(name);
-  return typeof entry === "string" ? entry : "";
-}
-
 export function studyRequestValuesFromFormData(
   formData: FormData,
 ): StudyRequestFormValues {
   return {
-    title: formString(formData, "title"),
-    textbook: formString(formData, "textbook"),
-    description: formString(formData, "description"),
-    semester: formString(formData, "semester"),
+    title: formText(formData, "title"),
+    textbook: formText(formData, "textbook"),
+    description: formText(formData, "description"),
+    semester: formText(formData, "semester"),
   };
 }
 
-export function validateStudyRequestForm(formData: FormData) {
-  const values = studyRequestValuesFromFormData(formData);
-  const result = studyRequestInputSchema.safeParse(values);
-  if (result.success) return result;
-
+/** One message per field, the first one zod reports. */
+export function studyRequestIssues(error: z.ZodError): StudyRequestFormIssues {
   const issues: StudyRequestFormIssues = {};
-  for (const issue of result.error.issues) {
+  for (const issue of error.issues) {
     const field = issue.path[0];
     if (
       field === "title" ||
@@ -362,12 +356,19 @@ export function validateStudyRequestForm(formData: FormData) {
       issues._form ??= issue.message;
     }
   }
+  return issues;
+}
+
+export function validateStudyRequestForm(formData: FormData) {
+  const values = studyRequestValuesFromFormData(formData);
+  const result = studyRequestInputSchema.safeParse(values);
+  if (result.success) return result;
 
   return {
     ...result,
     failure: {
       error: "VALIDATION_FAILED" as const,
-      issues,
+      issues: studyRequestIssues(result.error),
       values,
     },
   };

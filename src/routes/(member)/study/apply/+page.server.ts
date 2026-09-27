@@ -1,6 +1,7 @@
+import { fail } from "@sveltejs/kit";
 import { handleUserAction } from "$lib/server/auth-guards";
-import { AppError } from "$lib/server/core/errors";
-import { currentTerm, SEMESTER_PATTERN } from "$lib/server/core/semester";
+import { currentTerm } from "$lib/server/core/semester";
+import { validateStudyRequestForm } from "$lib/domain/studies";
 import { getTable } from "$lib/server/data/tables";
 import { studyRequestView } from "$lib/server/data/views";
 import {
@@ -32,23 +33,14 @@ export const actions = {
   }) => {
     const data = await request.formData();
     return handleUserAction(locals, async () => {
-      const title = (data.get("title") as string)?.trim();
-      const semester = (data.get("semester") as string)?.trim();
-      if (!title) {
-        throw new AppError("VALIDATION_FAILED", {
-          userMessage: "분야명은 필수 입력 항목입니다.",
-        });
-      }
-      if (!SEMESTER_PATTERN.test(semester)) {
-        throw new AppError("VALIDATION_FAILED", {
-          userMessage: "학기 형식이 올바르지 않습니다. 예: 26-2",
-        });
-      }
+      const parsed = validateStudyRequestForm(data);
+      if (!parsed.success) return fail(400, parsed.failure);
+      const { title, textbook, description, semester } = parsed.data;
 
       await submitStudyRequest({
         title,
-        textbook: (data.get("textbook") as string) ?? "",
-        description: (data.get("description") as string) ?? "",
+        textbook,
+        description,
         semester,
         requesterId: locals.member!.memberId,
       });
