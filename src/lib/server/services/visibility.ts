@@ -54,8 +54,12 @@ export async function hiddenActivityIds(): Promise<Set<string>> {
   return hiddenActivityIdsOf(seminars, events);
 }
 
-/** 취소된 이벤트는 회원 면에서 존재하지 않는다. */
-export function isVisibleToMembers(event: Event): boolean {
+/**
+ * 취소된 이벤트는 회원 면에서 존재하지 않는다. 규칙의 절반일 뿐이라(가려진
+ * 활동에 매달린 이벤트는 아래에서 거른다) 모듈 밖에 내놓지 않는다 — 공개된
+ * 이름이면 `events.filter(isNotCancelled)`가 온전한 규칙처럼 읽힌다 (감사 LB21-2).
+ */
+function isNotCancelled(event: Event): boolean {
   return event.status !== "cancelled";
 }
 
@@ -72,9 +76,7 @@ export async function getMemberVisibleEvents(): Promise<Event[]> {
     getTable("events"),
     hiddenActivityIds(),
   ]);
-  return events.filter(
-    (e) => isVisibleToMembers(e) && !hidden.has(e.activityId),
-  );
+  return events.filter((e) => isNotCancelled(e) && !hidden.has(e.activityId));
 }
 
 /** 활동 목록에서 가려진 세미나의 것을 걷어낸다 (공개·회원 공용). */
