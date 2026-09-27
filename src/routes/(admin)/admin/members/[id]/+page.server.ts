@@ -15,7 +15,7 @@ import {
 } from "$lib/server/services/members-admin";
 import { AppError } from "$lib/server/core/errors";
 import { TERM_PATTERN } from "$lib/server/core/semester";
-import { normalizePhoneNumber } from "$lib/utils";
+import { formatPhoneForDisplay, normalizePhoneNumber } from "$lib/utils";
 import type { MemberRole } from "$lib/server/data/schemas";
 import type { PageServerLoad } from "./$types";
 
@@ -59,14 +59,18 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       privateInfo: privateInfo
         ? {
             email: privateInfo.email,
-            phone: privateInfo.phone,
+            phone: formatPhoneForDisplay(privateInfo.phone),
             background: privateInfo.background,
             mailPrefs: privateInfo.mailPrefs,
           }
         : null,
     },
     privateInfo: privateInfo
-      ? { email: privateInfo.email, phone: privateInfo.phone, background: privateInfo.background }
+      ? {
+          email: privateInfo.email,
+          phone: formatPhoneForDisplay(privateInfo.phone),
+          background: privateInfo.background,
+        }
       : null,
   };
 };

@@ -156,6 +156,14 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
     });
   });
 
+  it("publishes a bare-digit archived phone in the hyphenated form", async () => {
+    await mutate("private-info", (rows) =>
+      rows.map((p) => (p.memberId === "m1" ? { ...p, phone: "01012345678" } : p)),
+    );
+    const [latest] = await getPublicExecutives();
+    expect(latest.holders[0].contact).toBe("010-1234-5678");
+  });
+
   it("suppresses the phone when the executive opted out (hidePublicPhone)", async () => {
     await mutate("private-info", (rows) =>
       rows.map((p) => (p.memberId === "m1" ? { ...p, hidePublicPhone: true } : p)),

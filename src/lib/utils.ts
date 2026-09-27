@@ -116,6 +116,16 @@ export function getSemesterKeyFromDate(dateStr: string): string {
 }
 
 /**
+ * Display form of a stored phone. The Notion archive kept a few numbers as bare
+ * "010XXXXXXXX"; that one shape is hyphenated, anything else is shown as stored.
+ */
+export function formatPhoneForDisplay(phone: string): string {
+  return /^010\d{8}$/.test(phone)
+    ? `${phone.slice(0, 3)}-${phone.slice(3, 7)}-${phone.slice(7)}`
+    : phone;
+}
+
+/**
  * Normalizes phone numbers to 010-XXXX-XXXX format.
  * Accepts: 010XXXXXXXX, 010-XXXX-XXXX, 010 XXXX XXXX, etc.
  */

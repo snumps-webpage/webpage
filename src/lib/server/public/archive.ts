@@ -3,6 +3,7 @@ import { getMemberDirectory } from "$lib/server/data/directory";
 import { getTable } from "$lib/server/data/tables";
 import { withoutHiddenActivities } from "$lib/server/services/visibility";
 import { currentTerm } from "$lib/server/core/semester";
+import { formatPhoneForDisplay } from "$lib/utils";
 
 /**
  * Public-zone reads (API-SPEC §3 / BE-60·61). EVERYTHING here is guest-facing:
@@ -95,7 +96,7 @@ export async function getPublicExecutives() {
     const phone =
       phoneByMemberId.get(m.id) ??
       (m.legacyMemberId ? phoneByMemberId.get(m.legacyMemberId) : undefined);
-    return phone || null;
+    return phone ? formatPhoneForDisplay(phone) : null;
   };
 
   const byTerm = new Map<

@@ -2,6 +2,7 @@ import { handleUserAction } from "$lib/server/auth-guards";
 import { AppError } from "$lib/server/core/errors";
 import { currentTerm } from "$lib/server/core/semester";
 import { getTable, mutate } from "$lib/server/data/tables";
+import { formatPhoneForDisplay } from "$lib/utils";
 import type { PageServerLoad } from "./$types";
 
 /** MEM-06: mail preference toggle — also the landing page of the opt-out link. */
@@ -22,7 +23,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     email: info?.email ?? "",
     isCurrentExecutive,
     hidePublicPhone: info?.hidePublicPhone ?? false,
-    phone: info?.phone ?? "",
+    phone: formatPhoneForDisplay(info?.phone ?? ""),
   };
 };
 

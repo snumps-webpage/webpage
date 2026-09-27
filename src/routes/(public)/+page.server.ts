@@ -18,6 +18,7 @@ import { AppError } from "$lib/server/core/errors";
 import {
   getSemesterInfo,
   getSemesterKeyFromDate,
+  formatPhoneForDisplay,
   normalizePhoneNumber,
 } from "$lib/utils";
 import type { ActivityType } from "$lib/constants";
@@ -440,7 +441,7 @@ export const load: PageServerLoad = async (event) => {
           name: member.name,
           department: memberRow?.department ?? "",
           email: session?.user?.email ?? "",
-          phone: privateInfo?.phone || "",
+          phone: formatPhoneForDisplay(privateInfo?.phone || ""),
           background: privateInfo?.background || "",
         },
         semesters,
