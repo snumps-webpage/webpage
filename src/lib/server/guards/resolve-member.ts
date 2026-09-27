@@ -61,7 +61,11 @@ export async function resolveMember(
     isAdmin: member.isAdmin,
     isAlumni: member.isAlumni,
     registered,
-    capabilities: capabilitiesFor({ isAlumni: member.isAlumni, registered }),
+    capabilities: capabilitiesFor({
+      isAlumni: member.isAlumni,
+      registered,
+      withdrawn: member.status === "withdrawn",
+    }),
   };
 }
 

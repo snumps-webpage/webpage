@@ -10,7 +10,9 @@
  * - 이번 학기 등록(registrations에 currentTerm 행) → 전체 capability
  * - 미등록 + 동문(isAlumni)                        → 회원 존 열람만
  * - 미등록 + 비동문(준회원 이력뿐)                 → 없음 (재가입 필요)
- * - withdrawn은 capability 이전 단계(가드)에서 차단된다
+ * - 탈퇴 신청 중(withdrawn)                         → 본인 것 관리만 — 등록·동문과
+ *   무관하게. 탈퇴 취소는 기한이 없으므로 학기가 바뀌어도 할 수 있어야 하고, 참여는
+ *   막아야 한다. 가드가 막아 준다고 믿으면 안 된다: api 존은 가드가 없다(감사 LA02-1).
  */
 
 export const CAPABILITIES = {
@@ -28,9 +30,12 @@ export interface CapabilityInput {
   isAlumni: boolean;
   /** 이번 학기(currentTerm) 등록 행 존재 여부 */
   registered: boolean;
+  /** 탈퇴 신청 중(status "withdrawn") */
+  withdrawn?: boolean;
 }
 
 export function capabilitiesFor(input: CapabilityInput): Capability[] {
+  if (input.withdrawn) return [CAPABILITIES.MANAGE_SELF];
   if (input.registered) {
     return [
       CAPABILITIES.VIEW_MEMBER_ZONE,
