@@ -73,7 +73,10 @@
       >
     </header>
 
-    {#if issues._form}<p class="form-error" role="alert">{issues._form}</p>{/if}
+    <!-- eventId is a hidden field — its issue reads as a form-level one. -->
+    {#if issues._form ?? issues.eventId}<p class="form-error" role="alert">
+        {issues._form ?? issues.eventId}
+      </p>{/if}
 
     <div class="paper-field">
       <label class="paper-label" for={`session-title-${session.eventId}`}

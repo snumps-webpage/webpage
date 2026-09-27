@@ -42,10 +42,15 @@
       }
       const data =
         result.type === "failure"
-          ? (result.data as { error?: string; message?: string })
+          ? (result.data as {
+              error?: string;
+              message?: string;
+              issues?: { toMemberId?: string };
+            })
           : null;
       onError(
-        data?.message ??
+        data?.issues?.toMemberId ??
+          data?.message ??
           data?.error ??
           "주최자 전달 제안을 처리하지 못했습니다.",
       );

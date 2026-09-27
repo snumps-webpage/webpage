@@ -53,9 +53,15 @@
       }
       const data =
         result.type === "failure"
-          ? (result.data as { error?: string; message?: string })
+          ? (result.data as {
+              error?: string;
+              message?: string;
+              issues?: { status?: string };
+            })
           : null;
-      showError(data?.message ?? data?.error ?? fallback);
+      showError(
+        data?.issues?.status ?? data?.message ?? data?.error ?? fallback,
+      );
     };
   }
 

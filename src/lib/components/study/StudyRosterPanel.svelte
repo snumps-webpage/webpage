@@ -39,9 +39,15 @@
         }
         const data =
           "data" in result
-            ? (result.data as { error?: string; message?: string })
+            ? (result.data as {
+                error?: string;
+                message?: string;
+                issues?: { memberId?: string };
+              })
             : null;
-        onError(data?.message ?? data?.error ?? fallback);
+        onError(
+          data?.issues?.memberId ?? data?.message ?? data?.error ?? fallback,
+        );
       };
     };
   }

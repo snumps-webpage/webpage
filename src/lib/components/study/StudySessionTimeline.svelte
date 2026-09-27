@@ -64,9 +64,14 @@
   ) {
     const data =
       "data" in result
-        ? (result.data as { error?: string; message?: string })
+        ? (result.data as {
+            error?: string;
+            message?: string;
+            issues?: Record<string, string>;
+          })
         : null;
-    return data?.message ?? data?.error ?? fallback;
+    const issue = Object.values(data?.issues ?? {})[0];
+    return issue ?? data?.message ?? data?.error ?? fallback;
   }
 </script>
 

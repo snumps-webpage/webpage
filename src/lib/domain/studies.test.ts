@@ -56,6 +56,21 @@ describe("study domain", () => {
     );
   });
 
+  it("refuses a session start that names no real instant", () => {
+    for (const startedAtLocal of [
+      "2026-02-30T18:30",
+      "2026-13-01T10:00",
+      "2026-01-01T24:00",
+    ]) {
+      expect(
+        studySessionCorrectionSchema.safeParse({
+          title: "3회차",
+          startedAtLocal,
+        }).success,
+      ).toBe(false);
+    }
+  });
+
   it("validates a study request without a schedule field", () => {
     const result = studyRequestInputSchema.safeParse({
       title: "범주론 읽기 모임",
