@@ -8,6 +8,8 @@ import type { MailRuleHistory } from "$lib/server/data/schemas/mail-rule-history
 import {
   MAIL_EVENTS,
   RECIPIENTS,
+  isMailEventKey,
+  type MailEventDef,
   type MailEventKey,
   type RecipientKind,
 } from "$lib/server/mail/events";
@@ -221,7 +223,9 @@ export async function deleteMailTemplate(key: string): Promise<void> {
     h.rules.some((r) => r.templateKey === key),
   );
   if (inHistory) {
-    const eventName = MAIL_EVENTS[inHistory.event]?.name ?? inHistory.event;
+    const eventName = isMailEventKey(inHistory.event)
+      ? MAIL_EVENTS[inHistory.event].name
+      : inHistory.event;
     throw new AppError("CONFLICT", {
       userMessage: `'${eventName}' 이벤트의 되돌리기용 직전 규칙 세트가 이 템플릿을 씁니다. 그 이벤트의 규칙을 한 번 더 바꾼 뒤 삭제해 주세요.`,
     });
@@ -305,7 +309,7 @@ export async function listMailEvents(): Promise<MailEventView[]> {
     templateRows.find((t) => t.key === key)?.name ??
     key;
 
-  return Object.entries(MAIL_EVENTS).map(([event, def]) => {
+  return Object.entries<MailEventDef>(MAIL_EVENTS).map(([event, def]) => {
     const rows = ruleRows.filter((r) => r.event === event);
     const materialized = rows.length > 0;
     const rules = materialized
@@ -330,7 +334,7 @@ export async function listMailEvents(): Promise<MailEventView[]> {
       event,
       name: def.name,
       description: def.description,
-      variables: def.variables,
+      variables: [...def.variables],
       allowedRecipients: def.allowedRecipients.map((key) => ({
         key,
         label: RECIPIENTS[key],
@@ -343,12 +347,12 @@ export async function listMailEvents(): Promise<MailEventView[]> {
 }
 
 function requireEvent(event: string): MailEventKey {
-  if (!Object.hasOwn(MAIL_EVENTS, event)) {
+  if (!isMailEventKey(event)) {
     throw new AppError("VALIDATION_FAILED", {
       userMessage: "알 수 없는 이벤트입니다.",
     });
   }
-  return event as MailEventKey;
+  return event;
 }
 
 type RuleSet = MailRuleHistory["rules"];
@@ -466,7 +470,7 @@ export async function addMailRule(input: {
   recipient: string;
 }): Promise<void> {
   const event = requireEvent(input.event);
-  const def = MAIL_EVENTS[event];
+  const def: MailEventDef = MAIL_EVENTS[event];
   if (!def.allowedRecipients.includes(input.recipient as RecipientKind)) {
     throw new AppError("VALIDATION_FAILED", {
       userMessage: "이 이벤트에서 쓸 수 없는 수신자 종류입니다.",
@@ -678,7 +682,7 @@ export async function deleteMailVariable(key: string): Promise<void> {
 
 // ---- 발송 테스트 --------------------------------------------------------------
 
-function sampleVars(tokens: string[]): Record<string, string> {
+function sampleVars(tokens: readonly string[]): Record<string, string> {
   return Object.fromEntries(tokens.map((t) => [t, `[예시 ${t}]`]));
 }
 

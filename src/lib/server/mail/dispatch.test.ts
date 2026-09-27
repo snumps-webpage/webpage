@@ -341,3 +341,13 @@ describe("mail settings that cannot be read", () => {
     expect(sent).toHaveLength(0);
   });
 });
+
+describe("the event catalogue is a closed set in the type (audit LB12-1)", () => {
+  it("rejects a misspelt event name at compile time", () => {
+    // Never called: svelte-check fails if the misspelling type-checks again.
+    const typo = () =>
+      // @ts-expect-error — "seminar.publishd" is not a MailEventKey
+      emitMailEvent("seminar.publishd", {});
+    expect(typeof typo).toBe("function");
+  });
+});

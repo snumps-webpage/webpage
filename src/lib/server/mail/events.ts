@@ -24,14 +24,23 @@ export interface MailEventDef {
   name: string;
   description: string;
   /** 이 이벤트가 템플릿에 제공하는 변수 */
-  variables: string[];
+  variables: readonly string[];
   /** 규칙에서 고를 수 있는 수신자 종류 */
-  allowedRecipients: RecipientKind[];
+  allowedRecipients: readonly RecipientKind[];
   /** mail-rules에 행이 없을 때의 기본 규칙 */
-  defaultRules: { templateKey: string; recipient: RecipientKind }[];
+  defaultRules: readonly {
+    readonly templateKey: string;
+    readonly recipient: RecipientKind;
+  }[];
 }
 
-export const MAIL_EVENTS: Record<string, MailEventDef> = lookupTable({
+/**
+ * `as const satisfies` keeps the key union: `MailEventKey` is the event
+ * names, not `string`, so a misspelt emitMailEvent("seminar.publishd") is a
+ * compile error instead of a logged "mail failed" (audit LB12-1).
+ * lookupTable still drops the prototype for keys that arrive as strings.
+ */
+export const MAIL_EVENTS = lookupTable({
   "application.submitted": {
     name: "가입 신청 접수",
     description: "회원 가입/재가입 신청서가 제출된 순간",
@@ -152,6 +161,11 @@ export const MAIL_EVENTS: Record<string, MailEventDef> = lookupTable({
       { templateKey: "withdrawal-executive-notice", recipient: "executives" },
     ],
   },
-});
+} as const satisfies Record<string, MailEventDef>);
 
 export type MailEventKey = keyof typeof MAIL_EVENTS;
+
+/** A name from a request or a stored row is an event only if it is our own key. */
+export function isMailEventKey(event: string): event is MailEventKey {
+  return Object.hasOwn(MAIL_EVENTS, event);
+}
