@@ -564,9 +564,16 @@ const dashboardHas = async (cookie, title) =>
     { seminarId: s.seminarId },
     admin,
   );
+  // Decision 2026-09-27: the presenter keeps seeing the request, as 취소됨 —
+  // before and after an admin deletes the cancelled seminar.
+  const shownCancelled = async () => {
+    const t = (await get("/", B)).text;
+    const at = t.indexOf(title);
+    return at >= 0 && t.slice(at, at + 400).includes("취소됨");
+  };
   check(
-    "S10 cancelled request hidden on presenter dashboard",
-    !(await dashboardHas(B, title)),
+    "S10 cancelled seminar's request shown as 취소됨 to the presenter",
+    await shownCancelled(),
   );
   const del = await action(
     "/admin/seminars",
@@ -580,8 +587,12 @@ const dashboardHas = async (cookie, title) =>
     JSON.stringify(del).slice(0, 100),
   );
   check(
-    "S10 request does NOT resurface on presenter dashboard",
-    !(await dashboardHas(B, title)),
+    "S10 after delete the request stays, still 취소됨",
+    await shownCancelled(),
+  );
+  check(
+    "S10 after delete the activity stays out of the archive",
+    !(await archiveHas(title)),
   );
 
   // shared activity: a second seminar points at the same activity → refuse, touch nothing
@@ -653,6 +664,60 @@ const dashboardHas = async (cookie, title) =>
     tr.status === 403,
     `${tr.type} ${tr.status}`,
   );
+}
+
+// ---------------------------------------------------------------- S11 P2 changes
+{
+  // a cancelled event does not exist for members → 404 (with its own message)
+  const title = "S11 취소이벤트";
+  const s = await publishedSeminar(title, at(10));
+  await action(
+    "/admin/seminars",
+    "cancelSeminar",
+    { seminarId: s.seminarId },
+    admin,
+  );
+  const ap = await action("/", "applyActivity", { eventId: s.event.id }, C);
+  check(
+    "S11 apply to a cancelled event → 404, no write",
+    ap.status === 404 &&
+      !(await table("events"))
+        .find((e) => e.id === s.event.id)
+        ?.applicantIds.includes(idC),
+    `${ap.type} ${ap.status}`,
+  );
+
+  // guard refusals carry no-store (W-23)
+  const refused = await get("/admin", C);
+  check(
+    "S11 guard 404 carries no-store",
+    refused.status === 404 &&
+      refused.headers.get("cache-control") === "private, no-store" &&
+      refused.headers.get("vercel-cdn-cache-control") === "no-store",
+    `${refused.status} ${refused.headers.get("cache-control")}`,
+  );
+  const refusedJson = await fetch(
+    `${(await import("./lib.mjs")).BASE}/admin/members/x`,
+    { headers: { cookie: C, accept: "application/json" } },
+  );
+  check(
+    "S11 guard 404 as JSON carries no-store",
+    refusedJson.status === 404 &&
+      refusedJson.headers.get("cache-control") === "private, no-store",
+    `${refusedJson.status}`,
+  );
+
+  // the orphaned seminar editor on `/` is gone
+  const gone = await action("/", "updateSeminar", { id: s.seminarId }, B);
+  check(
+    "S11 `/?/updateSeminar` no longer exists",
+    gone.type !== "success",
+    `${gone.type} ${gone.status ?? gone.httpStatus}`,
+  );
+
+  // admin study list renders with real session counts
+  const studies = await get("/admin/studies", admin);
+  check("S11 admin studies page renders", studies.status === 200);
 }
 
 // ---------------------------------------------------------------- S9 crawl
