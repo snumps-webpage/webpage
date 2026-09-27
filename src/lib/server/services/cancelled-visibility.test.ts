@@ -224,7 +224,6 @@ describe("개설자 본인의 대시보드", () => {
 
     const dashboard = await dashboardOf();
 
-    expect(dashboard.approvedSeminars).toEqual([]);
     expect(dashboard.seminarRequests.map((r) => r.title)).toEqual([]);
   });
 

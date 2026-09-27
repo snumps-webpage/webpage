@@ -280,3 +280,24 @@ describe("dashboard profile action", () => {
     expect((await getTable("private-info"))[0].phone).toBe("010-0000-0000");
   });
 });
+
+/**
+ * `updateSeminar` edited a seminar's title and note straight from `/`,
+ * bypassing the service layer, validation and audit; its UI was removed long
+ * ago and approval-time edits belong to admins (FRONTEND-DECISIONS §3-1).
+ * `approvedSeminars` fed that UI and was still serialized into every page.
+ */
+describe("the dashboard carries no seminar editing", () => {
+  it("has no updateSeminar action", () => {
+    expect(Object.keys(actions)).not.toContain("updateSeminar");
+  });
+
+  it("does not ship approvedSeminars to the browser", async () => {
+    const data = await load({
+      ...actionEvent({}),
+    } as unknown as Parameters<typeof load>[0]);
+    const dashboard = (data as { streamed: { dashboard: object } }).streamed
+      .dashboard;
+    expect(Object.keys(dashboard)).not.toContain("approvedSeminars");
+  });
+});

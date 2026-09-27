@@ -69,12 +69,6 @@ export type DashboardData = {
     fromMemberName: string;
     requestedAt: string;
   }[];
-  approvedSeminars: {
-    id: string;
-    title: string;
-    semester: string;
-    remarks: string;
-  }[];
   myAttendanceStats: { total: number; attended: number };
   profile: {
     name: string;
@@ -228,14 +222,6 @@ function buildDevDashboardPreview(semesterKey: string): DashboardData {
     ],
     myStudies: [],
     pendingTransfers: [],
-    approvedSeminars: [
-      {
-        id: "preview-approved-1",
-        title: "정수론과 암호",
-        semester: semesterKey,
-        remarks: "격주 진행",
-      },
-    ],
     myAttendanceStats: {
       total: activities.length,
       attended: activities.filter((activity) => activity.attended).length,
@@ -423,16 +409,6 @@ export const load: PageServerLoad = async (event) => {
             fromMemberName: memberNameById.get(s.organizerIds[0]) ?? "주최자",
             requestedAt: s.pendingTransfer?.requestedAt ?? "",
           })),
-        approvedSeminars: allSeminars
-          // 취소된 세미나는 발표자 본인에게도 사라진다 — 관리자에게만 남는다.
-          .filter((s) => s.publicationStatus !== "cancelled")
-          .filter((s) => s.presenterIds.some((id) => myIds.has(id)))
-          .map((s) => ({
-            id: s.id,
-            title: s.title,
-            semester: s.semester,
-            remarks: s.note,
-          })),
         myAttendanceStats: {
           total: currentActivities.length,
           attended: currentActivities.filter((a) => a.attended).length,
@@ -591,50 +567,6 @@ export const actions = {
         return rows;
       });
       return { operation: "profileUpdated" as const, profile };
-    });
-  },
-
-  updateSeminar: async ({
-    request,
-    locals,
-    url,
-    cookies,
-  }: {
-    request: Request;
-    locals: App.Locals;
-    url: URL;
-    cookies: import("@sveltejs/kit").Cookies;
-  }) => {
-    const devPreviewRole = resolveDevPreviewRole(url, cookies);
-    if (dev && devPreviewRole) return { success: true, preview: true };
-
-    const data = await request.formData();
-    const id = data.get("id") as string;
-    const title = data.get("title") as string;
-    const remarks = (data.get("remarks") as string) ?? "";
-    if (!id) return fail(400, { error: "요청 ID가 누락되었습니다." });
-
-    return handleUserAction(locals, async () => {
-      const member = locals.member;
-      if (!member) throw new AppError("FORBIDDEN");
-      requireCapability(locals, CAPABILITIES.PARTICIPATE);
-      await mutate("seminars", (rows) => {
-        const idx = rows.findIndex((s) => s.id === id);
-        if (idx === -1) throw new AppError("NOT_FOUND");
-        if (
-          !rows[idx].presenterIds.includes(member.memberId) &&
-          !member.isAdmin
-        ) {
-          throw new AppError("FORBIDDEN");
-        }
-        rows[idx] = {
-          ...rows[idx],
-          title: title || rows[idx].title,
-          note: remarks,
-        };
-        return rows;
-      });
-      return {};
     });
   },
 };
