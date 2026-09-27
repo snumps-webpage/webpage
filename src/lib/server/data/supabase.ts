@@ -8,9 +8,22 @@ import { env } from "$env/dynamic/private";
 
 let client: SupabaseClient | null = null;
 
-/** DATA_BACKEND=memory routes the whole document store to store-memory (S4). */
+/**
+ * DATA_BACKEND=memory routes the whole document store to store-memory (S4) —
+ * PGlite in-process, empty on every start. It exists for local development,
+ * the measurement harness (vite dev) and tests only: a production build does
+ * not even contain it (store.ts / storage.ts load it under
+ * `import.meta.env.DEV`), and a production server configured with it refuses
+ * to run rather than serve an empty database (audit LA35-1).
+ */
 export function isMemoryBackend(): boolean {
-  return env.DATA_BACKEND === "memory";
+  if (env.DATA_BACKEND !== "memory") return false;
+  if (!import.meta.env.DEV) {
+    throw new Error(
+      "DATA_BACKEND=memory is only available in development and tests",
+    );
+  }
+  return true;
 }
 
 export function getSupabase(): SupabaseClient {

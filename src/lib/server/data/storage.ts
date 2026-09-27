@@ -1,6 +1,17 @@
 import { env } from "$env/dynamic/private";
 import { getSupabase, isMemoryBackend } from "./supabase";
-import * as memory from "./storage-memory";
+
+/**
+ * The in-process backend, loaded only in development builds: `import.meta.env.DEV`
+ * is a build-time constant, so a production build drops this import — and with
+ * it PGlite and the migration SQL (≈17 MB in the function, audit LA40-1).
+ */
+const memory = (): Promise<typeof import("./storage-memory")> =>
+  import.meta.env.DEV
+    ? import("./storage-memory")
+    : Promise.reject(
+        new Error("the memory backend is not in production builds"),
+      );
 
 /**
  * The asset-storage seam (SUPABASE-MIGRATION-SPEC §4): Supabase Storage with
@@ -60,7 +71,8 @@ export async function createUploadUrl(
   path: string,
   expiresInSeconds?: number,
 ): Promise<string> {
-  if (isMemoryBackend()) return memory.createUploadUrl(path, expiresInSeconds);
+  if (isMemoryBackend())
+    return (await memory()).createUploadUrl(path, expiresInSeconds);
   void expiresInSeconds; // fixed ~2h expiry — see note above
   const { data, error } = await getSupabase()
     .storage.from(stagingBucket())
@@ -74,7 +86,7 @@ export async function createUploadUrl(
 export async function stagedInfo(
   path: string,
 ): Promise<StagedObjectInfo | null> {
-  if (isMemoryBackend()) return memory.stagedInfo(path);
+  if (isMemoryBackend()) return (await memory()).stagedInfo(path);
   const { data, error } = await getSupabase()
     .storage.from(stagingBucket())
     .info(path);
@@ -97,7 +109,7 @@ export async function readStagedHead(
   path: string,
   maxBytes: number,
 ): Promise<Uint8Array | null> {
-  if (isMemoryBackend()) return memory.readStagedHead(path, maxBytes);
+  if (isMemoryBackend()) return (await memory()).readStagedHead(path, maxBytes);
   const { data, error } = await getSupabase()
     .storage.from(stagingBucket())
     .download(path);
@@ -117,7 +129,8 @@ export async function promoteToAssets(
   stagingPath: string,
   assetPath: string,
 ): Promise<void> {
-  if (isMemoryBackend()) return memory.promoteToAssets(stagingPath, assetPath);
+  if (isMemoryBackend())
+    return (await memory()).promoteToAssets(stagingPath, assetPath);
   const { error } = await getSupabase()
     .storage.from(stagingBucket())
     .move(stagingPath, assetPath, { destinationBucket: assetsBucket() });
@@ -135,7 +148,7 @@ export async function copyToBackups(
   backupPath: string,
 ): Promise<void> {
   if (isMemoryBackend())
-    return memory.copyToBackups(sourceBucket, sourcePath, backupPath);
+    return (await memory()).copyToBackups(sourceBucket, sourcePath, backupPath);
   const { error } = await getSupabase()
     .storage.from(assetsBucket())
     .copy(sourcePath, backupPath, { destinationBucket: backupsBucket() });
@@ -159,7 +172,7 @@ export async function createSignedAssetUrl(
   expiresInSeconds: number,
 ): Promise<string | null> {
   if (isMemoryBackend())
-    return memory.createSignedAssetUrl(path, expiresInSeconds);
+    return (await memory()).createSignedAssetUrl(path, expiresInSeconds);
   const { data, error } = await getSupabase()
     .storage.from(assetsBucket())
     .createSignedUrl(path, expiresInSeconds);
@@ -180,7 +193,7 @@ export async function createSignedAssetUrl(
  * delete, and it is not reachable from the web.
  */
 export async function removeAssets(paths: string[]): Promise<void> {
-  if (isMemoryBackend()) return memory.removeAssets(paths);
+  if (isMemoryBackend()) return (await memory()).removeAssets(paths);
   if (paths.length === 0) return;
   const { error } = await getSupabase()
     .storage.from(assetsBucket())
@@ -192,7 +205,7 @@ export async function removeAssets(paths: string[]): Promise<void> {
 }
 
 export async function removeStaged(paths: string[]): Promise<void> {
-  if (isMemoryBackend()) return memory.removeStaged(paths);
+  if (isMemoryBackend()) return (await memory()).removeStaged(paths);
   if (paths.length === 0) return;
   const { error } = await getSupabase()
     .storage.from(stagingBucket())
@@ -232,7 +245,7 @@ async function listAll(
 export async function listStaged(
   prefix: string,
 ): Promise<{ name: string; createdAt: string }[]> {
-  if (isMemoryBackend()) return memory.listStaged(prefix);
+  if (isMemoryBackend()) return (await memory()).listStaged(prefix);
   return listAll(stagingBucket(), prefix, "listStaged");
 }
 
@@ -243,7 +256,7 @@ export async function uploadToBackups(
   path: string,
   body: string,
 ): Promise<void> {
-  if (isMemoryBackend()) return memory.uploadToBackups(path, body);
+  if (isMemoryBackend()) return (await memory()).uploadToBackups(path, body);
   const { error } = await getSupabase()
     .storage.from(backupsBucket())
     .upload(path, body, { contentType: "application/json", upsert: true });
@@ -255,13 +268,13 @@ export async function uploadToBackups(
 export async function listBackups(
   prefix: string,
 ): Promise<{ name: string; createdAt: string }[]> {
-  if (isMemoryBackend()) return memory.listBackups(prefix);
+  if (isMemoryBackend()) return (await memory()).listBackups(prefix);
   return listAll(backupsBucket(), prefix, "listBackups");
 }
 
 /** B1 8-week rotation: remove old dump objects from the backups bucket. */
 export async function removeBackups(paths: string[]): Promise<void> {
-  if (isMemoryBackend()) return memory.removeBackups(paths);
+  if (isMemoryBackend()) return (await memory()).removeBackups(paths);
   if (paths.length === 0) return;
   const { error } = await getSupabase()
     .storage.from(backupsBucket())

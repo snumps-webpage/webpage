@@ -1,5 +1,16 @@
 import { getSupabase, isMemoryBackend } from "./supabase";
-import * as memory from "./store-memory";
+
+/**
+ * The in-process backend, loaded only in development builds: `import.meta.env.DEV`
+ * is a build-time constant, so a production build drops this import — and with
+ * it PGlite and the migration SQL (≈17 MB in the function, audit LA40-1).
+ */
+const memory = (): Promise<typeof import("./store-memory")> =>
+  import.meta.env.DEV
+    ? import("./store-memory")
+    : Promise.reject(
+        new Error("the memory backend is not in production builds"),
+      );
 
 /**
  * The document seam (SUPABASE-MIGRATION-SPEC §2-3): Postgres as a version-CAS
@@ -42,7 +53,7 @@ export async function readDoc(
   kind: DocKind,
   key: string,
 ): Promise<StoredDoc | null> {
-  if (isMemoryBackend()) return memory.readDoc(kind, key);
+  if (isMemoryBackend()) return (await memory()).readDoc(kind, key);
   const { data, error } = await getSupabase()
     .from(TABLE_OF[kind])
     .select("doc, version")
@@ -58,7 +69,7 @@ export async function readVersion(
   kind: DocKind,
   key: string,
 ): Promise<number | null> {
-  if (isMemoryBackend()) return memory.readVersion(kind, key);
+  if (isMemoryBackend()) return (await memory()).readVersion(kind, key);
   const { data, error } = await getSupabase()
     .from(TABLE_OF[kind])
     .select("version")
@@ -76,7 +87,7 @@ export async function writeDocIf(
   expectedVersion: number | null,
 ): Promise<boolean> {
   if (isMemoryBackend())
-    return memory.writeDocIf(kind, key, doc, expectedVersion);
+    return (await memory()).writeDocIf(kind, key, doc, expectedVersion);
   const table = getSupabase().from(TABLE_OF[kind]);
   if (expectedVersion === null) {
     // CREATE: insert; a primary-key conflict (23505) means someone won the race.
@@ -106,7 +117,7 @@ export async function writeDocIf(
 }
 
 export async function listQueueIds(): Promise<string[]> {
-  if (isMemoryBackend()) return memory.listQueueIds();
+  if (isMemoryBackend()) return (await memory()).listQueueIds();
   const { data, error } = await getSupabase()
     .from("app_queues")
     .select("event_id");
@@ -120,7 +131,7 @@ export async function listQueueIds(): Promise<string[]> {
  * message; callers go through data/flows.ts, which maps it to AppError.
  */
 export async function rpc<T>(fn: string, args: unknown): Promise<T> {
-  if (isMemoryBackend()) return memory.rpc<T>(fn, args);
+  if (isMemoryBackend()) return (await memory()).rpc<T>(fn, args);
   const { data, error } = await getSupabase().rpc(fn, { p: args ?? {} });
   // `details` carries a RAISE's DETAIL (a flow's reason for its code)
   if (error)
@@ -131,7 +142,7 @@ export async function rpc<T>(fn: string, args: unknown): Promise<T> {
 }
 
 export async function insertAuditRow(row: AuditRow): Promise<void> {
-  if (isMemoryBackend()) return memory.insertAuditRow(row);
+  if (isMemoryBackend()) return (await memory()).insertAuditRow(row);
   const { error } = await getSupabase().from("audit_log").insert(row);
   if (error)
     throw new Error(`insertAuditRow(${row.action}) failed: ${error.message}`);
