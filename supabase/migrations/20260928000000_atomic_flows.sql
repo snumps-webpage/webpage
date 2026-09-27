@@ -1110,7 +1110,8 @@ end $$;
 -- Correct a study session (organizer): title and/or start move on the event
 -- and on its activity together — archives and term grouping key off the
 -- activity's date (review M5). The anchor keeps the ORIGINAL date on
--- purpose: the old slot stays consumed. Empty title/date = keep.
+-- purpose: the old slot stays consumed. Empty title/date = keep. A cancelled
+-- session is terminal: refused with DETAIL 'session-cancelled'.
 --   p = { studyId, eventId, title, date }
 create or replace function flow_update_study_session(p jsonb) returns jsonb
 language plpgsql set search_path = public as $$
@@ -1129,6 +1130,9 @@ begin
   select e into v_event from jsonb_array_elements(v_events) e
    where e ->> 'id' = p ->> 'eventId' and e ->> 'studyId' = p ->> 'studyId' limit 1;
   if v_event is null then raise exception 'NOT_FOUND'; end if;
+  if v_event ->> 'status' = 'cancelled' then
+    raise exception 'CONFLICT' using detail = 'session-cancelled';
+  end if;
 
   perform app_put('events', app_replace(v_events, v_event ->> 'id',
     v_event || jsonb_build_object(

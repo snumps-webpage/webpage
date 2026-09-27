@@ -63,17 +63,18 @@ export async function approveStudy(id: string): Promise<StudyRequest> {
   return StudyRequestSchema.parse(request);
 }
 
+/** Found and judged on the stored row (not the cache), like the withdrawal. */
 export async function rejectStudy(id: string): Promise<StudyRequest> {
-  const request = (await getTable("study-requests")).find((r) => r.id === id);
-  if (!request) throw new AppError("NOT_FOUND");
-  await mutate("study-requests", (rows) =>
-    rows.map((r) => {
-      if (r.id !== id) return r;
-      if (r.status !== "pending") throw new AppError("CONFLICT"); // CAS
-      return { ...r, status: "rejected" as const };
-    }),
-  );
-  return request;
+  let rejected: StudyRequest | undefined;
+  await mutate("study-requests", (rows) => {
+    const idx = rows.findIndex((r) => r.id === id);
+    if (idx === -1) throw new AppError("NOT_FOUND");
+    if (rows[idx].status !== "pending") throw new AppError("CONFLICT");
+    rejected = { ...rows[idx], status: "rejected" };
+    rows[idx] = rejected;
+    return rows;
+  });
+  return rejected!;
 }
 
 // ---- participation (STU-02 / STU-04) ---------------------------------------
@@ -129,15 +130,22 @@ export async function acceptParticipant(
   studyId: string,
   memberId: string,
 ): Promise<void> {
-  await patchStudy(studyId, (s) => ({
-    ...s,
-    pendingParticipantIds: s.pendingParticipantIds.filter(
-      (id) => id !== memberId,
-    ),
-    participantIds: s.participantIds.includes(memberId)
-      ? s.participantIds
-      : [...s.participantIds, memberId],
-  }));
+  await patchStudy(studyId, (s) => {
+    if (s.participantIds.includes(memberId)) return s; // idempotent
+    // §6-4 pending → participants: only someone who asked and still waits
+    if (!s.pendingParticipantIds.includes(memberId)) {
+      throw new AppError("NOT_FOUND", {
+        userMessage: "참여 신청 대기 중인 회원이 아닙니다.",
+      });
+    }
+    return {
+      ...s,
+      pendingParticipantIds: s.pendingParticipantIds.filter(
+        (id) => id !== memberId,
+      ),
+      participantIds: [...s.participantIds, memberId],
+    };
+  });
 }
 
 export async function removeParticipant(
@@ -215,7 +223,7 @@ export async function createStudySession(
  * together (flow_update_study_session) — archives and term grouping key off
  * the ACTIVITY's date (review M5). The composite key keeps the ORIGINAL date
  * on purpose: the old slot stays consumed, a session at the new datetime is
- * a different slot.
+ * a different slot. A cancelled session is refused — terminal, like its slot.
  */
 export async function updateSession(
   studyId: string,
@@ -226,12 +234,18 @@ export async function updateSession(
   if (patch.dateIso !== undefined && !isKstInstant(patch.dateIso)) {
     throw new AppError("VALIDATION_FAILED");
   }
-  await callFlow("flow_update_study_session", {
-    studyId,
-    eventId,
-    title: patch.title ?? "",
-    date: patch.dateIso ?? "",
-  });
+  await callFlow(
+    "flow_update_study_session",
+    {
+      studyId,
+      eventId,
+      title: patch.title ?? "",
+      date: patch.dateIso ?? "",
+    },
+    {
+      messages: { "session-cancelled": "취소된 회차는 정정할 수 없습니다." },
+    },
+  );
 }
 
 /** Cancelled is terminal — distinct from expired, never re-activatable. */
@@ -349,6 +363,13 @@ export async function saveStudyAttendance(
 ): Promise<void> {
   const event = (await getTable("events")).find((e) => e.id === eventId);
   if (!event || event.studyId !== study.id) throw new AppError("NOT_FOUND");
+  // Cancelled is terminal, so the cached read can only be late to see it —
+  // a save racing the cancel is one that came just before it.
+  if (event.status === "cancelled") {
+    throw new AppError("CONFLICT", {
+      userMessage: "취소된 회차에는 출석을 기록할 수 없습니다.",
+    });
+  }
 
   await mutate("activities", (rows) => {
     const idx = rows.findIndex((a) => a.id === event.activityId);

@@ -3,7 +3,7 @@ import { forgetUnreferencedAssets } from "./asset-cleanup";
 import { newId } from "$lib/server/core/id";
 import { nowKstIso } from "$lib/server/core/time";
 import { currentTerm } from "$lib/server/core/semester";
-import { getTable, mutate } from "$lib/server/data/tables";
+import { mutate } from "$lib/server/data/tables";
 import { callFlow, type FlowResult } from "$lib/server/data/flows";
 import { promoteSeminarPoster } from "$lib/server/services/uploads";
 import {
@@ -134,15 +134,20 @@ export async function approveSeminar(id: string): Promise<SeminarRequest> {
   return SeminarRequestSchema.parse(request);
 }
 
+/**
+ * Judged on the row inside the write, not on a cached read: that refused a
+ * request another instance had just taken, and "rejected" a row the store no
+ * longer had without writing anything (audit LB31-5, as rejectStudy).
+ */
 export async function rejectSeminar(id: string): Promise<SeminarRequest> {
-  const request = (await getTable("seminar-requests")).find((r) => r.id === id);
-  if (!request) throw new AppError("NOT_FOUND");
-  await mutate("seminar-requests", (rows) =>
-    rows.map((r) => {
-      if (r.id !== id) return r;
-      if (r.status !== "pending") throw new AppError("CONFLICT"); // CAS
-      return { ...r, status: "rejected" as const };
-    }),
-  );
-  return request;
+  let rejected: SeminarRequest | undefined;
+  await mutate("seminar-requests", (rows) => {
+    const idx = rows.findIndex((r) => r.id === id);
+    if (idx === -1) throw new AppError("NOT_FOUND");
+    if (rows[idx].status !== "pending") throw new AppError("CONFLICT");
+    rejected = { ...rows[idx], status: "rejected" };
+    rows[idx] = rejected;
+    return rows;
+  });
+  return rejected!;
 }
