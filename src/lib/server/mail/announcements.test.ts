@@ -25,6 +25,8 @@ import { __reset } from "$lib/server/data/store-memory";
 import { _resetDataLayerForTests, mutate } from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { newId } from "$lib/server/core/id";
+import { currentTerm } from "$lib/server/core/semester";
+import { nowKstIso } from "$lib/server/core/time";
 import {
   chunk,
   sendSeminarAnnouncement,
@@ -32,12 +34,44 @@ import {
   sendSeminarScheduleChange,
 } from "./announcements";
 
+/** A member registered this term — announcements go only to those (and alumni). */
 async function seedInfo(email: string, announcements: boolean) {
+  const memberId = newId();
+  await mutate("members", (rows) => [
+    ...rows,
+    {
+      id: memberId,
+      name: email,
+      department: "수리과학부",
+      joinedAt: "2024-03-01",
+      status: "regular" as const,
+      statusChangedAt: nowKstIso(),
+      withdrawal: null,
+      isAlumni: false,
+      alumniRevoked: false,
+      roles: [],
+      isAdmin: false,
+      publicContact: null,
+      project: null,
+      legacyMemberId: null,
+      sourceRequestId: null,
+    },
+  ]);
+  await mutate("registrations", (rows) => [
+    ...rows,
+    {
+      id: newId(),
+      memberId,
+      term: currentTerm(),
+      registeredAt: nowKstIso(),
+      sourceRequestId: null,
+    },
+  ]);
   await mutate("private-info", (rows) => [
     ...rows,
     {
       id: newId(),
-      memberId: newId(),
+      memberId,
       email,
       phone: "",
       studentId: "",
@@ -54,7 +88,9 @@ beforeEach(async () => {
   _resetDataLayerForTests({ backoffBaseMs: 1 });
   sent.length = 0;
   for (const key of Object.keys(testEnv)) delete testEnv[key];
-  await invalidateCache("table_private-info");
+  for (const t of ["private-info", "members", "registrations"]) {
+    await invalidateCache(`table_${t}`);
+  }
 });
 
 describe("site origin in mail links", () => {

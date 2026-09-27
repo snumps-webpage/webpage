@@ -55,12 +55,31 @@ async function executiveEmails(): Promise<string[]> {
   return found.length > 0 ? found : adminEmails();
 }
 
-/** 수신 동의 회원 전체, 중복 제거 (§5-7 step 1). */
+/**
+ * 전체 공지 수신자 (§5-7 step 1, 결정 2026-09-27): 이번 학기 등록 회원과
+ * 동문 중 수신에 동의한 사람. 탈퇴 유예 중인 사람과 미등록 비동문은 동의
+ * 여부와 무관하게 받지 않는다. 중복 제거.
+ */
 async function optedInMemberEmails(): Promise<string[]> {
-  const infos = await getTable("private-info");
+  const term = currentTerm();
+  const [infos, members, registrations] = await Promise.all([
+    getTable("private-info"),
+    getTable("members"),
+    getTable("registrations"),
+  ]);
+  const registered = new Set(
+    registrations.filter((r) => r.term === term).map((r) => r.memberId),
+  );
+  const eligible = new Set(
+    members
+      .filter((m) => m.status !== "withdrawn")
+      .filter((m) => registered.has(m.id) || m.isAlumni)
+      .map((m) => m.id),
+  );
   return [
     ...new Set(
       infos
+        .filter((i) => eligible.has(i.memberId))
         .filter((i) => i.email && i.mailPrefs.announcements !== false)
         .map((i) => i.email.toLowerCase()),
     ),

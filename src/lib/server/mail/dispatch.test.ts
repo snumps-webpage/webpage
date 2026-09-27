@@ -25,6 +25,7 @@ vi.mock("./client", () => ({
 import { __putRawDoc, __reset } from "$lib/server/data/store-memory";
 import { _resetDataLayerForTests } from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
+import { currentTerm } from "$lib/server/core/semester";
 import { emitMailEvent } from "./dispatch";
 
 function seed(over: Partial<Record<string, unknown[]>> = {}) {
@@ -32,6 +33,7 @@ function seed(over: Partial<Record<string, unknown[]>> = {}) {
     "mail-rules": [],
     "mail-templates": [],
     members: [],
+    registrations: [],
     "private-info": [],
     ...over,
   };
@@ -50,6 +52,7 @@ describe("mail dispatcher (S10)", () => {
       "mail-rules",
       "mail-templates",
       "members",
+      "registrations",
       "private-info",
     ]) {
       await invalidateCache(`table_${t}`);
@@ -163,29 +166,71 @@ describe("mail dispatcher (S10)", () => {
     expect(custom?.to).toEqual(["admin@snu.ac.kr"]);
   });
 
-  it("opted-in announcement goes bcc and skips opted-out members", async () => {
+  /**
+   * Decision 2026-09-27: all-member announcements go to members registered
+   * this term plus alumni — never to someone in the withdrawal grace period,
+   * nor to an unregistered non-alumnus, whatever their mail preference.
+   */
+  it("announces to this term's registered members and alumni only, by bcc", async () => {
+    const term = currentTerm();
+    const member = (id: string, over: Record<string, unknown> = {}) => ({
+      id,
+      name: id,
+      department: "수리과학부",
+      joinedAt: "2024-03-01",
+      status: "regular",
+      statusChangedAt: "2026-03-01T00:00:00+09:00",
+      withdrawal: null,
+      isAlumni: false,
+      alumniRevoked: false,
+      roles: [],
+      isAdmin: false,
+      publicContact: null,
+      project: null,
+      legacyMemberId: null,
+      sourceRequestId: null,
+      ...over,
+    });
+    const info = (memberId: string, announcements = true) => ({
+      id: `p-${memberId}`,
+      memberId,
+      email: `${memberId}@snu.ac.kr`,
+      phone: "",
+      studentId: "",
+      background: "",
+      mailPrefs: { announcements },
+      sourceRequestId: null,
+    });
     seed({
+      members: [
+        member("registered"),
+        member("alumnus", { isAlumni: true }),
+        member("lapsed"),
+        member("withdrawing", {
+          status: "withdrawn",
+          isAlumni: true,
+          withdrawal: {
+            requestedAt: "2026-09-20T00:00:00+09:00",
+            previousStatus: "regular",
+            holdBy: null,
+            holdAt: null,
+          },
+        }),
+        member("optedout"),
+      ],
+      registrations: ["registered", "withdrawing", "optedout"].map((id) => ({
+        id: `r-${id}`,
+        memberId: id,
+        term,
+        registeredAt: "2026-09-01T00:00:00+09:00",
+        sourceRequestId: null,
+      })),
       "private-info": [
-        {
-          id: "p1",
-          memberId: "m1",
-          email: "a@snu.ac.kr",
-          phone: "",
-          studentId: "",
-          background: "",
-          mailPrefs: { announcements: true },
-          sourceRequestId: null,
-        },
-        {
-          id: "p2",
-          memberId: "m2",
-          email: "b@snu.ac.kr",
-          phone: "",
-          studentId: "",
-          background: "",
-          mailPrefs: { announcements: false },
-          sourceRequestId: null,
-        },
+        info("registered"),
+        info("alumnus"),
+        info("lapsed"),
+        info("withdrawing"),
+        info("optedout", false),
       ],
     });
     await emitMailEvent("seminar.published", {
@@ -196,7 +241,10 @@ describe("mail dispatcher (S10)", () => {
     });
     expect(sent).toHaveLength(1);
     expect(sent[0].bcc).toBe(true);
-    expect(sent[0].to).toEqual(["a@snu.ac.kr"]);
+    expect([...sent[0].to].sort()).toEqual([
+      "alumnus@snu.ac.kr",
+      "registered@snu.ac.kr",
+    ]);
   });
 
   it("executives fall back to admins when no executive resolves", async () => {
