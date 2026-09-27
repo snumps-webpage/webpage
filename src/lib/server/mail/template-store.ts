@@ -253,8 +253,9 @@ export const MAIL_VARIABLE_DEFAULTS: Record<
 });
 
 /**
- * 현행 공용 변수 (기본값 + DB 오버라이드/추가). 조회 실패 시 기본값만 —
- * 메일이 본 동작을 막으면 안 된다.
+ * 현행 공용 변수 (기본값 + DB 오버라이드/추가). 조회 실패는 던진다 —
+ * 기본값으로 떨어지면 관리자가 바꾼 채팅방 링크 대신 옛 링크가 실린다
+ * (감사 LB13-1). 메일이 본 동작을 막지 않는 것은 emitMailEvent의 몫이다.
  */
 export async function getGlobalMailVariables(): Promise<
   Record<string, string>
@@ -262,12 +263,8 @@ export async function getGlobalMailVariables(): Promise<
   const merged: Record<string, string> = Object.fromEntries(
     Object.entries(MAIL_VARIABLE_DEFAULTS).map(([k, v]) => [k, v.value]),
   );
-  try {
-    for (const row of await getTable("mail-variables"))
-      merged[row.key] = row.value;
-  } catch (e) {
-    console.error("[Mail] variable lookup failed — using defaults:", e);
-  }
+  for (const row of await getTable("mail-variables"))
+    merged[row.key] = row.value;
   return merged;
 }
 
@@ -278,8 +275,9 @@ function interpolate(text: string, vars: Record<string, string>): string {
 /**
  * key의 현행 템플릿(오버라이드 우선)을 변수 치환해 반환.
  * null = 이 메일이 꺼져 있음(enabled=false) 또는 커스텀 템플릿이 삭제됨 —
- * 호출부는 발송을 건너뛴다. 기본 키의 조회 실패는 기본값으로 폴백한다 —
- * 메일이 본 동작을 막으면 안 된다. 커스텀 키(custom-…)는 행이 유일 원천이다.
+ * 호출부는 발송을 건너뛴다. 커스텀 키(custom-…)는 행이 유일 원천이다.
+ * 조회 실패는 던진다 — 기본 문구로 떨어지면 관리자가 끈 메일이 옛 문구로
+ * 나간다 (감사 LB13-1). 메일이 본 동작을 막지 않는 것은 emitMailEvent의 몫이다.
  */
 export async function renderMailTemplate(
   key: string,
@@ -289,18 +287,11 @@ export async function renderMailTemplate(
     MailTemplateDefault | undefined;
   let subject = fallback?.subject ?? null;
   let body = fallback?.body ?? null;
-  try {
-    const row = (await getTable("mail-templates")).find((t) => t.key === key);
-    if (row) {
-      if (!row.enabled) return null;
-      subject = row.subject;
-      body = row.body;
-    }
-  } catch (e) {
-    console.error(
-      `[Mail] template lookup failed for "${key}" — using default:`,
-      e,
-    );
+  const row = (await getTable("mail-templates")).find((t) => t.key === key);
+  if (row) {
+    if (!row.enabled) return null;
+    subject = row.subject;
+    body = row.body;
   }
   if (subject === null || body === null) return null; // 삭제된 커스텀 키 등
   // 공용 변수 < 이벤트 변수 — 키가 겹치면 발송 시점 값이 이긴다

@@ -112,31 +112,25 @@ async function resolveRecipients(
   }
 }
 
-/** 이벤트의 유효 규칙: 테이블에 행이 있으면 그것이 전체 진실, 없으면 기본 규칙. */
+/**
+ * 이벤트의 유효 규칙: 테이블에 행이 있으면 그것이 전체 진실, 없으면 기본 규칙.
+ * 조회 실패는 던진다 — 기본 규칙(전부 켜짐)으로 떨어지면 관리자가 끈 메일이
+ * 다시 나간다 (감사 LB11-2). emitMailEvent가 잡아 false로 기록한다.
+ */
 export async function effectiveRules(
   event: MailEventKey,
 ): Promise<
   { templateKey: string; recipient: RecipientKind; enabled: boolean }[]
 > {
-  const def = MAIL_EVENTS[event];
-  try {
-    const rows = (await getTable("mail-rules")).filter(
-      (r) => r.event === event,
-    );
-    if (rows.length > 0) {
-      return rows.map((r) => ({
-        templateKey: r.templateKey,
-        recipient: r.recipient as RecipientKind,
-        enabled: r.enabled,
-      }));
-    }
-  } catch (e) {
-    console.error(
-      `[Mail] rule lookup failed for "${event}" — using defaults:`,
-      e,
-    );
+  const rows = (await getTable("mail-rules")).filter((r) => r.event === event);
+  if (rows.length > 0) {
+    return rows.map((r) => ({
+      templateKey: r.templateKey,
+      recipient: r.recipient as RecipientKind,
+      enabled: r.enabled,
+    }));
   }
-  return def.defaultRules.map((r) => ({ ...r, enabled: true }));
+  return MAIL_EVENTS[event].defaultRules.map((r) => ({ ...r, enabled: true }));
 }
 
 /**

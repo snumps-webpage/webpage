@@ -256,3 +256,50 @@ describe("mail dispatcher (S10)", () => {
     expect(sent[0].to).toEqual(["admin@snu.ac.kr"]);
   });
 });
+
+// A failed read of the admin's mail settings fell back to the code defaults,
+// all enabled: a mail the admin turned off went out again, in the old
+// wording, with the old chat link. One row that fails the schema fails the
+// whole table read, so this was a lasting state, not a blip (audit LB11-2,
+// LB13-1). Mail still never blocks the caller — it reports false.
+describe("mail settings that cannot be read", () => {
+  const broken = { id: "bad" }; // fails the row schema → the read throws
+
+  beforeEach(async () => {
+    __reset();
+    _resetDataLayerForTests();
+    sent.length = 0;
+    for (const t of ["mail-rules", "mail-templates", "mail-variables"]) {
+      await invalidateCache(`table_${t}`);
+    }
+    seed();
+  });
+
+  const emit = () =>
+    emitMailEvent(
+      "application.approved",
+      { name: "김수학" },
+      { partyEmail: "new@snu.ac.kr" },
+    );
+
+  it("sends nothing when the rules cannot be read", async () => {
+    seed({ "mail-rules": [broken] });
+    expect(await emit()).toBe(false);
+    expect(sent).toHaveLength(0);
+  });
+
+  it("sends nothing when the templates cannot be read", async () => {
+    seed({ "mail-templates": [broken] });
+    expect(await emit()).toBe(false);
+    expect(sent).toHaveLength(0);
+  });
+
+  it("sends nothing when the shared variables cannot be read", async () => {
+    __putRawDoc("table", "mail-variables", {
+      schemaVersion: 1,
+      rows: [broken],
+    });
+    expect(await emit()).toBe(false);
+    expect(sent).toHaveLength(0);
+  });
+});
