@@ -4,10 +4,11 @@ import { newId } from "$lib/server/core/id";
 import { nowKstIso } from "$lib/server/core/time";
 import { currentTerm } from "$lib/server/core/semester";
 import { getTable, mutate } from "$lib/server/data/tables";
-import { ensureCreated } from "$lib/server/data/idempotency";
+import { callFlow, type FlowResult } from "$lib/server/data/flows";
 import { promoteSeminarPoster } from "$lib/server/services/uploads";
 import {
   SEMINAR_TIMING_OPTIONS,
+  SeminarRequestSchema,
   type SeminarRequest,
 } from "$lib/server/data/schemas";
 
@@ -123,42 +124,14 @@ export async function withdrawSeminarRequest(
  * 시각으로 박았고, 그 결과 신청이 즉시 닫히고 당일 자정에 만료됐다.
  */
 export async function approveSeminar(id: string): Promise<SeminarRequest> {
-  const request = (await getTable("seminar-requests")).find((r) => r.id === id);
-  if (!request) throw new AppError("NOT_FOUND");
-  if (request.status !== "pending") throw new AppError("CONFLICT");
-
-  await ensureCreated("seminars", id, () => ({
-    id: newId(),
-    title: request.title,
-    // 확정 전의 임시값 — 공개 시 실제 일정에서 다시 계산한다.
-    semester: currentTerm(),
-    note: request.description,
-    // 소개글은 신청서에서 그대로 온다 — 공개 상세의 "개요"가 이것이다.
-    description: request.description,
-    presenterIds: request.presenterIds,
-    externalPresenters: "",
-    materials: [],
-    photos: [],
-    // 신청서의 포스터를 세미나가 소유하도록 이관 — 세미나=정보+포스터
-    posterKey: request.posterKey,
-    preferredTiming: request.preferredTiming,
-    publicationStatus: "unscheduled",
-    schedule: null,
-    announcedAt: null,
-    semesterPinned: false,
-    activityId: null,
-    sourceRequestId: id,
-  }));
-
-  // 상태 플립은 mutate 안의 CAS — 진입 검사는 최대 15초 낡은 캐시를 읽는다.
-  await mutate("seminar-requests", (rows) =>
-    rows.map((r) => {
-      if (r.id !== id) return r;
-      if (r.status !== "pending") throw new AppError("CONFLICT");
-      return { ...r, status: "approved" as const };
-    }),
+  // The archive record and the request's flip in one transaction, judged on
+  // the request as it is now (flow_approve_seminar_request). The seminar
+  // starts unscheduled; its term is provisional until publication.
+  const { request } = await callFlow<FlowResult & { request: unknown }>(
+    "flow_approve_seminar_request",
+    { id, seminarId: newId(), term: currentTerm() },
   );
-  return request;
+  return SeminarRequestSchema.parse(request);
 }
 
 export async function rejectSeminar(id: string): Promise<SeminarRequest> {

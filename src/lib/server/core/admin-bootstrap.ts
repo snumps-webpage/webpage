@@ -12,12 +12,25 @@ import { env } from "$env/dynamic/private";
  * - 회원 행이 있는 뒤: env 명단은 더 이상 참조하지 않는다 — 관리자 해제는
  *   회원 관리 화면(isAdmin)에서, env는 명단 정리만 하면 된다
  */
-export function isBootstrapAdminEmail(email: string): boolean {
-  return (env.ADMINS_EMAILS ?? "")
+const bootstrapAdminEmails = () =>
+  (env.ADMINS_EMAILS ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
-    .filter(Boolean)
-    .includes(email.trim().toLowerCase());
+    .filter(Boolean);
+
+export function isBootstrapAdminEmail(email: string): boolean {
+  return bootstrapAdminEmails().includes(email.trim().toLowerCase());
+}
+
+/**
+ * The same list as sha256 hex digests of the normalized emails — what a SQL
+ * flow receives to stamp isAdmin (flow_approve_application), so the
+ * addresses themselves never travel in RPC arguments or statement logs.
+ */
+export function bootstrapAdminEmailHashes(): string[] {
+  return bootstrapAdminEmails().map((e) =>
+    createHash("sha256").update(e).digest("hex"),
+  );
 }
 
 /**

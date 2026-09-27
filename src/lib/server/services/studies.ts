@@ -5,7 +5,13 @@ import { getTable, mutate } from "$lib/server/data/tables";
 import { getDirectoryIndex } from "$lib/server/data/directory";
 import { ensureCreated } from "$lib/server/data/idempotency";
 import { mergeAttendees } from "$lib/server/attendance";
-import type { Event, Study, StudyRequest } from "$lib/server/data/schemas";
+import { callFlow, type FlowResult } from "$lib/server/data/flows";
+import {
+  StudyRequestSchema,
+  type Event,
+  type Study,
+  type StudyRequest,
+} from "$lib/server/data/schemas";
 import { effectiveStatus } from "./events";
 
 /**
@@ -50,36 +56,13 @@ export async function withdrawStudyRequest(
 
 /** ADM-16: approval creates the study with the requester as organizer. */
 export async function approveStudy(id: string): Promise<StudyRequest> {
-  const request = (await getTable("study-requests")).find((r) => r.id === id);
-  if (!request) throw new AppError("NOT_FOUND");
-  if (request.status !== "pending") throw new AppError("CONFLICT");
-
-  await ensureCreated("studies", id, () => ({
-    id: newId(),
-    title: request.title,
-    semester: request.semester,
-    textbook: request.textbook,
-    description: request.description,
-    note: "",
-    organizerIds: [request.requesterId],
-    participantIds: [request.requesterId],
-    pendingParticipantIds: [],
-    pendingTransfer: null,
-    schedule: [],
-    transferHistory: [],
-    photos: [],
-    status: "recruiting" as const,
-    sourceRequestId: id,
-  }));
-
-  await mutate("study-requests", (rows) =>
-    rows.map((r) => {
-      if (r.id !== id) return r;
-      if (r.status !== "pending") throw new AppError("CONFLICT"); // CAS
-      return { ...r, status: "approved" as const };
-    }),
+  // The study and the request's flip in one transaction, judged on the
+  // request as it is now (flow_approve_study_request).
+  const { request } = await callFlow<FlowResult & { request: unknown }>(
+    "flow_approve_study_request",
+    { id, studyId: newId() },
   );
-  return request;
+  return StudyRequestSchema.parse(request);
 }
 
 export async function rejectStudy(id: string): Promise<StudyRequest> {

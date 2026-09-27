@@ -648,6 +648,244 @@ begin
     'touchedQueues', jsonb_build_array(v_id));
 end $$;
 
+-- Approve a membership application (admin) — S9 conversion. A new applicant
+-- becomes a member + private-info (inheriting join date, roles and project
+-- from a legacy record with the same email); a returning one keeps their rows
+-- and gets the application's contact details. Either way: this term's
+-- registration, then the application row is removed. All or nothing, on the
+-- application as it is now — an approve racing a reject either wins whole or
+-- finds the row gone, never leaving a member behind a rejected application.
+-- Steps anchored on the application id (sourceRequestId) are not repeated.
+--   p = { id, now, today, term, adminEmailHashes[],
+--         memberId, privateInfoId, registrationId }   (ids for new rows)
+--   → { name, email, memberId }
+create or replace function flow_approve_application(p jsonb) returns jsonb
+language plpgsql set search_path = public as $$
+declare
+  v_id        text := p ->> 'id';
+  v_apps      jsonb;
+  v_app       jsonb;
+  v_email     text;
+  v_admin     boolean;
+  v_members   jsonb;
+  v_member    jsonb;
+  v_infos     jsonb;
+  v_info      jsonb;
+  v_lp_info   jsonb;
+  v_lp_member jsonb;
+  v_member_id text;
+  v_regs      jsonb;
+  v_touched   text[] := array['applications'];
+begin
+  perform app_lock(array['applications', 'members', 'private-info', 'registrations']);
+  v_apps := app_rows('applications');
+  v_app := app_find(v_apps, v_id);
+  if v_app is null then
+    -- gone: converted already (its registration exists) or never there
+    if exists (select 1 from jsonb_array_elements(app_rows('registrations')) r
+                where r ->> 'sourceRequestId' = v_id) then
+      raise exception 'CONFLICT';
+    end if;
+    raise exception 'NOT_FOUND';
+  end if;
+
+  v_email := lower(trim(v_app ->> 'email'));
+  -- bootstrap admins are stamped on conversion; the record is the truth after
+  -- (sha256 hex of normalized emails: the addresses stay out of RPC arguments)
+  v_admin := coalesce(p -> 'adminEmailHashes', '[]'::jsonb)
+             ? encode(sha256(convert_to(v_email, 'UTF8')), 'hex');
+  v_members := app_rows('members');
+  v_infos := app_rows('private-info');
+  select i into v_info from jsonb_array_elements(v_infos) i
+   where lower(trim(i ->> 'email')) = v_email limit 1;
+
+  if v_info is not null then
+    -- returning member: refresh contact details from the application
+    v_member_id := v_info ->> 'memberId';
+    if v_admin then
+      v_member := app_find(v_members, v_member_id);
+      if v_member is not null and not coalesce((v_member ->> 'isAdmin')::boolean, false) then
+        perform app_put('members', app_replace(v_members, v_member_id,
+          v_member || jsonb_build_object('isAdmin', true)));
+        v_touched := v_touched || array['members'];
+      end if;
+    end if;
+    perform app_put('private-info', app_replace(v_infos, v_info ->> 'id',
+      v_info || jsonb_build_object(
+        'phone', v_app -> 'phone',
+        'studentId', coalesce(nullif(v_app ->> 'studentId', ''), v_info ->> 'studentId', ''),
+        'background', v_app -> 'background')));
+    v_touched := v_touched || array['private-info'];
+  else
+    -- new member. Continuity fields come from the legacy archive (join date,
+    -- officer history, project); status, alumni flags and publicContact do
+    -- not (charter reclassification, consent re-check).
+    select i into v_lp_info from jsonb_array_elements(app_rows('legacy-private-info')) i
+     where lower(trim(i ->> 'email')) = v_email limit 1;
+    if v_lp_info is not null then
+      v_lp_member := app_find(app_rows('legacy-members'), v_lp_info ->> 'memberId');
+    end if;
+
+    select m into v_member from jsonb_array_elements(v_members) m
+     where m ->> 'sourceRequestId' = v_id limit 1;
+    if v_member is null then
+      v_member := jsonb_build_object(
+        'id', p ->> 'memberId',
+        'name', v_app -> 'name',
+        'department', v_app -> 'department',
+        'joinedAt', coalesce(app_nullable(v_lp_member -> 'joinedAt'), to_jsonb(p ->> 'today')),
+        'status', 'associate',
+        'statusChangedAt', p ->> 'now',
+        'withdrawal', null,
+        'isAlumni', false,
+        'alumniRevoked', false,
+        'roles', coalesce(v_lp_member -> 'roles', '[]'::jsonb),
+        'isAdmin', v_admin,
+        'publicContact', null,
+        'project', coalesce(v_lp_member -> 'project', 'null'::jsonb),
+        'legacyMemberId', coalesce(v_lp_info -> 'memberId', 'null'::jsonb),
+        'sourceRequestId', v_id);
+      perform app_put('members', v_members || jsonb_build_array(v_member));
+      v_touched := v_touched || array['members'];
+    end if;
+    v_member_id := v_member ->> 'id';
+
+    if not exists (select 1 from jsonb_array_elements(v_infos) i
+                    where i ->> 'sourceRequestId' = v_id) then
+      perform app_put('private-info', v_infos || jsonb_build_array(jsonb_build_object(
+        'id', p ->> 'privateInfoId',
+        'memberId', v_member_id,
+        'email', v_app -> 'email',
+        'phone', v_app -> 'phone',
+        'studentId', coalesce(v_app -> 'studentId', '""'::jsonb),
+        'background', v_app -> 'background',
+        'mailPrefs', jsonb_build_object('announcements', true),
+        'hidePublicPhone', false,
+        'sourceRequestId', v_id)));
+      v_touched := v_touched || array['private-info'];
+    end if;
+  end if;
+
+  -- S9: this term's registration — the source of every membership right
+  v_regs := app_rows('registrations');
+  if not exists (select 1 from jsonb_array_elements(v_regs) r
+                  where r ->> 'sourceRequestId' = v_id) then
+    perform app_put('registrations', v_regs || jsonb_build_array(jsonb_build_object(
+      'id', p ->> 'registrationId',
+      'memberId', v_member_id,
+      'term', p ->> 'term',
+      'registeredAt', p ->> 'now',
+      'sourceRequestId', v_id)));
+    v_touched := v_touched || array['registrations'];
+  end if;
+
+  perform app_put('applications', app_without(v_apps, 'id', v_id));
+
+  return jsonb_build_object(
+    'touched', to_jsonb(v_touched),
+    'name', v_app ->> 'name',
+    'email', v_app ->> 'email',
+    'memberId', v_member_id);
+end $$;
+
+-- Approve a seminar request (admin): the archive record (unscheduled — the
+-- schedule is agreed afterwards) and the request's flip to approved, together
+-- and on the request as it is now: a request withdrawn, rejected or edited
+-- since the admin's page load is judged by its current state. The request's
+-- poster moves to the seminar. A seminar already anchored on the request (a
+-- run cut short before this function existed) is reused.
+--   p = { id, seminarId, term }  → { request }  (as it was before the flip)
+create or replace function flow_approve_seminar_request(p jsonb) returns jsonb
+language plpgsql set search_path = public as $$
+declare
+  v_id       text := p ->> 'id';
+  v_requests jsonb;
+  v_req      jsonb;
+  v_seminars jsonb;
+  v_touched  text[] := array['seminar-requests'];
+begin
+  perform app_lock(array['seminar-requests', 'seminars']);
+  v_requests := app_rows('seminar-requests');
+  v_req := app_find(v_requests, v_id);
+  if v_req is null then raise exception 'NOT_FOUND'; end if;
+  if v_req ->> 'status' <> 'pending' then raise exception 'CONFLICT'; end if;
+
+  v_seminars := app_rows('seminars');
+  if not exists (select 1 from jsonb_array_elements(v_seminars) s
+                  where s ->> 'sourceRequestId' = v_id) then
+    perform app_put('seminars', v_seminars || jsonb_build_array(jsonb_build_object(
+      'id', p ->> 'seminarId',
+      'title', v_req -> 'title',
+      -- provisional: publication derives the term from the real schedule
+      'semester', p ->> 'term',
+      'note', v_req -> 'description',
+      'description', v_req -> 'description',
+      'presenterIds', coalesce(v_req -> 'presenterIds', '[]'::jsonb),
+      'externalPresenters', '',
+      'materials', '[]'::jsonb,
+      'photos', '[]'::jsonb,
+      'posterKey', coalesce(v_req -> 'posterKey', '""'::jsonb),
+      'preferredTiming', coalesce(v_req -> 'preferredTiming', '""'::jsonb),
+      'publicationStatus', 'unscheduled',
+      'schedule', null,
+      'announcedAt', null,
+      'semesterPinned', false,
+      'activityId', null,
+      'sourceRequestId', v_id)));
+    v_touched := v_touched || array['seminars'];
+  end if;
+
+  perform app_put('seminar-requests', app_replace(v_requests, v_id,
+    v_req || jsonb_build_object('status', 'approved')));
+  return jsonb_build_object('touched', to_jsonb(v_touched), 'request', v_req);
+end $$;
+
+-- Approve a study request (admin, ADM-16): the study with the requester as
+-- organizer and first participant, and the request's flip to approved —
+-- together, on the request as it is now. An anchored study is reused.
+--   p = { id, studyId }  → { request }  (as it was before the flip)
+create or replace function flow_approve_study_request(p jsonb) returns jsonb
+language plpgsql set search_path = public as $$
+declare
+  v_id       text := p ->> 'id';
+  v_requests jsonb;
+  v_req      jsonb;
+  v_studies  jsonb;
+  v_touched  text[] := array['study-requests'];
+begin
+  perform app_lock(array['studies', 'study-requests']);
+  v_requests := app_rows('study-requests');
+  v_req := app_find(v_requests, v_id);
+  if v_req is null then raise exception 'NOT_FOUND'; end if;
+  if v_req ->> 'status' <> 'pending' then raise exception 'CONFLICT'; end if;
+
+  v_studies := app_rows('studies');
+  if not exists (select 1 from jsonb_array_elements(v_studies) s
+                  where s ->> 'sourceRequestId' = v_id) then
+    perform app_put('studies', v_studies || jsonb_build_array(jsonb_build_object(
+      'id', p ->> 'studyId',
+      'title', v_req -> 'title',
+      'semester', v_req -> 'semester',
+      'textbook', v_req -> 'textbook',
+      'description', v_req -> 'description',
+      'note', '',
+      'organizerIds', jsonb_build_array(v_req -> 'requesterId'),
+      'participantIds', jsonb_build_array(v_req -> 'requesterId'),
+      'pendingParticipantIds', '[]'::jsonb,
+      'pendingTransfer', null,
+      'schedule', '[]'::jsonb,
+      'transferHistory', '[]'::jsonb,
+      'photos', '[]'::jsonb,
+      'status', 'recruiting',
+      'sourceRequestId', v_id)));
+    v_touched := v_touched || array['studies'];
+  end if;
+
+  perform app_put('study-requests', app_replace(v_requests, v_id,
+    v_req || jsonb_build_object('status', 'approved')));
+  return jsonb_build_object('touched', to_jsonb(v_touched), 'request', v_req);
+end $$;
+
 -- ---------------------------------------------------------------------------
 -- 99. Privileges — flows and helpers run for the service role only.
 --     (Guarded: PGlite has no Supabase roles.)
