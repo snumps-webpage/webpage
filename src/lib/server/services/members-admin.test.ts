@@ -202,3 +202,35 @@ describe("admin plenary organizer transfer (§7-4)", () => {
     });
   });
 });
+
+// The last-admin guard counted every member row with isAdmin — a withdrawn
+// one included — and ignored the env bootstrap admin, who has no member row
+// and stays admin (adversarial review of the audit fixes, L2).
+describe("the last-admin guard counts admins who can still act", () => {
+  it("does not count a withdrawn admin", async () => {
+    const actor = await seedMember({ isAdmin: true });
+    const target = await seedMember({ isAdmin: true });
+    await seedMember({
+      isAdmin: true,
+      status: "withdrawn",
+      withdrawal: {
+        requestedAt: nowKstIso(),
+        previousStatus: "regular",
+        holdBy: null,
+        holdAt: null,
+      },
+    });
+    await setAdmin(target.id, false, actor.id); // actor remains
+    await expect(setAdmin(actor.id, false, "someone")).rejects.toSatisfy(
+      (e) => e instanceof AppError && e.code === "CONFLICT",
+    );
+  });
+
+  it("lets the env bootstrap admin revoke the only admin row", async () => {
+    const only = await seedMember({ isAdmin: true });
+    await setAdmin(only.id, false, "env-admin-boot");
+    expect(
+      (await getTable("members")).find((m) => m.id === only.id)?.isAdmin,
+    ).toBe(false);
+  });
+});

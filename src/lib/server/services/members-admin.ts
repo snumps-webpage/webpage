@@ -1,6 +1,7 @@
 import { AppError, definedOnly } from "$lib/server/core/errors";
 import { nowKstIso } from "$lib/server/core/time";
 import { withdrawalGraceEndsAt } from "$lib/domain/account";
+import { isBootstrapAdminActorId } from "$lib/server/core/admin-bootstrap";
 import {
   memberRolesSchema,
   type ActiveMemberStatus,
@@ -166,7 +167,12 @@ export async function setAdmin(
     const idx = rows.findIndex((m) => m.id === targetId);
     if (idx === -1) throw new AppError("NOT_FOUND");
     rows[idx] = { ...rows[idx], isAdmin };
-    if (!rows.some((m) => m.isAdmin)) {
+    // Admins who can still act: a withdrawn row cannot, and the env bootstrap
+    // admin has no row but stays admin (adversarial review L2).
+    const remains =
+      isBootstrapAdminActorId(actorId) ||
+      rows.some((m) => m.isAdmin && m.status !== "withdrawn");
+    if (!remains) {
       throw new AppError("CONFLICT", {
         userMessage: "마지막 관리자의 권한은 회수할 수 없습니다.",
       });

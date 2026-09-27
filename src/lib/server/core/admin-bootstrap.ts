@@ -41,5 +41,12 @@ export function bootstrapAdminActorId(email: string): string {
   const digest = createHash("sha256")
     .update(email.trim().toLowerCase())
     .digest("hex");
-  return `env-admin-${digest.slice(0, 8)}`;
+  return `${ENV_ADMIN_PREFIX}${digest.slice(0, 8)}`;
+}
+
+const ENV_ADMIN_PREFIX = "env-admin-";
+
+/** Is this actor the env bootstrap admin (no member row, admin by env)? */
+export function isBootstrapAdminActorId(actorId: string): boolean {
+  return actorId.startsWith(ENV_ADMIN_PREFIX);
 }
