@@ -255,6 +255,44 @@ describe("mail dispatcher (S10)", () => {
     expect(sent).toHaveLength(1);
     expect(sent[0].to).toEqual(["admin@snu.ac.kr"]);
   });
+
+  /**
+   * A stored rule's recipient was trusted by cast: a kind the event does not
+   * allow was sent to anyway, and an unknown kind threw a TypeError that
+   * logged only "failed" (audit LB11-3). Such rows are skipped and named.
+   */
+  it("skips rule rows whose recipient the event does not allow", async () => {
+    const rule = (id: string, recipient: string) => ({
+      id,
+      event: "application.submitted", // allows admins, executives
+      templateKey: "signup-received",
+      recipient,
+      enabled: true,
+      updatedAt: "2026-08-31T00:00:00+09:00",
+    });
+    seed({
+      "mail-rules": [
+        rule("r1", "admins"),
+        rule("r2", "party"),
+        rule("r3", "everyone"),
+      ],
+    });
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await emitMailEvent(
+        "application.submitted",
+        { applicantName: "김수학" },
+        { partyEmail: "applicant@snu.ac.kr" },
+      );
+      expect(sent.map((s) => s.to)).toEqual([["admin@snu.ac.kr"]]);
+      const logged = log.mock.calls.map((c) => c.join(" ")).join("\n");
+      expect(logged).toContain("r2");
+      expect(logged).toContain("r3");
+      expect(logged).not.toContain("TypeError");
+    } finally {
+      log.mockRestore();
+    }
+  });
 });
 
 // A failed read of the admin's mail settings fell back to the code defaults,

@@ -116,6 +116,10 @@ async function resolveRecipients(
  * 이벤트의 유효 규칙: 테이블에 행이 있으면 그것이 전체 진실, 없으면 기본 규칙.
  * 조회 실패는 던진다 — 기본 규칙(전부 켜짐)으로 떨어지면 관리자가 끈 메일이
  * 다시 나간다 (감사 LB11-2). emitMailEvent가 잡아 false로 기록한다.
+ *
+ * 행의 수신자는 자유 문자열로 저장된다. 이벤트가 허용하지 않는 수신자의 행은
+ * 건너뛰고 로그를 남긴다 — 캐스트로 믿으면 거절 통지가 전 회원에게 나갈 수
+ * 있다 (감사 LB11-3).
  */
 export async function effectiveRules(
   event: MailEventKey,
@@ -124,11 +128,22 @@ export async function effectiveRules(
 > {
   const rows = (await getTable("mail-rules")).filter((r) => r.event === event);
   if (rows.length > 0) {
-    return rows.map((r) => ({
-      templateKey: r.templateKey,
-      recipient: r.recipient as RecipientKind,
-      enabled: r.enabled,
-    }));
+    const allowed: readonly string[] = MAIL_EVENTS[event].allowedRecipients;
+    return rows.flatMap((r) => {
+      if (!allowed.includes(r.recipient)) {
+        console.error(
+          `[Mail] ${event}: rule ${r.id} skipped — recipient "${r.recipient}" is not allowed for this event`,
+        );
+        return [];
+      }
+      return [
+        {
+          templateKey: r.templateKey,
+          recipient: r.recipient as RecipientKind,
+          enabled: r.enabled,
+        },
+      ];
+    });
   }
   return MAIL_EVENTS[event].defaultRules.map((r) => ({ ...r, enabled: true }));
 }
