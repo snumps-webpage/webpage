@@ -3,6 +3,7 @@
  * Handles OAuth2 token management and raw Gmail API calls.
  */
 import { env } from "$env/dynamic/private";
+import { isSingleAddress } from "./address";
 
 let cachedAccessToken: string | null = null;
 let tokenExpiry = 0;
@@ -47,10 +48,6 @@ export async function getAdminAccessToken(): Promise<string> {
   return data.access_token;
 }
 
-/** One plain address — no whitespace, separators, brackets or quotes. */
-const SINGLE_ADDRESS =
-  /^[^\s@,;:<>()"'\\[\]]+@[^\s@,;:<>()"'\\[\]]+\.[^\s@,;:<>()"'\\[\]]+$/;
-
 /**
  * Internal helper to send the actual RFC 2822 email via Gmail API.
  */
@@ -64,7 +61,7 @@ export async function dispatchEmail(
   // Header lines are joined raw below: a recipient carrying CR/LF, a comma or
   // a display name would add headers or recipients of its own (audit
   // LB10-1). Every recipient must be exactly one plain address.
-  const bad = recipients.find((r) => !SINGLE_ADDRESS.test(r));
+  const bad = recipients.find((r) => !isSingleAddress(r));
   if (bad !== undefined) throw new Error("invalid mail recipient");
 
   // Bcc mode is MANDATORY for any all-member send (API-SPEC §5-7): a To:

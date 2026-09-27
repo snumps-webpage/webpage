@@ -351,3 +351,32 @@ describe("the event catalogue is a closed set in the type (audit LB12-1)", () =>
     expect(typeof typo).toBe("function");
   });
 });
+
+// dispatchEmail refuses a whole message when one recipient is not a single
+// plain address (header injection, LB10-1) — so one odd stored address cost
+// every other recipient of its 80-address Bcc batch the announcement, and
+// nothing retried it (adversarial review of the audit fixes, L1). The odd
+// address is now left out and logged; the rest are sent; the result is false.
+describe("an address the header check refuses", () => {
+  beforeEach(async () => {
+    __reset();
+    _resetDataLayerForTests();
+    sent.length = 0;
+    for (const t of ["mail-rules", "mail-templates", "mail-variables"]) {
+      await invalidateCache(`table_${t}`);
+    }
+    seed();
+  });
+
+  it("is left out of its batch instead of sinking it", async () => {
+    testEnv.ADMINS_EMAILS = "admin@snu.ac.kr, bad<x>@snu.ac.kr";
+
+    const ok = await emitMailEvent("application.submitted", {
+      applicantName: "김수학",
+    });
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0].to).toEqual(["admin@snu.ac.kr"]);
+    expect(ok).toBe(false);
+  });
+});

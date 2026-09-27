@@ -1,6 +1,7 @@
 import { env } from "$env/dynamic/private";
 import { currentTerm } from "$lib/server/core/semester";
 import { getTable } from "$lib/server/data/tables";
+import { isSingleAddress } from "./address";
 import { getAdminAccessToken, dispatchEmail } from "./client";
 import { MAIL_EVENTS, type MailEventKey, type RecipientKind } from "./events";
 import { renderMailTemplate } from "./template-store";
@@ -164,10 +165,20 @@ export async function emitMailEvent(
       try {
         const rendered = await renderMailTemplate(rule.templateKey, vars);
         if (!rendered) continue; // 템플릿이 꺼져 있거나 삭제됨 — 이 규칙만 스킵
-        const { emails, bcc } = await resolveRecipients(
-          rule.recipient,
-          context,
-        );
+        const resolved = await resolveRecipients(rule.recipient, context);
+        const { bcc } = resolved;
+        // dispatchEmail refuses a whole message over one address it cannot
+        // put in a header — one odd stored address would sink every other
+        // recipient of its batch. Leave it out, log it, report false.
+        const emails = resolved.emails.filter(isSingleAddress);
+        const dropped = resolved.emails.length - emails.length;
+        if (dropped > 0) {
+          console.error(
+            `[Mail] ${event}/${rule.templateKey}: ${dropped} address(es) left out — not a single plain address`,
+          );
+          ok = false;
+          if (context.tally) context.tally.failed++;
+        }
         if (emails.length === 0) continue;
         const accessToken = await getAdminAccessToken();
         for (const batch of chunk(emails, BATCH_SIZE)) {

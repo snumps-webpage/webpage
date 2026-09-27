@@ -28,6 +28,15 @@ afterEach(() => vi.unstubAllGlobals());
 const INJECTED = "admin@snu.ac.kr\r\nBcc: someone@example.com";
 
 describe("dispatchEmail", () => {
+  // The stored-email rule (z.email) accepts an apostrophe; refusing it here
+  // failed a whole Bcc batch over one member (review L1). It cannot add a
+  // header or a recipient.
+  it("accepts an apostrophe in the local part", async () => {
+    await expect(
+      dispatchEmail("token", ["o'neil@snu.ac.kr"], "제목", "본문"),
+    ).resolves.not.toThrow();
+  });
+
   it.each([
     INJECTED,
     "a@snu.ac.kr\nBcc: b@example.com",
