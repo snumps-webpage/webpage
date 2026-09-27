@@ -4,6 +4,7 @@ import {
   getApplicationForEmail,
   updateOwnApplication,
 } from "$lib/server/services/membership";
+import { applicationView } from "$lib/server/data/views";
 import { normalizePhoneNumber, parseGoogleName } from "$lib/utils";
 import { AppError } from "$lib/server/core/errors";
 import { stripInvisibles } from "$lib/server/core/strings";
@@ -20,11 +21,8 @@ export const load: PageServerLoad = async (event) => {
   return {
     user: session.user,
     parsedInfo: parseGoogleName(session.user.name),
-    application: {
-      ...application,
-      accepted: false,
-      submittedAt: application.createdAt,
-    },
+    // The projection, never the raw row: this key replaces the layout's (LA36-1).
+    application: applicationView(application),
   };
 };
 

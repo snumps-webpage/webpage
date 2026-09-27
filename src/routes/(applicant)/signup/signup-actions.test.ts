@@ -12,7 +12,8 @@ import { __reset } from "$lib/server/data/store-memory";
 import { _resetDataLayerForTests, getTable } from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { actions as signup } from "./+page.server";
-import { actions as edit } from "./edit/+page.server";
+import { actions as edit, load as editLoad } from "./edit/+page.server";
+import { applicationView } from "$lib/server/data/views";
 
 /**
  * The signup form already renders per-field issues (studentId, phone,
@@ -118,6 +119,15 @@ describe("signup/edit", () => {
       phone: "010-9999-8888",
       studentId: "2021-54321",
     });
+  });
+
+  // LA36-1: the load spread the raw row into page data, replacing the layout's
+  // projection — a field added to ApplicationSchema would reach the browser.
+  it("loads the application through the projection, not the raw row", async () => {
+    const data = (await editLoad(post({}))) as { application: unknown };
+
+    const [row] = await getTable("applications");
+    expect(data.application).toEqual(applicationView(row));
   });
 
   it("refuses a bad phone with a field issue and keeps the row", async () => {
