@@ -9,9 +9,19 @@ import { notifyExecutivesOfWithdrawal } from "$lib/server/mail/announcements";
 /** MEM-07: the withdrawal request page (triple confirmation). */
 export const load: PageServerLoad = async ({ locals }) => {
   const memberId = locals.member!.memberId;
-  // Mirrors the organizer guard in services/withdrawal.ts so the UI can warn upfront.
-  const organizedStudies = (await getTable("studies"))
-    .filter((s) => s.organizerIds.includes(memberId) && s.status !== "finished")
+  // Mirrors the organizer check in flow_request_withdrawal so the UI can warn
+  // upfront — including studies that list the member by their legacy id.
+  const [studies, members] = await Promise.all([
+    getTable("studies"),
+    getTable("members"),
+  ]);
+  const legacyId = members.find((m) => m.id === memberId)?.legacyMemberId;
+  const ids = new Set([memberId, ...(legacyId ? [legacyId] : [])]);
+  const organizedStudies = studies
+    .filter(
+      (s) =>
+        s.organizerIds.some((id) => ids.has(id)) && s.status !== "finished",
+    )
     .map((s) => s.title);
   return { memberName: locals.member!.name, organizedStudies };
 };

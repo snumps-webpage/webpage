@@ -1111,8 +1111,11 @@ begin
      or p ->> 'confirmName' is distinct from v_m ->> 'name' then
     raise exception 'VALIDATION_FAILED';
   end if;
+  -- Migrated studies list a returning member by their legacy id — both ids
+  -- are theirs (the same rule as auth-guards ensureOrganizer; audit LB02-6).
   if exists (select 1 from jsonb_array_elements(app_rows('studies')) s
-              where s -> 'organizerIds' ? v_id and s ->> 'status' <> 'finished') then
+              where s -> 'organizerIds' ?| array_remove(array[v_id, v_m ->> 'legacyMemberId'], null)
+                and s ->> 'status' <> 'finished') then
     raise exception 'CONFLICT';
   end if;
 

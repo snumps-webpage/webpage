@@ -139,6 +139,39 @@ describe("the change and its audit row commit together", () => {
   });
 });
 
+describe("request: an organizer listed by their legacy id", () => {
+  // Migrated studies list organizers by their pre-return (legacy) id. The
+  // check compared the current id only, so a returning organizer could
+  // withdraw without handing over (audit LB02-6).
+  it("must hand over first too", async () => {
+    const m = await seed({ legacyMemberId: "legacy-1" });
+    await mutate("studies", () => [
+      {
+        id: newId(),
+        title: "해석학",
+        semester: "26-2",
+        textbook: "",
+        description: "",
+        note: "",
+        organizerIds: ["legacy-1"],
+        participantIds: ["legacy-1"],
+        pendingParticipantIds: [],
+        pendingTransfer: null,
+        schedule: [],
+        transferHistory: [],
+        photos: [],
+        status: "ongoing" as const,
+        sourceRequestId: null,
+      },
+    ]);
+
+    await expect(requestWithdrawal(m.id, confirm(m.name))).rejects.toThrow(
+      "CONFLICT",
+    );
+    expect((await getTable("members"))[0].status).toBe("regular");
+  });
+});
+
 describe("request: an organizer must hand over first", () => {
   it("refuses while organizing an unfinished study", async () => {
     const m = await seed();
