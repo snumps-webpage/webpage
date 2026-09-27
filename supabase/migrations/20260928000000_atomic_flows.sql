@@ -100,10 +100,37 @@ language sql set search_path = public as $$
   delete from app_queues where event_id = p_event_id
 $$;
 
+-- Replace a (locked) queue document's rows and bump its version.
+create or replace function app_queue_put(p_event_id text, p_rows jsonb) returns void
+language plpgsql set search_path = public as $$
+begin
+  update app_queues
+     set doc = jsonb_set(doc, '{rows}', coalesce(p_rows, '[]'::jsonb)),
+         version = version + 1
+   where event_id = p_event_id;
+  if not found then
+    raise exception 'app_queue_put: queue % is not locked/created', p_event_id;
+  end if;
+end $$;
+
 -- JSON null and a missing key alike → SQL NULL.
 create or replace function app_nullable(p_value jsonb) returns jsonb
 language sql immutable as $$
   select case when p_value is null or jsonb_typeof(p_value) = 'null' then null else p_value end
+$$;
+
+-- Is the event open for check-in at p_now? Mirror of services/events.ts
+-- effectiveStatus: an active event closes at date.end, or without one at the
+-- end of its start's KST day.
+create or replace function app_event_open(p_event jsonb, p_now timestamptz)
+returns boolean language sql stable as $$
+  select p_event ->> 'status' = 'active'
+     and coalesce(
+           (app_nullable(p_event -> 'date' -> 'end') #>> '{}')::timestamptz,
+           (date_trunc('day', ((p_event -> 'date' ->> 'start')::timestamptz at time zone 'UTC')
+                              + interval '9 hours')
+            + interval '1 day' - interval '9 hours') at time zone 'UTC'
+         ) >= p_now
 $$;
 
 -- ---------------------------------------------------------------------------
@@ -486,6 +513,139 @@ begin
     'flipped', v_flipped,
     'wasAnnounced', v_announced,
     'started', v_started);
+end $$;
+
+-- Check in to an event (member): a pending row in the event's queue. The
+-- event is read under a SHARE lock — check-ins do not wait for each other,
+-- but a delete or cancel of the event cannot commit in between, so no row is
+-- ever queued for an event that is gone or closed.
+--   p = { eventId, memberId, id, now }  (id = new row id, now = KST ISO)
+create or replace function flow_check_in(p jsonb) returns jsonb
+language plpgsql set search_path = public as $$
+declare
+  v_event_id text := p ->> 'eventId';
+  v_member   text := p ->> 'memberId';
+  v_event    jsonb;
+  v_rows     jsonb;
+  v_record   jsonb;
+begin
+  perform 1 from app_tables where name = 'events' for share;
+  v_event := app_find(app_rows('events'), v_event_id);
+  if v_event is null then raise exception 'NOT_FOUND'; end if;
+  if not app_event_open(v_event, (p ->> 'now')::timestamptz) then
+    raise exception 'EVENT_NOT_OPEN';
+  end if;
+
+  insert into app_queues (event_id, version, doc)
+    values (v_event_id, 1, jsonb_build_object('schemaVersion', 1, 'rows', '[]'::jsonb))
+    on conflict (event_id) do nothing;
+  perform app_queue_lock(array[v_event_id]);
+  v_rows := app_queue_rows(v_event_id);
+  if exists (select 1 from jsonb_array_elements(v_rows) r where r ->> 'memberId' = v_member) then
+    raise exception 'CONFLICT';
+  end if;
+  -- one-click completion records both instants
+  v_record := jsonb_build_object(
+    'id', p ->> 'id',
+    'memberId', v_member,
+    'eventId', v_event_id,
+    'startTime', p ->> 'now',
+    'endTime', p ->> 'now',
+    'status', 'pending');
+  perform app_queue_put(v_event_id, v_rows || jsonb_build_array(v_record));
+
+  return jsonb_build_object(
+    'touchedQueues', jsonb_build_array(v_event_id),
+    'record', v_record);
+end $$;
+
+-- Decide a check-in (admin): approve credits the member on the event's
+-- activity; reject or delete of an APPROVED row takes that credit back
+-- (API-SPEC §7-2). Queue row and activity change together, so an approve and
+-- a reject racing on one row cannot leave a rejected row with credit.
+--   p = { eventId, queueId, decision: 'approve' | 'reject' | 'delete' }
+create or replace function flow_decide_attendance(p jsonb) returns jsonb
+language plpgsql set search_path = public as $$
+declare
+  v_event_id text := p ->> 'eventId';
+  v_queue_id text := p ->> 'queueId';
+  v_decision text := p ->> 'decision';
+  v_rows     jsonb;
+  v_row      jsonb;
+  v_member   text;
+  v_event    jsonb;
+  v_acts     jsonb;
+  v_act      jsonb;
+  v_touched  text[] := '{}';
+begin
+  if v_decision not in ('approve', 'reject', 'delete') then
+    raise exception 'VALIDATION_FAILED';
+  end if;
+  perform app_lock(array['activities', 'events']);
+  perform app_queue_lock(array[v_event_id]);
+  v_rows := app_queue_rows(v_event_id);
+  v_row := app_find(v_rows, v_queue_id);
+  if v_row is null then raise exception 'NOT_FOUND'; end if;
+  v_member := v_row ->> 'memberId';
+  v_event := app_find(app_rows('events'), v_event_id);
+  v_acts := app_rows('activities');
+
+  if v_decision = 'approve' then
+    if v_event is null then raise exception 'NOT_FOUND'; end if;
+    v_act := app_find(v_acts, v_event ->> 'activityId');
+    if v_act is null then raise exception 'NOT_FOUND'; end if; -- dangling reference
+    if not (v_act -> 'attendeeIds' ? v_member) then
+      perform app_put('activities', app_replace(v_acts, v_act ->> 'id',
+        jsonb_set(v_act, '{attendeeIds}', (v_act -> 'attendeeIds') || to_jsonb(v_member))));
+      v_touched := v_touched || array['activities'];
+    end if;
+    perform app_queue_put(v_event_id, app_replace(v_rows, v_queue_id,
+      v_row || jsonb_build_object('status', 'approved')));
+  else
+    if v_row ->> 'status' = 'approved' and v_event is not null then
+      v_act := app_find(v_acts, v_event ->> 'activityId');
+      if v_act is not null and v_act -> 'attendeeIds' ? v_member then
+        perform app_put('activities', app_replace(v_acts, v_act ->> 'id',
+          jsonb_set(v_act, '{attendeeIds}', (v_act -> 'attendeeIds') - v_member)));
+        v_touched := v_touched || array['activities'];
+      end if;
+    end if;
+    if v_decision = 'reject' then
+      perform app_queue_put(v_event_id, app_replace(v_rows, v_queue_id,
+        v_row || jsonb_build_object('status', 'rejected')));
+    else
+      perform app_queue_put(v_event_id, app_without(v_rows, 'id', v_queue_id));
+    end if;
+  end if;
+
+  return jsonb_build_object(
+    'touched', to_jsonb(v_touched),
+    'touchedQueues', jsonb_build_array(v_event_id));
+end $$;
+
+-- Delete an event (admin) with its queue — refused while check-ins are still
+-- pending (API-SPEC §7-2). The event lock keeps a check-in from landing
+-- between the pending test and the delete.
+--   p = { id }
+create or replace function flow_delete_event(p jsonb) returns jsonb
+language plpgsql set search_path = public as $$
+declare
+  v_id     text := p ->> 'id';
+  v_events jsonb;
+begin
+  perform app_lock(array['events']);
+  perform app_queue_lock(array[v_id]);
+  if exists (select 1 from jsonb_array_elements(app_queue_rows(v_id)) q
+              where q ->> 'status' = 'pending') then
+    raise exception 'CONFLICT';
+  end if;
+  v_events := app_rows('events');
+  if app_find(v_events, v_id) is null then raise exception 'NOT_FOUND'; end if;
+  perform app_put('events', app_without(v_events, 'id', v_id));
+  perform app_queue_delete(v_id);
+  return jsonb_build_object(
+    'touched', jsonb_build_array('events'),
+    'touchedQueues', jsonb_build_array(v_id));
 end $$;
 
 -- ---------------------------------------------------------------------------

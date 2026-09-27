@@ -2,13 +2,12 @@ import { AppError, definedOnly } from "$lib/server/core/errors";
 import { newId, randomToken } from "$lib/server/core/id";
 import { endOfKstDay, nowKstIso } from "$lib/server/core/time";
 import {
-  deleteQueue,
-  getQueue,
   getTable,
   listPendingQueues,
   mutate,
   mutateQueue,
 } from "$lib/server/data/tables";
+import { callFlow, type FlowResult } from "$lib/server/data/flows";
 import { getDirectoryIndex } from "$lib/server/data/directory";
 import { getMemberVisibleEvents } from "./visibility";
 import type {
@@ -151,40 +150,33 @@ export async function setEventStatus(
   });
 }
 
-/** §7-2: refuses while check-ins are still pending; removes the queue with the event. */
+/**
+ * §7-2: refuses while check-ins are still pending; removes the queue with the
+ * event — one transaction (flow_delete_event), so a check-in cannot land
+ * between the pending test and the delete.
+ */
 export async function deleteEventChecked(id: string): Promise<void> {
-  const pending = (await getQueue(id)).some((r) => r.status === "pending");
-  if (pending) throw new AppError("CONFLICT");
-  await mutate("events", (rows) => {
-    if (!rows.some((e) => e.id === id)) throw new AppError("NOT_FOUND");
-    return rows.filter((e) => e.id !== id);
-  });
-  await deleteQueue(id);
+  await callFlow("flow_delete_event", { id });
 }
 
 // ---- check-in (EVT-01 / SEM-05 / STU-03) ------------------------------------
 
+/**
+ * A pending check-in. The caller found `event` through the member-visible
+ * read (hidden seminars 404 there); flow_check_in re-reads it under a lock and
+ * decides "still there and open" on that — the cached copy may be up to 15s
+ * old, and a delete or cancel may have committed since.
+ */
 export async function checkIn(
   event: Event,
   memberId: string,
 ): Promise<AttendanceRecord> {
   if (effectiveStatus(event) !== "active") throw new AppError("EVENT_NOT_OPEN");
-  const now = nowKstIso();
-  let created: AttendanceRecord | undefined;
-  await mutateQueue(event.id, (rows) => {
-    if (rows.some((r) => r.memberId === memberId))
-      throw new AppError("CONFLICT");
-    created = {
-      id: newId(),
-      memberId,
-      eventId: event.id,
-      startTime: now,
-      endTime: now, // one-click completion records both instants
-      status: "pending",
-    };
-    return [...rows, created];
-  });
-  return created!;
+  const { record } = await callFlow<FlowResult & { record: AttendanceRecord }>(
+    "flow_check_in",
+    { eventId: event.id, memberId, id: newId(), now: nowKstIso() },
+  );
+  return record;
 }
 
 // ---- participation (EVT-02 / BE-43) -----------------------------------------
@@ -300,81 +292,39 @@ export async function savePresenterAttendance(
 
 // ---- queue administration (ADM-03) ------------------------------------------
 
-async function findQueueRow(
+/**
+ * Approve credits the member on the event's activity; reject or delete of an
+ * APPROVED row takes the credit back (§7-2). The queue row and the activity
+ * change in one transaction (flow_decide_attendance) — decided on the row as
+ * it is then, not as a page load showed it.
+ */
+async function decideAttendance(
   eventId: string,
   queueId: string,
-): Promise<AttendanceRecord> {
-  const row = (await getQueue(eventId)).find((r) => r.id === queueId);
-  if (!row) throw new AppError("NOT_FOUND");
-  return row;
+  decision: "approve" | "reject" | "delete",
+): Promise<void> {
+  await callFlow("flow_decide_attendance", { eventId, queueId, decision });
 }
 
 export async function approveAttendance(
   eventId: string,
   queueId: string,
 ): Promise<void> {
-  const row = await findQueueRow(eventId, queueId);
-  const event = (await getTable("events")).find((e) => e.id === eventId);
-  if (!event) throw new AppError("NOT_FOUND");
-
-  await mutate("activities", (rows) => {
-    const idx = rows.findIndex((a) => a.id === event.activityId);
-    if (idx === -1) throw new AppError("NOT_FOUND"); // dangling reference
-    if (!rows[idx].attendeeIds.includes(row.memberId)) {
-      rows[idx] = {
-        ...rows[idx],
-        attendeeIds: [...rows[idx].attendeeIds, row.memberId],
-      };
-    }
-    return rows;
-  });
-  await mutateQueue(eventId, (rows) =>
-    rows.map((r) =>
-      r.id === queueId ? { ...r, status: "approved" as const } : r,
-    ),
-  );
-}
-
-/** Rejection/deletion of an APPROVED row reverses the activity merge (§7-2). */
-async function reverseIfApproved(
-  eventId: string,
-  row: AttendanceRecord,
-): Promise<void> {
-  if (row.status !== "approved") return;
-  const event = (await getTable("events")).find((e) => e.id === eventId);
-  if (!event) return;
-  await mutate("activities", (rows) =>
-    rows.map((a) =>
-      a.id === event.activityId
-        ? {
-            ...a,
-            attendeeIds: a.attendeeIds.filter((id) => id !== row.memberId),
-          }
-        : a,
-    ),
-  );
+  await decideAttendance(eventId, queueId, "approve");
 }
 
 export async function rejectAttendance(
   eventId: string,
   queueId: string,
 ): Promise<void> {
-  const row = await findQueueRow(eventId, queueId);
-  await reverseIfApproved(eventId, row);
-  await mutateQueue(eventId, (rows) =>
-    rows.map((r) =>
-      r.id === queueId ? { ...r, status: "rejected" as const } : r,
-    ),
-  );
+  await decideAttendance(eventId, queueId, "reject");
 }
 
 export async function deleteAttendanceRecord(
   eventId: string,
   queueId: string,
 ): Promise<void> {
-  const row = await findQueueRow(eventId, queueId);
-  await reverseIfApproved(eventId, row);
-  await mutateQueue(eventId, (rows) => rows.filter((r) => r.id !== queueId));
+  await decideAttendance(eventId, queueId, "delete");
 }
 
 export async function updateAttendanceTime(
