@@ -3,6 +3,12 @@ import { requireAdminRest } from "$lib/server/core/http";
 import { getTable } from "$lib/server/data/tables";
 import type { MemberSummaryMap } from "$lib/server/data/admin-queue-views";
 import type { RequestHandler } from "./$types";
+import {
+  adminStudyRequestItem,
+  byCreatedAtAsc,
+  directorySummaryIndex,
+} from "$lib/server/data/admin-queue-views";
+import { nowKstIso } from "$lib/server/core/time";
 
 /** Admin polling: pending study proposals (§8-3 / BE-56). */
 export const GET: RequestHandler = async ({ locals }) => {
@@ -10,9 +16,6 @@ export const GET: RequestHandler = async ({ locals }) => {
   if (denied) return denied;
 
   const requests = await getTable("study-requests");
-  const { adminStudyRequestItem, byCreatedAtAsc, directorySummaryIndex } =
-    await import("$lib/server/data/admin-queue-views");
-  const { nowKstIso } = await import("$lib/server/core/time");
   const pending = requests
     .filter((r) => r.status === "pending")
     .sort(byCreatedAtAsc);

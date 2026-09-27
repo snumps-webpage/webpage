@@ -3,6 +3,8 @@ import { hasCapability, type Capability } from "./core/capabilities";
 import { AppError } from "./core/errors";
 import { resolveMember } from "./guards/resolve-member";
 import type { MemberContext } from "./guards/zone";
+import { invalidateCache } from "./cache";
+import { getTable } from "./data/tables";
 
 export interface AuthenticatedSession {
   user: {
@@ -137,7 +139,6 @@ async function runAction<T extends Record<string, unknown>>(
     }
 
     if (options.invalidate) {
-      const { invalidateCache } = await import("./cache");
       const keys = Array.isArray(options.invalidate)
         ? options.invalidate
         : [options.invalidate];
@@ -246,7 +247,6 @@ export async function handleAdminAction<T extends Record<string, unknown>>(
  * in services/events.ts (savePresenterAttendance), one owner per authority.
  */
 export async function ensureOrganizer(studyId: string, memberId: string) {
-  const { getTable } = await import("./data/tables");
   const study = (await getTable("studies")).find((s) => s.id === studyId);
   if (!study) throw new AppError("NOT_FOUND");
   // S9: 재가입 회원의 이주된 스터디는 organizerIds가 그 사람의 LEGACY id를

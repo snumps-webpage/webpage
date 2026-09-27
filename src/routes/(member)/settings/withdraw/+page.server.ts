@@ -4,6 +4,7 @@ import { handleUserAction } from "$lib/server/auth-guards";
 import { requestWithdrawal } from "$lib/server/services/withdrawal";
 import { getTable } from "$lib/server/data/tables";
 import type { PageServerLoad } from "./$types";
+import { notifyExecutivesOfWithdrawal } from "$lib/server/mail/announcements";
 
 /** MEM-07: the withdrawal request page (triple confirmation). */
 export const load: PageServerLoad = async ({ locals }) => {
@@ -35,8 +36,6 @@ export const actions = {
       await requestWithdrawal(memberId, parsed.data);
 
       // Notification failure must not undo the withdrawal itself.
-      const { notifyExecutivesOfWithdrawal } =
-        await import("$lib/server/mail/announcements");
       const sent = await notifyExecutivesOfWithdrawal(locals.member!.name);
       if (!sent) console.error("[Withdrawal] executive notice failed");
 

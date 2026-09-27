@@ -8,6 +8,11 @@ import {
   type Seminar,
   type SeminarSchedule,
 } from "$lib/server/data/schemas";
+import {
+  sendSeminarAnnouncement,
+  sendSeminarScheduleChange,
+  sendSeminarCancellation,
+} from "$lib/server/mail/announcements";
 
 /**
  * 취소를 요청한 주체. 규칙이 둘로 갈린다 — 개설자는 열리기 전까지만,
@@ -138,8 +143,6 @@ async function announce(id: string, seminar: Seminar): Promise<boolean> {
   const schedule = seminar.schedule!;
   if (new Date(schedule.startsAt).getTime() <= Date.now()) return false; // 기록 정정
 
-  const { sendSeminarAnnouncement } =
-    await import("$lib/server/mail/announcements");
   const sent = await sendSeminarAnnouncement({
     title: seminar.title,
     description: seminar.note,
@@ -185,8 +188,6 @@ export async function updateSeminarSchedule(
     out.changed &&
     new Date(schedule.startsAt).getTime() > Date.now()
   ) {
-    const { sendSeminarScheduleChange } =
-      await import("$lib/server/mail/announcements");
     mailFailed = !(await sendSeminarScheduleChange({
       title: seminar.title,
       schedule,
@@ -233,8 +234,6 @@ export async function cancelSeminar(
   // 기록 정정이므로 역시 알리지 않는다.
   let mailFailed = false;
   if (out.flipped && out.wasAnnounced && !out.started) {
-    const { sendSeminarCancellation } =
-      await import("$lib/server/mail/announcements");
     mailFailed = !(await sendSeminarCancellation({ title: seminar.title }));
   }
   return { seminar, mailFailed };

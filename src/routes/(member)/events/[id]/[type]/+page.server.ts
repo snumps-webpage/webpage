@@ -6,6 +6,7 @@ import { checkIn, effectiveStatus } from "$lib/server/services/events";
 import { getMemberVisibleEvents } from "$lib/server/services/visibility";
 import { parseGoogleName } from "$lib/utils";
 import type { PageServerLoad } from "./$types";
+import { sendAttendanceNotification } from "$lib/server/mail";
 
 /** EVT-01 / SEM-05: the shared check-in page behind the obfuscated link. */
 
@@ -85,7 +86,6 @@ export const actions = {
         throw e;
       }
 
-      const { sendAttendanceNotification } = await import("$lib/server/mail");
       const { name } = parseGoogleName(session.user.name);
       await sendAttendanceNotification(name || member.name, event.title);
       return {};

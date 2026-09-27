@@ -11,6 +11,7 @@ import {
   validateSeminarRequestForm,
 } from "$lib/domain/seminars";
 import type { PageServerLoad, Actions } from "./$types";
+import { sendSeminarApplicationNotification } from "$lib/server/mail";
 
 export const load: PageServerLoad = async ({ locals, url }) => {
   const session = await ensureSession(locals, url);
@@ -66,8 +67,6 @@ export const actions: Actions = {
         requesterId: member.memberId,
       });
 
-      const { sendSeminarApplicationNotification } =
-        await import("$lib/server/mail");
       await sendSeminarApplicationNotification(member.name, title);
     });
   },

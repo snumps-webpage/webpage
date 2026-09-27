@@ -11,6 +11,7 @@ import { stripInvisibles } from "$lib/server/core/strings";
 import { formText, fieldIssues } from "$lib/domain/form-data";
 import { membershipApplicationInputSchema } from "$lib/domain/membership-applications";
 import type { PageServerLoad } from "./$types";
+import { sendSignupNotification } from "$lib/server/mail";
 
 export const load: PageServerLoad = async (event) => {
   const isPreview = dev && event.url.searchParams.get("preview") === "1";
@@ -109,7 +110,6 @@ export const actions = {
         throw e;
       }
 
-      const { sendSignupNotification } = await import("$lib/server/mail");
       await sendSignupNotification(name);
     });
   },

@@ -11,7 +11,11 @@ import {
   getActivitiesOf,
   getPrivateInfoOf,
 } from "$lib/server/data/repos";
-import { effectiveStatus } from "$lib/server/services/events";
+import {
+  effectiveStatus,
+  applyToEvent,
+  cancelEventApplication,
+} from "$lib/server/services/events";
 import { seminarRequestView } from "$lib/server/data/views";
 import { currentTerm, termRange } from "$lib/server/core/semester";
 import { AppError } from "$lib/server/core/errors";
@@ -32,6 +36,7 @@ import type {
   StudyStatus,
 } from "$lib/server/data/schemas";
 import type { PageServerLoad } from "./$types";
+import { acceptTransfer, declineTransfer } from "$lib/server/services/studies";
 
 /** The streamed member-dashboard payload (FUNCTIONAL-SPEC MEM-04·05, EVT-02·03, STU-07). */
 export type DashboardData = {
@@ -473,7 +478,6 @@ export const actions = {
       }
       const eventId = parsed.data;
       await assertLedgerTarget(eventId);
-      const { applyToEvent } = await import("$lib/server/services/events");
       await applyToEvent(eventId, member.memberId);
       return {
         operation: "activityApplied" as const,
@@ -506,8 +510,6 @@ export const actions = {
       }
       const eventId = parsed.data;
       await assertLedgerTarget(eventId);
-      const { cancelEventApplication } =
-        await import("$lib/server/services/events");
       await cancelEventApplication(eventId, member.memberId);
       return {
         operation: "activityCancelled" as const,
@@ -530,7 +532,6 @@ export const actions = {
       if (!member) throw new AppError("FORBIDDEN");
       // `/` is public-zone: the guard's POST capability gate never runs here.
       requireCapability(locals, CAPABILITIES.PARTICIPATE);
-      const { acceptTransfer } = await import("$lib/server/services/studies");
       await acceptTransfer(studyId, member.memberId);
       return {};
     });
@@ -548,7 +549,6 @@ export const actions = {
       const member = locals.member;
       if (!member) throw new AppError("FORBIDDEN");
       requireCapability(locals, CAPABILITIES.PARTICIPATE);
-      const { declineTransfer } = await import("$lib/server/services/studies");
       await declineTransfer(studyId, member.memberId);
       return {};
     });

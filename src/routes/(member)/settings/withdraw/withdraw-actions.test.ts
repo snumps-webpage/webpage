@@ -4,7 +4,7 @@ vi.mock(
   "$lib/server/data/store",
   () => import("$lib/server/data/store-memory"),
 );
-const notifyExecutivesOfWithdrawal = vi.fn(async () => true);
+const notifyExecutivesOfWithdrawal = vi.hoisted(() => vi.fn(async () => true));
 vi.mock("$lib/server/mail/announcements", () => ({
   notifyExecutivesOfWithdrawal,
 }));

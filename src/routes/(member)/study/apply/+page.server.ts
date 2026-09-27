@@ -9,6 +9,7 @@ import {
   withdrawStudyRequest,
 } from "$lib/server/services/studies";
 import type { PageServerLoad } from "./$types";
+import { sendStudyApplicationNotification } from "$lib/server/mail";
 
 /** STU-01: study proposal — approval-gated (ADM-16). */
 export const load: PageServerLoad = async ({ locals }) => {
@@ -45,8 +46,6 @@ export const actions = {
         requesterId: locals.member!.memberId,
       });
 
-      const { sendStudyApplicationNotification } =
-        await import("$lib/server/mail");
       await sendStudyApplicationNotification(locals.member!.name, title);
       return {};
     });

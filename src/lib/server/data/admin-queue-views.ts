@@ -8,6 +8,7 @@ import type { AdminMembershipApplicationItem } from "$lib/domain/admin-dashboard
 import type { AdminSeminarRequestItem } from "$lib/domain/admin-seminars";
 import type { AdminStudyRequestItem } from "$lib/domain/studies";
 import { assetUrl } from "$lib/server/public/archive";
+import { getDirectoryIndex } from "./directory";
 
 /**
  * Admin queue projections shared by the dashboard load, the per-domain
@@ -32,7 +33,6 @@ export type MemberSummaryMap = ReturnType<typeof memberSummaryById>;
  * 해석한다. 키는 조회에 쓰인 id 그대로 유지한다(요청 행과의 1:1 대응).
  */
 export async function directorySummaryIndex(): Promise<MemberSummaryMap> {
-  const { getDirectoryIndex } = await import("./directory");
   const index = await getDirectoryIndex();
   return new Map(
     [...index].map(([id, m]) => [
