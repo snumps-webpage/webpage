@@ -1,7 +1,7 @@
-import { AppError } from "$lib/server/core/errors";
 import { nowKstIso, WITHDRAWAL_GRACE_MS } from "$lib/server/core/time";
-import { getTable, mutate } from "$lib/server/data/tables";
-import { audit } from "$lib/server/data/audit";
+import { getTable } from "$lib/server/data/tables";
+import { auditStamp } from "$lib/server/data/audit";
+import { callFlow } from "$lib/server/data/flows";
 
 /**
  * Withdrawal lifecycle, member side (API-SPEC §4-7 / MEM-07).
@@ -20,75 +20,28 @@ export async function requestWithdrawal(
   memberId: string,
   confirmation: TripleConfirmation,
 ): Promise<void> {
-  const member = (await getTable("members")).find((m) => m.id === memberId);
-  if (!member) throw new AppError("NOT_FOUND");
-  if (member.status === "withdrawn") throw new AppError("CONFLICT");
-
-  // All three factors, server-side, in one shot (§4-7).
-  if (
-    !confirmation.ackInfo ||
-    !confirmation.ackDataPolicy ||
-    confirmation.confirmName.trim() !== member.name
-  ) {
-    throw new AppError("VALIDATION_FAILED");
-  }
-
-  // An active organizer must hand over first (STU-07 or admin transfer).
-  const studies = await getTable("studies");
-  const organizes = studies.some(
-    (s) => s.organizerIds.includes(memberId) && s.status !== "finished",
-  );
-  if (organizes) throw new AppError("CONFLICT");
-
-  const previousStatus = member.status; // "associate" | "regular" (withdrawn excluded above)
-  await mutate("members", (rows) =>
-    rows.map((m) =>
-      m.id === memberId
-        ? {
-            ...m,
-            status: "withdrawn" as const,
-            statusChangedAt: nowKstIso(),
-            withdrawal: {
-              requestedAt: nowKstIso(),
-              previousStatus,
-              holdBy: null,
-              holdAt: null,
-            },
-          }
-        : m,
-    ),
-  );
-
-  // Destruction-lifecycle evidence: audit failure fails the action (§1-5).
-  await audit({
-    actorMemberId: memberId,
-    action: "withdrawal.request",
-    targetTable: "members",
-    targetId: memberId,
+  // All three factors, server-side, in one shot (§4-7); an active organizer
+  // must hand over first (STU-07 or admin transfer). The checks, the status
+  // change and its audit row — destruction-lifecycle evidence (§1-5) — are
+  // one transaction (flow_request_withdrawal).
+  await callFlow("flow_request_withdrawal", {
+    memberId,
+    ackInfo: confirmation.ackInfo,
+    ackDataPolicy: confirmation.ackDataPolicy,
+    confirmName: confirmation.confirmName.trim(),
+    now: nowKstIso(),
+    ...auditStamp(),
   });
 }
 
 /** Self-cancellation from /withdraw/pending — restores the pre-withdrawal status. */
 export async function cancelWithdrawal(memberId: string): Promise<void> {
-  await mutate("members", (rows) => {
-    const idx = rows.findIndex((m) => m.id === memberId);
-    if (idx === -1) throw new AppError("NOT_FOUND");
-    const m = rows[idx];
-    if (m.status !== "withdrawn" || !m.withdrawal)
-      throw new AppError("NOT_FOUND");
-    rows[idx] = {
-      ...m,
-      status: m.withdrawal.previousStatus,
-      statusChangedAt: nowKstIso(),
-      withdrawal: null,
-    };
-    return rows;
-  });
-  await audit({
-    actorMemberId: memberId,
-    action: "withdrawal.cancel",
-    targetTable: "members",
-    targetId: memberId,
+  await callFlow("flow_member_withdrawal", {
+    memberId,
+    op: "cancel",
+    actorId: memberId,
+    now: nowKstIso(),
+    ...auditStamp(),
   });
 }
 

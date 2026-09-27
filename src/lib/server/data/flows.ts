@@ -21,16 +21,25 @@ export interface FlowResult {
 
 const APP_CODES = new Set<string>(Object.keys(ERR));
 
+/**
+ * `messages` maps a flow's reason (its RAISE ... USING DETAIL) to the Korean
+ * userMessage the AppError should carry — the code stays the contract.
+ */
 export async function callFlow<T extends FlowResult>(
   fn: `flow_${string}`,
   args: Record<string, unknown>,
+  opts: { messages?: Record<string, string> } = {},
 ): Promise<T> {
   let out: T;
   try {
     out = await rpc<T>(fn, args);
   } catch (e) {
     const code = e instanceof Error ? e.message.trim() : "";
-    if (APP_CODES.has(code)) throw new AppError(code as ErrCode);
+    if (APP_CODES.has(code)) {
+      const detail = (e as { detail?: string }).detail;
+      const userMessage = detail ? opts.messages?.[detail] : undefined;
+      throw new AppError(code as ErrCode, userMessage ? { userMessage } : {});
+    }
     throw e;
   }
   for (const name of out.touched ?? []) await invalidateCache(`table_${name}`);

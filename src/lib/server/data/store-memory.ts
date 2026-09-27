@@ -166,11 +166,19 @@ export async function rpc<T>(fn: string, args: unknown): Promise<T> {
   if (!/^flow_[a-z0-9_]+$/.test(fn)) throw new Error(`rpc: bad name ${fn}`);
   const pg = await ready();
   await jitter();
-  const { rows } = await pg.query<{ out: T }>(
-    `select ${fn}($1::jsonb) as out`,
-    [JSON.stringify(args ?? {})],
-  );
-  return rows[0].out;
+  try {
+    const { rows } = await pg.query<{ out: T }>(
+      `select ${fn}($1::jsonb) as out`,
+      [JSON.stringify(args ?? {})],
+    );
+    return rows[0].out;
+  } catch (e) {
+    // the same shape store.ts gives a PostgREST error: message + DETAIL
+    const detail = (e as { detail?: string }).detail;
+    throw Object.assign(new Error(e instanceof Error ? e.message : String(e)), {
+      detail: detail || undefined,
+    });
+  }
 }
 
 // ---- test controls ----------------------------------------------------------

@@ -1,7 +1,8 @@
 import { AppError, definedOnly } from "$lib/server/core/errors";
 import { nowKstIso, WITHDRAWAL_GRACE_MS } from "$lib/server/core/time";
 import { getTable, mutate } from "$lib/server/data/tables";
-import { audit } from "$lib/server/data/audit";
+import { audit, auditStamp } from "$lib/server/data/audit";
+import { callFlow } from "$lib/server/data/flows";
 import type { Member, MemberRole } from "$lib/server/data/schemas";
 
 /**
@@ -135,24 +136,19 @@ export async function updatePrivateInfo(
 }
 
 // ---- withdrawal hold (ADM-17) ----------------------------------------------
+// The change and its audit row commit together (flow_member_withdrawal) —
+// withdrawal-lifecycle entries are destruction evidence (§1-5).
 
 export async function holdWithdrawal(
   targetId: string,
   actorId: string,
 ): Promise<void> {
-  await patchMember(targetId, (m) => {
-    if (m.status !== "withdrawn" || !m.withdrawal)
-      throw new AppError("CONFLICT");
-    return {
-      ...m,
-      withdrawal: { ...m.withdrawal, holdBy: actorId, holdAt: nowKstIso() },
-    };
-  });
-  await audit({
-    actorMemberId: actorId,
-    action: "withdrawal.hold",
-    targetTable: "members",
-    targetId,
+  await callFlow("flow_member_withdrawal", {
+    memberId: targetId,
+    op: "hold",
+    actorId,
+    now: nowKstIso(),
+    ...auditStamp(),
   });
 }
 
@@ -161,24 +157,12 @@ export async function releaseWithdrawalHold(
   targetId: string,
   actorId: string,
 ): Promise<void> {
-  await patchMember(targetId, (m) => {
-    if (m.status !== "withdrawn" || !m.withdrawal?.holdBy)
-      throw new AppError("CONFLICT");
-    return {
-      ...m,
-      withdrawal: {
-        ...m.withdrawal,
-        holdBy: null,
-        holdAt: null,
-        requestedAt: nowKstIso(),
-      },
-    };
-  });
-  await audit({
-    actorMemberId: actorId,
-    action: "withdrawal.release-hold",
-    targetTable: "members",
-    targetId,
+  await callFlow("flow_member_withdrawal", {
+    memberId: targetId,
+    op: "release",
+    actorId,
+    now: nowKstIso(),
+    ...auditStamp(),
   });
 }
 

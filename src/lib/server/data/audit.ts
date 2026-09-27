@@ -31,6 +31,14 @@ export interface AuditEntry {
   detail?: Record<string, unknown>;
 }
 
+/**
+ * Id and time for an audit row a SQL flow appends in its own transaction
+ * (app_audit) — the same values `audit` would give it.
+ */
+export function auditStamp(): { auditId: string; auditAt: string } {
+  return { auditId: newId(), auditAt: new Date().toISOString() };
+}
+
 export async function audit(entry: AuditEntry): Promise<void> {
   try {
     await insertAuditRow({

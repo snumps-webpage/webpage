@@ -132,7 +132,11 @@ export async function deleteQueueDoc(eventId: string): Promise<void> {
 export async function rpc<T>(fn: string, args: unknown): Promise<T> {
   if (isMemoryBackend()) return memory.rpc<T>(fn, args);
   const { data, error } = await getSupabase().rpc(fn, { p: args ?? {} });
-  if (error) throw new Error(error.message);
+  // `details` carries a RAISE's DETAIL (a flow's reason for its code)
+  if (error)
+    throw Object.assign(new Error(error.message), {
+      detail: error.details || undefined,
+    });
   return data as T;
 }
 
