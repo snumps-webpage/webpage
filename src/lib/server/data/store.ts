@@ -116,13 +116,29 @@ export async function writeDocIf(
   return (data?.length ?? 0) > 0; // 0 rows → CAS lost
 }
 
+/**
+ * PostgREST cuts a response at the project's "Max rows" (1000 by default)
+ * without an error, and app_queues only grows (one row per event, removed only
+ * with the event) — so the listing pages, in a fixed order so no page skips or
+ * repeats a row (audit LA40-2). The page must not exceed Max rows: a page cut
+ * short by the server would read as the last one.
+ */
+const QUEUE_PAGE_SIZE = 1000;
+
 export async function listQueueIds(): Promise<string[]> {
   if (isMemoryBackend()) return (await memory()).listQueueIds();
-  const { data, error } = await getSupabase()
-    .from("app_queues")
-    .select("event_id");
-  if (error) throw new Error(`listQueueIds failed: ${error.message}`);
-  return (data ?? []).map((r: { event_id: string }) => r.event_id);
+  const out: string[] = [];
+  for (let from = 0; ; from += QUEUE_PAGE_SIZE) {
+    const { data, error } = await getSupabase()
+      .from("app_queues")
+      .select("event_id")
+      .order("event_id")
+      .range(from, from + QUEUE_PAGE_SIZE - 1);
+    if (error) throw new Error(`listQueueIds failed: ${error.message}`);
+    const page = (data ?? []) as { event_id: string }[];
+    for (const r of page) out.push(r.event_id);
+    if (page.length < QUEUE_PAGE_SIZE) return out;
+  }
 }
 
 /**
