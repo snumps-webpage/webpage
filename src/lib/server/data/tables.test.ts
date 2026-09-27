@@ -94,6 +94,36 @@ describe("mutate — conditional writes", () => {
   });
 });
 
+describe("mutate — what it stores is what the schema says", () => {
+  /**
+   * The write gate parses the rows, but the write and the instance's own
+   * cache used to take the caller's objects as given — so a field the caller
+   * left to its zod default read back as `undefined` on this instance, while
+   * every other instance (reading from the store) saw the default.
+   */
+  it("reads back schema defaults right after its own write", async () => {
+    await invalidateCache("table_seminar-requests");
+    await mutate("seminar-requests", () => [
+      {
+        id: "r1",
+        title: "세미나",
+        description: "",
+        prerequisites: "",
+        duration: "",
+        presenterIds: [],
+        attachment: "",
+        requesterId: "m1",
+        status: "pending",
+        createdAt: "2026-09-01T00:00:00+09:00",
+      } as never, // omits the defaulted fields, as an older writer would
+    ]);
+
+    const [stored] = await getTable("seminar-requests");
+    expect(stored.closedAs).toBeNull();
+    expect(stored.posterKey).toBe("");
+  });
+});
+
 describe("attendance queue — per-event objects", () => {
   it("survives a 20-writer check-in burst with zero losses", async () => {
     // Larger backoff base than the other tests: under full-suite CPU load the

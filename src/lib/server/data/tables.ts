@@ -137,20 +137,24 @@ async function mutateObject<S extends z.ZodTypeAny>(
       );
       throw new AppError("VALIDATION_FAILED");
     }
+    // Store and cache what the gate produced, not the caller's objects: the
+    // same shape every reader decodes (defaults applied, unknown keys gone),
+    // so this instance cannot see a row other instances never will.
+    const parsed = checked.data.rows as z.infer<S>[];
 
     const written = await writeDocIf(
       kind,
       key,
-      { schemaVersion: SCHEMA_VERSION, rows: next },
+      { schemaVersion: SCHEMA_VERSION, rows: parsed },
       stored ? stored.version : null,
     );
     if (written) {
       versionCache.set(versionCacheKey(kind, key), {
         version: stored ? stored.version + 1 : 1,
-        rows: next,
+        rows: parsed,
       });
       await invalidateCache(cacheKeyToInvalidate);
-      return next;
+      return parsed;
     }
     // CAS lost — back off and retry against a fresh read.
     const backoff =
