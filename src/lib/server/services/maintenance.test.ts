@@ -158,7 +158,18 @@ describe("runWeeklyBackup", () => {
 });
 
 describe("runMaintenance", () => {
+  const dumpTakenAgo = async (days: number) => {
+    const path = "dumps/earlier.json";
+    await uploadToBackups(path, "{}");
+    __setCreatedAt(
+      "backups",
+      path,
+      new Date(MONDAY_KST.getTime() - days * DAY_MS).toISOString(),
+    );
+  };
+
   it("keeps alive and cleans staging without dump keys on a non-Sunday (KST)", async () => {
+    await dumpTakenAgo(1); // yesterday's Sunday dump
     const results = await runMaintenance(MONDAY_KST);
 
     expect(results.keptAlive).toBe(true);
@@ -176,5 +187,42 @@ describe("runMaintenance", () => {
     expect(results.dumped).toBe(1);
     expect(results.pushed).toBe(false);
     expect(__exists("backups", dumpPathFor(SUNDAY_KST))).toBe(true);
+  });
+
+  // The backup ran only on a KST Sunday. A failed or missed Sunday was not
+  // retried by the six daily runs that followed, so the last good dump could
+  // be 14 days old against an RPO of 7 (audit LB24-2).
+  it("catches up on a later day when the last dump is a week old", async () => {
+    await dumpTakenAgo(8); // the Sunday before last; yesterday's run failed
+    const results = await runMaintenance(MONDAY_KST);
+
+    expect(results).toHaveProperty("dumped");
+    expect(__exists("backups", dumpPathFor(MONDAY_KST))).toBe(true);
+  });
+
+  // The off-platform copy is the recovery path once a paused project expires;
+  // a failed push must reach the run's failure census, not read as
+  // "not configured" (audit LB24-3).
+  it("reports a failed GitHub push in the run's results", async () => {
+    testEnv.GITHUB_BACKUP_REPO = "org/backups";
+    testEnv.GITHUB_BACKUP_TOKEN = "tok";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 500 }) as Response),
+    );
+    try {
+      const results = await runMaintenance(SUNDAY_KST);
+
+      expect(results.pushed).toBe(false);
+      expect(results.backup_push_failed).toBe(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("backs up on any day when there is no dump at all", async () => {
+    const results = await runMaintenance(MONDAY_KST);
+
+    expect(results).toHaveProperty("dumped");
   });
 });

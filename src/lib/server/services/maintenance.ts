@@ -11,7 +11,7 @@ import { callFlow, type FlowResult } from "$lib/server/data/flows";
 
 /**
  * Maintenance job (SUPABASE-MIGRATION-SPEC §5 잡3, R2-9): staging cleanup,
- * keep-alive SELECT, and the Sunday backup branch (§7 B1/B2 + B1 retention).
+ * keep-alive SELECT, and the weekly backup branch (§7 B1/B2 + B1 retention).
  * Its own endpoint (/api/cron/maintenance) — deliberately NOT a sync-events
  * CronStep, so the hourly job stays cheap and the daily job owns the DB-touch
  * cadence.
@@ -211,6 +211,29 @@ function isSundayKst(now: Date): boolean {
   return new Date(now.getTime() + KST_OFFSET_MS).getUTCDay() === 0;
 }
 
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Sunday (KST) is the schedule; any later day catches up when the newest
+ * dump is a week old or there is none. Sunday alone left a failed or missed
+ * run unretried for another week — 14 days against an RPO of 7 (spec §7 B1,
+ * audit LB24-2). A listing that fails counts as due: trying costs one dump.
+ */
+async function backupDue(now: Date): Promise<boolean> {
+  if (isSundayKst(now)) return true;
+  try {
+    const newest = Math.max(
+      ...(await listBackups(DUMPS_PREFIX))
+        .map((e) => Date.parse(e.createdAt))
+        .filter(Number.isFinite),
+    ); // -Infinity when there is no dump
+    return now.getTime() - newest >= WEEK_MS;
+  } catch (e) {
+    console.error("[maintenance] dump listing failed — backing up:", e);
+    return true;
+  }
+}
+
 /**
  * The daily maintenance run (잡3). Each phase is try/catch-isolated like
  * runCron — one failing phase reports itself without starving the others.
@@ -234,7 +257,7 @@ export async function runMaintenance(
     results.cleanup_failed = 1;
   }
 
-  if (isSundayKst(now)) {
+  if (await backupDue(now)) {
     try {
       Object.assign(results, await runWeeklyBackup(now));
     } catch (e) {
