@@ -25,6 +25,8 @@ function event(
     accept?: string;
     member?: unknown;
     isDataRequest?: boolean;
+    /** an enhanced form submission (use:enhance) */
+    action?: boolean;
   } = {},
 ): GuardEvent {
   return {
@@ -32,7 +34,10 @@ function event(
     url: new URL("http://localhost/x"),
     request: new Request("http://localhost/x", {
       method: opts.method ?? "GET",
-      headers: { accept: opts.accept ?? "text/html" },
+      headers: {
+        accept: opts.accept ?? "text/html",
+        ...(opts.action ? { "x-sveltekit-action": "true" } : {}),
+      },
     }),
     cookies: { get: () => undefined },
     isDataRequest: opts.isDataRequest ?? false,
@@ -102,5 +107,56 @@ describe("zone guard refusals carry no-store", () => {
     const res = await refuse(event("/outside"));
     expect(res.status).toBe(500);
     expectNoStore(res);
+  });
+});
+
+/**
+ * An enhanced form (use:enhance) parses the response as a Kit ActionResult.
+ * The guard's bare 303 was followed to an HTML page the client could not
+ * parse (SyntaxError → the 500 error page), and `{message}` without a `type`
+ * did nothing at all (audit LD01-1, reproduced). For action requests the
+ * guard now answers the way Kit's own action handler does.
+ */
+describe("zone guard and enhanced form submissions", () => {
+  it("answers a guest's enhanced POST with a redirect ActionResult", async () => {
+    const res = await refuse(
+      event("/(member)/study/apply", {
+        method: "POST",
+        accept: "application/json",
+        action: true,
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      type: "redirect",
+      status: 303,
+      location: expect.stringMatching(/^\/login/),
+    });
+    expectNoStore(res);
+  });
+
+  it("answers a refused enhanced POST with an error ActionResult and its status", async () => {
+    const res = await refuse(
+      event("/(member)/study/apply", {
+        method: "POST",
+        accept: "application/json",
+        action: true,
+        member: unregistered,
+      }),
+    );
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      type: "error",
+      error: { message: "이번 학기 등록 회원만 할 수 있는 작업입니다." },
+    });
+    expectNoStore(res);
+  });
+
+  it("keeps the plain 303 for a form posted without JavaScript", async () => {
+    const res = await refuse(
+      event("/(member)/study/apply", { method: "POST" }),
+    );
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toMatch(/^\/login/);
   });
 });

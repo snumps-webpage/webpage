@@ -50,6 +50,33 @@ const cacheShield: Handle = async ({ event, resolve }) => {
   return response;
 };
 
+/** A `use:enhance` form submission — it expects a Kit ActionResult as JSON. */
+function isEnhancedAction(event: RequestEvent): boolean {
+  return (
+    event.request.method === "POST" &&
+    event.request.headers.get("x-sveltekit-action") === "true"
+  );
+}
+
+/**
+ * The guard's redirect. An enhanced form gets it as Kit's own action handler
+ * would send it (`{type:"redirect"}`, 200) — a bare 303 was followed to an
+ * HTML page the client could not parse, and the user saw the 500 error page
+ * (audit LD01-1). Returned, not thrown, so cacheShield still applies.
+ */
+function guardRedirect(event: RequestEvent, location: string) {
+  if (isEnhancedAction(event)) {
+    return json(
+      { type: "redirect", status: 303, location },
+      { headers: NO_STORE },
+    );
+  }
+  return new Response(null, {
+    status: 303,
+    headers: { location, ...NO_STORE },
+  });
+}
+
 /**
  * A guard refusal, returned rather than thrown (W-23): a throw leaves through
  * Kit's fatal-error path and skips cacheShield, so 404/403/500 went out
@@ -58,6 +85,14 @@ const cacheShield: Handle = async ({ event, resolve }) => {
  * +error.svelte either).
  */
 function guardRefusal(event: RequestEvent, status: number, message: string) {
+  // An enhanced form parses a Kit ActionResult; `{message}` without a `type`
+  // made the submission do nothing at all (audit LD01-1).
+  if (isEnhancedAction(event)) {
+    return json(
+      { type: "error", error: { message } },
+      { status, headers: NO_STORE },
+    );
+  }
   const accept = event.request.headers.get("accept") ?? "";
   if (event.isDataRequest || accept.includes("application/json")) {
     return json({ message }, { status, headers: NO_STORE });
@@ -171,10 +206,7 @@ export const zoneGuard: Handle = async ({ event, resolve }) => {
     }
     case "redirect":
       // throw 하면 실드 핸들을 우회한다 — 캐시 금지 헤더를 직접 부착해 반환.
-      return new Response(null, {
-        status: 303,
-        headers: { location: decision.location, ...NO_STORE },
-      });
+      return guardRedirect(event, decision.location);
     case "notFound":
       return guardRefusal(event, 404, "Not Found");
     case "misconfigured":
