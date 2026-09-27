@@ -1,8 +1,8 @@
 /**
- * The single definition of the term ("학기") derivation rule (API-SPEC §2):
- * March–August = "<YY>-1", September–February = "<YY>-2",
- * where January/February belong to the PREVIOUS year's second term.
- * All boundaries are KST. Activities/events never store a term — they derive it here.
+ * Terms ("학기") on the server: the derivation rule (termOf, from
+ * $lib/domain/term — March–August = "<YY>-1", September–February = "<YY>-2",
+ * KST), the current term and a term's range. Activities/events never store a
+ * term — they derive it here.
  */
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -16,19 +16,9 @@ export const TERM_PATTERN = /^\d{2}-[12]$/;
  */
 export const SEMESTER_PATTERN = /^\d{2}-(?:[12SW])$/;
 
-function kstYearMonth(d: Date): { year: number; month: number } {
-  const shifted = new Date(d.getTime() + KST_OFFSET_MS);
-  return { year: shifted.getUTCFullYear(), month: shifted.getUTCMonth() + 1 };
-}
-
-export function termOf(d: Date): string {
-  const { year, month } = kstYearMonth(d);
-  if (month >= 3 && month <= 8) {
-    return `${String(year % 100).padStart(2, "0")}-1`;
-  }
-  const termYear = month >= 9 ? year : year - 1;
-  return `${String(termYear % 100).padStart(2, "0")}-2`;
-}
+// The derivation rule itself is browser-safe and lives in $lib/domain/term.
+import { termOf } from "$lib/domain/term";
+export { termOf };
 
 export function currentTerm(now: Date = new Date()): string {
   return termOf(now);

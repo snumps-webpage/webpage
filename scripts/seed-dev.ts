@@ -11,6 +11,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
+import { termOf } from "../src/lib/domain/term";
 
 // ---------------------------------------------------------------------------
 // 헬퍼
@@ -46,19 +47,8 @@ function hoursLater(d: Date, hours: number): Date {
   return new Date(d.getTime() + hours * 60 * 60 * 1000);
 }
 
-/**
- * 현재 학기 — src/lib/server/core/semester.ts의 규칙을 미러링:
- * 3~8월 = "YY-1", 9~2월 = "YY-2" (1·2월은 전년도 2학기), 경계는 KST.
- */
-function currentTerm(now: Date = new Date()): string {
-  const shifted = new Date(now.getTime() + KST_OFFSET_MS);
-  const year = shifted.getUTCFullYear();
-  const month = shifted.getUTCMonth() + 1;
-  if (month >= 3 && month <= 8)
-    return `${String(year % 100).padStart(2, "0")}-1`;
-  const termYear = month >= 9 ? year : year - 1;
-  return `${String(termYear % 100).padStart(2, "0")}-2`;
-}
+/** 현재 학기 — the app's own rule (src/lib/domain/term.ts). */
+const currentTerm = (now: Date = new Date()): string => termOf(now);
 
 // ---------------------------------------------------------------------------
 // 시드 데이터 (schemas/* 형태 미러)

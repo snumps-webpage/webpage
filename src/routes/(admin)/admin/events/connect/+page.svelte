@@ -1,6 +1,6 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
-  import { getSemesterKeyFromDate } from "$lib/utils";
+  import { termOfDateString } from "$lib/domain/term";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import StatusBadge from "$lib/components/StatusBadge.svelte";
   import { MANUSCRIPT } from "$lib/constants";
@@ -21,7 +21,7 @@
 
       let matchesSemester = true;
       if (selectedSemester !== "all") {
-        const sem = getSemesterKeyFromDate(a.date);
+        const sem = termOfDateString(a.date);
         matchesSemester = sem === selectedSemester;
       }
 

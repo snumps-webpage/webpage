@@ -15,12 +15,8 @@ import { effectiveStatus } from "$lib/server/services/events";
 import { seminarRequestView } from "$lib/server/data/views";
 import { currentTerm, termRange } from "$lib/server/core/semester";
 import { AppError } from "$lib/server/core/errors";
-import {
-  getSemesterInfo,
-  getSemesterKeyFromDate,
-  formatPhoneForDisplay,
-  normalizePhoneNumber,
-} from "$lib/utils";
+import { formatPhoneForDisplay, normalizePhoneNumber } from "$lib/utils";
+import { termLabel, termOfDateString } from "$lib/domain/term";
 import type { ActivityType } from "$lib/constants";
 import {
   dashboardEventIdSchema,
@@ -136,7 +132,7 @@ async function ledgerRowFor(
     title: activity.title,
     type: activity.type,
     startsAt: activity.date.start,
-    semester: getSemesterKeyFromDate(activity.date.start),
+    semester: termOfDateString(activity.date.start),
     detailUrl: null,
     eventId: event.id,
     // Only reached after requireCapability(PARTICIPATE) passed.
@@ -248,7 +244,8 @@ export const load: PageServerLoad = async (event) => {
   } catch (error) {
     console.error("[Dashboard Load] Failed to resolve auth session:", error);
   }
-  const semester = getSemesterInfo();
+  const term = currentTerm();
+  const semester = { key: term, name: termLabel(term) };
 
   if (dev && devPreviewRole) {
     return {
@@ -364,13 +361,13 @@ export const load: PageServerLoad = async (event) => {
       });
 
       const semesters = Array.from(
-        new Set(attendedRaw.map((a) => getSemesterKeyFromDate(a.date.start))),
+        new Set(attendedRaw.map((a) => termOfDateString(a.date.start))),
       );
       if (!semesters.includes(semester.key)) semesters.push(semester.key);
       semesters.sort().reverse();
 
       const pastAttended = attendedRaw
-        .filter((a) => getSemesterKeyFromDate(a.date.start) !== semester.key)
+        .filter((a) => termOfDateString(a.date.start) !== semester.key)
         .map((a) => ({
           id: a.id,
           name: a.title,
@@ -378,7 +375,7 @@ export const load: PageServerLoad = async (event) => {
           type: a.type,
           attended: true,
           url: "",
-          semester: getSemesterKeyFromDate(a.date.start),
+          semester: termOfDateString(a.date.start),
           eventId: null,
           isApplied: false,
           canApply: false,

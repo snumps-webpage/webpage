@@ -21,6 +21,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { termOf } from "../../src/lib/domain/term";
 
 // ---------------------------------------------------------------------------
 // 경로
@@ -348,16 +349,8 @@ export function toDateOnly(notionDate: string): string {
   return new Date(parsed.getTime() + KST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
-/** 3~8월 = "YY-1", 9~2월 = "YY-2" (1·2월은 전년도) — core/semester.ts 규칙 미러. */
-export function currentTerm(now: Date = new Date()): string {
-  const shifted = new Date(now.getTime() + KST_OFFSET_MS);
-  const year = shifted.getUTCFullYear();
-  const month = shifted.getUTCMonth() + 1;
-  if (month >= 3 && month <= 8)
-    return `${String(year % 100).padStart(2, "0")}-1`;
-  const termYear = month >= 9 ? year : year - 1;
-  return `${String(termYear % 100).padStart(2, "0")}-2`;
-}
+/** 현재 학기 — the app's own rule (src/lib/domain/term.ts). */
+export const currentTerm = (now: Date = new Date()): string => termOf(now);
 
 // ---------------------------------------------------------------------------
 // 덤프 디렉터리·manifest·id-map
