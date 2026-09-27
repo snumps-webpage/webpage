@@ -19,6 +19,13 @@ const BATCH_SIZE = 80; // Gmail 건당 수신자 한도 아래
 export interface MailEventContext {
   /** recipient=party 규칙이 쓸 당사자 주소 (신청 행 등에서 발생 지점이 공급) */
   partyEmail?: string;
+  /**
+   * Batches sent / failed, counted into the caller's object. The boolean
+   * result cannot tell "nothing went out" from "some went out" — a caller
+   * that retries on false needs the difference, or the retry re-sends to
+   * those already reached (audit LB11-1).
+   */
+  tally?: { sent: number; failed: number };
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -163,22 +170,26 @@ export async function emitMailEvent(
               rendered.body,
               { bcc },
             );
+            if (context.tally) context.tally.sent++;
           } catch (e) {
             console.error(
               `[Mail] ${event}/${rule.templateKey} batch failed:`,
               e,
             );
             ok = false; // 재시도 없음 — 승인 재실행이 이중 발송하면 안 된다
+            if (context.tally) context.tally.failed++;
           }
         }
       } catch (e) {
         console.error(`[Mail] ${event}/${rule.templateKey} failed:`, e);
         ok = false;
+        if (context.tally) context.tally.failed++;
       }
     }
   } catch (e) {
     console.error(`[Mail] emit "${event}" failed:`, e);
     ok = false;
+    if (context.tally) context.tally.failed++;
   }
   return ok;
 }

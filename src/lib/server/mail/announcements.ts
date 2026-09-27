@@ -73,18 +73,29 @@ function scheduleVars(schedule: AnnouncedSchedule | null) {
  * SEM-04: announce an approved seminar to every opted-in member.
  * Bcc-only, batched; returns false on ANY batch failure (logged, never thrown).
  */
+/**
+ * The all-member announcement. `sentAny` tells a failed send that reached
+ * nobody (safe to retry) from one that reached some batches (a retry would
+ * send those twice).
+ */
 export async function sendSeminarAnnouncement(seminar: {
   title: string;
   description: string;
   schedule?: AnnouncedSchedule | null;
-}): Promise<boolean> {
-  return emitMailEvent("seminar.published", {
-    title: seminar.title,
-    description: seminar.description,
-    ...scheduleVars(seminar.schedule ?? null),
-    siteUrl: siteOrigin(),
-    optOutUrl: `${siteOrigin()}/settings/notifications`,
-  });
+}): Promise<{ ok: boolean; sentAny: boolean }> {
+  const tally = { sent: 0, failed: 0 };
+  const ok = await emitMailEvent(
+    "seminar.published",
+    {
+      title: seminar.title,
+      description: seminar.description,
+      ...scheduleVars(seminar.schedule ?? null),
+      siteUrl: siteOrigin(),
+      optOutUrl: `${siteOrigin()}/settings/notifications`,
+    },
+    { tally },
+  );
+  return { ok, sentAny: tally.sent > 0 };
 }
 
 /** 공개된 세미나의 일정이 바뀌면 같은 수신자에게 변경을 알린다. */

@@ -87,9 +87,14 @@ export const load: PageServerLoad = async ({ locals }) => {
           s.publicationStatus === "scheduled" ||
           s.publicationStatus === "published",
         canPublish: s.publicationStatus === "scheduled" && s.schedule !== null,
-        // 공개됐는데 공지 앵커가 비어 있다 = 메일이 실패하고 되돌려진 상태.
+        // 공개됐는데 공지가 나가지 않았고 아직 열리지 않았다 = 보낼 공지가 남았다
+        // (메일 실패로 되돌려졌거나, 이주분처럼 알린 적이 없다). 이미 시작된
+        // 세미나에는 공지가 없다 — 버튼을 띄우면 이주 세미나 전부에 뜬다.
         canResendNotice:
-          s.publicationStatus === "published" && s.announcedAt === null,
+          s.publicationStatus === "published" &&
+          s.announcedAt === null &&
+          s.schedule !== null &&
+          Date.parse(s.schedule.startsAt) > Date.now(),
         // 이미 시작됐는지는 화면이 **누르는 시각**으로 판단한다. 로드 시점의
         // 계산을 실어 보내면 그 사이에 시작 시각이 지난 세미나가 두 번째 확인
         // 없이 전송되고, 서버가 거절하는데 화면은 이유를 모른다.

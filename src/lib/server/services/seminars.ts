@@ -129,27 +129,26 @@ export async function publishSeminar(id: string): Promise<{
 
 /**
  * 공지는 정확히 한 번. 선점(`announcedAt`)은 공개 트랜잭션이 이미 했고, 여기는
- * **이긴 실행만** 들어온다. 발송이 실패하면 선점을 **되돌려** 다음 재실행이
- * 다시 보낸다.
+ * **이긴 실행만** 들어온다 — 그리고 선점은 앞으로 열릴 세미나에만 걸린다(지난
+ * 일정의 공개는 기록 정정이라 공지가 없다; flow_publish_seminar).
+ *
+ * 발송이 **하나도** 나가지 않았을 때만 선점을 되돌려 다음 재실행이 다시 보내게
+ * 한다. 일부 묶음이라도 나갔다면 선점을 유지한다 — 되돌리면 재시도가 이미 받은
+ * 회원에게 한 번 더 보낸다(감사 LB11-1). 그 경우 관리자는 실패를 보고, 빠진
+ * 묶음은 수동으로 챙긴다.
  *
  * 남는 창: 선점과 되돌리기 사이에 프로세스가 죽으면 "보냈다고 표시됐지만 실제로는
- * 못 보낸" 상태가 된다. 반대쪽(중복 발송)보다 이쪽을 택했다 — 전 회원 메일은
- * 한 번 더 가는 것이 안 가는 것보다 나쁘고, 관리자는 공개 화면에서 재발송을
- * 요청할 수 있다.
- *
- * 이미 지난 일정으로 공개하는 것은 기록 정정이지 안내가 아니다 — 전 회원에게
- * "지난 세미나가 열립니다"를 보내지 않는다. 선점만 남겨 되살아나지 않게 한다.
+ * 못 보낸" 상태가 된다. 반대쪽(중복 발송)보다 이쪽을 택했다.
  */
 async function announce(id: string, seminar: Seminar): Promise<boolean> {
   const schedule = seminar.schedule!;
-  if (new Date(schedule.startsAt).getTime() <= Date.now()) return false; // 기록 정정
-
-  const sent = await sendSeminarAnnouncement({
+  const { ok, sentAny } = await sendSeminarAnnouncement({
     title: seminar.title,
     description: seminar.note,
     schedule,
   });
-  if (sent) return false;
+  if (ok) return false;
+  if (sentAny) return true; // mailFailed, but the claim stays — no double send
 
   await mutate("seminars", (rows) => {
     const idx = rows.findIndex((s) => s.id === id);
@@ -198,12 +197,19 @@ export async function updateSeminarSchedule(
   // 것은 변경이 아니고, 지난 일정으로 고치는 것은 기록 정정이지 안내가 아니다.
   // 발송 결과를 버리면 실패가 조용해진다 — 같은 값을 다시 저장해도 `changed`가
   // false라 재시도되지 않으므로, 관리자가 모르면 그 공지는 영영 나가지 않는다.
+  // 알린 적 없는 세미나(지난 일정으로 공개된 기록)가 앞으로의 날짜로 옮겨지면
+  // "변경"이 아니라 **첫 공지**가 맞다 — 공개 흐름을 다시 돌려 선점·발송한다.
+  // 예전에는 변경 메일이 나가고 공지는 영영 나가지 않았다(감사 LB30-1).
   let mailFailed = false;
   if (
     seminar.publicationStatus === "published" &&
     out.changed &&
     new Date(schedule.startsAt).getTime() > Date.now()
   ) {
+    if (seminar.announcedAt === null) {
+      const published = await publishSeminar(id);
+      return { seminar: published.seminar, mailFailed: published.mailFailed };
+    }
     mailFailed = !(await sendSeminarScheduleChange({
       title: seminar.title,
       schedule,

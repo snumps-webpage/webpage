@@ -275,7 +275,9 @@ describe("publishSeminar — 공개", () => {
     expect(published.semester).toBe(termOf(new Date(past.startsAt)));
     // 기록 정정이지 안내가 아니다 — 지난 세미나를 전 회원에게 알리지 않는다.
     expect(sentMail).toEqual([]);
-    expect(published.announcedAt).not.toBeNull(); // 되살아나지 않게 앵커는 찍는다
+    // announcedAt은 "공지가 나갔다"만 뜻한다 — 나가지 않았으니 비어 있다(감사
+    // LB30-1). 재발송 버튼은 이미 시작된 세미나에 뜨지 않는다(관리자 보드).
+    expect(published.announcedAt).toBeNull();
   });
 });
 

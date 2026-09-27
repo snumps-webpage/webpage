@@ -131,12 +131,12 @@ describe("seminar announcement (SEM-04 / BE-45)", () => {
     await seedInfo("A@snu.ac.kr", true); // duplicate after normalization
     await seedInfo("optout@snu.ac.kr", false);
 
-    const ok = await sendSeminarAnnouncement({
+    const result = await sendSeminarAnnouncement({
       title: "정수론",
       description: "설명",
     });
 
-    expect(ok).toBe(true);
+    expect(result).toEqual({ ok: true, sentAny: true });
     expect(sent).toHaveLength(1);
     expect(sent[0].bcc).toBe(true); // never a To: list
     expect(sent[0].recipients).toEqual(["a@snu.ac.kr"]);

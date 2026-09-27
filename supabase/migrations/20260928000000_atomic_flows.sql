@@ -405,7 +405,12 @@ begin
   end if;
 
   v_sem := v_sem || jsonb_build_object('activityId', v_act ->> 'id');
-  if v_sem ->> 'announcedAt' is null then
+  -- announcedAt means "the announcement went out" — so it is claimed only
+  -- when one will: a seminar published with a past date is a record fix,
+  -- announced by nobody. Stamping it anyway made a later move to a future
+  -- date send "schedule changed" for a seminar never announced (audit LB30-1).
+  if v_sem ->> 'announcedAt' is null
+     and (v_sched ->> 'startsAt')::timestamptz > (p ->> 'now')::timestamptz then
     v_sem := v_sem || jsonb_build_object('announcedAt', p ->> 'now');
     v_claimed := true;
   end if;
