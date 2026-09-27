@@ -35,7 +35,10 @@
         units += 0.35;
         continue;
       }
-      if ((code >= 0xac00 && code <= 0xd7a3) || (code >= 0x1100 && code <= 0x11ff)) {
+      if (
+        (code >= 0xac00 && code <= 0xd7a3) ||
+        (code >= 0x1100 && code <= 0x11ff)
+      ) {
         units += 1;
         continue;
       }
@@ -77,7 +80,11 @@
     return chunks;
   }
 
-  function wrapTextByUnits(text: string, maxUnits: number, maxLines: number): string[] {
+  function wrapTextByUnits(
+    text: string,
+    maxUnits: number,
+    maxLines: number,
+  ): string[] {
     const lines: string[] = [];
     if (!text.trim()) return lines;
     const words = text.split(/\s+/).filter(Boolean);
@@ -110,7 +117,9 @@
   }
 
   let titleLines = $derived(wrapTextByUnits(title, 11.2, 2));
-  let accentTitleIndex = $derived(titleLines.length > 1 ? titleLines.length - 1 : -1);
+  let accentTitleIndex = $derived(
+    titleLines.length > 1 ? titleLines.length - 1 : -1,
+  );
 </script>
 
 <main class="stage" data-poster-root="seminar">
@@ -137,7 +146,9 @@
     <section class="hero">
       <h1 class="title">
         {#each titleLines as line, index (line + index)}
-          <span class="title-line" class:accent={index === accentTitleIndex}>{line}</span>
+          <span class="title-line" class:accent={index === accentTitleIndex}
+            >{line}</span
+          >
         {/each}
       </h1>
 
@@ -150,7 +161,9 @@
       <aside class="left-info">
         <p class="info-item"><span class="info-key">일시</span>{date}</p>
         <p class="info-item"><span class="info-key">장소</span>{place}</p>
-        <p class="info-item"><span class="info-key">선수지식</span>{prerequisite}</p>
+        <p class="info-item">
+          <span class="info-key">선수지식</span>{prerequisite}
+        </p>
         <p class="speaker">{speaker}</p>
       </aside>
     </section>
@@ -196,10 +209,7 @@
     overflow: hidden;
     color: var(--latex-text);
     font-family:
-      "Noto Sans KR",
-      "Apple SD Gothic Neo",
-      "Malgun Gothic",
-      sans-serif;
+      "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
     font-synthesis: weight style;
     text-rendering: geometricPrecision;
     -webkit-font-smoothing: antialiased;
@@ -354,10 +364,7 @@
   .title {
     margin: 0;
     font-family:
-      "Noto Sans KR",
-      "Apple SD Gothic Neo",
-      "Malgun Gothic",
-      sans-serif;
+      "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
     font-size: 5.96rem;
     line-height: 1;
     letter-spacing: -0.012em;
@@ -407,10 +414,7 @@
     margin: 0;
     width: 780px;
     font-family:
-      "Noto Sans KR",
-      "Apple SD Gothic Neo",
-      "Malgun Gothic",
-      sans-serif;
+      "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
     font-size: 2.62rem;
     font-weight: 800;
     font-variation-settings: "wght" 800;
@@ -446,10 +450,7 @@
   .info-item {
     margin: 0;
     font-family:
-      "Noto Sans KR",
-      "Apple SD Gothic Neo",
-      "Malgun Gothic",
-      sans-serif;
+      "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
     font-size: 2.22rem;
     font-weight: 800;
     font-variation-settings: "wght" 800;
@@ -467,10 +468,7 @@
   .speaker {
     margin: 0;
     font-family:
-      "Noto Sans KR",
-      "Apple SD Gothic Neo",
-      "Malgun Gothic",
-      sans-serif;
+      "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
     font-size: 1.96rem;
     font-weight: 700;
     font-variation-settings: "wght" 700;
@@ -499,10 +497,7 @@
   .club {
     margin: 0;
     font-family:
-      "Noto Sans KR",
-      "Apple SD Gothic Neo",
-      "Malgun Gothic",
-      sans-serif;
+      "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
     font-size: 2.26rem;
     font-weight: 800;
     font-variation-settings: "wght" 800;

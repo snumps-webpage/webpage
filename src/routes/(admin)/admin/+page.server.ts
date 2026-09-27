@@ -55,7 +55,9 @@ async function settle<T extends Record<string, Promise<unknown>>>(
   pending: T,
 ): Promise<{ [K in keyof T]: Awaited<T[K]> }> {
   const entries = await Promise.all(
-    Object.entries(pending).map(async ([key, value]) => [key, await value] as const),
+    Object.entries(pending).map(
+      async ([key, value]) => [key, await value] as const,
+    ),
   );
   return Object.fromEntries(entries) as { [K in keyof T]: Awaited<T[K]> };
 }
@@ -77,7 +79,10 @@ export const load: PageServerLoad = async (event) => {
         ]);
         const pendingCount = new Map<string, number>();
         for (const row of pending) {
-          pendingCount.set(row.eventId, (pendingCount.get(row.eventId) ?? 0) + 1);
+          pendingCount.set(
+            row.eventId,
+            (pendingCount.get(row.eventId) ?? 0) + 1,
+          );
         }
         return [...events].reverse().map((e) => {
           const status = effectiveStatus(e);
@@ -103,7 +108,9 @@ export const load: PageServerLoad = async (event) => {
           getTable("private-info"),
         ]);
         const eventById = new Map(events.map((e) => [e.id, e]));
-        const emailByMember = new Map(privateInfos.map((p) => [p.memberId, p.email]));
+        const emailByMember = new Map(
+          privateInfos.map((p) => [p.memberId, p.email]),
+        );
         return rows.map((r) => ({
           id: r.id,
           eventId: r.eventId,
@@ -173,12 +180,20 @@ async function notifyMember(
   const info = await getPrivateInfoOf(member.id);
   if (!info?.email) return;
   const send =
-    kind === "seminar" ? sendSeminarStatusNotification : sendStudyStatusNotification;
+    kind === "seminar"
+      ? sendSeminarStatusNotification
+      : sendStudyStatusNotification;
   await send(info.email, member.name, title, status);
 }
 
 export const actions = {
-  approve: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  approve: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
       const { name, email } = await approveApplication(id);
@@ -187,7 +202,13 @@ export const actions = {
     });
   },
 
-  reject: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  reject: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
       // The removed row is the only copy of the address — mail with the return
@@ -198,7 +219,13 @@ export const actions = {
     });
   },
 
-  activateEvent: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  activateEvent: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
       await setEventStatus(id, "active");
@@ -206,7 +233,13 @@ export const actions = {
     });
   },
 
-  expireEvent: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  expireEvent: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
       await setEventStatus(id, "expired");
@@ -214,7 +247,13 @@ export const actions = {
     });
   },
 
-  deleteEvent: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  deleteEvent: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
       await deleteEventChecked(id);
@@ -223,7 +262,13 @@ export const actions = {
   },
 
   /** BE-55: correct a mistyped event without touching its lifecycle. */
-  updateEvent: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  updateEvent: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       const id = data.get("id") as string;
@@ -242,7 +287,10 @@ export const actions = {
           title: title || rows[idx].title,
           type: (typeRaw as Event["type"]) || rows[idx].type,
           date: start
-            ? { start: kstInputToIso(start), end: end ? kstInputToIso(end) : null }
+            ? {
+                start: kstInputToIso(start),
+                end: end ? kstInputToIso(end) : null,
+              }
             : rows[idx].date,
         };
         return rows;
@@ -260,7 +308,10 @@ export const actions = {
   }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
-      await approveAttendance(data.get("eventId") as string, data.get("id") as string);
+      await approveAttendance(
+        data.get("eventId") as string,
+        data.get("id") as string,
+      );
       return {};
     });
   },
@@ -274,7 +325,10 @@ export const actions = {
   }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
-      await rejectAttendance(data.get("eventId") as string, data.get("id") as string);
+      await rejectAttendance(
+        data.get("eventId") as string,
+        data.get("id") as string,
+      );
       return {};
     });
   },
@@ -319,7 +373,13 @@ export const actions = {
     });
   },
 
-  approveSeminar: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  approveSeminar: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
       // 승인은 이제 일정 미정 세미나만 만든다 — 전 회원 공지는 공개 시점이다.
@@ -329,7 +389,13 @@ export const actions = {
     });
   },
 
-  rejectSeminar: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  rejectSeminar: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
       const req = await rejectSeminar(id);
@@ -339,7 +405,13 @@ export const actions = {
   },
 
   /** ADM-16: study proposal approval — the requester becomes the organizer. */
-  approveStudy: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  approveStudy: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
       const req = await approveStudy(id);
@@ -348,7 +420,13 @@ export const actions = {
     });
   },
 
-  rejectStudy: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  rejectStudy: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const id = (await request.formData()).get("id") as string;
     return handleAdminAction(locals, async () => {
       const req = await rejectStudy(id);

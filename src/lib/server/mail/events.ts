@@ -64,7 +64,9 @@ export const MAIL_EVENTS: Record<string, MailEventDef> = {
     description: "세미나 개설 신청서가 제출된 순간",
     variables: ["applicantName", "title"],
     allowedRecipients: ["admins", "executives"],
-    defaultRules: [{ templateKey: "seminar-request-received", recipient: "admins" }],
+    defaultRules: [
+      { templateKey: "seminar-request-received", recipient: "admins" },
+    ],
   },
   "seminar-request.approved": {
     name: "세미나 신청 승인",
@@ -85,7 +87,9 @@ export const MAIL_EVENTS: Record<string, MailEventDef> = {
     description: "스터디 개설 신청서가 제출된 순간",
     variables: ["applicantName", "title"],
     allowedRecipients: ["admins", "executives"],
-    defaultRules: [{ templateKey: "study-request-received", recipient: "admins" }],
+    defaultRules: [
+      { templateKey: "study-request-received", recipient: "admins" },
+    ],
   },
   "study-request.approved": {
     name: "스터디 신청 승인",
@@ -113,7 +117,9 @@ export const MAIL_EVENTS: Record<string, MailEventDef> = {
       "optOutUrl",
     ],
     allowedRecipients: ["members-opted-in", "admins", "executives"],
-    defaultRules: [{ templateKey: "seminar-announcement", recipient: "members-opted-in" }],
+    defaultRules: [
+      { templateKey: "seminar-announcement", recipient: "members-opted-in" },
+    ],
   },
   "seminar.schedule-changed": {
     name: "세미나 일정 변경",
@@ -121,7 +127,10 @@ export const MAIL_EVENTS: Record<string, MailEventDef> = {
     variables: ["title", "schedule", "location", "siteUrl", "optOutUrl"],
     allowedRecipients: ["members-opted-in", "admins", "executives"],
     defaultRules: [
-      { templateKey: "seminar-schedule-changed", recipient: "members-opted-in" },
+      {
+        templateKey: "seminar-schedule-changed",
+        recipient: "members-opted-in",
+      },
     ],
   },
   "seminar.cancelled": {
@@ -138,7 +147,9 @@ export const MAIL_EVENTS: Record<string, MailEventDef> = {
     description: "회원이 탈퇴를 신청한 순간",
     variables: ["memberName", "adminUrl"],
     allowedRecipients: ["executives", "admins"],
-    defaultRules: [{ templateKey: "withdrawal-executive-notice", recipient: "executives" }],
+    defaultRules: [
+      { templateKey: "withdrawal-executive-notice", recipient: "executives" },
+    ],
   },
 };
 

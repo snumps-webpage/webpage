@@ -16,7 +16,13 @@ export const Term = z.string().regex(TERM_PATTERN);
 export const Semester = z.string().regex(SEMESTER_PATTERN);
 
 /** Closed set shared by activities.type and events.type. */
-export const ACTIVITY_TYPES = ["세미나", "스터디", "회의", "회식", "기타"] as const;
+export const ACTIVITY_TYPES = [
+  "세미나",
+  "스터디",
+  "회의",
+  "회식",
+  "기타",
+] as const;
 export const ActivityType = z.enum(ACTIVITY_TYPES);
 
 export const DateRange = z.object({

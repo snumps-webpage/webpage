@@ -25,6 +25,8 @@ export function isBootstrapAdminEmail(email: string): boolean {
  * env 명단(소수)과 대조하면 누구인지 특정 가능한 결정적 식별자.
  */
 export function bootstrapAdminActorId(email: string): string {
-  const digest = createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
+  const digest = createHash("sha256")
+    .update(email.trim().toLowerCase())
+    .digest("hex");
   return `env-admin-${digest.slice(0, 8)}`;
 }

@@ -16,13 +16,25 @@ import { setRoles } from "./members-admin";
  */
 
 /** 기본 직위 — 역사적으로 쓰인 것들. 옵션 추가는 role-titles 테이블로. */
-export const DEFAULT_ROLE_TITLES = ["회장", "부회장", "기획부장", "자료관리부장"] as const;
+export const DEFAULT_ROLE_TITLES = [
+  "회장",
+  "부회장",
+  "기획부장",
+  "자료관리부장",
+] as const;
 
-export async function listRoleTitles(): Promise<{ title: string; isCustom: boolean }[]> {
+export async function listRoleTitles(): Promise<
+  { title: string; isCustom: boolean }[]
+> {
   const custom = await getTable("role-titles");
-  const defaults = DEFAULT_ROLE_TITLES.map((title) => ({ title, isCustom: false }));
+  const defaults = DEFAULT_ROLE_TITLES.map((title) => ({
+    title,
+    isCustom: false,
+  }));
   const extras = custom
-    .filter((r) => !(DEFAULT_ROLE_TITLES as readonly string[]).includes(r.title))
+    .filter(
+      (r) => !(DEFAULT_ROLE_TITLES as readonly string[]).includes(r.title),
+    )
     .map((r) => ({ title: r.title, isCustom: true }));
   return [...defaults, ...extras];
 }
@@ -35,7 +47,9 @@ export async function addRoleTitle(rawTitle: string): Promise<void> {
     });
   }
   if ((DEFAULT_ROLE_TITLES as readonly string[]).includes(title)) {
-    throw new AppError("CONFLICT", { userMessage: "이미 있는 기본 직위입니다." });
+    throw new AppError("CONFLICT", {
+      userMessage: "이미 있는 기본 직위입니다.",
+    });
   }
   await mutate("role-titles", (rows) => {
     if (rows.some((r) => r.title === title)) {
@@ -62,7 +76,8 @@ export async function removeRoleTitle(title: string): Promise<void> {
 function requireTerm(term: string): string {
   if (!TERM_PATTERN.test(term)) {
     throw new AppError("VALIDATION_FAILED", {
-      userMessage: "학기는 YY-1 또는 YY-2 형식이어야 합니다 (임원 축은 정규 학기 단위).",
+      userMessage:
+        "학기는 YY-1 또는 YY-2 형식이어야 합니다 (임원 축은 정규 학기 단위).",
     });
   }
   return term;
@@ -79,7 +94,12 @@ export interface TermAssignment {
 export async function getTermBoard(rawTerm: string): Promise<{
   term: string;
   assignments: TermAssignment[];
-  candidates: { id: string; name: string; department: string; registered: boolean }[];
+  candidates: {
+    id: string;
+    name: string;
+    department: string;
+    registered: boolean;
+  }[];
 }> {
   const term = requireTerm(rawTerm);
   const [members, registrations] = await Promise.all([
@@ -124,12 +144,21 @@ export async function assignRole(input: {
   const title = stripInvisibles(input.title).trim();
   const options = (await listRoleTitles()).map((o) => o.title);
   if (!options.includes(title)) {
-    throw new AppError("VALIDATION_FAILED", { userMessage: "목록에 없는 직위입니다." });
+    throw new AppError("VALIDATION_FAILED", {
+      userMessage: "목록에 없는 직위입니다.",
+    });
   }
-  const member = (await getTable("members")).find((m) => m.id === input.memberId);
-  if (!member) throw new AppError("NOT_FOUND", { userMessage: "회원을 찾을 수 없습니다." });
+  const member = (await getTable("members")).find(
+    (m) => m.id === input.memberId,
+  );
+  if (!member)
+    throw new AppError("NOT_FOUND", {
+      userMessage: "회원을 찾을 수 없습니다.",
+    });
   if (member.roles.some((r) => r.term === term && r.title === title)) {
-    throw new AppError("CONFLICT", { userMessage: "이미 같은 학기에 같은 직위가 배정돼 있습니다." });
+    throw new AppError("CONFLICT", {
+      userMessage: "이미 같은 학기에 같은 직위가 배정돼 있습니다.",
+    });
   }
   await setRoles(member.id, [...member.roles, { term, title }], input.actorId);
 }
@@ -141,9 +170,13 @@ export async function unassignRole(input: {
   actorId: string;
 }): Promise<void> {
   const term = requireTerm(input.term);
-  const member = (await getTable("members")).find((m) => m.id === input.memberId);
+  const member = (await getTable("members")).find(
+    (m) => m.id === input.memberId,
+  );
   if (!member) throw new AppError("NOT_FOUND");
-  const next = member.roles.filter((r) => !(r.term === term && r.title === input.title));
+  const next = member.roles.filter(
+    (r) => !(r.term === term && r.title === input.title),
+  );
   if (next.length === member.roles.length) {
     throw new AppError("NOT_FOUND", { userMessage: "해당 배정이 없습니다." });
   }

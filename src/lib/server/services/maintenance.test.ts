@@ -2,10 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const testEnv = vi.hoisted(() => ({}) as Record<string, string | undefined>);
 vi.mock("$env/dynamic/private", () => ({ env: testEnv }));
-vi.mock("$lib/server/data/store", () => import("$lib/server/data/store-memory"));
-vi.mock("$lib/server/data/storage", () => import("$lib/server/data/storage-memory"));
+vi.mock(
+  "$lib/server/data/store",
+  () => import("$lib/server/data/store-memory"),
+);
+vi.mock(
+  "$lib/server/data/storage",
+  () => import("$lib/server/data/storage-memory"),
+);
 
-import { __putRawDoc, __reset as __resetStore } from "$lib/server/data/store-memory";
+import {
+  __putRawDoc,
+  __reset as __resetStore,
+} from "$lib/server/data/store-memory";
 import {
   __exists,
   __reset as __resetStorage,
@@ -26,7 +35,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const SUNDAY_KST = new Date("2026-08-23T04:00:00+09:00");
 const MONDAY_KST = new Date("2026-08-24T04:00:00+09:00");
 
-const dumpPathFor = (now: Date) => `dumps/${now.toISOString().slice(0, 10)}.json`;
+const dumpPathFor = (now: Date) =>
+  `dumps/${now.toISOString().slice(0, 10)}.json`;
 
 beforeEach(() => {
   __resetStore();
@@ -39,7 +49,9 @@ describe("cleanupStaging", () => {
   // listing prefix — and the storage listing is not recursive.
   it("reaches files inside every purpose folder and removes only those older than 7 days", async () => {
     const now = MONDAY_KST;
-    const oldIso = new Date(now.getTime() - STAGING_TTL_MS - DAY_MS).toISOString();
+    const oldIso = new Date(
+      now.getTime() - STAGING_TTL_MS - DAY_MS,
+    ).toISOString();
     const freshIso = new Date(now.getTime() - DAY_MS).toISOString();
     __stage("pending/seminar-photo/old.png", 100, "image/png", oldIso);
     __stage("pending/seminar-photo/fresh.png", 100, "image/png", freshIso);
@@ -54,7 +66,9 @@ describe("cleanupStaging", () => {
   });
 
   it("leaves staged files outside pending/ alone", async () => {
-    const oldIso = new Date(MONDAY_KST.getTime() - STAGING_TTL_MS - DAY_MS).toISOString();
+    const oldIso = new Date(
+      MONDAY_KST.getTime() - STAGING_TTL_MS - DAY_MS,
+    ).toISOString();
     __stage("other/old.png", 100, "image/png", oldIso);
 
     expect(await cleanupStaging(MONDAY_KST)).toBe(0);
@@ -86,7 +100,8 @@ describe("runWeeklyBackup", () => {
       "fetch",
       vi.fn(async (url: string, init?: RequestInit) => {
         calls.push({ url: String(url), method: init?.method ?? "GET" });
-        if (init?.method === "PUT") return { ok: true, status: 201 } as Response;
+        if (init?.method === "PUT")
+          return { ok: true, status: 201 } as Response;
         return { ok: false, status: 404 } as Response; // no existing file
       }),
     );
@@ -105,7 +120,9 @@ describe("runWeeklyBackup", () => {
 
   it("prunes dumps older than 8 weeks after writing the new one", async () => {
     await uploadToBackups("dumps/ancient.json", "{}");
-    const nineWeeksAgo = new Date(SUNDAY_KST.getTime() - 9 * 7 * DAY_MS).toISOString();
+    const nineWeeksAgo = new Date(
+      SUNDAY_KST.getTime() - 9 * 7 * DAY_MS,
+    ).toISOString();
     __setCreatedAt("backups", "dumps/ancient.json", nineWeeksAgo);
 
     await runWeeklyBackup(SUNDAY_KST);

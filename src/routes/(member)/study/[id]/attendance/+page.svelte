@@ -30,7 +30,9 @@
   );
   let syncedEventId = $state(untrack(() => selectedSession?.eventId ?? null));
   let processing = $state(false);
-  let notice = $state<{ tone: "success" | "error"; message: string } | null>(null);
+  let notice = $state<{ tone: "success" | "error"; message: string } | null>(
+    null,
+  );
 
   const selectedCount = $derived(selectedIds.size);
   const allSelected = $derived(
@@ -75,9 +77,10 @@
   }
 
   function sessionStatusLabel(status: string) {
-    return { active: "출석 진행", expired: "종료", cancelled: "취소" }[
+    return (
+      { active: "출석 진행", expired: "종료", cancelled: "취소" }[status] ??
       status
-    ] ?? status;
+    );
   }
 
   function switchSession(eventId: string) {
@@ -88,12 +91,16 @@
 </script>
 
 <svelte:head>
-  <title>{selectedSession ? `${selectedSession.title} 출석부` : "출석부"} · {data.studyTitle}</title>
+  <title
+    >{selectedSession ? `${selectedSession.title} 출석부` : "출석부"} · {data.studyTitle}</title
+  >
 </svelte:head>
 
 <article class="paper-document attendance-register">
   <ManuscriptHeader
-    title={selectedSession ? `${data.studyTitle} · ${selectedSession.title}` : data.studyTitle}
+    title={selectedSession
+      ? `${data.studyTitle} · ${selectedSession.title}`
+      : data.studyTitle}
     subtitle="Organizer Attendance Register"
     figure={MANUSCRIPT.FIGURES.STUDY_ATTENDANCE}
   />
@@ -111,26 +118,40 @@
         </option>
       {/each}
     </select>
-    <a href={`/study/${data.studyId}/manage`} class="paper-btn small">관리 허브</a>
+    <a href={`/study/${data.studyId}/manage`} class="paper-btn small"
+      >관리 허브</a
+    >
   </div>
 
   {#if selectedSession}
     <section class="session-index">
-      <div><span>회차</span><strong>{selectedSession.sessionNo ?? "-"}</strong></div>
-      <div><span>시작</span><strong>{formatDate(selectedSession.date)}</strong></div>
-      <div><span>상태</span><strong>{sessionStatusLabel(selectedSession.status)}</strong></div>
-      <div><span>선택</span><strong>{selectedCount} / {attendees.length}</strong></div>
+      <div>
+        <span>회차</span><strong>{selectedSession.sessionNo ?? "-"}</strong>
+      </div>
+      <div>
+        <span>시작</span><strong>{formatDate(selectedSession.date)}</strong>
+      </div>
+      <div>
+        <span>상태</span><strong
+          >{sessionStatusLabel(selectedSession.status)}</strong
+        >
+      </div>
+      <div>
+        <span>선택</span><strong>{selectedCount} / {attendees.length}</strong>
+      </div>
     </section>
 
     <aside class="merge-note">
       <strong>회차별 출석부</strong>
-      이 화면에서 관리하는 참여자만 갱신하며, 다른 출석 경로에서 기록된 관리 범위 밖의 값은 보존합니다.
+      이 화면에서 관리하는 참여자만 갱신하며, 다른 출석 경로에서 기록된 관리 범위
+      밖의 값은 보존합니다.
     </aside>
 
     {#if notice}
       <div class="notice" data-tone={notice.tone} role="status">
         <p>{notice.message}</p>
-        <button aria-label="알림 닫기" onclick={() => (notice = null)}>×</button>
+        <button aria-label="알림 닫기" onclick={() => (notice = null)}>×</button
+        >
       </div>
     {/if}
 
@@ -154,8 +175,17 @@
             };
             return;
           }
-          const payload = "data" in result ? result.data as { error?: string; message?: string } : null;
-          notice = { tone: "error", message: payload?.message ?? payload?.error ?? "출석을 저장하지 못했습니다." };
+          const payload =
+            "data" in result
+              ? (result.data as { error?: string; message?: string })
+              : null;
+          notice = {
+            tone: "error",
+            message:
+              payload?.message ??
+              payload?.error ??
+              "출석을 저장하지 못했습니다.",
+          };
         };
       }}
     >
@@ -173,16 +203,22 @@
 
       <div class="attendance-list">
         {#each attendees as member, index (member.id)}
-          <label class="attendance-row" class:checked={selectedIds.has(member.id)}>
+          <label
+            class="attendance-row"
+            class:checked={selectedIds.has(member.id)}
+          >
             <span class="row-index">{String(index + 1).padStart(2, "0")}</span>
             <input
               type="checkbox"
               name="attendeeIds"
               value={member.id}
               checked={selectedIds.has(member.id)}
-              onchange={(event) => setSelected(member.id, event.currentTarget.checked)}
+              onchange={(event) =>
+                setSelected(member.id, event.currentTarget.checked)}
             />
-            <span class="check-mark" aria-hidden="true">{selectedIds.has(member.id) ? "✓" : ""}</span>
+            <span class="check-mark" aria-hidden="true"
+              >{selectedIds.has(member.id) ? "✓" : ""}</span
+            >
             <span class="member-name">{member.name}</span>
             <span class="member-department">{member.department}</span>
             <span class="checkin-source">
@@ -201,7 +237,10 @@
             title="출석 링크 복사"
           />
         </div>
-        <button class="paper-btn primary" disabled={attendees.length === 0 || processing}>
+        <button
+          class="paper-btn primary"
+          disabled={attendees.length === 0 || processing}
+        >
           {processing ? "저장 중…" : `${selectedCount}명 출석 저장`}
         </button>
       </div>
@@ -340,7 +379,8 @@
     gap: 0.55rem;
     min-height: 3.7rem;
     padding: 0.55rem 0.65rem;
-    border-bottom: 1px solid color-mix(in srgb, var(--latex-rule) 26%, transparent);
+    border-bottom: 1px solid
+      color-mix(in srgb, var(--latex-rule) 26%, transparent);
     cursor: pointer;
   }
 

@@ -221,15 +221,21 @@ export function propValue(property: any): any {
   if (!property) return "";
   switch (property.type) {
     case "title":
-      return stripInvisibles((property.title || []).map((t: any) => t.plain_text).join(""));
+      return stripInvisibles(
+        (property.title || []).map((t: any) => t.plain_text).join(""),
+      );
     case "rich_text":
-      return stripInvisibles((property.rich_text || []).map((t: any) => t.plain_text).join(""));
+      return stripInvisibles(
+        (property.rich_text || []).map((t: any) => t.plain_text).join(""),
+      );
     case "number":
       return property.number ?? 0;
     case "select":
       return stripInvisibles(property.select?.name ?? "");
     case "multi_select":
-      return (property.multi_select || []).map((s: any) => stripInvisibles(s.name as string));
+      return (property.multi_select || []).map((s: any) =>
+        stripInvisibles(s.name as string),
+      );
     case "date":
       return property.date ?? null; // { start, end } | null — 호출부가 해석
     case "checkbox":

@@ -4,8 +4,10 @@ import type { PageServerLoad } from "./$types";
 
 /** Auth.js lands here with ?error=… (pages.error, signIn callback). */
 const AUTH_ERROR_MESSAGES: Record<string, string> = {
-  InvalidDomain: "서울대학교(@snu.ac.kr) Google 계정으로만 로그인할 수 있습니다.",
-  AccessDenied: "서울대학교(@snu.ac.kr) Google 계정으로만 로그인할 수 있습니다.",
+  InvalidDomain:
+    "서울대학교(@snu.ac.kr) Google 계정으로만 로그인할 수 있습니다.",
+  AccessDenied:
+    "서울대학교(@snu.ac.kr) Google 계정으로만 로그인할 수 있습니다.",
 };
 
 /** AUTH-04: dedicated sign-in page; bounces authenticated users back. */

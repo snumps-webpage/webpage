@@ -17,11 +17,15 @@
   const transferCandidates = $derived(
     data.members.filter((member) => !study.organizerIds.includes(member.id)),
   );
-  let notice = $state<{ tone: "success" | "error"; message: string } | null>(null);
+  let notice = $state<{ tone: "success" | "error"; message: string } | null>(
+    null,
+  );
   let statusProcessing = $state(false);
 
   const statusLabel = $derived(
-    { recruiting: "모집 중", ongoing: "진행 중", finished: "종료" }[study.status],
+    { recruiting: "모집 중", ongoing: "진행 중", finished: "종료" }[
+      study.status
+    ],
   );
 
   function showError(message: string) {
@@ -49,14 +53,16 @@
       }
       const data =
         result.type === "failure"
-          ? result.data as { error?: string; message?: string }
+          ? (result.data as { error?: string; message?: string })
           : null;
       showError(data?.message ?? data?.error ?? fallback);
     };
   }
 
   function statusName(status: StudyStatus) {
-    return { recruiting: "모집 중", ongoing: "진행 중", finished: "종료" }[status];
+    return { recruiting: "모집 중", ongoing: "진행 중", finished: "종료" }[
+      status
+    ];
   }
 </script>
 
@@ -91,33 +97,62 @@
       <p class="eyebrow">Study Abstract</p>
       <p>{study.description}</p>
       <dl>
-        <div><dt>교재</dt><dd>{study.textbook}</dd></div>
-        <div><dt>운영 메모</dt><dd>{study.note}</dd></div>
+        <div>
+          <dt>교재</dt>
+          <dd>{study.textbook}</dd>
+        </div>
+        <div>
+          <dt>운영 메모</dt>
+          <dd>{study.note}</dd>
+        </div>
       </dl>
     </div>
     <div class="status-control">
       <span>Study State</span>
       {#if study.status === "recruiting"}
-        <form method="POST" action="?/setStudyStatus" use:enhance={() => statusEnhancer("ongoing", "스터디를 시작하지 못했습니다.")}>
+        <form
+          method="POST"
+          action="?/setStudyStatus"
+          use:enhance={() =>
+            statusEnhancer("ongoing", "스터디를 시작하지 못했습니다.")}
+        >
           <input type="hidden" name="status" value="ongoing" />
-          <button class="paper-btn primary small" disabled={statusProcessing}>진행 시작</button>
+          <button class="paper-btn primary small" disabled={statusProcessing}
+            >진행 시작</button
+          >
         </form>
       {:else if study.status === "ongoing"}
-        <form method="POST" action="?/setStudyStatus" use:enhance={() => statusEnhancer("recruiting", "스터디 상태를 변경하지 못했습니다.")}>
+        <form
+          method="POST"
+          action="?/setStudyStatus"
+          use:enhance={() =>
+            statusEnhancer("recruiting", "스터디 상태를 변경하지 못했습니다.")}
+        >
           <input type="hidden" name="status" value="recruiting" />
-          <button class="paper-btn small" disabled={statusProcessing}>모집 다시 열기</button>
+          <button class="paper-btn small" disabled={statusProcessing}
+            >모집 다시 열기</button
+          >
         </form>
-        <form method="POST" action="?/setStudyStatus" use:enhance={() => statusEnhancer("finished", "스터디를 종료하지 못했습니다.")}>
+        <form
+          method="POST"
+          action="?/setStudyStatus"
+          use:enhance={() =>
+            statusEnhancer("finished", "스터디를 종료하지 못했습니다.")}
+        >
           <input type="hidden" name="status" value="finished" />
           <button
             class="paper-btn danger small"
             disabled={statusProcessing}
             onclick={(event) => {
-              if (!confirm("스터디를 종료하면 새 회차를 만들거나 참여자를 변경할 수 없습니다. 종료하시겠습니까?")) {
+              if (
+                !confirm(
+                  "스터디를 종료하면 새 회차를 만들거나 참여자를 변경할 수 없습니다. 종료하시겠습니까?",
+                )
+              ) {
                 event.preventDefault();
               }
-            }}
-          >스터디 종료</button>
+            }}>스터디 종료</button
+          >
         </form>
       {:else}
         <p>종료된 스터디입니다. 새 회차와 참여자 변경이 잠겼습니다.</p>
@@ -160,7 +195,8 @@
 
   <footer>
     <a href="/study" class="paper-btn">스터디 목록</a>
-    <span>데이터 기준 {new Date(data.generatedAt).toLocaleString("ko-KR")}</span>
+    <span>데이터 기준 {new Date(data.generatedAt).toLocaleString("ko-KR")}</span
+    >
   </footer>
 </article>
 
@@ -264,7 +300,6 @@
     color: var(--latex-muted);
     font-size: 0.74rem;
   }
-
 
   .notice {
     display: flex;

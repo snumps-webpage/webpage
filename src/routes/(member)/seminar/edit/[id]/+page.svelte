@@ -40,7 +40,10 @@
       <div>
         <p>Proposal withdrawal</p>
         <h2 id="withdraw-heading">신청 철회</h2>
-        <span>승인 대기 중인 신청만 철회할 수 있으며, 관리자 심사 목록에서 즉시 제거됩니다.</span>
+        <span
+          >승인 대기 중인 신청만 철회할 수 있으며, 관리자 심사 목록에서 즉시
+          제거됩니다.</span
+        >
       </div>
       <form method="POST" action="?/withdraw">
         <button

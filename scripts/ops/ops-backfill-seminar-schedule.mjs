@@ -3,7 +3,10 @@
 // usage: node ops-backfill-seminar-schedule.mjs [apply]
 import { createClient } from "@supabase/supabase-js";
 
-const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
+const sb = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SECRET_KEY,
+);
 const APPLY = process.argv[2] === "apply";
 
 async function doc(name) {
@@ -16,7 +19,10 @@ async function doc(name) {
   return data;
 }
 
-const [seminars, activities] = await Promise.all([doc("seminars"), doc("activities")]);
+const [seminars, activities] = await Promise.all([
+  doc("seminars"),
+  doc("activities"),
+]);
 const seminarActs = activities.doc.rows.filter((a) => a.type === "세미나");
 
 const report = [];
@@ -44,7 +50,9 @@ const rows = seminars.doc.rows.map((s) => {
 });
 
 console.table(report);
-console.log(`세미나 ${seminars.doc.rows.length}건 중 매칭 ${matched}건, 미매칭 ${seminars.doc.rows.length - matched - seminars.doc.rows.filter((s) => s.activityId).length}건`);
+console.log(
+  `세미나 ${seminars.doc.rows.length}건 중 매칭 ${matched}건, 미매칭 ${seminars.doc.rows.length - matched - seminars.doc.rows.filter((s) => s.activityId).length}건`,
+);
 
 if (!APPLY) {
   console.log("\n(미리보기 — 적용하려면 'apply' 인자)");

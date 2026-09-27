@@ -74,7 +74,8 @@ export async function cancelWithdrawal(memberId: string): Promise<void> {
     const idx = rows.findIndex((m) => m.id === memberId);
     if (idx === -1) throw new AppError("NOT_FOUND");
     const m = rows[idx];
-    if (m.status !== "withdrawn" || !m.withdrawal) throw new AppError("NOT_FOUND");
+    if (m.status !== "withdrawn" || !m.withdrawal)
+      throw new AppError("NOT_FOUND");
     rows[idx] = {
       ...m,
       status: m.withdrawal.previousStatus,

@@ -2,7 +2,10 @@
 // 대상 문자: soft hyphen(U+00AD), zero-width(U+200B~200D), BOM(U+FEFF), word joiner(U+2060)
 import { createClient } from "@supabase/supabase-js";
 
-const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
+const sb = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SECRET_KEY,
+);
 const INVISIBLE = /[\u00AD\u200B-\u200D\uFEFF\u2060]/;
 
 const TABLES = [
@@ -29,11 +32,17 @@ function scan(value, path, hits) {
 
 let total = 0;
 for (const name of TABLES) {
-  const { data } = await sb.from("app_tables").select("doc").eq("name", name).maybeSingle();
+  const { data } = await sb
+    .from("app_tables")
+    .select("doc")
+    .eq("name", name)
+    .maybeSingle();
   const rows = data?.doc?.rows ?? [];
   const hits = [];
   rows.forEach((r, i) => scan(r, `${name}[${i}]`, hits));
-  console.log(`${name.padEnd(20)} rows=${String(rows.length).padStart(3)}  비가시문자=${hits.length}`);
+  console.log(
+    `${name.padEnd(20)} rows=${String(rows.length).padStart(3)}  비가시문자=${hits.length}`,
+  );
   total += hits.length;
   for (const h of hits.slice(0, 5)) console.log(`   → ${h}`);
 }

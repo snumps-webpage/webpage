@@ -12,21 +12,41 @@
 
 <svelte:head>
   <title>세미나 기록 · SNUMPS 아카이브</title>
-  <meta name="description" content="SNUMPS 세미나의 제목, 발표자, 선수지식, 일정과 공개 자료 목록입니다." />
+  <meta
+    name="description"
+    content="SNUMPS 세미나의 제목, 발표자, 선수지식, 일정과 공개 자료 목록입니다."
+  />
 </svelte:head>
 
 <article class="paper-document archive-paper">
-  <ManuscriptHeader title="세미나 기록" subtitle="Seminar Archive" figure={MANUSCRIPT.FIGURES.ARCHIVE_SEMINARS} />
+  <ManuscriptHeader
+    title="세미나 기록"
+    subtitle="Seminar Archive"
+    figure={MANUSCRIPT.FIGURES.ARCHIVE_SEMINARS}
+  />
   <PublicDirectoryNav items={[...ARCHIVE_NAV]} label="활동 아카이브 탐색" />
-  <p class="scope-note">일정까지 공개된 세미나 기록만 표시합니다. 신청자 정보와 출석자 명단은 포함하지 않습니다.</p>
+  <p class="scope-note">
+    일정까지 공개된 세미나 기록만 표시합니다. 신청자 정보와 출석자 명단은
+    포함하지 않습니다.
+  </p>
   {#if data.dataAvailable}
-    <PublicIndexList {items} searchLabel="세미나 검색" emptyLabel="검색 조건에 맞는 세미나가 없습니다." />
+    <PublicIndexList
+      {items}
+      searchLabel="세미나 검색"
+      emptyLabel="검색 조건에 맞는 세미나가 없습니다."
+    />
   {:else}
     <p class="empty">기록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p>
   {/if}
 </article>
 
 <style>
-  .archive-paper { width: min(100%, 980px); }
-  .scope-note { margin: 0 0 1rem; color: var(--latex-muted); font-size: 0.78rem; }
+  .archive-paper {
+    width: min(100%, 980px);
+  }
+  .scope-note {
+    margin: 0 0 1rem;
+    color: var(--latex-muted);
+    font-size: 0.78rem;
+  }
 </style>

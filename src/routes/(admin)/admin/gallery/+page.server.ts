@@ -20,7 +20,9 @@ export const load: PageServerLoad = async ({ locals }) => {
   const activityById = new Map(activities.map((a) => [a.id, a]));
   return {
     gallery: [...entries].reverse().map((entry) => {
-      const activity = entry.activityId ? activityById.get(entry.activityId) : undefined;
+      const activity = entry.activityId
+        ? activityById.get(entry.activityId)
+        : undefined;
       return {
         id: entry.id,
         year: entry.year,
@@ -35,7 +37,11 @@ export const load: PageServerLoad = async ({ locals }) => {
     }),
     activities: activities
       .filter((a) => a.type === "회식")
-      .map((a) => ({ id: a.id, title: a.title, date: a.date.start.slice(0, 10) })),
+      .map((a) => ({
+        id: a.id,
+        title: a.title,
+        date: a.date.start.slice(0, 10),
+      })),
     generatedAt: nowKstIso(),
   };
 };

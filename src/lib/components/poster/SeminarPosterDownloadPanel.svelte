@@ -31,9 +31,10 @@
 
   function slugify(value: string): string {
     const normalized = value.trim().replace(/\s+/g, "-");
-    return normalized
-      .replace(/[^0-9A-Za-z가-힣-]/g, "")
-      .slice(0, 80) || "snumps-seminar-poster";
+    return (
+      normalized.replace(/[^0-9A-Za-z가-힣-]/g, "").slice(0, 80) ||
+      "snumps-seminar-poster"
+    );
   }
 
   async function downloadPoster() {
@@ -42,7 +43,9 @@
     downloadError = "";
 
     try {
-      const posterRoot = posterNode.querySelector<HTMLElement>('[data-poster-root="seminar"]');
+      const posterRoot = posterNode.querySelector<HTMLElement>(
+        '[data-poster-root="seminar"]',
+      );
       if (!posterRoot) throw new Error("Poster root not found");
 
       if (typeof document !== "undefined" && "fonts" in document) {
@@ -127,7 +130,12 @@
   </div>
 
   <div class="poster-actions">
-    <button type="button" class="paper-btn primary" onclick={downloadPoster} disabled={downloading}>
+    <button
+      type="button"
+      class="paper-btn primary"
+      onclick={downloadPoster}
+      disabled={downloading}
+    >
       {downloading ? "PNG 생성 중..." : "포스터 PNG 다운로드"}
     </button>
   </div>
@@ -192,7 +200,10 @@
     padding: 0.28rem 0.5rem;
     min-height: 1.65rem;
     cursor: pointer;
-    transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+    transition:
+      border-color 0.2s,
+      background-color 0.2s,
+      color 0.2s;
   }
 
   .mode-btn:hover {

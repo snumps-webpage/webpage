@@ -3,7 +3,10 @@
 // 이미 있으면 아무것도 하지 않는다.
 import { createClient } from "@supabase/supabase-js";
 
-const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
+const sb = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SECRET_KEY,
+);
 
 async function readDoc(name) {
   const { data, error } = await sb
@@ -30,7 +33,8 @@ async function replaceDoc(name, prev, doc) {
     .eq("version", prev.version)
     .select("name");
   if (error) throw error;
-  if (!data.length) throw new Error(`CAS 실패: ${name} — 동시 쓰기, 재실행하세요`);
+  if (!data.length)
+    throw new Error(`CAS 실패: ${name} — 동시 쓰기, 재실행하세요`);
 }
 
 const existing = await readDoc("legacy-members");

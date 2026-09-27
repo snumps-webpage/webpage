@@ -13,7 +13,10 @@ import {
   needsMemberResolution,
   zoneOf,
 } from "$lib/server/guards/zone";
-import { hasApplication, resolveMember } from "$lib/server/guards/resolve-member";
+import {
+  hasApplication,
+  resolveMember,
+} from "$lib/server/guards/resolve-member";
 import { capabilitiesFor } from "$lib/server/core/capabilities";
 
 if (!building && !env.AUTH_SECRET) {
@@ -85,12 +88,15 @@ const zoneGuard: Handle = async ({ event, resolve }) => {
     event.cookies.get("authjs.session-token") !== undefined;
   if (
     zone === "api" ||
-    (zone === "(public)" && !needsMemberResolution(routeId) && !hasSessionCookie)
+    (zone === "(public)" &&
+      !needsMemberResolution(routeId) &&
+      !hasSessionCookie)
   ) {
     return resolve(event);
   }
 
-  const session = event.locals.member === undefined ? await event.locals.auth() : null;
+  const session =
+    event.locals.member === undefined ? await event.locals.auth() : null;
   const email = session?.user?.email ?? null;
 
   if (event.locals.member === undefined) {
@@ -105,7 +111,9 @@ const zoneGuard: Handle = async ({ event, resolve }) => {
     email !== null &&
     (zone !== "(public)" || needsMemberResolution(routeId)) &&
     (!member || !member.registered);
-  const application = needsApplicationLookup ? await hasApplication(email) : false;
+  const application = needsApplicationLookup
+    ? await hasApplication(email)
+    : false;
 
   const decision = decide(routeId, {
     hasSession,
@@ -144,7 +152,12 @@ const zoneGuard: Handle = async ({ event, resolve }) => {
   }
 };
 
-export const handle = sequence(cacheShield, authHandle, devPreviewHandle, zoneGuard);
+export const handle = sequence(
+  cacheShield,
+  authHandle,
+  devPreviewHandle,
+  zoneGuard,
+);
 
 /**
  * Shapes what an UNCAUGHT error becomes (W-22 / HS-4). Kit derives the status
@@ -160,7 +173,12 @@ export const handle = sequence(cacheShield, authHandle, devPreviewHandle, zoneGu
  * Data-layer failures still leave as 500; moving them to 503 + Retry-After is
  * W-30, and needs SERVICE_UNAVAILABLE to be throwable first (W-32).
  */
-export const handleError: HandleServerError = ({ error: e, event, status, message }) => {
+export const handleError: HandleServerError = ({
+  error: e,
+  event,
+  status,
+  message,
+}) => {
   console.error(`[${status}] ${event.request.method} ${event.url.pathname}`, e);
   return { message, error: "SERVICE_UNAVAILABLE" };
 };

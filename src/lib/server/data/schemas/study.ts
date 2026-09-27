@@ -16,9 +16,13 @@ export const StudySchema = z.object({
   participantIds: z.array(Id),
   pendingParticipantIds: z.array(Id),
   // STU-07 two-phase handover; null when no transfer is in flight.
-  pendingTransfer: z.object({ toMemberId: Id, requestedAt: DateTime }).nullable(),
+  pendingTransfer: z
+    .object({ toMemberId: Id, requestedAt: DateTime })
+    .nullable(),
   // STU-06 pre-registered schedule; the cron fills generatedEventId (events first, schedule second).
-  schedule: z.array(z.object({ date: DateTime, generatedEventId: Id.nullable() })),
+  schedule: z.array(
+    z.object({ date: DateTime, generatedEventId: Id.nullable() }),
+  ),
   transferHistory: z.array(
     z.object({ from: Id, to: Id, at: DateTime, byAdmin: z.boolean() }),
   ),

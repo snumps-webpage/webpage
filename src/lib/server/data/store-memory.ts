@@ -20,7 +20,10 @@ const docsOf = (kind: DocKind) => (kind === "table" ? tableDocs : queueDocs);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const jitter = () => sleep(Math.random() * maxJitterMs);
 
-export async function readDoc(kind: DocKind, key: string): Promise<StoredDoc | null> {
+export async function readDoc(
+  kind: DocKind,
+  key: string,
+): Promise<StoredDoc | null> {
   await jitter();
   if (readsFail) throw new Error("memory store: reads disabled for this test");
   const entry = docsOf(kind).get(key);
@@ -28,7 +31,10 @@ export async function readDoc(kind: DocKind, key: string): Promise<StoredDoc | n
   return { doc: structuredClone(entry.doc), version: entry.version };
 }
 
-export async function readVersion(kind: DocKind, key: string): Promise<number | null> {
+export async function readVersion(
+  kind: DocKind,
+  key: string,
+): Promise<number | null> {
   await jitter();
   if (readsFail) throw new Error("memory store: reads disabled for this test");
   return docsOf(kind).get(key)?.version ?? null;
@@ -85,11 +91,16 @@ export function __setAlwaysConflict(v: boolean): void {
 export function __putRawDoc(kind: DocKind, key: string, doc: unknown): void {
   const docs = docsOf(kind);
   const current = docs.get(key);
-  docs.set(key, { doc: structuredClone(doc), version: (current?.version ?? 0) + 1 });
+  docs.set(key, {
+    doc: structuredClone(doc),
+    version: (current?.version ?? 0) + 1,
+  });
 }
 export function __auditRows(): AuditRow[] {
   return [...auditRows];
 }
-export function __docs(kind: DocKind): Map<string, { doc: unknown; version: number }> {
+export function __docs(
+  kind: DocKind,
+): Map<string, { doc: unknown; version: number }> {
   return docsOf(kind);
 }

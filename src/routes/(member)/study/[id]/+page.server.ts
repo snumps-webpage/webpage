@@ -12,7 +12,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   const study = (await getTable("studies")).find((s) => s.id === params.id);
   if (!study) throw error(404, "Not Found");
 
-  const [events, members] = await Promise.all([getTable("events"), memberPickers()]);
+  const [events, members] = await Promise.all([
+    getTable("events"),
+    memberPickers(),
+  ]);
   const byId = new Map(members.map((m) => [m.id, m]));
   const nameOf = (id: string) => byId.get(id)?.name ?? "Unknown";
 

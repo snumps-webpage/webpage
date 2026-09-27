@@ -14,14 +14,23 @@ import type { PageServerLoad } from "./$types";
 export const load: PageServerLoad = async ({ locals, url }) => {
   await ensureAdmin(locals, { silent: true });
   const term = url.searchParams.get("term") ?? currentTerm();
-  const [board, titles] = await Promise.all([getTermBoard(term), listRoleTitles()]);
+  const [board, titles] = await Promise.all([
+    getTermBoard(term),
+    listRoleTitles(),
+  ]);
   return { ...board, titles, currentTerm: currentTerm() };
 };
 
 const str = (d: FormData, n: string) => ((d.get(n) as string) ?? "").trim();
 
 export const actions = {
-  assign: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  assign: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       await assignRole({
@@ -34,7 +43,13 @@ export const actions = {
     });
   },
 
-  unassign: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  unassign: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       await unassignRole({
@@ -47,7 +62,13 @@ export const actions = {
     });
   },
 
-  addTitle: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  addTitle: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       await addRoleTitle(str(data, "title"));
@@ -55,7 +76,13 @@ export const actions = {
     });
   },
 
-  removeTitle: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  removeTitle: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       await removeRoleTitle(str(data, "title"));

@@ -9,14 +9,22 @@ import type { PageServerLoad, Actions } from "./$types";
 
 function parsePresenterIds(raw: string | null): string[] {
   if (!raw) return [];
-  return [...new Set(raw.split(",").map((s) => s.trim()).filter(Boolean))];
+  return [
+    ...new Set(
+      raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 export const load: PageServerLoad = async ({ locals, url }) => {
   const session = await ensureSession(locals, url);
 
   let memberDirectoryUnavailable = false;
-  let searchableMembers: { id: string; name: string; department: string }[] = [];
+  let searchableMembers: { id: string; name: string; department: string }[] =
+    [];
 
   try {
     searchableMembers = await memberPickers();
@@ -64,7 +72,8 @@ export const actions: Actions = {
         requesterId: member.memberId,
       });
 
-      const { sendSeminarApplicationNotification } = await import("$lib/server/mail");
+      const { sendSeminarApplicationNotification } =
+        await import("$lib/server/mail");
       await sendSeminarApplicationNotification(member.name, title);
     });
   },

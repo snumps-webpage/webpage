@@ -2,7 +2,10 @@
 // 착지했으므로 → legacy-*로 옮겨 담고 운영 테이블을 비운다. 고아 등록 행도 정리.
 import { createClient } from "@supabase/supabase-js";
 
-const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
+const sb = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SECRET_KEY,
+);
 
 async function doc(name) {
   const { data, error } = await sb
@@ -33,8 +36,16 @@ const [members, infos, legacyM, legacyP, regs, apps] = await Promise.all([
   doc("applications"),
 ]);
 
-console.log("현재 상태: live members", members.doc.rows.length, "| legacy", legacyM.doc.rows.length,
-  "| registrations", regs?.doc.rows.length ?? 0, "| applications", apps?.doc.rows.length ?? 0);
+console.log(
+  "현재 상태: live members",
+  members.doc.rows.length,
+  "| legacy",
+  legacyM.doc.rows.length,
+  "| registrations",
+  regs?.doc.rows.length ?? 0,
+  "| applications",
+  apps?.doc.rows.length ?? 0,
+);
 
 const dashLive = members.doc.rows.filter((r) => /­/.test(r.name)).length;
 const dashLegacy = legacyM.doc.rows.filter((r) => /­/.test(r.name)).length;
@@ -63,5 +74,9 @@ if (regs && regs.doc.rows.length > 0) {
 
 // 검증
 const after = await doc("legacy-members");
-console.log("검증: legacy soft-hyphen 잔존", after.doc.rows.filter((r) => /­/.test(r.name)).length,
-  "| legacy rows", after.doc.rows.length);
+console.log(
+  "검증: legacy soft-hyphen 잔존",
+  after.doc.rows.filter((r) => /­/.test(r.name)).length,
+  "| legacy rows",
+  after.doc.rows.length,
+);

@@ -91,7 +91,8 @@
   {/if}
   {#if form?.error === "CONFLICT"}
     <p class="paper-status-note error" role="alert">
-      출석 기록이나 갤러리가 연결되어 있어 삭제할 수 없습니다. 활동 편집에서 출석자를 먼저 정리하세요.
+      출석 기록이나 갤러리가 연결되어 있어 삭제할 수 없습니다. 활동 편집에서
+      출석자를 먼저 정리하세요.
     </p>
   {/if}
 

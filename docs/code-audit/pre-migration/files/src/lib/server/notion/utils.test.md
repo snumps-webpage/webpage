@@ -17,14 +17,14 @@ T-2의 제안 코드가 **실행되지 않으며**, 이 파일 생태계의 가�
 
 ## 요약
 
-| # | 지적 | 분류 | 심각도 |
-|---|---|---|---|
-| **T-1** | **커버리지가 뒤집혀 있다 — 없는 타입을 가장 많이 테스트하고, 최다 사용 타입은 0개** | 커버리지 | 🟠 |
-| **T-2** | **같은 모듈의 `validateNotionResponse`는 테스트가 0개** | 커버리지 | 🟠 |
-| T-3 | 현재 동작을 고정하는데, 그중 셋은 감사가 바꾸려는 동작이다 | 계약 | 🟠 |
-| T-4 | 배열 반환과 `""` 반환의 구분이 테스트되지 않는다 | 커버리지 | 🟡 |
-| T-5 | `title`/`rich_text`가 버리는 것(링크·주석)이 문서화되지 않았다 | 커버리지 | 🟡 |
-| T-6 | `describe` 이름이 모듈이 아니라 함수 하나를 가리킨다 | 명명 | 🟢 |
+| #       | 지적                                                                                | 분류     | 심각도 |
+| ------- | ----------------------------------------------------------------------------------- | -------- | ------ |
+| **T-1** | **커버리지가 뒤집혀 있다 — 없는 타입을 가장 많이 테스트하고, 최다 사용 타입은 0개** | 커버리지 | 🟠     |
+| **T-2** | **같은 모듈의 `validateNotionResponse`는 테스트가 0개**                             | 커버리지 | 🟠     |
+| T-3     | 현재 동작을 고정하는데, 그중 셋은 감사가 바꾸려는 동작이다                          | 계약     | 🟠     |
+| T-4     | 배열 반환과 `""` 반환의 구분이 테스트되지 않는다                                    | 커버리지 | 🟡     |
+| T-5     | `title`/`rich_text`가 버리는 것(링크·주석)이 문서화되지 않았다                      | 커버리지 | 🟡     |
+| T-6     | `describe` 이름이 모듈이 아니라 함수 하나를 가리킨다                                | 명명     | 🟢     |
 
 > 먼저 적어둘 것: **여기 있는 테스트 자체는 잘 쓰여 있다.** 순수 함수라 목이 필요 없고,
 > 각 `it`이 한 가지를 확인하며, 이름이 내용과 일치하고, 경계값(`null`, `0`, 빈 select)을 함께 본다.
@@ -36,20 +36,20 @@ T-2의 제안 코드가 **실행되지 않으며**, 이 파일 생태계의 가�
 
 `getPropertyValue`의 `switch`는 14개 케이스다. 실 API로 7개 DB의 속성 타입을 census 한 결과와 대조:
 
-| 타입 | 실재 속성 수 | 테스트 |
-|---|---|---|
-| `rich_text` | 12 | ✅ |
-| **`relation`** | **10** | ❌ **0개** |
-| `title` | 7 | ✅ |
-| `checkbox` | 3 | ✅ |
-| `select` | 3 | ✅ |
-| **`files`** | **3** | ❌ |
-| **`formula`** | **2** | ❌ (switch 케이스 자체가 없음) |
-| **`email`** | **2** | ❌ |
-| **`phone_number`** | **2** | ❌ |
-| `date` | 2 | ✅ |
-| `multi_select` | 1 | ✅ |
-| **`number`** | **0** | ✅ **단언 3개 — 최다** |
+| 타입               | 실재 속성 수 | 테스트                         |
+| ------------------ | ------------ | ------------------------------ |
+| `rich_text`        | 12           | ✅                             |
+| **`relation`**     | **10**       | ❌ **0개**                     |
+| `title`            | 7            | ✅                             |
+| `checkbox`         | 3            | ✅                             |
+| `select`           | 3            | ✅                             |
+| **`files`**        | **3**        | ❌                             |
+| **`formula`**      | **2**        | ❌ (switch 케이스 자체가 없음) |
+| **`email`**        | **2**        | ❌                             |
+| **`phone_number`** | **2**        | ❌                             |
+| `date`             | 2            | ✅                             |
+| `multi_select`     | 1            | ✅                             |
+| **`number`**       | **0**        | ✅ **단언 3개 — 최다**         |
 
 **존재하지 않는 `number`가 이 파일에서 가장 많이 검증된 케이스다**(`:21-26`, 단언 3개).
 반대로 **`relation`은 속성 10개로 최다 사용 비텍스트 타입인데 단언이 0개**다.
@@ -59,6 +59,7 @@ T-2의 제안 코드가 **실행되지 않으며**, 이 파일 생태계의 가�
 ### `relation`이 무테스트인 것의 값
 
 `relation`은 이 코드베이스에서 가장 결과가 무거운 케이스다:
+
 - 출석자(`활동 기록.출석`) · 진행자(`세미나 기록.진행자`) · 회원↔개인정보 연결
 - `has_more`를 무시하는 케이스이기도 하다 — 단 **단위 테스트로는 못 잡는다.**
   `getPropertyValue`는 `has_more`를 인자로 받지 않는다. (U-2는 🟡로 강등됐다)
@@ -67,14 +68,16 @@ T-2의 제안 코드가 **실행되지 않으며**, 이 파일 생태계의 가�
 단언 두 줄이면 AC-11이 컴파일 이전에 드러났을 것이다:
 
 ```ts
-expect(getPropertyValue({ type: "relation", relation: [{ id: "a" }] })).toEqual(["a"]);
-expect(getPropertyValue({ type: "relation" })).toEqual([]);   // 속성은 있고 값이 빈 경우
+expect(getPropertyValue({ type: "relation", relation: [{ id: "a" }] })).toEqual(
+  ["a"],
+);
+expect(getPropertyValue({ type: "relation" })).toEqual([]); // 속성은 있고 값이 빈 경우
 ```
 
 > **초판 정정 2건**:
 > ① "AC-11이 **컴파일 이전에** 드러났을 것"은 **틀렸다.** 반환이 `any`라 컴파일러가 잡지 않는다.
 > ② AC-11의 실제 트리거는 relation 파싱이 아니라 **속성 자체가 없는 경로**(`utils.ts:30`)이고,
->    그건 이미 `:54`가 테스트하고 있다. 초판은 **이미 있는 테스트를 새 증거로 제안했다.**
+> 그건 이미 `:54`가 테스트하고 있다. 초판은 **이미 있는 테스트를 새 증거로 제안했다.**
 > 남는 값은 "relation은 배열, 부재는 `""` — 두 타입이 섞인다"가 **명세로 기록되는 것**이다.
 
 ---
@@ -92,7 +95,9 @@ expect(getPropertyValue({ type: "relation" })).toEqual([]);   // 속성은 있�
 ```ts
 it("returns raw data when the schema does not match", () => {
   const schema = z.object({ n: z.number() });
-  expect(validateNotionResponse(schema, { n: "not a number" })).toEqual({ n: "not a number" });
+  expect(validateNotionResponse(schema, { n: "not a number" })).toEqual({
+    n: "not a number",
+  });
 });
 ```
 
@@ -108,11 +113,11 @@ it("returns raw data when the schema does not match", () => {
 
 ## T-3 🟠 감사가 바꾸려는 동작을 테스트가 고정하고 있다
 
-| 테스트 | 고정하는 동작 | 관련 지적 |
-|---|---|---|
-| `:39` | `multi_select` → `"A, B"` (문자열) | `utils.md` U-5 — 배열로 바꾸자 |
-| `:54` | `getPropertyValue(null)` → `""` | `utils.md` U-4 — `undefined`로 구분하자 |
-| `:55` | 미지원 타입 → `""` | `utils.md` U-4 — 동일 |
+| 테스트 | 고정하는 동작                      | 관련 지적                               |
+| ------ | ---------------------------------- | --------------------------------------- |
+| `:39`  | `multi_select` → `"A, B"` (문자열) | `utils.md` U-5 — 배열로 바꾸자          |
+| `:54`  | `getPropertyValue(null)` → `""`    | `utils.md` U-4 — `undefined`로 구분하자 |
+| `:55`  | 미지원 타입 → `""`                 | `utils.md` U-4 — 동일                   |
 
 **테스트의 잘못이 아니다.** 다만 이 파일에는 "현재 동작을 기록한 것"과
 "의도된 계약"을 구분하는 표시가 없다. `:53`의 이름
@@ -146,15 +151,15 @@ it("returns raw data when the schema does not match", () => {
 > 썼다. **직접 재지 않고 앞선 에이전트 보고에서 가져온 수**였고, 두 가지가 틀렸다:
 >
 > ① **라벨이 틀렸다.** 67은 `rich_text`(8) + `title`(59)의 합이다.
->    "rich_text 항목 67개"라는 문장의 문자 그대로 읽으면 실제는 **8개**다.
+> "rich_text 항목 67개"라는 문장의 문자 그대로 읽으면 실제는 **8개**다.
 > ② **실질이 다르다.** 67개 중 **66개가 `page` mention**이고,
->    mention은 `plain_text`에 표시 문자열이 그대로 들어 있다
->    (`"김태영"`, `"PDEs for cell movements"`). 잃는 것은 **페이지 id**다.
->    진짜 하이퍼링크 텍스트는 **레포 전체에 1개**이고, 그것마저
->    `plain_text`가 `"https://mathrecords.notion.site"`, `href`가 같은 URL + 슬래시라
->    **잃는 것이 후행 슬래시뿐**이다.
+> mention은 `plain_text`에 표시 문자열이 그대로 들어 있다
+> (`"김태영"`, `"PDEs for cell movements"`). 잃는 것은 **페이지 id**다.
+> 진짜 하이퍼링크 텍스트는 **레포 전체에 1개**이고, 그것마저
+> `plain_text`가 `"https://mathrecords.notion.site"`, `href`가 같은 URL + 슬래시라
+> **잃는 것이 후행 슬래시뿐**이다.
 > ③ 주석은 `rich_text` 431개 중 **0개**, `title` 646개 중 **1개**다.
->    "주석을 전부 버린다"는 표현이 가리킬 대상이 사실상 없다.
+> "주석을 전부 버린다"는 표현이 가리킬 대상이 사실상 없다.
 
 **정직한 서술**: URL 하나와 페이지 mention 66개가 링크 대상을 잃는다. 표시 텍스트는 보존된다.
 주석 손실은 사실상 0이다.
@@ -164,9 +169,12 @@ it("returns raw data when the schema does not match", () => {
 
 ```ts
 it("keeps mention text but drops the page id", () => {
-  const prop = { type: "rich_text", rich_text: [
-    { plain_text: "김태영", href: "https://notion.so/abc", type: "mention" },
-  ]};
+  const prop = {
+    type: "rich_text",
+    rich_text: [
+      { plain_text: "김태영", href: "https://notion.so/abc", type: "mention" },
+    ],
+  };
   expect(getPropertyValue(prop)).toBe("김태영");
 });
 ```
@@ -195,8 +203,12 @@ T-2를 채우면 두 번째 `describe`가 필요해지므로, 그때 바깥에
 단언 하나면 그 손실이 명세로 드러난다:
 
 ```ts
-expect(getPropertyValue({ type: "date", date: { start: "2026-03-13", end: "2026-05-29" } }))
-  .toBe("2026-03-13");   // ← end 가 사라진다는 사실을 여기 적는다
+expect(
+  getPropertyValue({
+    type: "date",
+    date: { start: "2026-03-13", end: "2026-05-29" },
+  }),
+).toBe("2026-03-13"); // ← end 가 사라진다는 사실을 여기 적는다
 ```
 
 > **T-1 census 표의 방법론 구멍이 여기서 드러난다.**
@@ -211,7 +223,7 @@ expect(getPropertyValue({ type: "date", date: { start: "2026-03-13", end: "2026-
 `utils.ts:69-72`의 catch는 이국적이지 않다:
 
 ```ts
-getPropertyValue({ type: "title", title: "abc" })
+getPropertyValue({ type: "title", title: "abc" });
 // → "abc".map is not a function → catch → console.warn → ""
 ```
 
@@ -225,8 +237,8 @@ T-5가 든 논리("의도된 단순화라면 테스트가 그 의도를 적어�
 
 ```ts
 it("should return empty string for unknown or null properties", () => {
-  expect(getPropertyValue(null)).toBe("");            // utils.ts:30  !property 가드
-  expect(getPropertyValue({ type: "unknown" })).toBe("");  // utils.ts:67  default 분기
+  expect(getPropertyValue(null)).toBe(""); // utils.ts:30  !property 가드
+  expect(getPropertyValue({ type: "unknown" })).toBe(""); // utils.ts:67  default 분기
 });
 ```
 
@@ -284,12 +296,12 @@ T-3의 표도 둘을 나눠 적는다. 그런데 테스트는 한 이름으로 �
 
 ## 개정 이력
 
-| 변경 | 내용 |
-|---|---|
-| **X-1 선행 사실 추가** | `zod` 미설치로 **빌드 실패**. T-2의 제안 코드가 실행 불가. 초판은 실행해 보지 않고 우선순위 1번에 올렸다 |
+| 변경                   | 내용                                                                                                                                                                                         |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **X-1 선행 사실 추가** | `zod` 미설치로 **빌드 실패**. T-2의 제안 코드가 실행 불가. 초판은 실행해 보지 않고 우선순위 1번에 올렸다                                                                                     |
 | **T-5 수치 전면 정정** | "링크 67개"는 `rich_text`+`title` 합. 문자 그대로면 **8개**. 그중 **66개가 mention**이고 표시 텍스트는 보존된다. 진짜 하이퍼링크는 **1개**, 손실은 후행 슬래시. 주석 손실은 431개 중 **0개** |
-| **T-7 신설 🟠** | `date` 테스트가 ✅인데 U-9(종료일 소실, 20행)가 그 안에 산다. census 표 ✅의 의미가 약하다는 방법론 구멍 |
-| **T-8 · T-9 신설 🟡** | catch 무테스트 / `:53` 이름이 두 분기를 뭉갬 + 실제 트리거는 `undefined` |
-| T-1 추론 정정 | "컴파일 이전에 드러난다" 철회(반환이 `any`). AC-11 트리거는 relation이 아니라 부재 경로이고 **이미 `:54`가 테스트 중**. `has_more`는 단위 테스트로 못 잡음 |
-| 비지적 2건 철회 | "경계값이 가장 잘한 부분"(T-3과 모순) · "실제로 실행된다"(호출자 없음) |
-| 우선순위 재배치 | T-2 1순위 → **zod 설치 선행 + T-7 1순위** |
+| **T-7 신설 🟠**        | `date` 테스트가 ✅인데 U-9(종료일 소실, 20행)가 그 안에 산다. census 표 ✅의 의미가 약하다는 방법론 구멍                                                                                     |
+| **T-8 · T-9 신설 🟡**  | catch 무테스트 / `:53` 이름이 두 분기를 뭉갬 + 실제 트리거는 `undefined`                                                                                                                     |
+| T-1 추론 정정          | "컴파일 이전에 드러난다" 철회(반환이 `any`). AC-11 트리거는 relation이 아니라 부재 경로이고 **이미 `:54`가 테스트 중**. `has_more`는 단위 테스트로 못 잡음                                   |
+| 비지적 2건 철회        | "경계값이 가장 잘한 부분"(T-3과 모순) · "실제로 실행된다"(호출자 없음)                                                                                                                       |
+| 우선순위 재배치        | T-2 1순위 → **zod 설치 선행 + T-7 1순위**                                                                                                                                                    |

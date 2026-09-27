@@ -65,14 +65,19 @@ export async function createUploadUrl(
   const { data, error } = await getSupabase()
     .storage.from(stagingBucket())
     .createSignedUploadUrl(path);
-  if (error) throw new Error(`createUploadUrl(${path}) failed: ${error.message}`);
+  if (error)
+    throw new Error(`createUploadUrl(${path}) failed: ${error.message}`);
   return data.signedUrl;
 }
 
 /** HeadObject replacement: staging `.info(path)` — null when the object is missing. */
-export async function stagedInfo(path: string): Promise<StagedObjectInfo | null> {
+export async function stagedInfo(
+  path: string,
+): Promise<StagedObjectInfo | null> {
   if (isMemoryBackend()) return memory.stagedInfo(path);
-  const { data, error } = await getSupabase().storage.from(stagingBucket()).info(path);
+  const { data, error } = await getSupabase()
+    .storage.from(stagingBucket())
+    .info(path);
   if (error) {
     if (isNotFound(error)) return null; // never uploaded or already reaped
     throw new Error(`stagedInfo(${path}) failed: ${error.message}`);
@@ -88,9 +93,14 @@ export async function stagedInfo(path: string): Promise<StagedObjectInfo | null>
  * Content-Type은 브라우저가 서명 없이 보내므로 신뢰 불가 → 실제 바이트로 확인.
  * Supabase JS는 range download가 없어 전체를 받아 앞부분만 취한다(포스터 ≤15MB).
  */
-export async function readStagedHead(path: string, maxBytes: number): Promise<Uint8Array | null> {
+export async function readStagedHead(
+  path: string,
+  maxBytes: number,
+): Promise<Uint8Array | null> {
   if (isMemoryBackend()) return memory.readStagedHead(path, maxBytes);
-  const { data, error } = await getSupabase().storage.from(stagingBucket()).download(path);
+  const { data, error } = await getSupabase()
+    .storage.from(stagingBucket())
+    .download(path);
   if (error) {
     if (isNotFound(error)) return null;
     throw new Error(`readStagedHead(${path}) failed: ${error.message}`);
@@ -112,7 +122,9 @@ export async function promoteToAssets(
     .storage.from(stagingBucket())
     .move(stagingPath, assetPath, { destinationBucket: assetsBucket() });
   if (error) {
-    throw new Error(`promoteToAssets(${stagingPath} → ${assetPath}) failed: ${error.message}`);
+    throw new Error(
+      `promoteToAssets(${stagingPath} → ${assetPath}) failed: ${error.message}`,
+    );
   }
 }
 
@@ -122,12 +134,15 @@ export async function copyToBackups(
   sourcePath: string,
   backupPath: string,
 ): Promise<void> {
-  if (isMemoryBackend()) return memory.copyToBackups(sourceBucket, sourcePath, backupPath);
+  if (isMemoryBackend())
+    return memory.copyToBackups(sourceBucket, sourcePath, backupPath);
   const { error } = await getSupabase()
     .storage.from(assetsBucket())
     .copy(sourcePath, backupPath, { destinationBucket: backupsBucket() });
   if (error) {
-    throw new Error(`copyToBackups(${sourcePath} → ${backupPath}) failed: ${error.message}`);
+    throw new Error(
+      `copyToBackups(${sourcePath} → ${backupPath}) failed: ${error.message}`,
+    );
   }
 }
 
@@ -143,7 +158,8 @@ export async function createSignedAssetUrl(
   path: string,
   expiresInSeconds: number,
 ): Promise<string | null> {
-  if (isMemoryBackend()) return memory.createSignedAssetUrl(path, expiresInSeconds);
+  if (isMemoryBackend())
+    return memory.createSignedAssetUrl(path, expiresInSeconds);
   const { data, error } = await getSupabase()
     .storage.from(assetsBucket())
     .createSignedUrl(path, expiresInSeconds);
@@ -166,15 +182,25 @@ export async function createSignedAssetUrl(
 export async function removeAssets(paths: string[]): Promise<void> {
   if (isMemoryBackend()) return memory.removeAssets(paths);
   if (paths.length === 0) return;
-  const { error } = await getSupabase().storage.from(assetsBucket()).remove(paths);
-  if (error) throw new Error(`removeAssets(${paths.length} paths) failed: ${error.message}`);
+  const { error } = await getSupabase()
+    .storage.from(assetsBucket())
+    .remove(paths);
+  if (error)
+    throw new Error(
+      `removeAssets(${paths.length} paths) failed: ${error.message}`,
+    );
 }
 
 export async function removeStaged(paths: string[]): Promise<void> {
   if (isMemoryBackend()) return memory.removeStaged(paths);
   if (paths.length === 0) return;
-  const { error } = await getSupabase().storage.from(stagingBucket()).remove(paths);
-  if (error) throw new Error(`removeStaged(${paths.length} paths) failed: ${error.message}`);
+  const { error } = await getSupabase()
+    .storage.from(stagingBucket())
+    .remove(paths);
+  if (error)
+    throw new Error(
+      `removeStaged(${paths.length} paths) failed: ${error.message}`,
+    );
 }
 
 const LIST_PAGE_SIZE = 1000;
@@ -197,7 +223,8 @@ async function listAll(
       .list(prefix, { limit: LIST_PAGE_SIZE, offset });
     if (error) throw new Error(`${label}(${prefix}) failed: ${error.message}`);
     const page = data ?? [];
-    for (const f of page) out.push({ name: f.name, createdAt: f.created_at ?? "" });
+    for (const f of page)
+      out.push({ name: f.name, createdAt: f.created_at ?? "" });
     if (page.length < LIST_PAGE_SIZE) return out;
   }
 }
@@ -212,12 +239,16 @@ export async function listStaged(
 // ---- backups bucket (B1 weekly dumps, spec §7 — used by services/maintenance) --
 
 /** B1 dump writer: upload a JSON body into the private backups bucket. */
-export async function uploadToBackups(path: string, body: string): Promise<void> {
+export async function uploadToBackups(
+  path: string,
+  body: string,
+): Promise<void> {
   if (isMemoryBackend()) return memory.uploadToBackups(path, body);
   const { error } = await getSupabase()
     .storage.from(backupsBucket())
     .upload(path, body, { contentType: "application/json", upsert: true });
-  if (error) throw new Error(`uploadToBackups(${path}) failed: ${error.message}`);
+  if (error)
+    throw new Error(`uploadToBackups(${path}) failed: ${error.message}`);
 }
 
 /** List the backups bucket under a prefix — same shape/caveats as listStaged. */
@@ -232,6 +263,11 @@ export async function listBackups(
 export async function removeBackups(paths: string[]): Promise<void> {
   if (isMemoryBackend()) return memory.removeBackups(paths);
   if (paths.length === 0) return;
-  const { error } = await getSupabase().storage.from(backupsBucket()).remove(paths);
-  if (error) throw new Error(`removeBackups(${paths.length} paths) failed: ${error.message}`);
+  const { error } = await getSupabase()
+    .storage.from(backupsBucket())
+    .remove(paths);
+  if (error)
+    throw new Error(
+      `removeBackups(${paths.length} paths) failed: ${error.message}`,
+    );
 }

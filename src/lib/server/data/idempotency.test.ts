@@ -38,8 +38,12 @@ beforeEach(async () => {
 describe("ensureCreated — §1-6 check-before-create", () => {
   it("creates once and returns the existing record on re-run", async () => {
     const source = newId();
-    const first = await ensureCreated("seminars", source, () => buildSeminar(source));
-    const second = await ensureCreated("seminars", source, () => buildSeminar(source));
+    const first = await ensureCreated("seminars", source, () =>
+      buildSeminar(source),
+    );
+    const second = await ensureCreated("seminars", source, () =>
+      buildSeminar(source),
+    );
     expect(second.id).toBe(first.id);
     expect(await getTable("seminars")).toHaveLength(1);
   });

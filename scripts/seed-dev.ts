@@ -54,7 +54,8 @@ function currentTerm(now: Date = new Date()): string {
   const shifted = new Date(now.getTime() + KST_OFFSET_MS);
   const year = shifted.getUTCFullYear();
   const month = shifted.getUTCMonth() + 1;
-  if (month >= 3 && month <= 8) return `${String(year % 100).padStart(2, "0")}-1`;
+  if (month >= 3 && month <= 8)
+    return `${String(year % 100).padStart(2, "0")}-1`;
   const termYear = month >= 9 ? year : year - 1;
   return `${String(termYear % 100).padStart(2, "0")}-2`;
 }
@@ -174,7 +175,10 @@ const activities = [
   {
     id: seminarActivityId,
     title: "개발 세미나: 타입 안전한 데이터 계층",
-    date: { start: kstISO(futureSeminarStart), end: kstISO(hoursLater(futureSeminarStart, 2)) },
+    date: {
+      start: kstISO(futureSeminarStart),
+      end: kstISO(hoursLater(futureSeminarStart, 2)),
+    },
     type: "세미나",
     attendeeIds: [],
     sourceRequestId: null,
@@ -190,7 +194,10 @@ const activities = [
   {
     id: meetingActivityId,
     title: "정기 운영 회의",
-    date: { start: kstISO(pastMeetingStart), end: kstISO(hoursLater(pastMeetingStart, 1)) },
+    date: {
+      start: kstISO(pastMeetingStart),
+      end: kstISO(hoursLater(pastMeetingStart, 1)),
+    },
     type: "회의",
     attendeeIds: [adminId, regularId],
     sourceRequestId: null,
@@ -202,7 +209,10 @@ const events = [
   {
     id: id(),
     title: "개발 세미나: 타입 안전한 데이터 계층",
-    date: { start: kstISO(futureSeminarStart), end: kstISO(hoursLater(futureSeminarStart, 2)) },
+    date: {
+      start: kstISO(futureSeminarStart),
+      end: kstISO(hoursLater(futureSeminarStart, 2)),
+    },
     type: "세미나",
     status: "active",
     pathId: "dev-seminar-data-layer",
@@ -218,7 +228,10 @@ const events = [
   {
     id: id(),
     title: "정기 운영 회의",
-    date: { start: kstISO(pastMeetingStart), end: kstISO(hoursLater(pastMeetingStart, 1)) },
+    date: {
+      start: kstISO(pastMeetingStart),
+      end: kstISO(hoursLater(pastMeetingStart, 1)),
+    },
     type: "회의",
     status: "expired",
     pathId: "dev-meeting-past",
@@ -370,7 +383,9 @@ async function main() {
     process.exit(1);
   }
 
-  const supabase = createClient(url, secretKey, { auth: { persistSession: false } });
+  const supabase = createClient(url, secretKey, {
+    auth: { persistSession: false },
+  });
 
   const upserts = Object.entries(SEED).map(([name, rows]) => ({
     name,
@@ -383,7 +398,10 @@ async function main() {
 
   console.log(`시드 완료 (${url}) — 현재 학기: ${term}\n`);
   console.table(
-    Object.entries(SEED).map(([name, rows]) => ({ table: name, rows: rows.length })),
+    Object.entries(SEED).map(([name, rows]) => ({
+      table: name,
+      rows: rows.length,
+    })),
   );
 }
 

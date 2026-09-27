@@ -87,10 +87,14 @@ suite("signup lifecycle (live dev DB)", () => {
     expect(reg!.term).toBe(currentTerm());
 
     // 4) 중복 승인 차단 (행이 이미 전환됨 → CONFLICT)
-    await expect(approveApplication(app.id)).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(approveApplication(app.id)).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
 
     // 정리: 프로브 회원의 등록 행 제거 (중복 승인 검사 뒤에 해야 CONFLICT 판정이 성립)
-    await mutate("registrations", (rows) => rows.filter((r) => r.sourceRequestId !== app.id));
+    await mutate("registrations", (rows) =>
+      rows.filter((r) => r.sourceRequestId !== app.id),
+    );
   });
 
   it("reject removes the row outright (no member conversion)", async () => {

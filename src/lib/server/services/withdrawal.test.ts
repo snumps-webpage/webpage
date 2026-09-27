@@ -1,15 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("$lib/server/data/store", () => import("$lib/server/data/store-memory"));
+vi.mock(
+  "$lib/server/data/store",
+  () => import("$lib/server/data/store-memory"),
+);
 
 import { __auditRows, __reset } from "$lib/server/data/store-memory";
-import { _resetDataLayerForTests, getTable, mutate } from "$lib/server/data/tables";
+import {
+  _resetDataLayerForTests,
+  getTable,
+  mutate,
+} from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { newId } from "$lib/server/core/id";
 import { nowKstIso } from "$lib/server/core/time";
 import { AppError } from "$lib/server/core/errors";
 import type { Member, Study } from "$lib/server/data/schemas";
-import { cancelWithdrawal, getWithdrawalState, requestWithdrawal } from "./withdrawal";
+import {
+  cancelWithdrawal,
+  getWithdrawalState,
+  requestWithdrawal,
+} from "./withdrawal";
 
 const makeMember = (over: Partial<Member> = {}): Member => ({
   id: newId(),
@@ -30,7 +41,11 @@ const makeMember = (over: Partial<Member> = {}): Member => ({
   ...over,
 });
 
-const ok = (name: string) => ({ ackInfo: true, ackDataPolicy: true, confirmName: name });
+const ok = (name: string) => ({
+  ackInfo: true,
+  ackDataPolicy: true,
+  confirmName: name,
+});
 
 async function seed(over: Partial<Member> = {}): Promise<Member> {
   const m = makeMember(over);
@@ -79,10 +94,21 @@ describe("requestWithdrawal — triple confirmation (MEM-07)", () => {
   it("blocks an active organizer until the study is handed over", async () => {
     const m = await seed();
     const study: Study = {
-      id: newId(), title: "해석학", semester: "26-2", textbook: "", description: "",
-      note: "", organizerIds: [m.id], participantIds: [m.id], pendingParticipantIds: [],
-      pendingTransfer: null, schedule: [], transferHistory: [], photos: [],
-      status: "ongoing", sourceRequestId: null,
+      id: newId(),
+      title: "해석학",
+      semester: "26-2",
+      textbook: "",
+      description: "",
+      note: "",
+      organizerIds: [m.id],
+      participantIds: [m.id],
+      pendingParticipantIds: [],
+      pendingTransfer: null,
+      schedule: [],
+      transferHistory: [],
+      photos: [],
+      status: "ongoing",
+      sourceRequestId: null,
     };
     await mutate("studies", (rows) => [...rows, study]);
 

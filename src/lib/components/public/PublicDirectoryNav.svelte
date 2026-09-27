@@ -1,6 +1,7 @@
 <script lang="ts">
   type Item = { href: string; label: string };
-  let { items, label = "공개 자료 탐색" }: { items: Item[]; label?: string } = $props();
+  let { items, label = "공개 자료 탐색" }: { items: Item[]; label?: string } =
+    $props();
 </script>
 
 <nav class="public-directory-nav" aria-label={label}>
@@ -32,12 +33,18 @@
     text-decoration: none;
     text-transform: uppercase;
   }
-  a:last-child { border-right: 0; }
-  a:hover, a:focus-visible {
+  a:last-child {
+    border-right: 0;
+  }
+  a:hover,
+  a:focus-visible {
     background: var(--latex-text);
     color: var(--latex-bg);
   }
   @media (max-width: 560px) {
-    a { flex-basis: 50%; border-bottom: 1px solid var(--latex-rule); }
+    a {
+      flex-basis: 50%;
+      border-bottom: 1px solid var(--latex-rule);
+    }
   }
 </style>

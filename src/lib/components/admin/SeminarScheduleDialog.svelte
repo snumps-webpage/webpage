@@ -95,7 +95,9 @@
 
     <div class="schedule-fields">
       <div class="paper-field">
-        <label for={`starts-${seminar.id}`} class="paper-label">시작 일시 <span>*</span></label>
+        <label for={`starts-${seminar.id}`} class="paper-label"
+          >시작 일시 <span>*</span></label
+        >
         <label class="time-unknown">
           <input
             type="checkbox"
@@ -112,12 +114,16 @@
           bind:value={startsAtLocal}
           oninput={() => clearIssue("startsAtLocal")}
           aria-invalid={!!issues.startsAtLocal}
-          aria-describedby={issues.startsAtLocal ? "starts-error" : "timezone-hint"}
+          aria-describedby={issues.startsAtLocal
+            ? "starts-error"
+            : "timezone-hint"}
         />
         {#if issues.startsAtLocal}
           <p class="field-error" id="starts-error">{issues.startsAtLocal}</p>
         {:else}
-          <p class="paper-hint" id="timezone-hint">한국 시간(KST)으로 저장됩니다.</p>
+          <p class="paper-hint" id="timezone-hint">
+            한국 시간(KST)으로 저장됩니다.
+          </p>
         {/if}
       </div>
 
@@ -138,7 +144,9 @@
       </div>
 
       <div class="paper-field full-width">
-        <label for={`location-${seminar.id}`} class="paper-label">장소 <span>*</span></label>
+        <label for={`location-${seminar.id}`} class="paper-label"
+          >장소 <span>*</span></label
+        >
         <input
           id={`location-${seminar.id}`}
           name="location"
@@ -161,8 +169,8 @@
       {#if seminar.publicationStatus === "published"}
         저장하면 회원 페이지와 공개 아카이브의 일정이 함께 갱신됩니다.
       {:else}
-        일정 저장 후 ‘활동·출석 이벤트 공개’를 누르면 회원 페이지에 노출되고 확정 일정 안내
-        메일을 보냅니다. 저장만으로는 메일을 보내지 않습니다.
+        일정 저장 후 ‘활동·출석 이벤트 공개’를 누르면 회원 페이지에 노출되고
+        확정 일정 안내 메일을 보냅니다. 저장만으로는 메일을 보내지 않습니다.
       {/if}
     </aside>
 
@@ -171,8 +179,8 @@
         type="button"
         class="paper-btn secondary"
         disabled={processing}
-        onclick={() => dialog?.close()}
-      >취소</button>
+        onclick={() => dialog?.close()}>취소</button
+      >
       <button class="paper-btn primary" disabled={processing}>
         {processing ? "저장 중…" : "일정 저장"}
       </button>
@@ -316,5 +324,4 @@
     color: var(--latex-muted);
     font-size: 0.72rem;
   }
-
 </style>

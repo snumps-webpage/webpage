@@ -34,9 +34,8 @@ export const actions = {
       });
 
       // Notification failure must not undo the withdrawal itself.
-      const { notifyExecutivesOfWithdrawal } = await import(
-        "$lib/server/mail/announcements"
-      );
+      const { notifyExecutivesOfWithdrawal } =
+        await import("$lib/server/mail/announcements");
       const sent = await notifyExecutivesOfWithdrawal(locals.member!.name);
       if (!sent) console.error("[Withdrawal] executive notice failed");
 

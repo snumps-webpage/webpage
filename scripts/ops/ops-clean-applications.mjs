@@ -1,7 +1,10 @@
 // 라이브 applications 행의 비가시 문자 1회 정리 (입구 차단 배포 전 유입분)
 import { createClient } from "@supabase/supabase-js";
 
-const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
+const sb = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SECRET_KEY,
+);
 const strip = (t) => t.replace(/[\u00AD\u200B-\u200D\uFEFF\u2060]/g, "");
 
 const { data } = await sb

@@ -1,9 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("$lib/server/data/store", () => import("$lib/server/data/store-memory"));
+vi.mock(
+  "$lib/server/data/store",
+  () => import("$lib/server/data/store-memory"),
+);
 
 import { __auditRows, __reset } from "$lib/server/data/store-memory";
-import { _resetDataLayerForTests, getTable, mutate } from "$lib/server/data/tables";
+import {
+  _resetDataLayerForTests,
+  getTable,
+  mutate,
+} from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { newId } from "$lib/server/core/id";
 import { nowKstIso, toKstIso } from "$lib/server/core/time";
@@ -142,12 +149,21 @@ describe("admin plenary organizer transfer (§7-4)", () => {
   it("replaces the organizer, clears a pending proposal, records byAdmin history", async () => {
     await seedMember({ id: "m-new" }); // setOrganizer validates the target (review M6)
     const study = {
-      id: newId(), title: "해석학", semester: "26-2", textbook: "", description: "",
-      note: "", organizerIds: ["m-old"], participantIds: ["m-old"],
+      id: newId(),
+      title: "해석학",
+      semester: "26-2",
+      textbook: "",
+      description: "",
+      note: "",
+      organizerIds: ["m-old"],
+      participantIds: ["m-old"],
       pendingParticipantIds: [],
       pendingTransfer: { toMemberId: "m-elsewhere", requestedAt: nowKstIso() },
-      schedule: [], transferHistory: [], photos: [],
-      status: "ongoing" as const, sourceRequestId: null,
+      schedule: [],
+      transferHistory: [],
+      photos: [],
+      status: "ongoing" as const,
+      sourceRequestId: null,
     };
     await mutate("studies", (rows) => [...rows, study]);
 

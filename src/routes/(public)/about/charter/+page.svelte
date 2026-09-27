@@ -23,7 +23,8 @@
   <PublicDirectoryNav items={[...ABOUT_NAV]} />
 
   <p class="charter-note">
-    현행본 전문입니다. 제27조에 따라 {CHARTER_ENACTED} 제정 회칙을 개정한 것이며, 개정본은
+    현행본 전문입니다. 제27조에 따라 {CHARTER_ENACTED} 제정 회칙을 개정한 것이며,
+    개정본은
     <a href="/about/charter/history/{CHARTER_ENACTED}">이력</a>에 보존합니다.
   </p>
 
@@ -45,7 +46,8 @@
           </h3>
           {#each article.clauses as clause, ci (ci)}
             <p class="clause">
-              {#if clause.label}<span class="cl-no">{clause.label}</span>{/if}{clause.text}
+              {#if clause.label}<span class="cl-no">{clause.label}</span
+                >{/if}{clause.text}
             </p>
             {#if clause.items}
               {#if clause.ordered}
@@ -71,9 +73,9 @@
       <p>
         현행본을 갱신할 때 과거 파일을 덮어쓰지 않고 <code
           >/about/charter/history/[period]</code
-        >에 개정본을 추가합니다. 원문은 <code>charter-text.ts</code>가 보관하며, 상호참조가
-        어긋나 보이는 곳(제17조 ③·제23조)도 프론트엔드에서 보정하지 않습니다 — 개정은 제27조가
-        정한 절차로만 이루어집니다.
+        >에 개정본을 추가합니다. 원문은 <code>charter-text.ts</code>가 보관하며,
+        상호참조가 어긋나 보이는 곳(제17조 ③·제23조)도 프론트엔드에서 보정하지
+        않습니다 — 개정은 제27조가 정한 절차로만 이루어집니다.
       </p>
       <p class="admin-mark">이 절은 관리자에게만 표시됩니다.</p>
     </section>

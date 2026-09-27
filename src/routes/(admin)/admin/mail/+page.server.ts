@@ -28,13 +28,25 @@ export const load: PageServerLoad = async ({ locals }) => {
     listMailTemplates(),
     listMailVariables(),
   ]);
-  return { events, templates, variables, generatedAt: new Date().toISOString() };
+  return {
+    events,
+    templates,
+    variables,
+    generatedAt: new Date().toISOString(),
+  };
 };
 
-const str = (data: FormData, name: string) => ((data.get(name) as string) ?? "").trim();
+const str = (data: FormData, name: string) =>
+  ((data.get(name) as string) ?? "").trim();
 
 export const actions = {
-  save: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  save: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       await saveMailTemplate({
@@ -47,7 +59,13 @@ export const actions = {
     });
   },
 
-  revertTemplate: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  revertTemplate: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       await revertMailTemplate(str(data, "key"));
@@ -55,7 +73,13 @@ export const actions = {
     });
   },
 
-  deleteTemplate: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  deleteTemplate: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       await deleteMailTemplate(str(data, "key"));
@@ -63,15 +87,30 @@ export const actions = {
     });
   },
 
-  toggle: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  toggle: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
-      await setMailTemplateEnabled(str(data, "key"), data.get("enabled") === "true");
+      await setMailTemplateEnabled(
+        str(data, "key"),
+        data.get("enabled") === "true",
+      );
       return { operation: "toggled" };
     });
   },
 
-  createTemplate: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  createTemplate: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       await createMailTemplate({
@@ -83,7 +122,13 @@ export const actions = {
     });
   },
 
-  addRule: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  addRule: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       await addMailRule({
@@ -95,7 +140,13 @@ export const actions = {
     });
   },
 
-  removeRule: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  removeRule: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       await removeMailRule({
@@ -108,7 +159,13 @@ export const actions = {
     });
   },
 
-  toggleRule: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  toggleRule: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       await setMailRuleEnabled({
@@ -122,7 +179,13 @@ export const actions = {
     });
   },
 
-  saveVariable: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  saveVariable: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       await saveMailVariable({
@@ -134,7 +197,13 @@ export const actions = {
     });
   },
 
-  deleteVariable: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  deleteVariable: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       await deleteMailVariable(str(data, "key"));
@@ -142,7 +211,13 @@ export const actions = {
     });
   },
 
-  revertVariable: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  revertVariable: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       await revertMailVariable(str(data, "key"));
@@ -150,7 +225,13 @@ export const actions = {
     });
   },
 
-  testTemplate: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  testTemplate: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       await sendTestTemplate(str(data, "to"), str(data, "templateKey"));
@@ -158,7 +239,13 @@ export const actions = {
     });
   },
 
-  testEvent: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  testEvent: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       const count = await sendTestEvent(str(data, "to"), str(data, "event"));
@@ -166,7 +253,13 @@ export const actions = {
     });
   },
 
-  revertEvent: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  revertEvent: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       await revertMailEvent(str(data, "event"));

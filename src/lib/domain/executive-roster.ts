@@ -1,9 +1,17 @@
-import type { PublicExecutive, PublicExecutiveRoster } from "$lib/domain/members";
+import type {
+  PublicExecutive,
+  PublicExecutiveRoster,
+} from "$lib/domain/members";
 
 /** The public executives payload as `getPublicExecutives()` returns it. */
 export interface PublicExecutiveTerm {
   term: string;
-  holders: { term: string; title: string; name: string; contact: string | null }[];
+  holders: {
+    term: string;
+    title: string;
+    name: string;
+    contact: string | null;
+  }[];
 }
 
 /**
@@ -27,8 +35,18 @@ export function toExecutiveRoster(
       .filter(Boolean);
     const email = parts.find((p) => p.includes("@")) ?? "";
     const phone = parts.find((p) => !p.includes("@")) ?? "";
-    return { id: `${latest.term}-${title}`, name: holder.name, title, phone, email };
+    return {
+      id: `${latest.term}-${title}`,
+      name: holder.name,
+      title,
+      phone,
+      email,
+    };
   };
 
-  return { term: latest.term, president: pick("회장"), vicePresident: pick("부회장") };
+  return {
+    term: latest.term,
+    president: pick("회장"),
+    vicePresident: pick("부회장"),
+  };
 }

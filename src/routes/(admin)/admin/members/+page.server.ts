@@ -23,9 +23,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       publicContact: m.publicContact,
       // The stored contact is a single opt-in string (API-SPEC §3 exception).
       publicContactStatus: (m.publicContact ? "granted" : "unset") as
-        | "granted"
-        | "revoked"
-        | "unset",
+        "granted" | "revoked" | "unset",
     })),
     generatedAt: nowKstIso(),
   };

@@ -21,9 +21,7 @@ export interface AuthenticatedSession {
  * `undefined` there and every /api gate has to resolve it itself. The result is
  * written back to `locals` so a second gate in the same request is free.
  */
-async function resolveMemberContext(
-  locals: App.Locals,
-): Promise<{
+async function resolveMemberContext(locals: App.Locals): Promise<{
   session: AuthenticatedSession;
   member: MemberContext | null;
 } | null> {

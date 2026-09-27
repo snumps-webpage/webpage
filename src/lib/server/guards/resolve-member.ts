@@ -17,7 +17,9 @@ import type { MemberContext } from "./zone";
  * 이번 학기 등록 여부(registrations)에서 capability 집합이 파생된다.
  */
 
-export async function resolveMember(email: string): Promise<MemberContext | null> {
+export async function resolveMember(
+  email: string,
+): Promise<MemberContext | null> {
   const normalized = email.trim().toLowerCase();
 
   const infos = await getTable("private-info");
@@ -40,7 +42,9 @@ export async function resolveMember(email: string): Promise<MemberContext | null
     }
     return null;
   }
-  const member = (await getTable("members")).find((m) => m.id === info.memberId);
+  const member = (await getTable("members")).find(
+    (m) => m.id === info.memberId,
+  );
   if (!member) return null;
 
   const term = currentTerm();

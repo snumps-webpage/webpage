@@ -39,7 +39,7 @@
         }
         const data =
           "data" in result
-            ? result.data as { error?: string; message?: string }
+            ? (result.data as { error?: string; message?: string })
             : null;
         onError(data?.message ?? data?.error ?? fallback);
       };
@@ -73,20 +73,34 @@
               <form
                 method="POST"
                 action="?/acceptParticipant"
-                use:enhance={submitMember(member.id, `${member.name} 님의 참여 신청을 수락했습니다.`, "참여 신청을 수락하지 못했습니다.")}
+                use:enhance={submitMember(
+                  member.id,
+                  `${member.name} 님의 참여 신청을 수락했습니다.`,
+                  "참여 신청을 수락하지 못했습니다.",
+                )}
               >
                 <input type="hidden" name="memberId" value={member.id} />
-                <button class="paper-btn primary small" disabled={processingMemberId === member.id}>
+                <button
+                  class="paper-btn primary small"
+                  disabled={processingMemberId === member.id}
+                >
                   수락
                 </button>
               </form>
               <form
                 method="POST"
                 action="?/removeParticipant"
-                use:enhance={submitMember(member.id, "참여자 목록을 갱신했습니다.", "참여 신청을 거절하지 못했습니다.")}
+                use:enhance={submitMember(
+                  member.id,
+                  "참여자 목록을 갱신했습니다.",
+                  "참여 신청을 거절하지 못했습니다.",
+                )}
               >
                 <input type="hidden" name="memberId" value={member.id} />
-                <button class="paper-btn small" disabled={processingMemberId === member.id}>
+                <button
+                  class="paper-btn small"
+                  disabled={processingMemberId === member.id}
+                >
                   거절
                 </button>
               </form>
@@ -117,18 +131,24 @@
             <form
               method="POST"
               action="?/removeParticipant"
-              use:enhance={submitMember(member.id, "참여자 목록을 갱신했습니다.", "참여자를 제외하지 못했습니다.")}
+              use:enhance={submitMember(
+                member.id,
+                "참여자 목록을 갱신했습니다.",
+                "참여자를 제외하지 못했습니다.",
+              )}
             >
               <input type="hidden" name="memberId" value={member.id} />
               <button
                 class="text-action"
                 disabled={processingMemberId === member.id}
                 onclick={(event) => {
-                  if (!confirm(`${member.name} 님을 참여자에서 제외하시겠습니까?`)) {
+                  if (
+                    !confirm(`${member.name} 님을 참여자에서 제외하시겠습니까?`)
+                  ) {
                     event.preventDefault();
                   }
-                }}
-              >제외</button>
+                }}>제외</button
+              >
             </form>
           {/if}
         </article>

@@ -75,7 +75,9 @@ function decode<S extends z.ZodTypeAny>(schema: S, doc: unknown): z.infer<S>[] {
   const parsed = envelope(schema).safeParse(doc);
   if (!parsed.success) {
     // A silent fallback here would corrupt data on the next write — fail loudly.
-    throw new Error(`table envelope validation failed: ${parsed.error.message}`);
+    throw new Error(
+      `table envelope validation failed: ${parsed.error.message}`,
+    );
   }
   return parsed.data.rows;
 }
@@ -129,7 +131,10 @@ async function mutateObject<S extends z.ZodTypeAny>(
       JSON.parse(JSON.stringify({ schemaVersion: SCHEMA_VERSION, rows: next })),
     );
     if (!checked.success) {
-      console.error(`[data] refusing invalid write to ${kind}/${key}:`, checked.error.message);
+      console.error(
+        `[data] refusing invalid write to ${kind}/${key}:`,
+        checked.error.message,
+      );
       throw new AppError("VALIDATION_FAILED");
     }
 
@@ -148,7 +153,8 @@ async function mutateObject<S extends z.ZodTypeAny>(
       return next;
     }
     // CAS lost — back off and retry against a fresh read.
-    const backoff = backoffBaseMs * 2 ** attempt + Math.random() * backoffBaseMs;
+    const backoff =
+      backoffBaseMs * 2 ** attempt + Math.random() * backoffBaseMs;
     await new Promise((r) => setTimeout(r, backoff));
   }
   throw new AppError("WRITE_CONFLICT");
@@ -156,7 +162,9 @@ async function mutateObject<S extends z.ZodTypeAny>(
 
 // ---- tables ----------------------------------------------------------------
 
-export async function getTable<N extends TableName>(name: N): Promise<RowOf<N>[]> {
+export async function getTable<N extends TableName>(
+  name: N,
+): Promise<RowOf<N>[]> {
   return withCache(
     `table_${name}`,
     TTL_TABLE_MS,
@@ -191,7 +199,9 @@ export async function getQueue(eventId: string): Promise<AttendanceRecord[]> {
 
 export async function mutateQueue(
   eventId: string,
-  fn: (rows: AttendanceRecord[]) => AttendanceRecord[] | Promise<AttendanceRecord[]>,
+  fn: (
+    rows: AttendanceRecord[],
+  ) => AttendanceRecord[] | Promise<AttendanceRecord[]>,
 ): Promise<AttendanceRecord[]> {
   return mutateObject(
     "queue",
@@ -210,10 +220,15 @@ export async function deleteQueue(eventId: string): Promise<void> {
   await invalidateCache(queueCacheKey(eventId));
 }
 
-export async function listQueues(): Promise<{ eventId: string; rows: AttendanceRecord[] }[]> {
+export async function listQueues(): Promise<
+  { eventId: string; rows: AttendanceRecord[] }[]
+> {
   const eventIds = await listQueueIds();
   return Promise.all(
-    eventIds.map(async (eventId) => ({ eventId, rows: await getQueue(eventId) })),
+    eventIds.map(async (eventId) => ({
+      eventId,
+      rows: await getQueue(eventId),
+    })),
   );
 }
 
@@ -231,7 +246,9 @@ export async function listPendingQueues(): Promise<
 
 // ---- test hooks (no production callers) ------------------------------------
 
-export function _resetDataLayerForTests(opts?: { backoffBaseMs?: number }): void {
+export function _resetDataLayerForTests(opts?: {
+  backoffBaseMs?: number;
+}): void {
   versionCache.clear();
   backoffBaseMs = opts?.backoffBaseMs ?? 50;
 }

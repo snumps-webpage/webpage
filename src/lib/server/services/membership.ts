@@ -17,7 +17,9 @@ import type { Application } from "$lib/server/data/schemas";
 
 const norm = (email: string) => email.trim().toLowerCase();
 
-export async function getApplicationForEmail(email: string): Promise<Application | null> {
+export async function getApplicationForEmail(
+  email: string,
+): Promise<Application | null> {
   const apps = await getTable("applications");
   return apps.find((a) => norm(a.email) === norm(email)) ?? null;
 }
@@ -52,7 +54,12 @@ export async function submitApplication(input: {
 
 export async function updateOwnApplication(
   email: string,
-  patch: Partial<Pick<Application, "name" | "department" | "phone" | "studentId" | "background">>,
+  patch: Partial<
+    Pick<
+      Application,
+      "name" | "department" | "phone" | "studentId" | "background"
+    >
+  >,
 ): Promise<void> {
   await mutate("applications", (rows) => {
     const idx = rows.findIndex((a) => norm(a.email) === norm(email));
@@ -71,7 +78,8 @@ export async function updateOwnApplication(
 /** MEM-03: the applicant's own withdrawal button on /wait — the row (and its PII) goes away now. */
 export async function withdrawOwnApplication(email: string): Promise<void> {
   await mutate("applications", (rows) => {
-    if (!rows.some((a) => norm(a.email) === norm(email))) throw new AppError("NOT_FOUND");
+    if (!rows.some((a) => norm(a.email) === norm(email)))
+      throw new AppError("NOT_FOUND");
     return rows.filter((a) => norm(a.email) !== norm(email));
   });
 }
@@ -111,7 +119,8 @@ export async function approveApplication(
     if (stampAdmin) {
       await mutate("members", (rows) => {
         const idx = rows.findIndex((m) => m.id === existingInfo.memberId);
-        if (idx !== -1 && !rows[idx].isAdmin) rows[idx] = { ...rows[idx], isAdmin: true };
+        if (idx !== -1 && !rows[idx].isAdmin)
+          rows[idx] = { ...rows[idx], isAdmin: true };
         return rows;
       });
     }
@@ -136,7 +145,9 @@ export async function approveApplication(
       (i) => norm(i.email) === email,
     );
     const legacyMember = legacyInfo
-      ? (await getTable("legacy-members")).find((m) => m.id === legacyInfo.memberId)
+      ? (await getTable("legacy-members")).find(
+          (m) => m.id === legacyInfo.memberId,
+        )
       : undefined;
     const member = await ensureCreated("members", id, () => ({
       id: newId(),

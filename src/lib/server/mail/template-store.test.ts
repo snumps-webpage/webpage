@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("$lib/server/data/store", () => import("$lib/server/data/store-memory"));
+vi.mock(
+  "$lib/server/data/store",
+  () => import("$lib/server/data/store-memory"),
+);
 
 import { __putRawDoc, __reset } from "$lib/server/data/store-memory";
 import { _resetDataLayerForTests } from "$lib/server/data/tables";

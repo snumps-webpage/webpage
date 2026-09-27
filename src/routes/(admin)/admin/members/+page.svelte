@@ -20,7 +20,9 @@
   });
 
   function statusLabel(status: AdminMemberListItem["status"]) {
-    return { associate: "준회원", regular: "정회원", withdrawn: "탈퇴" }[status];
+    return { associate: "준회원", regular: "정회원", withdrawn: "탈퇴" }[
+      status
+    ];
   }
 
   function contactLabel(status: AdminMemberListItem["publicContactStatus"]) {
@@ -38,7 +40,10 @@
   />
 
   <div class="page-toolbar">
-    <p>직책과 관리자 권한은 회원 데이터에서 관리합니다. 이름 비교나 하드코딩된 권한은 사용하지 않습니다.</p>
+    <p>
+      직책과 관리자 권한은 회원 데이터에서 관리합니다. 이름 비교나 하드코딩된
+      권한은 사용하지 않습니다.
+    </p>
     <a href="/admin" class="paper-btn">전체 관리자 화면</a>
   </div>
 
@@ -63,7 +68,9 @@
           </div>
           <div class="badges">
             {#if member.isAdmin}<span class="badge admin">Admin</span>{/if}
-            <span class="badge">연락처 {contactLabel(member.publicContactStatus)}</span>
+            <span class="badge"
+              >연락처 {contactLabel(member.publicContactStatus)}</span
+            >
           </div>
         </header>
         <div class="role-list">
@@ -74,8 +81,15 @@
           {/each}
         </div>
         <footer>
-          <span>가입 {member.joinedAt ? new Date(member.joinedAt).toLocaleDateString("ko-KR") : "기록 없음"}</span>
-          <a class="paper-btn primary small" href={`/admin/members/${member.id}`}>권한 기록 열기</a>
+          <span
+            >가입 {member.joinedAt
+              ? new Date(member.joinedAt).toLocaleDateString("ko-KR")
+              : "기록 없음"}</span
+          >
+          <a
+            class="paper-btn primary small"
+            href={`/admin/members/${member.id}`}>권한 기록 열기</a
+          >
         </footer>
       </article>
     {:else}
@@ -83,11 +97,15 @@
     {/each}
   </section>
 
-  <p class="freshness">프리뷰 데이터 기준 {new Date(data.generatedAt).toLocaleString("ko-KR")}</p>
+  <p class="freshness">
+    프리뷰 데이터 기준 {new Date(data.generatedAt).toLocaleString("ko-KR")}
+  </p>
 </article>
 
 <style>
-  .admin-members-paper { width: min(100%, 1120px); }
+  .admin-members-paper {
+    width: min(100%, 1120px);
+  }
   .page-toolbar {
     display: flex;
     align-items: center;
@@ -97,9 +115,24 @@
     padding-bottom: 0.8rem;
     border-bottom: 1px solid var(--latex-rule);
   }
-  .page-toolbar p { max-width: 48rem; margin: 0; color: var(--latex-muted); font-size: 0.84rem; line-height: 1.6; }
-  .member-index { position: relative; margin-bottom: 0.9rem; padding: 0.85rem; border: 1px solid var(--latex-rule); }
-  .member-index input { width: 100%; margin-top: 0.3rem; padding-right: 5rem; }
+  .page-toolbar p {
+    max-width: 48rem;
+    margin: 0;
+    color: var(--latex-muted);
+    font-size: 0.84rem;
+    line-height: 1.6;
+  }
+  .member-index {
+    position: relative;
+    margin-bottom: 0.9rem;
+    padding: 0.85rem;
+    border: 1px solid var(--latex-rule);
+  }
+  .member-index input {
+    width: 100%;
+    margin-top: 0.3rem;
+    padding-right: 5rem;
+  }
   .member-index > span {
     position: absolute;
     right: 1.45rem;
@@ -109,13 +142,29 @@
     font-size: 0.62rem;
     font-weight: 700;
   }
-  .member-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
-  .member-card { display: grid; gap: 0.75rem; padding: 0.9rem; border: 1px solid var(--latex-rule); }
+  .member-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .member-card {
+    display: grid;
+    gap: 0.75rem;
+    padding: 0.9rem;
+    border: 1px solid var(--latex-rule);
+  }
   .member-card header,
-  .member-card footer { display: flex; align-items: start; justify-content: space-between; gap: 0.75rem; }
+  .member-card footer {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
   .member-card header p,
   .member-card h2,
-  .freshness { margin: 0; }
+  .freshness {
+    margin: 0;
+  }
   .member-card header p,
   .member-card footer > span,
   .freshness {
@@ -126,25 +175,85 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
-  .member-card h2 { margin-top: 0.18rem; font-size: 1.1rem; font-weight: 570; }
-  .badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.3rem; }
-  .badge { padding: 0.2rem 0.35rem; border: 1px solid var(--latex-rule); color: var(--latex-muted); font-family: var(--font-mono); font-size: 0.53rem; font-weight: 700; text-transform: uppercase; }
-  .badge.admin { border-color: var(--latex-text); color: var(--latex-text); }
-  .role-list { display: flex; flex-wrap: wrap; gap: 0.35rem; min-height: 1.55rem; padding-top: 0.65rem; border-top: 1px solid var(--latex-rule); }
-  .role-list span { padding: 0.28rem 0.4rem; background: color-mix(in srgb, var(--latex-rule) 12%, transparent); font-size: 0.68rem; }
-  .role-list .empty-role { color: var(--latex-muted); background: transparent; }
-  .member-card footer { align-items: center; }
-  .empty-state { grid-column: 1 / -1; margin: 0; padding: 1.5rem; border: 1px dashed var(--latex-rule); color: var(--latex-muted); text-align: center; }
-  .freshness { margin-top: 1rem; text-align: right; }
+  .member-card h2 {
+    margin-top: 0.18rem;
+    font-size: 1.1rem;
+    font-weight: 570;
+  }
+  .badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.3rem;
+  }
+  .badge {
+    padding: 0.2rem 0.35rem;
+    border: 1px solid var(--latex-rule);
+    color: var(--latex-muted);
+    font-family: var(--font-mono);
+    font-size: 0.53rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .badge.admin {
+    border-color: var(--latex-text);
+    color: var(--latex-text);
+  }
+  .role-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    min-height: 1.55rem;
+    padding-top: 0.65rem;
+    border-top: 1px solid var(--latex-rule);
+  }
+  .role-list span {
+    padding: 0.28rem 0.4rem;
+    background: color-mix(in srgb, var(--latex-rule) 12%, transparent);
+    font-size: 0.68rem;
+  }
+  .role-list .empty-role {
+    color: var(--latex-muted);
+    background: transparent;
+  }
+  .member-card footer {
+    align-items: center;
+  }
+  .empty-state {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 1.5rem;
+    border: 1px dashed var(--latex-rule);
+    color: var(--latex-muted);
+    text-align: center;
+  }
+  .freshness {
+    margin-top: 1rem;
+    text-align: right;
+  }
   @media (max-width: 760px) {
-    .page-toolbar { align-items: stretch; flex-direction: column; }
-    .page-toolbar a { width: 100%; }
-    .member-list { grid-template-columns: 1fr; }
+    .page-toolbar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+    .page-toolbar a {
+      width: 100%;
+    }
+    .member-list {
+      grid-template-columns: 1fr;
+    }
   }
   @media (max-width: 460px) {
     .member-card header,
-    .member-card footer { align-items: stretch; flex-direction: column; }
-    .badges { justify-content: flex-start; }
-    .member-card footer a { width: 100%; }
+    .member-card footer {
+      align-items: stretch;
+      flex-direction: column;
+    }
+    .badges {
+      justify-content: flex-start;
+    }
+    .member-card footer a {
+      width: 100%;
+    }
   }
 </style>

@@ -23,7 +23,9 @@ export const load: PageServerLoad = async ({ locals }) => {
     activities: [...activities].reverse().map((a) => ({
       ...a,
       // Referential-integrity hint for the delete row (deleteActivity CONFLICTs).
-      linkedEventIds: events.filter((e) => e.activityId === a.id).map((e) => e.id),
+      linkedEventIds: events
+        .filter((e) => e.activityId === a.id)
+        .map((e) => e.id),
     })),
     members,
     activityTypes: [...ACTIVITY_TYPES],
@@ -50,7 +52,10 @@ export const actions = {
       const end = data.get("end") as string;
       await createActivity({
         title,
-        date: { start: kstInputToIso(start), end: end ? kstInputToIso(end) : null },
+        date: {
+          start: kstInputToIso(start),
+          end: end ? kstInputToIso(end) : null,
+        },
         type: parseType(data.get("type") as string),
       });
       return { operation: "activityCreated" };
@@ -65,9 +70,14 @@ export const actions = {
       const end = data.get("end") as string;
       await updateActivity(id, {
         title: (data.get("title") as string)?.trim() || undefined,
-        type: data.get("type") ? parseType(data.get("type") as string) : undefined,
+        type: data.get("type")
+          ? parseType(data.get("type") as string)
+          : undefined,
         date: start
-          ? { start: kstInputToIso(start), end: end ? kstInputToIso(end) : null }
+          ? {
+              start: kstInputToIso(start),
+              end: end ? kstInputToIso(end) : null,
+            }
           : undefined,
       });
       return { operation: "activityUpdated" };
@@ -87,7 +97,9 @@ export const actions = {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
       const id = data.get("id") as string;
-      const attendeeIds = (data.getAll("attendeeIds") as string[]).filter(Boolean);
+      const attendeeIds = (data.getAll("attendeeIds") as string[]).filter(
+        Boolean,
+      );
       await setAttendees(id, attendeeIds);
       return { operation: "attendeesReplaced" };
     });

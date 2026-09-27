@@ -12,33 +12,33 @@
 
 ## 요약
 
-| # | 지적 | 분류 | 심각도 |
-|---|---|---|---|
-| **MT-1** | **다섯 함수 전부 실패를 삼킨다 — 승인 메일이 실패하면 신규 회원이 채팅방에 영영 못 들어간다** | 오류 처리 | 🔴 |
-| MT-11 | 본문이 코드가 보장하지 않는 사실을 단언한다 | 정합성 | 🟠 |
-| MT-6 | 노션 URL이 이 줄에만 하드코딩돼 있다 — 같은 문장의 카톡 링크 둘은 상수다 | 하드코딩 | 🟠 |
-| MT-2 | 함수 5개의 골격이 동일하다 | 중복 | 🟠 |
-| MT-4 | 수신자가 없을 때도 OAuth 토큰을 먼저 받는다 — 순서가 뒤집혔다 | 정확성 | 🟠 |
-| MT-8 | `ADMINS_EMAILS` 파서가 두 벌이고 **이미 갈라졌다** + 형식 검증 없음 | 중복 | 🟠 |
-| MT-14 | 발송하지 않는 세 경우에 아무 흔적도 남지 않는다 | 오류 처리 | 🟡 |
-| MT-12 | 관리자 전원의 주소가 서로에게 노출된다 (`To:` — `Bcc:`여야) | 노출 | 🟡 |
-| MT-3 | 본문에 공통 조각이 없다 — 파일 이름이 `templates.ts`인데 템플릿이 없다 | 확장성 | 🟡 |
-| MT-13 | 발송이 전부 사용자 요청 경로에서 `await`된다 | 성능 | 🟡 |
-| MT-10 | 같은 `status`를 두 표현식이 따로 분기한다 | 정합성 | 🟡 |
-| MT-15 | 다섯 함수 모두 반환 타입 미선언 | 타입 | 🟡 |
-| MT-7 | 로그 형식이 4:1로 갈리고, 하나만 수신자 이메일을 남긴다 | 운영 | 🟡 |
-| MT-5 | 같은 타입의 위치 인자가 연달아 있다 | 설계 | 🟡 |
-| MT-9 | 검증 없는 문자열이 `To:` 헤더로 간다 (결함 위치는 `client.ts` — A-18) | 안전성 | 🟡 |
+| #        | 지적                                                                                          | 분류      | 심각도 |
+| -------- | --------------------------------------------------------------------------------------------- | --------- | ------ |
+| **MT-1** | **다섯 함수 전부 실패를 삼킨다 — 승인 메일이 실패하면 신규 회원이 채팅방에 영영 못 들어간다** | 오류 처리 | 🔴     |
+| MT-11    | 본문이 코드가 보장하지 않는 사실을 단언한다                                                   | 정합성    | 🟠     |
+| MT-6     | 노션 URL이 이 줄에만 하드코딩돼 있다 — 같은 문장의 카톡 링크 둘은 상수다                      | 하드코딩  | 🟠     |
+| MT-2     | 함수 5개의 골격이 동일하다                                                                    | 중복      | 🟠     |
+| MT-4     | 수신자가 없을 때도 OAuth 토큰을 먼저 받는다 — 순서가 뒤집혔다                                 | 정확성    | 🟠     |
+| MT-8     | `ADMINS_EMAILS` 파서가 두 벌이고 **이미 갈라졌다** + 형식 검증 없음                           | 중복      | 🟠     |
+| MT-14    | 발송하지 않는 세 경우에 아무 흔적도 남지 않는다                                               | 오류 처리 | 🟡     |
+| MT-12    | 관리자 전원의 주소가 서로에게 노출된다 (`To:` — `Bcc:`여야)                                   | 노출      | 🟡     |
+| MT-3     | 본문에 공통 조각이 없다 — 파일 이름이 `templates.ts`인데 템플릿이 없다                        | 확장성    | 🟡     |
+| MT-13    | 발송이 전부 사용자 요청 경로에서 `await`된다                                                  | 성능      | 🟡     |
+| MT-10    | 같은 `status`를 두 표현식이 따로 분기한다                                                     | 정합성    | 🟡     |
+| MT-15    | 다섯 함수 모두 반환 타입 미선언                                                               | 타입      | 🟡     |
+| MT-7     | 로그 형식이 4:1로 갈리고, 하나만 수신자 이메일을 남긴다                                       | 운영      | 🟡     |
+| MT-5     | 같은 타입의 위치 인자가 연달아 있다                                                           | 설계      | 🟡     |
+| MT-9     | 검증 없는 문자열이 `To:` 헤더로 간다 (결함 위치는 `client.ts` — A-18)                         | 안전성    | 🟡     |
 
 **호출부 전수**:
 
-| 함수 | 호출부 |
-|---|---|
-| `sendSignupNotification` | `signup/+page.server.ts:101` |
-| `sendAttendanceNotification` | `events/[id]/[type]/+page.server.ts:84` |
-| `sendSeminarStatusNotification` | `admin/+page.server.ts:257`, `:290` |
-| `sendSeminarApplicationNotification` | `seminar/apply/+page.server.ts:80` |
-| `sendWelcomeEmail` | `admin/+page.server.ts:98` |
+| 함수                                 | 호출부                                  |
+| ------------------------------------ | --------------------------------------- |
+| `sendSignupNotification`             | `signup/+page.server.ts:101`            |
+| `sendAttendanceNotification`         | `events/[id]/[type]/+page.server.ts:84` |
+| `sendSeminarStatusNotification`      | `admin/+page.server.ts:257`, `:290`     |
+| `sendSeminarApplicationNotification` | `seminar/apply/+page.server.ts:80`      |
+| `sendWelcomeEmail`                   | `admin/+page.server.ts:98`              |
 
 ---
 
@@ -62,7 +62,7 @@
 
 ```ts
 await markApplicationAsAccepted(id);
-await sendWelcomeEmail(app.email, app.name);      // 실패해도 조용
+await sendWelcomeEmail(app.email, app.name); // 실패해도 조용
 return { success: true };
 ```
 
@@ -212,9 +212,9 @@ export const sendWelcomeEmail = (email: string, name: string) =>
 `:24-26` (그리고 `:51-53`, `:103-105`):
 
 ```ts
-const accessToken = await getAdminAccessToken();   // ① 네트워크 가능
-const adminEmails = getAdminEmails();              // ② 순수 함수
-if (adminEmails.length === 0) return;              // ③ 아무것도 안 함
+const accessToken = await getAdminAccessToken(); // ① 네트워크 가능
+const adminEmails = getAdminEmails(); // ② 순수 함수
+if (adminEmails.length === 0) return; // ③ 아무것도 안 함
 ```
 
 **검사 순서가 뒤집혀 있다.** ②③은 `env` 파싱뿐이고 ①은 OAuth 왕복이다
@@ -237,7 +237,10 @@ Vercel 서버리스(`svelte.config.js:1` `adapter-vercel`)에서 **콜드 인스
 `templates.ts:12-17`:
 
 ```ts
-return (env.ADMINS_EMAILS || "").split(",").map((e) => e.trim()).filter(Boolean);
+return (env.ADMINS_EMAILS || "")
+  .split(",")
+  .map((e) => e.trim())
+  .filter(Boolean);
 ```
 
 `admin.ts:144-145`:
@@ -264,11 +267,11 @@ A-15(`admin.ts`)에서 어느 쪽을 정본으로 할지 결정한다.
 
 ## MT-14 🟡 발송하지 않는 세 경우에 흔적이 없다
 
-| 경우 | 위치 | 남는 것 |
-|---|---|---|
-| 관리자 수신자 0명 | `:26`, `:53`, `:105` `return;` | **없음** |
+| 경우                         | 위치                             | 남는 것                 |
+| ---------------------------- | -------------------------------- | ----------------------- |
+| 관리자 수신자 0명            | `:26`, `:53`, `:105` `return;`   | **없음**                |
 | `recipientEmail`이 빈 문자열 | `:89`, `:142` — 검사 자체가 없다 | Gmail 400 → MT-1이 삼킴 |
-| 발송 실패 | catch | `console.error` (있음) |
+| 발송 실패                    | catch                            | `console.error` (있음)  |
 
 첫 번째가 특히 나쁘다 — `ADMINS_EMAILS` 미설정이면 **모든 관리자 알림이
 아무 소리 없이 사라진다.** `console.warn` 한 줄이면 배포 직후에 드러난다.
@@ -306,12 +309,12 @@ MT-2가 **제어 흐름**의 중복이라면 이것은 **내용**의 문제다. 
 파일 이름과 헤더 주석(`:2-3` "Defines specific notification types and their content")이
 템플릿 계층을 약속하는데 실제로는 인라인 문자열 리터럴 5개다. 반복되는 요소:
 
-| 요소 | 반복 |
-|---|---|
-| `[SNUMPS]` 제목 접두사 | 5회 (`:28` `:55` `:79` `:107` `:131`) |
-| `안녕하세요, 관리자님.` | 3회 (`:29` `:56` `:108`) |
-| `관리자 페이지에서 확인 후 …해주세요.` | 3회 (`:35` `:60` `:114`) |
-| 맺음말 | `:87`만 `감사합니다.` — 나머지 넷은 없음 |
+| 요소                                   | 반복                                     |
+| -------------------------------------- | ---------------------------------------- |
+| `[SNUMPS]` 제목 접두사                 | 5회 (`:28` `:55` `:79` `:107` `:131`)    |
+| `안녕하세요, 관리자님.`                | 3회 (`:29` `:56` `:108`)                 |
+| `관리자 페이지에서 확인 후 …해주세요.` | 3회 (`:35` `:60` `:114`)                 |
+| 맺음말                                 | `:87`만 `감사합니다.` — 나머지 넷은 없음 |
 
 **확장 축은 "알림 종류"인데 구조가 그 축을 표현하지 않는다.**
 접두사를 바꾸면 다섯 곳이다. 템플릿 엔진은 과잉이고,
@@ -349,7 +352,10 @@ ${status === "approved" ? "자세한 일정의 확인 부탁드립니다." : "�
 ```ts
 const copy = {
   approved: { label: "승인", detail: "자세한 일정의 확인 부탁드립니다." },
-  rejected: { label: "반려", detail: "아쉽게도 이번 세미나는 개설이 어렵게 되었습니다." },
+  rejected: {
+    label: "반려",
+    detail: "아쉽게도 이번 세미나는 개설이 어렵게 되었습니다.",
+  },
 }[status];
 ```
 
@@ -369,10 +375,10 @@ MT-1의 처방이 **반환 타입 계약**이므로, 선언이 없다는 것은 
 
 ## MT-7 🟡 로그 형식이 4:1로 갈린다
 
-| 위치 | 형식 |
-|---|---|
-| `:39` `:64` `:91` `:118` | `"<종류> notification error:"` |
-| `:144-147` | `` `[Mail] Failed to send welcome email to ${recipientEmail}:` `` |
+| 위치                     | 형식                                                              |
+| ------------------------ | ----------------------------------------------------------------- |
+| `:39` `:64` `:91` `:118` | `"<종류> notification error:"`                                    |
+| `:144-147`               | `` `[Mail] Failed to send welcome email to ${recipientEmail}:` `` |
 
 접두사(`[Mail]`)도 하나만 있고 **수신자 이메일을 로그에 넣는 것도 이 하나뿐**이다.
 로그는 Vercel에 남는다. 다섯 곳이 같아야 한다 — 남기든 안 남기든.
@@ -382,10 +388,15 @@ MT-1의 처방이 **반환 타입 계약**이므로, 선언이 없다는 것은 
 ## MT-5 🟡 같은 타입의 위치 인자가 연달아 있다
 
 ```ts
-sendSeminarStatusNotification(recipientEmail, recipientName, seminarTitle, status)
-sendWelcomeEmail(recipientEmail, recipientName)
-sendAttendanceNotification(userName, eventName)
-sendSeminarApplicationNotification(applicantName, seminarTitle)
+sendSeminarStatusNotification(
+  recipientEmail,
+  recipientName,
+  seminarTitle,
+  status,
+);
+sendWelcomeEmail(recipientEmail, recipientName);
+sendAttendanceNotification(userName, eventName);
+sendSeminarApplicationNotification(applicantName, seminarTitle);
 ```
 
 `string` 인자가 2~3개 연달아 있고 타입이 순서를 강제하지 않는다.
@@ -446,16 +457,16 @@ notion/applications.ts:45-67                          ← 아예 검증을 안 �
 
 ## 개정 이력
 
-| 변경 | 내용 |
-|---|---|
-| **MT-1 두 번째 기둥 철회** | "`sendAttendanceNotification`이 관리자에게 알리는 **유일한 수단**, 아무도 모른다"는 **거짓**. `admin/+page.server.ts:55-58`이 큐를 독립 조회하고 `+page.svelte:307`이 띄운다. `events.md` SE-3·SE-16 연결도 무효 |
-| **MT-1 피해 교체** | "회원이 승인을 모른다"는 거짓 — `+page.server.ts:239` `isMember`가 알려준다. **진짜 손실은 카톡 링크**로, `grep CHATROOM_` 결과 화면 어디에도 없고 이 메일이 유일한 통로다. 초판은 MT-6에서 같은 문단을 인용하며 이 사실을 손에 쥐고 있었다 |
-| **MT-11 신설 🟠** | `:60`이 "입실·퇴장 모두 기록되었다"고 단언하는데 `events.ts:162`는 fire-and-forget이다. 관리자에게 거짓을 말한다 |
-| **MT-8 승격 🟡→🟠** | `admin.ts:144`에 **두 번째 파서**가 있고 `.filter(Boolean)`이 없어 **이미 갈라졌다**. 추측이 아니라 실재 |
-| **MT-12 · MT-13 · MT-14 · MT-15 신설 🟡** | `To:` 전원 노출 / 요청 경로 `await` / 무발송 무로그 · 빈 수신자 미검사 / 반환 타입 미선언 |
-| **MT-6 인용 정정** | `docs/migration/`은 **이 브랜치에 없다** — `origin/docs/notion-migration-plan`이다. 초판이 브랜치를 안 밝혀 존재하지 않는 경로처럼 보였다 |
-| **MT-9 축소 + 근거 보강** | 34줄 → 포인터. 대신 **검증이 무력화된 실증** 추가 — `schema.ts:21`에 `.email()`이 있는데 `utils.ts:15-22`가 실패 시 원본을 통과시키고 `applications.ts:45-67`은 검증을 안 부른다 |
-| **MT-3 강등 🟠→🟡** | MT-2와 같은 리팩터링에 딸린다. 두 곳에 🟠는 이중 계상 |
-| MT-8 ① 흡수 | "매번 파싱한다"는 단독 결함이 아니다. ②에 흡수 |
-| 줄번호 정정 3건 | MT-2의 `console.error` 행 `:38…`→`:39…`(catch와 혼동, MT-7과 자기모순), MT-6 `:137`→`:136`, MT-9 `signup:35`→`:94` |
-| MT-9 쓰기 경로 보완 | `updatePrivateInfo`만 봤다. 실제로 email을 쓰는 것은 `createMember`(`members.ts:32`) |
+| 변경                                      | 내용                                                                                                                                                                                                                                        |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **MT-1 두 번째 기둥 철회**                | "`sendAttendanceNotification`이 관리자에게 알리는 **유일한 수단**, 아무도 모른다"는 **거짓**. `admin/+page.server.ts:55-58`이 큐를 독립 조회하고 `+page.svelte:307`이 띄운다. `events.md` SE-3·SE-16 연결도 무효                            |
+| **MT-1 피해 교체**                        | "회원이 승인을 모른다"는 거짓 — `+page.server.ts:239` `isMember`가 알려준다. **진짜 손실은 카톡 링크**로, `grep CHATROOM_` 결과 화면 어디에도 없고 이 메일이 유일한 통로다. 초판은 MT-6에서 같은 문단을 인용하며 이 사실을 손에 쥐고 있었다 |
+| **MT-11 신설 🟠**                         | `:60`이 "입실·퇴장 모두 기록되었다"고 단언하는데 `events.ts:162`는 fire-and-forget이다. 관리자에게 거짓을 말한다                                                                                                                            |
+| **MT-8 승격 🟡→🟠**                       | `admin.ts:144`에 **두 번째 파서**가 있고 `.filter(Boolean)`이 없어 **이미 갈라졌다**. 추측이 아니라 실재                                                                                                                                    |
+| **MT-12 · MT-13 · MT-14 · MT-15 신설 🟡** | `To:` 전원 노출 / 요청 경로 `await` / 무발송 무로그 · 빈 수신자 미검사 / 반환 타입 미선언                                                                                                                                                   |
+| **MT-6 인용 정정**                        | `docs/migration/`은 **이 브랜치에 없다** — `origin/docs/notion-migration-plan`이다. 초판이 브랜치를 안 밝혀 존재하지 않는 경로처럼 보였다                                                                                                   |
+| **MT-9 축소 + 근거 보강**                 | 34줄 → 포인터. 대신 **검증이 무력화된 실증** 추가 — `schema.ts:21`에 `.email()`이 있는데 `utils.ts:15-22`가 실패 시 원본을 통과시키고 `applications.ts:45-67`은 검증을 안 부른다                                                            |
+| **MT-3 강등 🟠→🟡**                       | MT-2와 같은 리팩터링에 딸린다. 두 곳에 🟠는 이중 계상                                                                                                                                                                                       |
+| MT-8 ① 흡수                               | "매번 파싱한다"는 단독 결함이 아니다. ②에 흡수                                                                                                                                                                                              |
+| 줄번호 정정 3건                           | MT-2의 `console.error` 행 `:38…`→`:39…`(catch와 혼동, MT-7과 자기모순), MT-6 `:137`→`:136`, MT-9 `signup:35`→`:94`                                                                                                                          |
+| MT-9 쓰기 경로 보완                       | `updatePrivateInfo`만 봤다. 실제로 email을 쓰는 것은 `createMember`(`members.ts:32`)                                                                                                                                                        |

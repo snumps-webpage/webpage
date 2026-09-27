@@ -64,7 +64,7 @@
   ) {
     const data =
       "data" in result
-        ? result.data as { error?: string; message?: string }
+        ? (result.data as { error?: string; message?: string })
         : null;
     return data?.message ?? data?.error ?? fallback;
   }
@@ -82,7 +82,10 @@
   <div class="creation-sheet">
     <div>
       <strong>모임을 시작할 때 새 회차를 만드세요.</strong>
-      <p>번호와 시작 시각은 서버가 채우고, 출석 링크가 즉시 열립니다. 입력할 값은 없습니다.</p>
+      <p>
+        번호와 시작 시각은 서버가 채우고, 출석 링크가 즉시 열립니다. 입력할 값은
+        없습니다.
+      </p>
     </div>
     <form
       method="POST"
@@ -97,9 +100,11 @@
             const newest =
               [...sessions]
                 .filter((s) => s.status !== "cancelled")
-                .sort((a, b) => (b.sessionNo ?? 0) - (a.sessionNo ?? 0))[0] ?? null;
+                .sort((a, b) => (b.sessionNo ?? 0) - (a.sessionNo ?? 0))[0] ??
+              null;
             latestCreatedEventId = newest?.eventId ?? null;
-            if (newest) onNotice(`${newest.title}를 만들고 출석 체크를 열었습니다.`);
+            if (newest)
+              onNotice(`${newest.title}를 만들고 출석 체크를 열었습니다.`);
           } else {
             onError(failureMessage(result, "새 회차를 만들지 못했습니다."));
           }
@@ -127,7 +132,8 @@
         <a
           class="paper-btn primary small"
           href={`/study/${studyId}/attendance?event=${latestCreated.eventId}`}
-        >출석부 열기</a>
+          >출석부 열기</a
+        >
       </div>
     </aside>
   {/if}
@@ -135,7 +141,9 @@
   <ol class="session-timeline">
     {#each sessions as session (session.eventId)}
       <li class="session-entry" data-status={session.status}>
-        <div class="session-number">{String(session.sessionNo ?? 0).padStart(2, "0")}</div>
+        <div class="session-number">
+          {String(session.sessionNo ?? 0).padStart(2, "0")}
+        </div>
         <article>
           <header class="session-heading">
             <div>
@@ -145,8 +153,14 @@
             <span class="status-mark">{statusLabel(session.status)}</span>
           </header>
           <dl>
-            <div><dt>출석</dt><dd>{session.attendanceCount}명</dd></div>
-            <div><dt>Event</dt><dd>{session.eventId}</dd></div>
+            <div>
+              <dt>출석</dt>
+              <dd>{session.attendanceCount}명</dd>
+            </div>
+            <div>
+              <dt>Event</dt>
+              <dd>{session.eventId}</dd>
+            </div>
           </dl>
           <div class="session-actions">
             {#if session.status !== "cancelled"}
@@ -157,10 +171,14 @@
               <a
                 class="paper-btn small"
                 href={`/study/${studyId}/attendance?event=${session.eventId}`}
-              >출석부</a>
+                >출석부</a
+              >
             {/if}
             {#if session.status !== "cancelled"}
-              <button class="paper-btn small" onclick={() => (selectedSession = session)}>정정</button>
+              <button
+                class="paper-btn small"
+                onclick={() => (selectedSession = session)}>정정</button
+              >
             {/if}
             {#if session.status !== "cancelled"}
               <form
@@ -172,9 +190,13 @@
                     cancellingEventId = null;
                     if (result.type === "success") {
                       await update();
-                      onNotice("회차를 취소했습니다. 취소한 회차는 다시 열리지 않습니다.");
+                      onNotice(
+                        "회차를 취소했습니다. 취소한 회차는 다시 열리지 않습니다.",
+                      );
                     } else {
-                      onError(failureMessage(result, "회차를 취소하지 못했습니다."));
+                      onError(
+                        failureMessage(result, "회차를 취소하지 못했습니다."),
+                      );
                     }
                   };
                 }}
@@ -184,11 +206,15 @@
                   class="paper-btn danger small"
                   disabled={cancellingEventId === session.eventId}
                   onclick={(event) => {
-                    if (!confirm(`${session.title}를 취소하시겠습니까? 취소한 회차는 다시 열 수 없습니다.`)) {
+                    if (
+                      !confirm(
+                        `${session.title}를 취소하시겠습니까? 취소한 회차는 다시 열 수 없습니다.`,
+                      )
+                    ) {
                       event.preventDefault();
                     }
-                  }}
-                >취소</button>
+                  }}>취소</button
+                >
               </form>
             {/if}
           </div>
@@ -399,7 +425,6 @@
   .session-actions form {
     margin: 0;
   }
-
 
   .empty-line {
     padding: 1rem;

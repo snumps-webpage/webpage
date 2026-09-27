@@ -60,26 +60,37 @@ describe("mutate — conditional writes", () => {
     await mutate("gallery-dinner", (rows) => [...rows, a]);
     // identical result → no conditional PUT → succeeds even in conflict mode
     __setAlwaysConflict(true);
-    await expect(mutate("gallery-dinner", (rows) => rows)).resolves.toEqual([a]);
+    await expect(mutate("gallery-dinner", (rows) => rows)).resolves.toEqual([
+      a,
+    ]);
   });
 
   it("throws WRITE_CONFLICT after exhausting retries", async () => {
     __setAlwaysConflict(true);
     await expect(
       mutate("gallery-dinner", (rows) => [...rows, row()]),
-    ).rejects.toSatisfy((e) => e instanceof AppError && e.code === "WRITE_CONFLICT");
+    ).rejects.toSatisfy(
+      (e) => e instanceof AppError && e.code === "WRITE_CONFLICT",
+    );
   });
 
   it("rejects an unknown schemaVersion instead of silently proceeding", async () => {
     __putRawDoc("table", "gallery-dinner", { schemaVersion: 2, rows: [] });
     await invalidateCache("table_gallery-dinner");
-    await expect(getTable("gallery-dinner")).rejects.toThrow(/envelope validation/);
+    await expect(getTable("gallery-dinner")).rejects.toThrow(
+      /envelope validation/,
+    );
   });
 
   it("rejects rows that fail the table schema", async () => {
-    __putRawDoc("table", "gallery-dinner", { schemaVersion: 1, rows: [{ id: "x" }] });
+    __putRawDoc("table", "gallery-dinner", {
+      schemaVersion: 1,
+      rows: [{ id: "x" }],
+    });
     await invalidateCache("table_gallery-dinner");
-    await expect(getTable("gallery-dinner")).rejects.toThrow(/envelope validation/);
+    await expect(getTable("gallery-dinner")).rejects.toThrow(
+      /envelope validation/,
+    );
   });
 });
 
@@ -94,17 +105,24 @@ describe("attendance queue — per-event objects", () => {
       records.map((r) => mutateQueue(eventId, (rows) => [...rows, r])),
     );
     const stored = await getQueue(eventId);
-    expect(stored.map((r) => r.id).sort()).toEqual(records.map((r) => r.id).sort());
+    expect(stored.map((r) => r.id).sort()).toEqual(
+      records.map((r) => r.id).sort(),
+    );
   }, 20_000);
 
   it("isolates queues per event and lists only pending ones", async () => {
     const [e1, e2, e3] = [newId(), newId(), newId()];
     await mutateQueue(e1, (rows) => [...rows, record(e1)]);
-    await mutateQueue(e2, (rows) => [...rows, { ...record(e2), status: "approved" as const }]);
+    await mutateQueue(e2, (rows) => [
+      ...rows,
+      { ...record(e2), status: "approved" as const },
+    ]);
     await mutateQueue(e3, (rows) => [...rows, record(e3)]);
 
     const pending = await listPendingQueues();
     expect(pending.map((q) => q.eventId).sort()).toEqual([e1, e3].sort());
-    expect(pending.every((q) => q.rows.every((r) => r.status === "pending"))).toBe(true);
+    expect(
+      pending.every((q) => q.rows.every((r) => r.status === "pending")),
+    ).toBe(true);
   });
 });

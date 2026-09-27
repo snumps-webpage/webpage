@@ -5,7 +5,10 @@
 // - project: 신규 행에 없을 때만 legacy 값
 import { createClient } from "@supabase/supabase-js";
 
-const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
+const sb = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SECRET_KEY,
+);
 
 async function doc(name) {
   const { data, error } = await sb
@@ -17,7 +20,10 @@ async function doc(name) {
   return data;
 }
 
-const [members, legacy] = await Promise.all([doc("members"), doc("legacy-members")]);
+const [members, legacy] = await Promise.all([
+  doc("members"),
+  doc("legacy-members"),
+]);
 const legacyById = new Map(legacy.doc.rows.map((m) => [m.id, m]));
 
 let changed = 0;
@@ -49,8 +55,14 @@ const rows = members.doc.rows.map((m) => {
   return m;
 });
 
-console.log("live members:", members.doc.rows.length, "| legacy 연결:",
-  members.doc.rows.filter((m) => m.legacyMemberId).length, "| 교정 대상:", changed);
+console.log(
+  "live members:",
+  members.doc.rows.length,
+  "| legacy 연결:",
+  members.doc.rows.filter((m) => m.legacyMemberId).length,
+  "| 교정 대상:",
+  changed,
+);
 if (report.length) console.table(report);
 
 if (changed > 0) {

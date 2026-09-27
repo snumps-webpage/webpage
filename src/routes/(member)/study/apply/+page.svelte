@@ -59,7 +59,11 @@
               <strong>{request.title}</strong>
               <span>{statusLabel(request.status)}</span>
             </header>
-            <p>{request.semester} · {new Date(request.submittedAt).toLocaleDateString("ko-KR")}</p>
+            <p>
+              {request.semester} · {new Date(
+                request.submittedAt,
+              ).toLocaleDateString("ko-KR")}
+            </p>
             {#if request.status === "pending"}
               <form
                 method="POST"
@@ -83,8 +87,8 @@
                     if (!confirm("이 스터디 개설 신청을 철회하시겠습니까?")) {
                       event.preventDefault();
                     }
-                  }}
-                >신청 철회</button>
+                  }}>신청 철회</button
+                >
               </form>
             {/if}
           </article>

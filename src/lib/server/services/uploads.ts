@@ -39,10 +39,18 @@ function matchesSignature(head: Uint8Array, contentType: string): boolean {
 const IMG = ["image/jpeg", "image/png", "image/webp"];
 
 export const PURPOSES = {
-  "seminar-material": { prefix: "seminars", types: ["application/pdf"], maxBytes: 50_000_000 },
+  "seminar-material": {
+    prefix: "seminars",
+    types: ["application/pdf"],
+    maxBytes: 50_000_000,
+  },
   "seminar-photo": { prefix: "seminars", types: IMG, maxBytes: 10_000_000 },
   // 직접 업로드 포스터 — PNG/JPEG만 (자동 생성 포스터의 대안)
-  "seminar-poster": { prefix: "seminars/posters", types: ["image/png", "image/jpeg"], maxBytes: 15_000_000 },
+  "seminar-poster": {
+    prefix: "seminars/posters",
+    types: ["image/png", "image/jpeg"],
+    maxBytes: 15_000_000,
+  },
   "study-photo": { prefix: "studies", types: IMG, maxBytes: 10_000_000 },
   "gallery-photo": { prefix: "gallery", types: IMG, maxBytes: 10_000_000 },
 } as const;
@@ -53,7 +61,10 @@ export function isUploadPurpose(v: string): v is UploadPurpose {
   return v in PURPOSES;
 }
 
-export function slugifyFilename(filename: string): { slug: string; ext: string } {
+export function slugifyFilename(filename: string): {
+  slug: string;
+  ext: string;
+} {
   const dot = filename.lastIndexOf(".");
   const base = dot > 0 ? filename.slice(0, dot) : filename;
   const ext = (dot > 0 ? filename.slice(dot + 1).toLowerCase() : "") || "bin";
@@ -77,7 +88,11 @@ export async function createPresignedUpload(input: {
   if (!(spec.types as readonly string[]).includes(input.contentType)) {
     throw new AppError("VALIDATION_FAILED");
   }
-  if (!Number.isFinite(input.size) || input.size <= 0 || input.size > spec.maxBytes) {
+  if (
+    !Number.isFinite(input.size) ||
+    input.size <= 0 ||
+    input.size > spec.maxBytes
+  ) {
     throw new AppError("VALIDATION_FAILED");
   }
 
@@ -106,7 +121,10 @@ export async function promotePendingUpload(
 
   const info = await stagedInfo(pendingKey);
   if (!info) throw new AppError("NOT_FOUND"); // never uploaded or already reaped
-  if (info.size > spec.maxBytes || !(spec.types as readonly string[]).includes(info.contentType)) {
+  if (
+    info.size > spec.maxBytes ||
+    !(spec.types as readonly string[]).includes(info.contentType)
+  ) {
     // Oversize/claimed-type mismatch: refuse promotion; the cleanup job reaps it.
     throw new AppError("VALIDATION_FAILED");
   }
@@ -140,7 +158,9 @@ export async function promotePendingUpload(
  * 빈 키면 자동 생성 포스터를 쓰는 것이므로 빈 문자열을 그대로 반환한다.
  * (경로·purpose 검증 + 크기/타입/매직바이트 검증은 promotePendingUpload가 담당.)
  */
-export async function promoteSeminarPoster(pendingKey: string): Promise<string> {
+export async function promoteSeminarPoster(
+  pendingKey: string,
+): Promise<string> {
   const key = pendingKey.trim();
   if (!key) return "";
   if (!key.startsWith("pending/seminar-poster/")) {

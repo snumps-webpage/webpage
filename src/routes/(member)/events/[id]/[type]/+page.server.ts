@@ -12,7 +12,9 @@ import type { PageServerLoad } from "./$types";
 async function findByPathId(pathId: string) {
   // 취소된 세미나의 출석 링크는 주소를 아는 사람에게도 열리지 않는다 —
   // 회원 면의 단일 통로를 쓴다 (services/visibility.ts).
-  return (await getMemberVisibleEvents()).find((e) => e.pathId === pathId) ?? null;
+  return (
+    (await getMemberVisibleEvents()).find((e) => e.pathId === pathId) ?? null
+  );
 }
 
 export const load: PageServerLoad = async ({ params, locals, url }) => {
@@ -22,7 +24,8 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
   if (!event) throw error(404, "Event not found");
   // Code mismatch 404s BEFORE any state is revealed (§5-4, review low-10).
   if (params.type !== event.attendCode) throw error(404, "Event not found");
-  if (effectiveStatus(event) !== "active") throw error(403, "Event is not active");
+  if (effectiveStatus(event) !== "active")
+    throw error(403, "Event is not active");
 
   // Supplementary context for the metadata sheet: presenters (seminars) and
   // session number (auto-generated study sessions), resolved from the tables.
@@ -56,10 +59,17 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 };
 
 export const actions = {
-  attend: async ({ params, locals }: { params: { id: string; type: string }; locals: App.Locals }) => {
+  attend: async ({
+    params,
+    locals,
+  }: {
+    params: { id: string; type: string };
+    locals: App.Locals;
+  }) => {
     return handleUserAction(locals, async (session) => {
       const event = await findByPathId(params.id);
-      if (!event || params.type !== event.attendCode) throw new AppError("NOT_FOUND");
+      if (!event || params.type !== event.attendCode)
+        throw new AppError("NOT_FOUND");
 
       const member = locals.member;
       if (!member) throw new AppError("FORBIDDEN");
@@ -68,7 +78,9 @@ export const actions = {
         await checkIn(event, member.memberId);
       } catch (e) {
         if (e instanceof AppError && e.code === "CONFLICT") {
-          throw new AppError("CONFLICT", { userMessage: "이미 출석하셨습니다." });
+          throw new AppError("CONFLICT", {
+            userMessage: "이미 출석하셨습니다.",
+          });
         }
         throw e;
       }

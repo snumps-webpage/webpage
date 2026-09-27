@@ -49,7 +49,10 @@
       update,
     }: {
       result: import("@sveltejs/kit").ActionResult;
-      update: (options?: { reset?: boolean; invalidateAll?: boolean }) => Promise<void>;
+      update: (options?: {
+        reset?: boolean;
+        invalidateAll?: boolean;
+      }) => Promise<void>;
     }) => {
       processingId = null;
       if (result.type === "success") {
@@ -61,7 +64,8 @@
             }
           : {
               tone: "success",
-              message: "스터디 신청을 반려하고 신청자에게 결과 메일을 보냈습니다.",
+              message:
+                "스터디 신청을 반려하고 신청자에게 결과 메일을 보냈습니다.",
             };
         // The approval creates the study on /admin — reload this page's records.
         await update({ reset: false });
@@ -74,7 +78,10 @@
           : null;
       notice = {
         tone: "error",
-        message: failure?.message ?? failure?.error ?? "스터디 신청을 처리하지 못했습니다.",
+        message:
+          failure?.message ??
+          failure?.error ??
+          "스터디 신청을 처리하지 못했습니다.",
       };
     };
   }

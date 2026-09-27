@@ -23,7 +23,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions = {
-  default: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  default: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleUserAction(locals, async () => {
       const title = (data.get("title") as string)?.trim();
@@ -47,13 +53,20 @@ export const actions = {
         requesterId: locals.member!.memberId,
       });
 
-      const { sendStudyApplicationNotification } = await import("$lib/server/mail");
+      const { sendStudyApplicationNotification } =
+        await import("$lib/server/mail");
       await sendStudyApplicationNotification(locals.member!.name, title);
       return {};
     });
   },
 
-  withdraw: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  withdraw: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const id = (await request.formData()).get("id") as string;
     return handleUserAction(locals, async () => {
       await withdrawStudyRequest(id, locals.member!.memberId);

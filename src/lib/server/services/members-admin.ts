@@ -10,7 +10,10 @@ import type { Member, MemberRole } from "$lib/server/data/schemas";
  * audited. The withdrawal HOLD lives here; the request flow itself is BE-41.
  */
 
-async function patchMember(id: string, fn: (m: Member) => Member): Promise<Member> {
+async function patchMember(
+  id: string,
+  fn: (m: Member) => Member,
+): Promise<Member> {
   let updated: Member | undefined;
   await mutate("members", (rows) => {
     const idx = rows.findIndex((m) => m.id === id);
@@ -24,7 +27,12 @@ async function patchMember(id: string, fn: (m: Member) => Member): Promise<Membe
 
 export async function updateMember(
   id: string,
-  patch: Partial<Pick<Member, "name" | "department" | "joinedAt" | "project" | "publicContact">>,
+  patch: Partial<
+    Pick<
+      Member,
+      "name" | "department" | "joinedAt" | "project" | "publicContact"
+    >
+  >,
 ): Promise<void> {
   await patchMember(id, (m) => ({ ...m, ...definedOnly(patch) }));
 }
@@ -60,7 +68,11 @@ export async function revokeAlumni(
   actorId: string,
 ): Promise<void> {
   if (!reason.trim()) throw new AppError("VALIDATION_FAILED");
-  await patchMember(targetId, (m) => ({ ...m, isAlumni: false, alumniRevoked: true }));
+  await patchMember(targetId, (m) => ({
+    ...m,
+    isAlumni: false,
+    alumniRevoked: true,
+  }));
   await audit({
     actorMemberId: actorId,
     action: "member.revoke-alumni",
@@ -124,9 +136,13 @@ export async function updatePrivateInfo(
 
 // ---- withdrawal hold (ADM-17) ----------------------------------------------
 
-export async function holdWithdrawal(targetId: string, actorId: string): Promise<void> {
+export async function holdWithdrawal(
+  targetId: string,
+  actorId: string,
+): Promise<void> {
   await patchMember(targetId, (m) => {
-    if (m.status !== "withdrawn" || !m.withdrawal) throw new AppError("CONFLICT");
+    if (m.status !== "withdrawn" || !m.withdrawal)
+      throw new AppError("CONFLICT");
     return {
       ...m,
       withdrawal: { ...m.withdrawal, holdBy: actorId, holdAt: nowKstIso() },
@@ -146,10 +162,16 @@ export async function releaseWithdrawalHold(
   actorId: string,
 ): Promise<void> {
   await patchMember(targetId, (m) => {
-    if (m.status !== "withdrawn" || !m.withdrawal?.holdBy) throw new AppError("CONFLICT");
+    if (m.status !== "withdrawn" || !m.withdrawal?.holdBy)
+      throw new AppError("CONFLICT");
     return {
       ...m,
-      withdrawal: { ...m.withdrawal, holdBy: null, holdAt: null, requestedAt: nowKstIso() },
+      withdrawal: {
+        ...m.withdrawal,
+        holdBy: null,
+        holdAt: null,
+        requestedAt: nowKstIso(),
+      },
     };
   });
   await audit({

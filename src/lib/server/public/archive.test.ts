@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const testEnv = vi.hoisted(() => ({}) as Record<string, string | undefined>);
 vi.mock("$env/dynamic/private", () => ({ env: testEnv }));
-vi.mock("$lib/server/data/store", () => import("$lib/server/data/store-memory"));
+vi.mock(
+  "$lib/server/data/store",
+  () => import("$lib/server/data/store-memory"),
+);
 
 import { __reset } from "$lib/server/data/store-memory";
 import { _resetDataLayerForTests, mutate } from "$lib/server/data/tables";
@@ -55,69 +58,133 @@ async function seedFixture() {
   const term = currentTerm();
   await mutate("members", () => [
     {
-      id: "m1", name: "김수학", department: "수리과학부", joinedAt: "2024-03-01",
-      status: "regular" as const, statusChangedAt: nowKstIso(), withdrawal: null,
-      isAlumni: true, alumniRevoked: false,
-      roles: [{ term, title: "기획부장" }, { term, title: "회장" }, { term: "23-1", title: "부회장" }],
-      isAdmin: true, publicContact: "snumps0@gmail.com",
+      id: "m1",
+      name: "김수학",
+      department: "수리과학부",
+      joinedAt: "2024-03-01",
+      status: "regular" as const,
+      statusChangedAt: nowKstIso(),
+      withdrawal: null,
+      isAlumni: true,
+      alumniRevoked: false,
+      roles: [
+        { term, title: "기획부장" },
+        { term, title: "회장" },
+        { term: "23-1", title: "부회장" },
+      ],
+      isAdmin: true,
+      publicContact: "snumps0@gmail.com",
       project: { title: "정수론 시각화", url: "https://example.com" },
-      legacyMemberId: null, sourceRequestId: "src-1",
+      legacyMemberId: null,
+      sourceRequestId: "src-1",
     },
     {
-      id: "m2", name: "이탈퇴", department: "수리과학부", joinedAt: "2023-03-01",
-      status: "withdrawn" as const, statusChangedAt: nowKstIso(),
+      id: "m2",
+      name: "이탈퇴",
+      department: "수리과학부",
+      joinedAt: "2023-03-01",
+      status: "withdrawn" as const,
+      statusChangedAt: nowKstIso(),
       withdrawal: {
-        requestedAt: nowKstIso(), previousStatus: "regular" as const,
-        holdBy: null, holdAt: null,
+        requestedAt: nowKstIso(),
+        previousStatus: "regular" as const,
+        holdBy: null,
+        holdAt: null,
       },
-      isAlumni: true, alumniRevoked: false, roles: [], isAdmin: false,
-      publicContact: null, project: { title: "숨겨야 함" }, legacyMemberId: null,
+      isAlumni: true,
+      alumniRevoked: false,
+      roles: [],
+      isAdmin: false,
+      publicContact: null,
+      project: { title: "숨겨야 함" },
+      legacyMemberId: null,
       sourceRequestId: null,
     },
   ]);
   await mutate("private-info", () => [
     {
-      id: newId(), memberId: "m1", email: "secret@snu.ac.kr", phone: "010-0000-0000",
-      studentId: "2020-00000", background: "비밀", mailPrefs: { announcements: true },
+      id: newId(),
+      memberId: "m1",
+      email: "secret@snu.ac.kr",
+      phone: "010-0000-0000",
+      studentId: "2020-00000",
+      background: "비밀",
+      mailPrefs: { announcements: true },
       hidePublicPhone: false,
       sourceRequestId: null,
     },
   ]);
   await mutate("seminars", () => [
     {
-      id: "sem1", title: "위상수학", semester: "26-2", note: "비고",
+      id: "sem1",
+      title: "위상수학",
+      semester: "26-2",
+      note: "비고",
       description: "공개 상세의 개요",
-      presenterIds: ["m1"], externalPresenters: "", materials: ["seminars/sem1/a.pdf"],
-      photos: ["seminars/sem1/p.png"], posterKey: "", preferredTiming: "",
-      publicationStatus: "published", schedule: null, announcedAt: null,
-        semesterPinned: false,
-      activityId: "act1", sourceRequestId: "req1",
+      presenterIds: ["m1"],
+      externalPresenters: "",
+      materials: ["seminars/sem1/a.pdf"],
+      photos: ["seminars/sem1/p.png"],
+      posterKey: "",
+      preferredTiming: "",
+      publicationStatus: "published",
+      schedule: null,
+      announcedAt: null,
+      semesterPinned: false,
+      activityId: "act1",
+      sourceRequestId: "req1",
     },
   ]);
   await mutate("studies", () => [
     {
-      id: "st1", title: "해석학", semester: "26-2", textbook: "", description: "",
-      note: "", organizerIds: ["m1"], participantIds: ["m1", "m2"],
-      pendingParticipantIds: ["hidden"], pendingTransfer: { toMemberId: "x", requestedAt: nowKstIso() },
-      schedule: [], transferHistory: [], photos: ["studies/st1/p.png"],
-      status: "ongoing" as const, sourceRequestId: null,
+      id: "st1",
+      title: "해석학",
+      semester: "26-2",
+      textbook: "",
+      description: "",
+      note: "",
+      organizerIds: ["m1"],
+      participantIds: ["m1", "m2"],
+      pendingParticipantIds: ["hidden"],
+      pendingTransfer: { toMemberId: "x", requestedAt: nowKstIso() },
+      schedule: [],
+      transferHistory: [],
+      photos: ["studies/st1/p.png"],
+      status: "ongoing" as const,
+      sourceRequestId: null,
     },
   ]);
   await mutate("activities", () => [
     {
-      id: "act1", title: "위상수학 세미나", date: { start: nowKstIso(), end: null },
-      type: "세미나" as const, attendeeIds: ["m1", "m2"], sourceRequestId: null,
+      id: "act1",
+      title: "위상수학 세미나",
+      date: { start: nowKstIso(), end: null },
+      type: "세미나" as const,
+      attendeeIds: ["m1", "m2"],
+      sourceRequestId: null,
     },
   ]);
   await mutate("gallery-dinner", () => [
-    { id: "g1", year: "2026", photos: ["gallery/g1/d.png"], activityId: "act1" },
+    {
+      id: "g1",
+      year: "2026",
+      photos: ["gallery/g1/d.png"],
+      activityId: "act1",
+    },
   ]);
 }
 
 beforeEach(async () => {
   __reset();
   _resetDataLayerForTests({ backoffBaseMs: 1 });
-  for (const t of ["members", "private-info", "seminars", "studies", "activities", "gallery-dinner"]) {
+  for (const t of [
+    "members",
+    "private-info",
+    "seminars",
+    "studies",
+    "activities",
+    "gallery-dinner",
+  ]) {
     await invalidateCache(`table_${t}`);
   }
   await seedFixture();
@@ -158,7 +225,9 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
 
   it("publishes a bare-digit archived phone in the hyphenated form", async () => {
     await mutate("private-info", (rows) =>
-      rows.map((p) => (p.memberId === "m1" ? { ...p, phone: "01012345678" } : p)),
+      rows.map((p) =>
+        p.memberId === "m1" ? { ...p, phone: "01012345678" } : p,
+      ),
     );
     const [latest] = await getPublicExecutives();
     expect(latest.holders[0].contact).toBe("010-1234-5678");
@@ -166,7 +235,9 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
 
   it("suppresses the phone when the executive opted out (hidePublicPhone)", async () => {
     await mutate("private-info", (rows) =>
-      rows.map((p) => (p.memberId === "m1" ? { ...p, hidePublicPhone: true } : p)),
+      rows.map((p) =>
+        p.memberId === "m1" ? { ...p, hidePublicPhone: true } : p,
+      ),
     );
     const [latest] = await getPublicExecutives();
     expect(latest.holders[0].contact).toBeNull();
@@ -175,7 +246,9 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
   it("keeps only 회장/부회장 and drops other roles from the public roster", async () => {
     const [latest] = await getPublicExecutives();
     expect(latest.holders.map((h) => h.title)).not.toContain("기획부장");
-    expect(latest.holders.every((h) => ["회장", "부회장"].includes(h.title))).toBe(true);
+    expect(
+      latest.holders.every((h) => ["회장", "부회장"].includes(h.title)),
+    ).toBe(true);
   });
 
   it("never exposes a phone for a past-term executive", async () => {
@@ -211,7 +284,9 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
 
     const seminar = await getPublicSeminar("sem1");
     expect(seminar!.materials[0]).toBe("");
-    expect(JSON.stringify(await getPublicGallery())).not.toContain("seminars/sem1");
+    expect(JSON.stringify(await getPublicGallery())).not.toContain(
+      "seminars/sem1",
+    );
 
     delete testEnv.ASSETS_ACCESS;
   });

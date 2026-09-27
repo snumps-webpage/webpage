@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { filterPublicIndex, type PublicIndexItem } from "$lib/domain/public-content";
+  import {
+    filterPublicIndex,
+    type PublicIndexItem,
+  } from "$lib/domain/public-content";
 
   let {
     items,
@@ -18,7 +21,12 @@
 <section class="index-tools">
   <label class="paper-label" for="public-index-search">{searchLabel}</label>
   <div class="search-row">
-    <input id="public-index-search" type="search" bind:value={query} placeholder="제목, 학기, 이름 또는 핵심어" />
+    <input
+      id="public-index-search"
+      type="search"
+      bind:value={query}
+      placeholder="제목, 학기, 이름 또는 핵심어"
+    />
     <span aria-live="polite">{filtered.length} / {items.length}</span>
   </div>
 </section>
@@ -31,7 +39,13 @@
         <p class="eyebrow">{item.eyebrow}</p>
         <h2>
           {#if item.href}
-            <a href={item.href} target={item.href.startsWith("http") ? "_blank" : undefined} rel={item.href.startsWith("http") ? "noopener noreferrer" : undefined}>{item.title}</a>
+            <a
+              href={item.href}
+              target={item.href.startsWith("http") ? "_blank" : undefined}
+              rel={item.href.startsWith("http")
+                ? "noopener noreferrer"
+                : undefined}>{item.title}</a
+            >
           {:else}
             {item.title}
           {/if}
@@ -42,7 +56,9 @@
             <!-- 표시용 문자열 목록 — 값을 키로 쓰면 실데이터의 빈/중복 문자열에서
                  each_key_duplicate로 클라이언트 전체가 죽는다. 재정렬이 없는 파생 목록이라
                  인덱스 키는 비키 each와 의미가 같고, require-each-key도 만족한다. -->
-            {#each item.metadata.filter(Boolean) as value, i (i)}<li>{value}</li>{/each}
+            {#each item.metadata.filter(Boolean) as value, i (i)}<li>
+                {value}
+              </li>{/each}
           </ul>
         {/if}
       </div>
@@ -53,26 +69,108 @@
 </div>
 
 <style>
-  .index-tools { margin-bottom: 0.9rem; padding: 0.8rem; border: 1px solid var(--latex-rule); }
-  .search-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0.7rem; }
-  input { width: 100%; min-width: 0; padding: 0.65rem 0.7rem; }
-  .search-row span { color: var(--latex-muted); font-family: var(--font-mono); font-size: 0.62rem; font-weight: 700; }
-  .index-list { border-top: 2px solid var(--latex-rule); border-bottom: 2px solid var(--latex-rule); }
-  .index-entry { display: grid; grid-template-columns: 3rem 1fr; border-bottom: 1px solid var(--latex-rule); }
-  .index-entry:last-child { border-bottom: 0; }
-  .entry-number { padding: 0.9rem 0.65rem; border-right: 1px solid var(--latex-rule); color: var(--latex-muted); font-family: var(--font-mono); font-size: 0.58rem; text-align: center; }
-  .entry-body { min-width: 0; padding: 0.85rem 0.95rem 0.95rem; }
-  .eyebrow { margin: 0; color: var(--latex-accent); font-family: var(--font-mono); font-size: 0.58rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-  h2 { margin: 0.18rem 0 0; font-size: 1.14rem; font-weight: 570; line-height: 1.35; }
-  h2 a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
-  .description { max-width: 46rem; margin: 0.42rem 0 0; color: var(--latex-muted); font-size: 0.82rem; line-height: 1.65; }
-  .metadata { display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; margin: 0.55rem 0 0; padding: 0; list-style: none; }
-  .metadata li { color: var(--latex-muted); font-family: var(--font-mono); font-size: 0.6rem; }
-  .metadata li::before { content: "·"; margin-right: 0.35rem; }
-  .empty { margin: 0.8rem 0; }
+  .index-tools {
+    margin-bottom: 0.9rem;
+    padding: 0.8rem;
+    border: 1px solid var(--latex-rule);
+  }
+  .search-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 0.7rem;
+  }
+  input {
+    width: 100%;
+    min-width: 0;
+    padding: 0.65rem 0.7rem;
+  }
+  .search-row span {
+    color: var(--latex-muted);
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-weight: 700;
+  }
+  .index-list {
+    border-top: 2px solid var(--latex-rule);
+    border-bottom: 2px solid var(--latex-rule);
+  }
+  .index-entry {
+    display: grid;
+    grid-template-columns: 3rem 1fr;
+    border-bottom: 1px solid var(--latex-rule);
+  }
+  .index-entry:last-child {
+    border-bottom: 0;
+  }
+  .entry-number {
+    padding: 0.9rem 0.65rem;
+    border-right: 1px solid var(--latex-rule);
+    color: var(--latex-muted);
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    text-align: center;
+  }
+  .entry-body {
+    min-width: 0;
+    padding: 0.85rem 0.95rem 0.95rem;
+  }
+  .eyebrow {
+    margin: 0;
+    color: var(--latex-accent);
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  h2 {
+    margin: 0.18rem 0 0;
+    font-size: 1.14rem;
+    font-weight: 570;
+    line-height: 1.35;
+  }
+  h2 a {
+    color: inherit;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.18em;
+  }
+  .description {
+    max-width: 46rem;
+    margin: 0.42rem 0 0;
+    color: var(--latex-muted);
+    font-size: 0.82rem;
+    line-height: 1.65;
+  }
+  .metadata {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem 0.8rem;
+    margin: 0.55rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .metadata li {
+    color: var(--latex-muted);
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+  }
+  .metadata li::before {
+    content: "·";
+    margin-right: 0.35rem;
+  }
+  .empty {
+    margin: 0.8rem 0;
+  }
   @media (max-width: 480px) {
-    .index-entry { grid-template-columns: 2.3rem 1fr; }
-    .entry-number { padding-inline: 0.35rem; }
-    .entry-body { padding-inline: 0.75rem; }
+    .index-entry {
+      grid-template-columns: 2.3rem 1fr;
+    }
+    .entry-number {
+      padding-inline: 0.35rem;
+    }
+    .entry-body {
+      padding-inline: 0.75rem;
+    }
   }
 </style>

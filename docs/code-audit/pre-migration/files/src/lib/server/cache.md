@@ -19,42 +19,42 @@
 
 ## 요약
 
-| # | 지적 | 분류 | 심각도 |
-|---|---|---|---|
-| **CA-13** | **fetcher가 삼킨 실패·빈 결과가 그대로 캐시되고 Redis로 확산된다** | 버그 | 🔴 |
-| **CA-2** | **캐시가 살아 있는 참조를 내주고, 호출부 2곳이 제자리 변형한다** | 버그 | 🔴 |
-| **CA-1** | **`skipCache: true`가 로컬만 갱신하고 Redis에 낡은 값을 남긴다** | 버그 | 🔴 |
-| CA-14 | 키에 버전·네임스페이스가 없어 배포를 건너 살아남는다 | 정합성 | 🟠 |
-| CA-15 | `commandTimeout` 미설정 — 캐시가 캐시 대상보다 느려질 수 있다 | 견고성 | 🟠 |
-| CA-6 | 같은 키인데 로컬 히트와 Redis 히트가 다른 값을 낸다 | 정합성 | 🟠 |
-| CA-3 | Redis 백필이 남은 수명을 무시해 로컬이 Redis보다 오래 산다 | 버그 | 🟠 |
-| CA-5 | Redis 오류를 삼키고, 핸들러는 **가장 흔한 장애를 제외**한다 | 운영 | 🟠 |
-| CA-4 | in-flight 중복 제거가 없다 | 성능 | 🟠 |
-| CA-10 | 무효화 API가 빈약하다 — 접두사도, 배치도 없다 | 설계 | 🟠 |
-| CA-17 | `withCache<T>`가 키와 타입을 묶지 않는다 | 타입 | 🟡 |
-| CA-7 | 정리가 **미스 경로에서만, 5% 확률로** 돈다 | 설계 | 🟡 |
-| CA-8 | 축출이 anti-LRU다 — **가장 자주 갱신되는 키가 먼저 버려진다** | 설계 | 🟡 |
-| CA-16 | `MAX_LOCAL_SIZE`가 바이트가 아니라 항목 수를 센다 | 설계 | 🟡 |
-| CA-9 | 만료 기준 시각이 fetcher 실행 **전**이다 | 정확성 | 🟡 |
-| CA-12 | `ttlMs = 0`이 "캐시 안 함"으로 쓰이는데 계약이 아니다 | 계약 | 🟡 |
-| CA-11 | 매직 넘버 5개 + 호출부 TTL 12개가 근거 없이 흩어져 있다 | 하드코딩 | 🟡 |
+| #         | 지적                                                               | 분류     | 심각도 |
+| --------- | ------------------------------------------------------------------ | -------- | ------ |
+| **CA-13** | **fetcher가 삼킨 실패·빈 결과가 그대로 캐시되고 Redis로 확산된다** | 버그     | 🔴     |
+| **CA-2**  | **캐시가 살아 있는 참조를 내주고, 호출부 2곳이 제자리 변형한다**   | 버그     | 🔴     |
+| **CA-1**  | **`skipCache: true`가 로컬만 갱신하고 Redis에 낡은 값을 남긴다**   | 버그     | 🔴     |
+| CA-14     | 키에 버전·네임스페이스가 없어 배포를 건너 살아남는다               | 정합성   | 🟠     |
+| CA-15     | `commandTimeout` 미설정 — 캐시가 캐시 대상보다 느려질 수 있다      | 견고성   | 🟠     |
+| CA-6      | 같은 키인데 로컬 히트와 Redis 히트가 다른 값을 낸다                | 정합성   | 🟠     |
+| CA-3      | Redis 백필이 남은 수명을 무시해 로컬이 Redis보다 오래 산다         | 버그     | 🟠     |
+| CA-5      | Redis 오류를 삼키고, 핸들러는 **가장 흔한 장애를 제외**한다        | 운영     | 🟠     |
+| CA-4      | in-flight 중복 제거가 없다                                         | 성능     | 🟠     |
+| CA-10     | 무효화 API가 빈약하다 — 접두사도, 배치도 없다                      | 설계     | 🟠     |
+| CA-17     | `withCache<T>`가 키와 타입을 묶지 않는다                           | 타입     | 🟡     |
+| CA-7      | 정리가 **미스 경로에서만, 5% 확률로** 돈다                         | 설계     | 🟡     |
+| CA-8      | 축출이 anti-LRU다 — **가장 자주 갱신되는 키가 먼저 버려진다**      | 설계     | 🟡     |
+| CA-16     | `MAX_LOCAL_SIZE`가 바이트가 아니라 항목 수를 센다                  | 설계     | 🟡     |
+| CA-9      | 만료 기준 시각이 fetcher 실행 **전**이다                           | 정확성   | 🟡     |
+| CA-12     | `ttlMs = 0`이 "캐시 안 함"으로 쓰이는데 계약이 아니다              | 계약     | 🟡     |
+| CA-11     | 매직 넘버 5개 + 호출부 TTL 12개가 근거 없이 흩어져 있다            | 하드코딩 | 🟡     |
 
 **호출부 전수** — `withCache` 12곳, `invalidateCache` 2곳(`auth-guards.ts:109`, `:164`).
 
-| # | 위치 | 키 | TTL | `{ skipCache }` |
-|---|---|---|---|---|
-| 1 | `notion/applications.ts:17` | `application_${email}` | 60000 | ✅ `:41` |
-| 2 | `notion/applications.ts:46` | `all_applications` | 60000 | ✅ `:66` |
-| 3 | `notion/members.ts:56` | `member_${email}` | 300000 | ✅ `:87` |
-| 4 | `notion/members.ts:104` | `all_members` | 60000 | ✅ `:131` |
-| 5 | `notion/members.ts:136` | `latest_executives` | 3600000 | ❌ **3인자** |
-| 6 | `notion/events.ts:148` | `schema_${databaseId}` | 3600000 | ❌ **3인자** |
-| 7 | `server/events.ts:21` | `all_events` | `skipCache ? 0 : 60000` | ✅ `:32` |
-| 8 | `server/events.ts:114` | `attendance_queue` | `skipCache ? 0 : 30000` | ✅ `:129` |
-| 9 | `notion/activities.ts:20` | `activities_${s}_${e}` | 300000 | ✅ `:60` |
-| 10 | `notion/activities.ts:65` | `all_activities` | 60000 | ❌ **3인자** |
-| 11 | `notion/activities.ts:91` | `user_activities_${memberId}` | 300000 | ✅ `:121` |
-| 12 | `notion/seminars.ts:72` | `all_seminar_requests` | 60000 | ✅ `:119` |
+| #   | 위치                        | 키                            | TTL                     | `{ skipCache }` |
+| --- | --------------------------- | ----------------------------- | ----------------------- | --------------- |
+| 1   | `notion/applications.ts:17` | `application_${email}`        | 60000                   | ✅ `:41`        |
+| 2   | `notion/applications.ts:46` | `all_applications`            | 60000                   | ✅ `:66`        |
+| 3   | `notion/members.ts:56`      | `member_${email}`             | 300000                  | ✅ `:87`        |
+| 4   | `notion/members.ts:104`     | `all_members`                 | 60000                   | ✅ `:131`       |
+| 5   | `notion/members.ts:136`     | `latest_executives`           | 3600000                 | ❌ **3인자**    |
+| 6   | `notion/events.ts:148`      | `schema_${databaseId}`        | 3600000                 | ❌ **3인자**    |
+| 7   | `server/events.ts:21`       | `all_events`                  | `skipCache ? 0 : 60000` | ✅ `:32`        |
+| 8   | `server/events.ts:114`      | `attendance_queue`            | `skipCache ? 0 : 30000` | ✅ `:129`       |
+| 9   | `notion/activities.ts:20`   | `activities_${s}_${e}`        | 300000                  | ✅ `:60`        |
+| 10  | `notion/activities.ts:65`   | `all_activities`              | 60000                   | ❌ **3인자**    |
+| 11  | `notion/activities.ts:91`   | `user_activities_${memberId}` | 300000                  | ✅ `:121`       |
+| 12  | `notion/seminars.ts:72`     | `all_seminar_requests`        | 60000                   | ✅ `:119`       |
 
 ---
 
@@ -79,12 +79,12 @@ async () => {
 
 같은 형태가 다섯 곳이다:
 
-| 위치 | 폴백 | 캐시 수명 |
-|---|---|---|
-| `server/events.ts:29` | `[]` (Notion 예외) | 60초 |
-| `server/events.ts:126` | `[]` (Notion 예외) | 30초 |
-| `notion/applications.ts:22` · `:51` | `null` / `[]` (DB id 부재) | 60초 |
-| `notion/seminars.ts:77` | `[]` (DB id 부재) | 60초 |
+| 위치                                | 폴백                       | 캐시 수명 |
+| ----------------------------------- | -------------------------- | --------- |
+| `server/events.ts:29`               | `[]` (Notion 예외)         | 60초      |
+| `server/events.ts:126`              | `[]` (Notion 예외)         | 30초      |
+| `notion/applications.ts:22` · `:51` | `null` / `[]` (DB id 부재) | 60초      |
+| `notion/seminars.ts:77`             | `[]` (DB id 부재)          | 60초      |
 
 **Notion 429 한 번이 빈 배열을 60초간 공유 캐시에 못 박는다.**
 `notion/client.md` C-2가 **429 처리·재시도가 없다**고 지적했으므로
@@ -104,8 +104,9 @@ fetcher는 성공/실패만 말할 수 있고(던지거나 값을 주거나),
 **캐시가 그것을 걸러낼 계약을 안 준 것**이 이 파일의 몫이다.
 
 ```ts
-withCache(key, ttl, fetcher, { skipCache, shouldCache: (d) => d !== null })
+withCache(key, ttl, fetcher, { skipCache, shouldCache: (d) => d !== null });
 ```
+
 또는 fetcher가 `CACHE_SKIP` 심볼을 반환할 수 있게 한다.
 
 ---
@@ -118,10 +119,10 @@ withCache(key, ttl, fetcher, { skipCache, shouldCache: (d) => d !== null })
 
 `Array.prototype.sort`는 제자리 정렬이다. 확인된 오염 두 곳:
 
-| 위치 | 코드 | 캐시까지의 경로 |
-|---|---|---|
-| `admin/+page.server.ts:45` | `apps.sort(…)` | `getApplications` → `admin.ts:96` 순수 위임 → `withCache("all_applications")`. **같은 참조** |
-| `api/admin/applications/+server.ts:12` | `apps.sort(…)` | 〃 |
+| 위치                                   | 코드           | 캐시까지의 경로                                                                              |
+| -------------------------------------- | -------------- | -------------------------------------------------------------------------------------------- |
+| `admin/+page.server.ts:45`             | `apps.sort(…)` | `getApplications` → `admin.ts:96` 순수 위임 → `withCache("all_applications")`. **같은 참조** |
+| `api/admin/applications/+server.ts:12` | `apps.sort(…)` | 〃                                                                                           |
 
 > **초판 오탐 철회.** 초판은 `api/admin/seminar-requests/+server.ts:20`도 넣었다. **틀렸다.**
 > `:18-19`가 `.filter((r) => r.status === "pending")`로 **새 배열을 만든 뒤** 정렬한다.
@@ -152,8 +153,9 @@ withCache(key, ttl, fetcher, { skipCache, shouldCache: (d) => d !== null })
 
 ```ts
 const data = await fetcher();
-localCache.set(key, { data, expiry: now + ttlMs });        // ← skipCache와 무관하게 항상
-if (redis && !options?.skipCache) {                        // ← skipCache면 건너뜀
+localCache.set(key, { data, expiry: now + ttlMs }); // ← skipCache와 무관하게 항상
+if (redis && !options?.skipCache) {
+  // ← skipCache면 건너뜀
   await redis.set(key, JSON.stringify(data), "PX", ttlMs);
 }
 ```
@@ -161,11 +163,11 @@ if (redis && !options?.skipCache) {                        // ← skipCache면 �
 **두 티어의 쓰기 조건이 다르다.** `skipCache: true`는 "새로 읽어라"인데
 그 결과가 **한 티어에만 반영된다.**
 
-| 티어 | `skipCache: true` 이후 |
-|---|---|
-| 로컬 (이 인스턴스) | **새 값** |
-| Redis (전 인스턴스 공유) | **옛 값 그대로**, 원래 만료까지 |
-| 다른 인스턴스의 로컬 | Redis에서 **옛 값**을 백필(CA-3) |
+| 티어                     | `skipCache: true` 이후           |
+| ------------------------ | -------------------------------- |
+| 로컬 (이 인스턴스)       | **새 값**                        |
+| Redis (전 인스턴스 공유) | **옛 값 그대로**, 원래 만료까지  |
+| 다른 인스턴스의 로컬     | Redis에서 **옛 값**을 백필(CA-3) |
 
 옛 값이 Redis에서 다른 인스턴스로 **재확산**된다.
 
@@ -190,8 +192,8 @@ if (redis && !options?.skipCache) {                        // ← skipCache면 �
 > **초판 날조 철회.** 초판은 이것이 `activities.md` AC-1의
 > "새로고침 버튼을 눌러도 낫지 않는다"의 기계적 원인이라고 썼다.
 > **AC-1은 그 주장을 명시적으로 철회했다** —
-> `activities.md:147-152`: *"초판은 '새로고침해도 반영되지 않는다'고 썼다. **틀렸다.**
-> 대시보드에 새로고침 버튼이 있다 … `skipCache`를 켜고 캐시를 통째로 우회한다."*
+> `activities.md:147-152`: _"초판은 '새로고침해도 반영되지 않는다'고 썼다. **틀렸다.**
+> 대시보드에 새로고침 버튼이 있다 … `skipCache`를 켜고 캐시를 통째로 우회한다."_
 > AC-1은 **바로 그 철회 때문에 🔴→🟠로 강등**됐다(`activities.md:278`).
 > 초판은 철회된 주장을 되살려 그 문서를 출처로 달고 1순위 수정의 근거로 삼았다.
 
@@ -253,9 +255,9 @@ $ grep -rn "commandTimeout" src/
 
 ## CA-6 🟠 같은 키가 두 티어에서 다른 값을 낸다
 
-| 히트 티어 | 반환 |
-|---|---|
-| 로컬 (`:79`) | fetcher가 만든 **원본 객체 참조** |
+| 히트 티어        | 반환                               |
+| ---------------- | ---------------------------------- |
+| 로컬 (`:79`)     | fetcher가 만든 **원본 객체 참조**  |
 | Redis (`:87-90`) | `JSON.parse(JSON.stringify(원본))` |
 
 JSON 왕복이 지우는 것: `Date` → 문자열, `undefined` 필드 → **삭제**,
@@ -312,7 +314,9 @@ X-3이 세는 "무효화 부재"에 **"무효화 실패"가 조용히 합류한�
 
 ```ts
 redis.on("error", (err: RedisError) => {
-  if (err.code !== "ECONNREFUSED") { console.warn(">>> [Cache] Redis Error:", err); }
+  if (err.code !== "ECONNREFUSED") {
+    console.warn(">>> [Cache] Redis Error:", err);
+  }
 });
 ```
 
@@ -439,8 +443,8 @@ CA-7이 "상한이 상한이 아니다"를 **시점**의 문제로 봤다면, �
 파일 안의 다른 `Date.now()`는 `:46`(`pruneLocalCache` 내부, `:116`에서만 도달)뿐이다.
 
 ```ts
-const data = await fetcher();                              // 수백 ms ~ 수 초
-localCache.set(key, { data, expiry: now + ttlMs });        // 오래된 now
+const data = await fetcher(); // 수백 ms ~ 수 초
+localCache.set(key, { data, expiry: now + ttlMs }); // 오래된 now
 ```
 
 Notion 전수 조회가 2초 걸리면 로컬 캐시 수명이 2초 짧아진다.
@@ -522,20 +526,20 @@ redis-cli set k v PX 1000  → OK
 
 ## 개정 이력
 
-| 변경 | 내용 |
-|---|---|
-| **AC-1 인용 날조 철회** | 초판은 CA-1이 "새로고침 버튼이 안 듣는다"의 원인이라며 `activities.md` AC-1을 출처로 달았다. **AC-1은 그 주장을 명시적으로 철회했고**(`:147-152` "**틀렸다**") **그 철회 때문에 🔴→🟠로 강등**됐다(`:278`). 철회된 주장을 되살려 1순위 수정의 근거로 삼았다 |
-| **CA-13 신설 🔴** | fetcher가 삼킨 실패·빈 결과가 캐시되고 Redis로 확산된다. 5곳. 429 한 번이 빈 배열을 60초 못 박는다. `withCache`에 "캐시하지 마라"를 표현할 수단이 없다 |
-| **CA-1 집계 정정** | "12곳 중 10곳" → **7곳**. 3인자 호출 셋(`latest_executives`·`schema_`·`all_activities`)은 `options`가 `undefined`라 도달 불가. 그리고 `events.ts` 두 곳이 "TTL 0이라 상쇄"라 한 것도 **로컬 절반만** 맞다 — **Redis 절반은 동일하게 낡는다** |
-| **CA-1 수정안 충돌 발견** | `:105`를 `if (redis)`로 고치면 `PX 0`에 도달해 CA-12가 발현하고 빈 catch가 삼킨다. 초판 수정 순서는 CA-1을 1번, CA-12를 8번에 뒀다 — **그 순서로 적용하면 Redis 티어가 조용히 죽는다** |
-| **CA-2 오탐 철회** | `api/admin/seminar-requests/+server.ts:20`은 `:18-19`의 `.filter()`가 만든 **새 배열**을 정렬한다. 캐시와 무관하다. **인용한 줄 바로 위를 안 읽었다.** 3곳 → **2곳** |
-| **CA-2 약한 근거 삭제** | `+page.server.ts:204`의 `semesters`는 `:197-203`에서 지역 생성된 배열이다. 캐시 오염을 암시한 것은 부적절 |
-| **CA-3 오인용 정정** | X-3 ⚠️는 **Redis 부재**가 원인이고 CA-3은 **Redis 존재**가 전제다. 배타적인 두 현상을 같다고 썼다 |
-| **CA-3 수정안 정정** | `pttl` 반영은 **TTL 초과만** 고친다. 무효화 좀비는 `Math.min(remaining,…)`으로 안 없어진다 — `latest_executives`는 `remaining`이 59분이라 여전히 60초를 준다 |
-| **CA-14 · CA-15 · CA-16 · CA-17 신설** | 키 버전 부재(배포를 건너 살아남음) / `commandTimeout` 0건 / 상한 단위가 개수 / `as T` 무검증 단언 |
-| **면죄부 철회** | "Redis 값에 스키마 검증이 없는 것"을 통과시킨 근거가 **쓰기 시점 보장**이었고, 게다가 그 검증기는 `utils.md` U-1이 무력하다고 밝힌 것이다. **스스로 무력하다고 적어둔 것을 근거로 삼았다.** → CA-14 |
-| CA-8 강화 | `.set()`이 기존 키의 순서를 안 바꾸므로 **자주 갱신되는 키가 먼저 축출된다**. FIFO가 아니라 anti-LRU다 |
-| CA-7 보강 | fetcher가 던지면 `:115`를 지나치지도 못한다. `:90` Redis 히트도 조기 반환에 추가 |
-| CA-5 확대 | `:29`가 오류 바인딩 없는 `catch {`. 초판은 이것을 「지적하지 않은 것」에서 통과시켰다 |
-| CA-11 계수 정정 | "4개" → **5개**(`:19` `:20` `:40` `:89` `:115`) |
-| AD-14 인용 축소 | "전부 여기로 수렴한다"에서 AD-14 제외 — `getAllPrivateInfo` 무캐시는 이 파일이 원인이 아니다 |
+| 변경                                   | 내용                                                                                                                                                                                                                                                        |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **AC-1 인용 날조 철회**                | 초판은 CA-1이 "새로고침 버튼이 안 듣는다"의 원인이라며 `activities.md` AC-1을 출처로 달았다. **AC-1은 그 주장을 명시적으로 철회했고**(`:147-152` "**틀렸다**") **그 철회 때문에 🔴→🟠로 강등**됐다(`:278`). 철회된 주장을 되살려 1순위 수정의 근거로 삼았다 |
+| **CA-13 신설 🔴**                      | fetcher가 삼킨 실패·빈 결과가 캐시되고 Redis로 확산된다. 5곳. 429 한 번이 빈 배열을 60초 못 박는다. `withCache`에 "캐시하지 마라"를 표현할 수단이 없다                                                                                                      |
+| **CA-1 집계 정정**                     | "12곳 중 10곳" → **7곳**. 3인자 호출 셋(`latest_executives`·`schema_`·`all_activities`)은 `options`가 `undefined`라 도달 불가. 그리고 `events.ts` 두 곳이 "TTL 0이라 상쇄"라 한 것도 **로컬 절반만** 맞다 — **Redis 절반은 동일하게 낡는다**                |
+| **CA-1 수정안 충돌 발견**              | `:105`를 `if (redis)`로 고치면 `PX 0`에 도달해 CA-12가 발현하고 빈 catch가 삼킨다. 초판 수정 순서는 CA-1을 1번, CA-12를 8번에 뒀다 — **그 순서로 적용하면 Redis 티어가 조용히 죽는다**                                                                      |
+| **CA-2 오탐 철회**                     | `api/admin/seminar-requests/+server.ts:20`은 `:18-19`의 `.filter()`가 만든 **새 배열**을 정렬한다. 캐시와 무관하다. **인용한 줄 바로 위를 안 읽었다.** 3곳 → **2곳**                                                                                        |
+| **CA-2 약한 근거 삭제**                | `+page.server.ts:204`의 `semesters`는 `:197-203`에서 지역 생성된 배열이다. 캐시 오염을 암시한 것은 부적절                                                                                                                                                   |
+| **CA-3 오인용 정정**                   | X-3 ⚠️는 **Redis 부재**가 원인이고 CA-3은 **Redis 존재**가 전제다. 배타적인 두 현상을 같다고 썼다                                                                                                                                                           |
+| **CA-3 수정안 정정**                   | `pttl` 반영은 **TTL 초과만** 고친다. 무효화 좀비는 `Math.min(remaining,…)`으로 안 없어진다 — `latest_executives`는 `remaining`이 59분이라 여전히 60초를 준다                                                                                                |
+| **CA-14 · CA-15 · CA-16 · CA-17 신설** | 키 버전 부재(배포를 건너 살아남음) / `commandTimeout` 0건 / 상한 단위가 개수 / `as T` 무검증 단언                                                                                                                                                           |
+| **면죄부 철회**                        | "Redis 값에 스키마 검증이 없는 것"을 통과시킨 근거가 **쓰기 시점 보장**이었고, 게다가 그 검증기는 `utils.md` U-1이 무력하다고 밝힌 것이다. **스스로 무력하다고 적어둔 것을 근거로 삼았다.** → CA-14                                                         |
+| CA-8 강화                              | `.set()`이 기존 키의 순서를 안 바꾸므로 **자주 갱신되는 키가 먼저 축출된다**. FIFO가 아니라 anti-LRU다                                                                                                                                                      |
+| CA-7 보강                              | fetcher가 던지면 `:115`를 지나치지도 못한다. `:90` Redis 히트도 조기 반환에 추가                                                                                                                                                                            |
+| CA-5 확대                              | `:29`가 오류 바인딩 없는 `catch {`. 초판은 이것을 「지적하지 않은 것」에서 통과시켰다                                                                                                                                                                       |
+| CA-11 계수 정정                        | "4개" → **5개**(`:19` `:20` `:40` `:89` `:115`)                                                                                                                                                                                                             |
+| AD-14 인용 축소                        | "전부 여기로 수렴한다"에서 AD-14 제외 — `getAllPrivateInfo` 무캐시는 이 파일이 원인이 아니다                                                                                                                                                                |

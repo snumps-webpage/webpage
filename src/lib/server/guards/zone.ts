@@ -4,10 +4,20 @@
  * Route groups replace prefix matching: a route's group IS its access zone.
  */
 
-export const ZONES = ["(public)", "(applicant)", "(member)", "(admin)", "api"] as const;
+export const ZONES = [
+  "(public)",
+  "(applicant)",
+  "(member)",
+  "(admin)",
+  "api",
+] as const;
 export type Zone = (typeof ZONES)[number];
 
-import { CAPABILITIES, hasCapability, type Capability } from "$lib/server/core/capabilities";
+import {
+  CAPABILITIES,
+  hasCapability,
+  type Capability,
+} from "$lib/server/core/capabilities";
 
 export interface MemberContext {
   memberId: string;
@@ -77,7 +87,8 @@ export function memberPostCapability(routeId: string): Capability | null {
  */
 export function needsMemberResolution(routeId: string): boolean {
   const zone = zoneOf(routeId);
-  if (zone === "(applicant)" || zone === "(member)" || zone === "(admin)") return true;
+  if (zone === "(applicant)" || zone === "(member)" || zone === "(admin)")
+    return true;
   return routeId === ROOT_PAGE_ID; // hybrid landing/dashboard
 }
 
@@ -118,7 +129,8 @@ export function decide(routeId: string, ctx: GuardContext): GuardDecision {
       }
       // S9: 이번 학기 등록을 마친 회원만 신청 존에서 내보낸다 —
       // 미등록 회원(동문 포함)은 재가입 신청을 위해 들어와야 한다.
-      if (ctx.member && ctx.member.registered) return { type: "redirect", location: "/" };
+      if (ctx.member && ctx.member.registered)
+        return { type: "redirect", location: "/" };
       return { type: "allow" };
     }
 
@@ -130,7 +142,10 @@ export function decide(routeId: string, ctx: GuardContext): GuardDecision {
         };
       }
       if (!ctx.member) {
-        return { type: "redirect", location: ctx.hasApplication ? "/wait" : "/signup" };
+        return {
+          type: "redirect",
+          location: ctx.hasApplication ? "/wait" : "/signup",
+        };
       }
       if (
         ctx.member.status === "withdrawn" &&
@@ -141,8 +156,13 @@ export function decide(routeId: string, ctx: GuardContext): GuardDecision {
       if (ctx.member.status === "withdrawn") return { type: "allow" };
       // S9 재등록 게이트: 회원 존 열람 capability가 없으면 재가입으로 보낸다.
       // (등록 회원·동문은 통과 — 동문의 쓰기 행위는 PARTICIPATE 검사가 막는다.)
-      if (!hasCapability(ctx.member.capabilities, CAPABILITIES.VIEW_MEMBER_ZONE)) {
-        return { type: "redirect", location: ctx.hasApplication ? "/wait" : "/signup" };
+      if (
+        !hasCapability(ctx.member.capabilities, CAPABILITIES.VIEW_MEMBER_ZONE)
+      ) {
+        return {
+          type: "redirect",
+          location: ctx.hasApplication ? "/wait" : "/signup",
+        };
       }
       return { type: "allow" };
     }

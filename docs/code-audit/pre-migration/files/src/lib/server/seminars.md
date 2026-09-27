@@ -15,23 +15,23 @@
 
 ## 요약
 
-| # | 지적 | 분류 | 심각도 |
-|---|---|---|---|
-| **SM-12** | **`updateSeminarRequest`가 소유권 인자를 안 받고, 유일한 호출부에 검사가 없다 (IDOR)** | 보안 | 🔴 |
-| **SM-1** | **장식 데이터 조회 실패가 본체를 통째로 버린다** | 버그 | 🔴 |
-| **SM-2** | **타입은 상태 셋을 선언하는데 저장소는 둘만 담고, 셋째는 삭제로 구현돼 있다** | 설계 | 🔴 |
-| SM-13 | 같은 조인이 라우트에 복제돼 있고 **정렬과 오류 처리가 반대다** | 중복 | 🟠 |
-| SM-14 | `SeminarRequestSchema`가 죽어 있다 — 살아 있었다면 SM-4를 잡았다 | 정합성 | 🟠 |
-| SM-3 | 반려 메일이 삭제보다 먼저 나간다 — 실패하면 "반려됨"을 통보받고 대기열에 남는다 | 버그 | 🟠 |
-| SM-4 | `parseSpeakerIds`가 `JSON.parse` 결과를 검증 없이 `string[]`이라 단언한다 | 타입 | 🟠 |
-| SM-5 | `createSeminarRequest`가 `status`·`submittedAt` **둘 다** 지어낸다 | 정합성 | 🟠 |
-| SM-6 | 쓰기 세 함수가 Notion 상태가 아니라 **입력을 되돌려준다** | 정합성 | 🟠 |
-| SM-7 | `catch → log → rethrow` 4곳이 로그만 중복시키고, 두 곳은 **문구가 같다** | 오류 처리 | 🟡 |
-| SM-11 | 반환 타입 미선언 5개 — `status`가 유니온이 아니라 `string`으로 추론된다 | 타입 | 🟡 |
-| SM-10 | `"Unknown"`이 두 가지 원인을 뭉갠다 | 도메인 | 🟡 |
-| SM-8 | `:110`만 동적 import — 같은 모듈을 `:2-8`에서 정적으로 가져온다 | 일관성 | 🟡 |
-| SM-9 | `members.find()`가 `map` 안에 있다 | 성능 | 🟡 |
-| SM-15 | `:58`의 오류 문구가 가장 흔한 원인을 오귀속한다 | 명료성 | 🟡 |
+| #         | 지적                                                                                   | 분류      | 심각도 |
+| --------- | -------------------------------------------------------------------------------------- | --------- | ------ |
+| **SM-12** | **`updateSeminarRequest`가 소유권 인자를 안 받고, 유일한 호출부에 검사가 없다 (IDOR)** | 보안      | 🔴     |
+| **SM-1**  | **장식 데이터 조회 실패가 본체를 통째로 버린다**                                       | 버그      | 🔴     |
+| **SM-2**  | **타입은 상태 셋을 선언하는데 저장소는 둘만 담고, 셋째는 삭제로 구현돼 있다**          | 설계      | 🔴     |
+| SM-13     | 같은 조인이 라우트에 복제돼 있고 **정렬과 오류 처리가 반대다**                         | 중복      | 🟠     |
+| SM-14     | `SeminarRequestSchema`가 죽어 있다 — 살아 있었다면 SM-4를 잡았다                       | 정합성    | 🟠     |
+| SM-3      | 반려 메일이 삭제보다 먼저 나간다 — 실패하면 "반려됨"을 통보받고 대기열에 남는다        | 버그      | 🟠     |
+| SM-4      | `parseSpeakerIds`가 `JSON.parse` 결과를 검증 없이 `string[]`이라 단언한다              | 타입      | 🟠     |
+| SM-5      | `createSeminarRequest`가 `status`·`submittedAt` **둘 다** 지어낸다                     | 정합성    | 🟠     |
+| SM-6      | 쓰기 세 함수가 Notion 상태가 아니라 **입력을 되돌려준다**                              | 정합성    | 🟠     |
+| SM-7      | `catch → log → rethrow` 4곳이 로그만 중복시키고, 두 곳은 **문구가 같다**               | 오류 처리 | 🟡     |
+| SM-11     | 반환 타입 미선언 5개 — `status`가 유니온이 아니라 `string`으로 추론된다                | 타입      | 🟡     |
+| SM-10     | `"Unknown"`이 두 가지 원인을 뭉갠다                                                    | 도메인    | 🟡     |
+| SM-8      | `:110`만 동적 import — 같은 모듈을 `:2-8`에서 정적으로 가져온다                        | 일관성    | 🟡     |
+| SM-9      | `members.find()`가 `map` 안에 있다                                                     | 성능      | 🟡     |
+| SM-15     | `:58`의 오류 문구가 가장 흔한 원인을 오귀속한다                                        | 명료성    | 🟡     |
 
 **호출부 실측**:
 
@@ -48,8 +48,15 @@ createSeminarRequest 1  updateSeminarRequest 1  updateSeminarRequestStatus 1  de
 // :72-82
 export async function updateSeminarRequest(
   id: string,
-  data: { title?; description?; prerequisites?; duration?; speakerIds?; attachment? },
-)
+  data: {
+    title?;
+    description?;
+    prerequisites?;
+    duration?;
+    speakerIds?;
+    attachment?;
+  },
+);
 ```
 
 **누가 고치는지를 받지 않는다.** 그리고 유일한 호출부에 검사가 없다.
@@ -77,12 +84,12 @@ default: async ({ request, locals, params }) => {
 그리고 **폼 POST는 `load`를 거치지 않는다.** 액션이 직접 호출되므로
 `load`의 세 검사 중 어느 것도 적용되지 않는다.
 
-| 공격자 | 가능한 것 |
-|---|---|
-| 승인된 회원 아무나 | `/seminar/edit/{임의 id}`로 POST |
-| | 제목·설명·선수과목·기간·첨부 **덮어쓰기** |
-| | `speakerIds` 교체 → **발표자 명의 탈취** |
-| | `load`의 pending 검사도 안 거치므로 **승인된 신청도 수정 가능** |
+| 공격자             | 가능한 것                                                       |
+| ------------------ | --------------------------------------------------------------- |
+| 승인된 회원 아무나 | `/seminar/edit/{임의 id}`로 POST                                |
+|                    | 제목·설명·선수과목·기간·첨부 **덮어쓰기**                       |
+|                    | `speakerIds` 교체 → **발표자 명의 탈취**                        |
+|                    | `load`의 pending 검사도 안 거치므로 **승인된 신청도 수정 가능** |
 
 `hooks.server.ts`의 `membershipGuard`는 회원 여부만 보고 소유권과 무관하다.
 
@@ -143,6 +150,7 @@ export async function getPendingSeminarRequests(skipCache = false) {
 ```ts
 const members = await getAllMembers(skipCache).catch(() => []);
 ```
+
 한 줄이면 이름만 `"Unknown"`이 되고 목록은 살아난다.
 
 > **그러나 그것만으로 대기열이 살아나지는 않는다.**
@@ -171,7 +179,10 @@ seminars.ts:94   status: "approved" | "rejected"
 
 ```ts
 // notion/seminars.ts:201-208
-export async function updateSeminarRequestStatusInNotion(id: string, status: string) {
+export async function updateSeminarRequestStatusInNotion(
+  id: string,
+  status: string,
+) {
   await notionUpdate(id, {
     [NOTION_PROPS.SEMINAR_REQ_APPROVED]: { checkbox: status === "approved" },
   });
@@ -193,7 +204,7 @@ status: getPropertyValue(page.properties[NOTION_PROPS.SEMINAR_REQ_APPROVED])
 `admin/+page.server.ts:300`의 반려 경로는 상태를 바꾸지 않는다:
 
 ```ts
-await deleteSeminarRequest(id);        // → removeSeminarRequestInNotion = notionArchive
+await deleteSeminarRequest(id); // → removeSeminarRequestInNotion = notionArchive
 ```
 
 **반려 = 아카이브.** 반려됐다는 기록이 남지 않고, 왜 반려됐는지도, 반려 이력도 없다.
@@ -237,12 +248,12 @@ await deleteSeminarRequest(id);        // ← 여기서 실패하면?
 `deleteSeminarRequest`(`:37-44`)는 **재전파한다.**
 `handleAdminAction`이 잡아 `fail(500)`을 낸다 — **그러나 메일은 이미 나갔다.**
 
-| | 상태 |
-|---|---|
-| 신청자 | "반려되었습니다" 메일 수신 |
-| Notion | 신청 그대로 |
-| 관리자 대기열 | 그 신청이 그대로 보임 |
-| 관리자 화면 | 500 오류 |
+|               | 상태                       |
+| ------------- | -------------------------- |
+| 신청자        | "반려되었습니다" 메일 수신 |
+| Notion        | 신청 그대로                |
+| 관리자 대기열 | 그 신청이 그대로 보임      |
+| 관리자 화면   | 500 오류                   |
 
 관리자가 다시 반려를 누르면 **반려 메일이 한 통 더 간다**
 (`mail/templates.md` MT-1이 메일 실패를 삼킨다고 지적했는데, 여기는 반대로
@@ -269,9 +280,12 @@ await deleteSeminarRequest(id);        // ← 여기서 실패하면?
 export function parseSpeakerIds(rawIds?: string | null): string[] {
   if (!rawIds) return [];
   try {
-    return JSON.parse(rawIds);          // ← 반환 타입은 string[]
+    return JSON.parse(rawIds); // ← 반환 타입은 string[]
   } catch {
-    return rawIds.split(",").map((id) => id.trim()).filter(Boolean);
+    return rawIds
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
   }
 }
 ```
@@ -292,12 +306,12 @@ export function parseSpeakerIds(rawIds?: string | null): string[] {
 
 하류에서 무슨 일이 나는지:
 
-| 값 | `:61` `speakerIds.length === 0` | `notion/seminars.ts:148` `(data.speakerIds \|\| []).map(…)` |
-|---|---|---|
-| `null` | **TypeError** (`null.length`) | 도달 못 함 |
-| `42` | `undefined === 0` → false, 통과 | **TypeError** (`.map` 없음) |
-| `{"a":1}` | 통과 | **TypeError** |
-| `["x",1]` | 통과 | `[{id:"x"},{id:1}]` → **Notion 400** |
+| 값        | `:61` `speakerIds.length === 0` | `notion/seminars.ts:148` `(data.speakerIds \|\| []).map(…)` |
+| --------- | ------------------------------- | ----------------------------------------------------------- |
+| `null`    | **TypeError** (`null.length`)   | 도달 못 함                                                  |
+| `42`      | `undefined === 0` → false, 통과 | **TypeError** (`.map` 없음)                                 |
+| `{"a":1}` | 통과                            | **TypeError**                                               |
+| `["x",1]` | 통과                            | `[{id:"x"},{id:1}]` → **Notion 400**                        |
 
 마지막이 가장 나쁘다 — 타입 오류 없이 **잘못된 relation이 API까지 간다.**
 
@@ -305,7 +319,9 @@ export function parseSpeakerIds(rawIds?: string | null): string[] {
 
 ```ts
 const parsed = JSON.parse(rawIds);
-return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+return Array.isArray(parsed)
+  ? parsed.filter((x): x is string => typeof x === "string")
+  : [];
 ```
 
 `getPendingSeminarRequests:120`이 이미 `Array.isArray(r.speakerIds)`를 검사한다 —
@@ -331,10 +347,10 @@ return {
 
 읽을 때의 값은 다른 데서 온다:
 
-| 필드 | 읽기 출처 |
-|---|---|
-| `status` | 체크박스에서 파생(`notion/seminars.ts:111-115`) |
-| `submittedAt` | `(page as any).created_time` (`:116`) |
+| 필드          | 읽기 출처                                       |
+| ------------- | ----------------------------------------------- |
+| `status`      | 체크박스에서 파생(`notion/seminars.ts:111-115`) |
+| `submittedAt` | `(page as any).created_time` (`:116`)           |
 
 **반환된 두 필드는 어디에도 저장되지 않은 값**이고, 같은 신청을 다시 읽으면 다르다
 (`submittedAt`은 Notion 서버 시각).
@@ -437,10 +453,10 @@ X-10의 처방대로 로그는 경계에서 한 번만 남기고, 남긴다면 �
 
 **그런데 두 곳의 의미가 다르다:**
 
-| | `seminars.ts:108` | `api/.../+server.ts:7` |
-|---|---|---|
-| 정렬 | **없음** | `submittedAt` 오름차순(`:20-23`) |
-| `getAllMembers` 실패 | try/catch → `[]` (SM-1) | **없음 → 500** |
+|                      | `seminars.ts:108`       | `api/.../+server.ts:7`           |
+| -------------------- | ----------------------- | -------------------------------- |
+| 정렬                 | **없음**                | `submittedAt` 오름차순(`:20-23`) |
+| `getAllMembers` 실패 | try/catch → `[]` (SM-1) | **없음 → 500**                   |
 
 호출부가 갈린다 — SSR은 `admin/+page.server.ts:59`가 `getPendingSeminarRequests`를,
 새로고침은 `admin/+page.svelte:134-136`이 이 엔드포인트를 부른다.
@@ -476,11 +492,11 @@ src/lib/server/notion/schema.ts:76:export type SeminarRequest = z.infer<typeof S
 
 그리고 `SeminarRequest`가 **셋**이다:
 
-| 정의 | 검증 | 사용 |
-|---|---|---|
-| `types.ts:19` | 없음 | `seminars.ts:1`이 쓰는 것 |
-| `schema.ts:76` (`z.infer`) | zod | **0곳** |
-| `admin/+page.svelte:29` | 없음 | 그 컴포넌트 지역 |
+| 정의                       | 검증 | 사용                      |
+| -------------------------- | ---- | ------------------------- |
+| `types.ts:19`              | 없음 | `seminars.ts:1`이 쓰는 것 |
+| `schema.ts:76` (`z.infer`) | zod  | **0곳**                   |
+| `admin/+page.svelte:29`    | 없음 | 그 컴포넌트 지역          |
 
 `admin.md` AD-10(`Application`이 셋)과 **정확히 같은 형태**이고 개수까지 같다.
 **검증되는 쪽이 죽어 있고 검증 안 되는 쪽이 이긴다.**
@@ -530,7 +546,7 @@ if (!dbId) return null;
 r.speakerIds.map((id) => {
   const m = members.find((member) => member.id === id);
   return m ? m.name : "Unknown";
-})
+});
 ```
 
 신청 수 × 발표자 수 × 회원 수. 회원 231명(`notion/schema.md` SC-9),
@@ -582,14 +598,14 @@ r.speakerIds.map((id) => {
 
 ## 개정 이력
 
-| 변경 | 내용 |
-|---|---|
-| **SM-12 신설 🔴** | `seminar/edit/[id]` 액션에 **소유권 검사가 없다.** `load`도 없고, 폼 POST는 `load`를 거치지도 않는다. 회원 누구나 임의 신청을 덮어쓰고 `speakerIds`로 **명의를 탈취**할 수 있다 |
-| **수정 순서 1번이 거짓 약속이었다** | `notion/seminars.md` **S-1+S-2**를 한 번도 인용하지 않았다. 읽기가 항상 400이므로 SM-1을 고쳐도 대기열은 안 살아난다. **현재 0건인 원인은 SM-1이 아니라 S-1이다** |
-| **SM-11 후반 철회** | "반환 타입을 선언하면 SM-5·SM-6이 컴파일 시점에 드러난다"는 **거짓**. `tsc --strict`로 확인 — 문맥 타이핑이 `"pending"`을 리터럴로 좁혀 통과시킨다. 지어낸 필드는 **출처 결함**이지 타입 결함이 아니다 |
-| **SM-3 처방 정정** | "순서를 뒤집으면 창이 사라진다"는 **틀렸다.** MT-1이 메일 실패를 삼키므로 창이 **뒤집힐 뿐**이다 — 신청은 사라지고 통보는 안 가고 되찾을 수도 없다. **바로 윗줄에서 MT-1을 인용해 놓고 처방에 적용하지 않았다** |
-| **SM-13 신설 🟠** | `api/admin/seminar-requests/+server.ts:13-32`가 같은 조인을 복제하는데 **정렬이 있고 오류 처리가 반대**다. SSR과 새로고침이 다른 순서·다른 실패를 낸다. SM-1·SM-9·SM-10의 범위가 각각 넓어진다 |
-| **SM-14 신설 🟠** | `SeminarRequestSchema`(`schema.ts:64-74`)가 **사용처 0곳**. 살아 있었다면 SM-4를 전부 잡았다. `SeminarRequest` 정의가 **셋** — AD-10과 같은 형태 |
-| **SM-15 신설 🟡** | `:58`의 문구가 API 문제를 가리키는데 실제 유일한 원인은 **`NOTION_DB_SEMINAR_REQUESTS` 미설정**이다 |
-| **비지적 오배정 철회** | `as SeminarRequest[]`를 `utils.md` U-1로 넘겼는데, `notion/seminars.ts`는 `validateNotionResponse`를 **import하지도 않는다.** U-1을 고쳐도 무관하다 → SM-14 |
-| 줄번호 정정 2건 | `members.ts:107`(그냥 `async () => {`) → **`:109`·`:111`·`:122`**. `createSeminarRequestInNotion` `:130-155` → **`:123-158`** |
+| 변경                                | 내용                                                                                                                                                                                                            |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **SM-12 신설 🔴**                   | `seminar/edit/[id]` 액션에 **소유권 검사가 없다.** `load`도 없고, 폼 POST는 `load`를 거치지도 않는다. 회원 누구나 임의 신청을 덮어쓰고 `speakerIds`로 **명의를 탈취**할 수 있다                                 |
+| **수정 순서 1번이 거짓 약속이었다** | `notion/seminars.md` **S-1+S-2**를 한 번도 인용하지 않았다. 읽기가 항상 400이므로 SM-1을 고쳐도 대기열은 안 살아난다. **현재 0건인 원인은 SM-1이 아니라 S-1이다**                                               |
+| **SM-11 후반 철회**                 | "반환 타입을 선언하면 SM-5·SM-6이 컴파일 시점에 드러난다"는 **거짓**. `tsc --strict`로 확인 — 문맥 타이핑이 `"pending"`을 리터럴로 좁혀 통과시킨다. 지어낸 필드는 **출처 결함**이지 타입 결함이 아니다          |
+| **SM-3 처방 정정**                  | "순서를 뒤집으면 창이 사라진다"는 **틀렸다.** MT-1이 메일 실패를 삼키므로 창이 **뒤집힐 뿐**이다 — 신청은 사라지고 통보는 안 가고 되찾을 수도 없다. **바로 윗줄에서 MT-1을 인용해 놓고 처방에 적용하지 않았다** |
+| **SM-13 신설 🟠**                   | `api/admin/seminar-requests/+server.ts:13-32`가 같은 조인을 복제하는데 **정렬이 있고 오류 처리가 반대**다. SSR과 새로고침이 다른 순서·다른 실패를 낸다. SM-1·SM-9·SM-10의 범위가 각각 넓어진다                  |
+| **SM-14 신설 🟠**                   | `SeminarRequestSchema`(`schema.ts:64-74`)가 **사용처 0곳**. 살아 있었다면 SM-4를 전부 잡았다. `SeminarRequest` 정의가 **셋** — AD-10과 같은 형태                                                                |
+| **SM-15 신설 🟡**                   | `:58`의 문구가 API 문제를 가리키는데 실제 유일한 원인은 **`NOTION_DB_SEMINAR_REQUESTS` 미설정**이다                                                                                                             |
+| **비지적 오배정 철회**              | `as SeminarRequest[]`를 `utils.md` U-1로 넘겼는데, `notion/seminars.ts`는 `validateNotionResponse`를 **import하지도 않는다.** U-1을 고쳐도 무관하다 → SM-14                                                     |
+| 줄번호 정정 2건                     | `members.ts:107`(그냥 `async () => {`) → **`:109`·`:111`·`:122`**. `createSeminarRequestInNotion` `:130-155` → **`:123-158`**                                                                                   |

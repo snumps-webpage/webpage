@@ -1,14 +1,21 @@
 // prod 가입 차단 진단 — 개수/불리언만 출력 (PII 미출력)
 import { createClient } from "@supabase/supabase-js";
 
-const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
+const sb = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SECRET_KEY,
+);
 const admins = (process.env.ADMINS_EMAILS ?? "")
   .split(",")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
 
 async function rows(name) {
-  const { data } = await sb.from("app_tables").select("doc").eq("name", name).maybeSingle();
+  const { data } = await sb
+    .from("app_tables")
+    .select("doc")
+    .eq("name", name)
+    .maybeSingle();
   return data?.doc?.rows ?? [];
 }
 

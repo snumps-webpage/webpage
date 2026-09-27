@@ -28,7 +28,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions = {
-  setMailPref: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  setMailPref: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleUserAction(locals, async () => {
       const type = data.get("type") as string;
@@ -49,7 +55,13 @@ export const actions = {
     });
   },
 
-  setPhonePublic: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  setPhonePublic: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     return handleUserAction(locals, async () => {
       const hide = data.get("hide") === "true";

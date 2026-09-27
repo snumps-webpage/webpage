@@ -40,7 +40,9 @@ export function restError(code: ErrCode, status?: number): Response {
  * hides the admin tree behind a 404, and answering 403 there would confirm the
  * route exists to anyone logged in.
  */
-export async function requireAdminRest(locals: App.Locals): Promise<Response | null> {
+export async function requireAdminRest(
+  locals: App.Locals,
+): Promise<Response | null> {
   const access = await resolveAdminAccess(locals);
   if (access === "ok") return null;
   return access === "unauthenticated"
@@ -59,6 +61,7 @@ export async function requireAdminRest(locals: App.Locals): Promise<Response | n
 export function requireCronAuth(request: Request): Response | null {
   const secret = env.CRON_SECRET;
   const header = request.headers.get("authorization");
-  if (!secret || header !== `Bearer ${secret}`) return restError("UNAUTHORIZED");
+  if (!secret || header !== `Bearer ${secret}`)
+    return restError("UNAUTHORIZED");
   return null;
 }

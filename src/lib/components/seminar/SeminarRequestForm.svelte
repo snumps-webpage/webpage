@@ -72,8 +72,7 @@
   let issues = $derived(
     Object.fromEntries(
       Object.entries(form?.issues ?? {}).filter(
-        ([field]) =>
-          !clearedIssueFields.includes(field as SeminarRequestField),
+        ([field]) => !clearedIssueFields.includes(field as SeminarRequestField),
       ),
     ) as SeminarFormIssues,
   );
@@ -105,9 +104,7 @@
     }
   }
 
-  let formError = $derived(
-    issues._form ?? actionErrorMessage(form?.error),
-  );
+  let formError = $derived(issues._form ?? actionErrorMessage(form?.error));
 
   const isEdit = untrack(() => mode === "edit");
   const submitLabel = isEdit ? "수정 사항 저장" : "개설 신청 제출";
@@ -139,7 +136,11 @@
       <Skeleton height="320px" borderRadius="0" />
       <div class="processing-overlay">
         <div class="spinner" aria-hidden="true"></div>
-        <p>{isEdit ? "수정 원고를 제출하고 있습니다." : "신청 원고를 제출하고 있습니다."}</p>
+        <p>
+          {isEdit
+            ? "수정 원고를 제출하고 있습니다."
+            : "신청 원고를 제출하고 있습니다."}
+        </p>
         <span class="paper-hint">잠시만 기다려 주세요.</span>
       </div>
     </div>
@@ -183,7 +184,9 @@
           aria-describedby={issues.kind ? "kind-error" : "kind-hint"}
           class:invalid={!!issues.kind}
         >
-          <legend class="paper-label">세미나 구분 <span class="req">*</span></legend>
+          <legend class="paper-label"
+            >세미나 구분 <span class="req">*</span></legend
+          >
           <div class="kind-grid">
             <label class="kind-option" class:selected={kind === "regular"}>
               <input
@@ -210,14 +213,18 @@
               <span class="kind-symbol" aria-hidden="true">I</span>
               <span class="kind-copy">
                 <strong>비정기 세미나</strong>
-                <small>주제를 먼저 승인하고 발표자와 일정을 따로 조율합니다.</small>
+                <small
+                  >주제를 먼저 승인하고 발표자와 일정을 따로 조율합니다.</small
+                >
               </span>
             </label>
           </div>
           {#if issues.kind}
             <p class="field-error" id="kind-error">{issues.kind}</p>
           {:else}
-            <p class="paper-hint" id="kind-hint">신청 단계에서는 날짜를 입력하지 않습니다.</p>
+            <p class="paper-hint" id="kind-hint">
+              신청 단계에서는 날짜를 입력하지 않습니다.
+            </p>
           {/if}
         </fieldset>
       </li>
@@ -231,7 +238,9 @@
         </div>
 
         <div class="paper-field">
-          <label for="title" class="paper-label">세미나 주제 <span class="req">*</span></label>
+          <label for="title" class="paper-label"
+            >세미나 주제 <span class="req">*</span></label
+          >
           <input
             type="text"
             id="title"
@@ -243,11 +252,15 @@
             aria-describedby={issues.title ? "title-error" : undefined}
             placeholder="예: 대수위상수학의 기본군과 피복공간"
           />
-          {#if issues.title}<p class="field-error" id="title-error">{issues.title}</p>{/if}
+          {#if issues.title}<p class="field-error" id="title-error">
+              {issues.title}
+            </p>{/if}
         </div>
 
         <div class="paper-field">
-          <label for="description" class="paper-label">세미나 설명 <span class="req">*</span></label>
+          <label for="description" class="paper-label"
+            >세미나 설명 <span class="req">*</span></label
+          >
           <textarea
             id="description"
             name="description"
@@ -256,10 +269,13 @@
             rows="5"
             maxlength="4000"
             aria-invalid={!!issues.description}
-            aria-describedby={issues.description ? "description-error" : undefined}
-            placeholder="다룰 내용과 세미나의 목적을 적어 주세요."
-          ></textarea>
-          {#if issues.description}<p class="field-error" id="description-error">{issues.description}</p>{/if}
+            aria-describedby={issues.description
+              ? "description-error"
+              : undefined}
+            placeholder="다룰 내용과 세미나의 목적을 적어 주세요."></textarea>
+          {#if issues.description}<p class="field-error" id="description-error">
+              {issues.description}
+            </p>{/if}
         </div>
 
         <div class="paper-field">
@@ -272,10 +288,17 @@
             rows="3"
             maxlength="2000"
             aria-invalid={!!issues.prerequisites}
-            aria-describedby={issues.prerequisites ? "prerequisites-error" : undefined}
+            aria-describedby={issues.prerequisites
+              ? "prerequisites-error"
+              : undefined}
             placeholder="필요한 배경 지식이 없다면 비워 두어도 됩니다."
           ></textarea>
-          {#if issues.prerequisites}<p class="field-error" id="prerequisites-error">{issues.prerequisites}</p>{/if}
+          {#if issues.prerequisites}<p
+              class="field-error"
+              id="prerequisites-error"
+            >
+              {issues.prerequisites}
+            </p>{/if}
         </div>
       </li>
 
@@ -288,7 +311,9 @@
         </div>
 
         <div class="paper-field">
-          <label for="duration" class="paper-label">예상 소요 시간 <span class="req">*</span></label>
+          <label for="duration" class="paper-label"
+            >예상 소요 시간 <span class="req">*</span></label
+          >
           <input
             type="text"
             id="duration"
@@ -297,25 +322,37 @@
             oninput={() => clearIssue("duration")}
             maxlength="80"
             aria-invalid={!!issues.duration}
-            aria-describedby={issues.duration ? "duration-error" : "duration-hint"}
+            aria-describedby={issues.duration
+              ? "duration-error"
+              : "duration-hint"}
             placeholder="예: 90분"
           />
           {#if issues.duration}
             <p class="field-error" id="duration-error">{issues.duration}</p>
           {:else}
-            <p class="paper-hint" id="duration-hint">날짜·시간·장소는 승인 후 운영진과 조율합니다.</p>
+            <p class="paper-hint" id="duration-hint">
+              날짜·시간·장소는 승인 후 운영진과 조율합니다.
+            </p>
           {/if}
         </div>
 
         <div class="paper-field">
-          <label for="preferredTiming" class="paper-label">선호 세미나 시점</label>
-          <select id="preferredTiming" name="preferredTiming" bind:value={preferredTiming}>
+          <label for="preferredTiming" class="paper-label"
+            >선호 세미나 시점</label
+          >
+          <select
+            id="preferredTiming"
+            name="preferredTiming"
+            bind:value={preferredTiming}
+          >
             <option value="">선택 안 함</option>
             {#each timingOptions as opt (opt)}
               <option value={opt}>{opt}</option>
             {/each}
           </select>
-          <p class="paper-hint">대략적인 선호 시점입니다. 구체 일정은 승인 후 조율합니다.</p>
+          <p class="paper-hint">
+            대략적인 선호 시점입니다. 구체 일정은 승인 후 조율합니다.
+          </p>
         </div>
 
         <div class="paper-field">
@@ -328,13 +365,19 @@
             oninput={() => clearIssue("attachmentUrl")}
             inputmode="url"
             aria-invalid={!!issues.attachmentUrl}
-            aria-describedby={issues.attachmentUrl ? "attachment-error" : "attachment-hint"}
+            aria-describedby={issues.attachmentUrl
+              ? "attachment-error"
+              : "attachment-hint"}
             placeholder="https://drive.google.com/..."
           />
           {#if issues.attachmentUrl}
-            <p class="field-error" id="attachment-error">{issues.attachmentUrl}</p>
+            <p class="field-error" id="attachment-error">
+              {issues.attachmentUrl}
+            </p>
           {:else}
-            <p class="paper-hint" id="attachment-hint">강의 자료나 계획서가 있다면 HTTPS 링크를 입력해 주세요.</p>
+            <p class="paper-hint" id="attachment-hint">
+              강의 자료나 계획서가 있다면 HTTPS 링크를 입력해 주세요.
+            </p>
           {/if}
         </div>
       </li>
@@ -377,7 +420,9 @@
     </ol>
 
     <div class="paper-actions form-actions">
-      <button class="paper-btn primary" disabled={processing}>{submitLabel}</button>
+      <button class="paper-btn primary" disabled={processing}
+        >{submitLabel}</button
+      >
       {#if isEdit}<a href="/" class="paper-btn secondary">수정 취소</a>{/if}
     </div>
   </form>

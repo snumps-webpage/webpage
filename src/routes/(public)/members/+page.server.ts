@@ -17,6 +17,10 @@ export const load: PageServerLoad = async () => {
     };
   } catch (e) {
     console.error("[members] roster unavailable:", e);
-    return { members: [], dataAvailable: false, generatedAt: new Date().toISOString() };
+    return {
+      members: [],
+      dataAvailable: false,
+      generatedAt: new Date().toISOString(),
+    };
   }
 };

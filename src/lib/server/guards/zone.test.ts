@@ -133,10 +133,30 @@ const memberCtx = (over: Partial<MemberContext> = {}): MemberContext => ({
 });
 
 const ROLES: Record<string, GuardContext> = {
-  guest: { hasSession: false, member: null, hasApplication: false, pathname: "/x" },
-  newcomer: { hasSession: true, member: null, hasApplication: false, pathname: "/x" },
-  applicant: { hasSession: true, member: null, hasApplication: true, pathname: "/x" },
-  member: { hasSession: true, member: memberCtx(), hasApplication: false, pathname: "/x" },
+  guest: {
+    hasSession: false,
+    member: null,
+    hasApplication: false,
+    pathname: "/x",
+  },
+  newcomer: {
+    hasSession: true,
+    member: null,
+    hasApplication: false,
+    pathname: "/x",
+  },
+  applicant: {
+    hasSession: true,
+    member: null,
+    hasApplication: true,
+    pathname: "/x",
+  },
+  member: {
+    hasSession: true,
+    member: memberCtx(),
+    hasApplication: false,
+    pathname: "/x",
+  },
   withdrawn: {
     hasSession: true,
     member: memberCtx({ status: "withdrawn" }),
@@ -242,10 +262,7 @@ const MATRIX: Array<[routeId: string, expectations: Record<string, Expect>]> = [
       admin: "allow",
     },
   ],
-  [
-    "/(admin)/admin/members",
-    { guest: "404", member: "404", admin: "allow" },
-  ],
+  ["/(admin)/admin/members", { guest: "404", member: "404", admin: "allow" }],
   [
     "/api/cron/sync-events", // endpoint-level auth — the zone allows through
     { guest: "allow", member: "allow", admin: "allow" },
@@ -280,11 +297,15 @@ describe("guard matrix", () => {
 
 describe("memberPostCapability (S9)", () => {
   it("maps participation routes to PARTICIPATE", () => {
-    expect(memberPostCapability("/(member)/study/apply")).toBe(CAPABILITIES.PARTICIPATE);
+    expect(memberPostCapability("/(member)/study/apply")).toBe(
+      CAPABILITIES.PARTICIPATE,
+    );
   });
 
   it("maps self-management routes to MANAGE_SELF", () => {
-    expect(memberPostCapability("/(member)/settings/withdraw")).toBe(CAPABILITIES.MANAGE_SELF);
+    expect(memberPostCapability("/(member)/settings/withdraw")).toBe(
+      CAPABILITIES.MANAGE_SELF,
+    );
   });
 
   it("returns null outside the member zone", () => {

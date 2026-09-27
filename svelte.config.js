@@ -21,7 +21,10 @@ const config = {
         // 된 지금은 그 값이 곧 "회수가 늦게 듣는 기간"이다 — 원본은 즉시 막혀도
         // 최적화 파생본은 캐시가 만료될 때까지 남는다.
         minimumCacheTTL: 60 * 60 * 24,
-        domains: ["rwlvnttpaqkhpebtebif.supabase.co", "gcahkryexewswzvtfltj.supabase.co"],
+        domains: [
+          "rwlvnttpaqkhpebtebif.supabase.co",
+          "gcahkryexewswzvtfltj.supabase.co",
+        ],
       },
     }),
     alias: {

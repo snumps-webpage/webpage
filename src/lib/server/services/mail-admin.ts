@@ -103,7 +103,9 @@ export async function saveMailTemplate(input: {
     const idx = rows.findIndex((t) => t.key === input.key);
     if (idx === -1) {
       if (!(input.key in MAIL_TEMPLATE_DEFAULTS)) {
-        throw new AppError("NOT_FOUND", { userMessage: "존재하지 않는 템플릿입니다." });
+        throw new AppError("NOT_FOUND", {
+          userMessage: "존재하지 않는 템플릿입니다.",
+        });
       }
       const def = MAIL_TEMPLATE_DEFAULTS[input.key];
       rows.push({
@@ -124,7 +126,11 @@ export async function saveMailTemplate(input: {
         subject,
         body,
         enabled: input.enabled,
-        previous: { subject: cur.subject, body: cur.body, enabled: cur.enabled },
+        previous: {
+          subject: cur.subject,
+          body: cur.body,
+          enabled: cur.enabled,
+        },
         updatedAt: nowKstIso(),
       };
     }
@@ -137,7 +143,9 @@ export async function revertMailTemplate(key: string): Promise<void> {
   await mutate("mail-templates", (rows) => {
     const idx = rows.findIndex((t) => t.key === key);
     if (idx === -1 || !rows[idx].previous) {
-      throw new AppError("NOT_FOUND", { userMessage: "되돌릴 직전 버전이 없습니다." });
+      throw new AppError("NOT_FOUND", {
+        userMessage: "되돌릴 직전 버전이 없습니다.",
+      });
     }
     const cur = rows[idx];
     const prev = cur.previous!;
@@ -170,7 +178,16 @@ export async function createMailTemplate(input: {
   const key = `custom-${newId().toLowerCase()}`;
   await mutate("mail-templates", (rows) => [
     ...rows,
-    { id: newId(), key, name, subject, body, enabled: true, previous: null, updatedAt: nowKstIso() },
+    {
+      id: newId(),
+      key,
+      name,
+      subject,
+      body,
+      enabled: true,
+      previous: null,
+      updatedAt: nowKstIso(),
+    },
   ]);
   return key;
 }
@@ -182,10 +199,13 @@ export async function deleteMailTemplate(key: string): Promise<void> {
       userMessage: "기본 템플릿은 삭제할 수 없습니다.",
     });
   }
-  const referenced = (await getTable("mail-rules")).some((r) => r.templateKey === key);
+  const referenced = (await getTable("mail-rules")).some(
+    (r) => r.templateKey === key,
+  );
   if (referenced) {
     throw new AppError("CONFLICT", {
-      userMessage: "이 템플릿을 쓰는 발송 규칙이 있습니다. 규칙을 먼저 제거해 주세요.",
+      userMessage:
+        "이 템플릿을 쓰는 발송 규칙이 있습니다. 규칙을 먼저 제거해 주세요.",
     });
   }
   await mutate("mail-templates", (rows) => {
@@ -195,12 +215,18 @@ export async function deleteMailTemplate(key: string): Promise<void> {
 }
 
 /** 발송 켬/끔만 토글 — 문구는 현행 유지. */
-export async function setMailTemplateEnabled(key: string, enabled: boolean): Promise<void> {
+export async function setMailTemplateEnabled(
+  key: string,
+  enabled: boolean,
+): Promise<void> {
   const def = MAIL_TEMPLATE_DEFAULTS[key];
   await mutate("mail-templates", (rows) => {
     const idx = rows.findIndex((t) => t.key === key);
     if (idx === -1) {
-      if (!def) throw new AppError("NOT_FOUND", { userMessage: "존재하지 않는 템플릿입니다." });
+      if (!def)
+        throw new AppError("NOT_FOUND", {
+          userMessage: "존재하지 않는 템플릿입니다.",
+        });
       rows.push({
         id: newId(),
         key,
@@ -216,7 +242,11 @@ export async function setMailTemplateEnabled(key: string, enabled: boolean): Pro
       rows[idx] = {
         ...cur,
         enabled,
-        previous: { subject: cur.subject, body: cur.body, enabled: cur.enabled },
+        previous: {
+          subject: cur.subject,
+          body: cur.body,
+          enabled: cur.enabled,
+        },
         updatedAt: nowKstIso(),
       };
     }
@@ -266,7 +296,8 @@ export async function listMailEvents(): Promise<MailEventView[]> {
           templateKey: r.templateKey,
           templateName: templateName(r.templateKey),
           recipient: r.recipient as RecipientKind,
-          recipientLabel: RECIPIENTS[r.recipient as RecipientKind] ?? r.recipient,
+          recipientLabel:
+            RECIPIENTS[r.recipient as RecipientKind] ?? r.recipient,
           enabled: r.enabled,
         }))
       : def.defaultRules.map((r) => ({
@@ -295,7 +326,9 @@ export async function listMailEvents(): Promise<MailEventView[]> {
 
 function requireEvent(event: string): MailEventKey {
   if (!(event in MAIL_EVENTS)) {
-    throw new AppError("VALIDATION_FAILED", { userMessage: "알 수 없는 이벤트입니다." });
+    throw new AppError("VALIDATION_FAILED", {
+      userMessage: "알 수 없는 이벤트입니다.",
+    });
   }
   return event as MailEventKey;
 }
@@ -304,7 +337,11 @@ function requireEvent(event: string): MailEventKey {
 async function snapshotEventRules(event: MailEventKey): Promise<void> {
   const current = (await getTable("mail-rules"))
     .filter((r) => r.event === event)
-    .map((r) => ({ templateKey: r.templateKey, recipient: r.recipient, enabled: r.enabled }));
+    .map((r) => ({
+      templateKey: r.templateKey,
+      recipient: r.recipient,
+      enabled: r.enabled,
+    }));
   const rules = current.length
     ? current
     : MAIL_EVENTS[event].defaultRules.map((r) => ({ ...r, enabled: true }));
@@ -320,9 +357,13 @@ async function snapshotEventRules(event: MailEventKey): Promise<void> {
 /** 이벤트 규칙을 직전 세트로 되돌리기 — 현재 세트와 스냅숏을 맞바꾼다. */
 export async function revertMailEvent(event: string): Promise<void> {
   const key = requireEvent(event);
-  const history = (await getTable("mail-rule-history")).find((h) => h.event === key);
+  const history = (await getTable("mail-rule-history")).find(
+    (h) => h.event === key,
+  );
   if (!history) {
-    throw new AppError("NOT_FOUND", { userMessage: "되돌릴 직전 규칙이 없습니다." });
+    throw new AppError("NOT_FOUND", {
+      userMessage: "되돌릴 직전 규칙이 없습니다.",
+    });
   }
   await snapshotEventRules(key); // 현재를 스냅숏으로 (스왑)
   await mutate("mail-rules", (rows) => {
@@ -376,7 +417,9 @@ export async function addMailRule(input: {
     input.templateKey in MAIL_TEMPLATE_DEFAULTS ||
     (await getTable("mail-templates")).some((t) => t.key === input.templateKey);
   if (!templateExists) {
-    throw new AppError("VALIDATION_FAILED", { userMessage: "존재하지 않는 템플릿입니다." });
+    throw new AppError("VALIDATION_FAILED", {
+      userMessage: "존재하지 않는 템플릿입니다.",
+    });
   }
   await snapshotEventRules(event);
   await materializeEvent(event);
@@ -389,7 +432,9 @@ export async function addMailRule(input: {
           r.recipient === input.recipient,
       )
     ) {
-      throw new AppError("CONFLICT", { userMessage: "이미 같은 규칙이 있습니다." });
+      throw new AppError("CONFLICT", {
+        userMessage: "이미 같은 규칙이 있습니다.",
+      });
     }
     rows.push({
       id: newId(),
@@ -449,12 +494,14 @@ export async function setMailRuleEnabled(input: {
             r.recipient === input.recipient,
         );
     if (idx === -1) throw new AppError("NOT_FOUND");
-    rows[idx] = { ...rows[idx], enabled: input.enabled, updatedAt: nowKstIso() };
+    rows[idx] = {
+      ...rows[idx],
+      enabled: input.enabled,
+      updatedAt: nowKstIso(),
+    };
     return rows;
   });
 }
-
-
 
 // ---- 공용 변수 ---------------------------------------------------------------
 
@@ -509,7 +556,8 @@ export async function saveMailVariable(input: {
   const key = input.key.trim();
   if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(key)) {
     throw new AppError("VALIDATION_FAILED", {
-      userMessage: "변수 이름은 영문자로 시작하는 영숫자여야 합니다 (예: chatLink).",
+      userMessage:
+        "변수 이름은 영문자로 시작하는 영숫자여야 합니다 (예: chatLink).",
     });
   }
   await mutate("mail-variables", (rows) => {
@@ -522,7 +570,9 @@ export async function saveMailVariable(input: {
         value: input.value,
         description: input.description.trim(),
         // 기본 변수의 첫 수정: "직전" = 코드 원본 값. 신규 변수: 직전 없음.
-        previous: def ? { value: def.value, description: def.description } : null,
+        previous: def
+          ? { value: def.value, description: def.description }
+          : null,
         updatedAt: nowKstIso(),
       });
     } else {
@@ -544,7 +594,9 @@ export async function revertMailVariable(key: string): Promise<void> {
   await mutate("mail-variables", (rows) => {
     const idx = rows.findIndex((r) => r.key === key);
     if (idx === -1 || !rows[idx].previous) {
-      throw new AppError("NOT_FOUND", { userMessage: "되돌릴 직전 버전이 없습니다." });
+      throw new AppError("NOT_FOUND", {
+        userMessage: "되돌릴 직전 버전이 없습니다.",
+      });
     }
     const cur = rows[idx];
     const prev = cur.previous!;
@@ -579,7 +631,9 @@ function sampleVars(tokens: string[]): Record<string, string> {
   return Object.fromEntries(tokens.map((t) => [t, `[예시 ${t}]`]));
 }
 
-async function currentTemplateText(key: string): Promise<{ subject: string; body: string } | null> {
+async function currentTemplateText(
+  key: string,
+): Promise<{ subject: string; body: string } | null> {
   const row = (await getTable("mail-templates")).find((t) => t.key === key);
   if (row) return { subject: row.subject, body: row.body };
   const def = MAIL_TEMPLATE_DEFAULTS[key];
@@ -587,12 +641,20 @@ async function currentTemplateText(key: string): Promise<{ subject: string; body
 }
 
 /** 템플릿 1종을 예시 변수로 렌더해 지정 주소로 실발송. */
-export async function sendTestTemplate(to: string, templateKey: string): Promise<void> {
+export async function sendTestTemplate(
+  to: string,
+  templateKey: string,
+): Promise<void> {
   if (!/.+@.+\..+/.test(to)) {
-    throw new AppError("VALIDATION_FAILED", { userMessage: "받는 주소를 확인해 주세요." });
+    throw new AppError("VALIDATION_FAILED", {
+      userMessage: "받는 주소를 확인해 주세요.",
+    });
   }
   const text = await currentTemplateText(templateKey);
-  if (!text) throw new AppError("NOT_FOUND", { userMessage: "존재하지 않는 템플릿입니다." });
+  if (!text)
+    throw new AppError("NOT_FOUND", {
+      userMessage: "존재하지 않는 템플릿입니다.",
+    });
   const rendered = await renderMailTemplate(
     templateKey,
     sampleVars(extractVariableTokens(text.subject, text.body)),
@@ -603,16 +665,26 @@ export async function sendTestTemplate(to: string, templateKey: string): Promise
     });
   }
   const accessToken = await getAdminAccessToken();
-  await dispatchEmail(accessToken, [to], `[테스트] ${rendered.subject}`, rendered.body);
+  await dispatchEmail(
+    accessToken,
+    [to],
+    `[테스트] ${rendered.subject}`,
+    rendered.body,
+  );
 }
 
 /**
  * 이벤트 1종의 유효 규칙 전체를 예시 변수로 렌더해 — 실제 수신자 대신 —
  * 지정 주소로만 실발송한다. 결과: 발송된 규칙 수.
  */
-export async function sendTestEvent(to: string, event: string): Promise<number> {
+export async function sendTestEvent(
+  to: string,
+  event: string,
+): Promise<number> {
   if (!/.+@.+\..+/.test(to)) {
-    throw new AppError("VALIDATION_FAILED", { userMessage: "받는 주소를 확인해 주세요." });
+    throw new AppError("VALIDATION_FAILED", {
+      userMessage: "받는 주소를 확인해 주세요.",
+    });
   }
   const key = requireEvent(event);
   const vars = sampleVars(MAIL_EVENTS[key].variables);

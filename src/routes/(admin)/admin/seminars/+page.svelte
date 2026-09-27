@@ -21,7 +21,9 @@
 
   // Load data is the record authority; successful actions re-run it and this
   // writable derived resyncs (the poller may overwrite it in between).
-  let requests: AdminSeminarRequestItem[] = $derived([...data.dashboard.requests]);
+  let requests: AdminSeminarRequestItem[] = $derived([
+    ...data.dashboard.requests,
+  ]);
   const seminars = $derived(data.dashboard.seminars);
   const records = $derived(data.records);
   let selectedSeminar = $state<AdminSeminarItem | null>(null);
@@ -70,7 +72,7 @@
       notice = {
         tone: "success",
         message: result.mailFailed
-          ? "세미나를 공개했습니다. 다만 전 회원 공지 발송에 실패했습니다 — 카드의 \"공지 재발송\"으로 다시 보낼 수 있습니다."
+          ? '세미나를 공개했습니다. 다만 전 회원 공지 발송에 실패했습니다 — 카드의 "공지 재발송"으로 다시 보낼 수 있습니다.'
           : "세미나를 공개했습니다. 전 회원에게 확정 일정 안내를 보냈습니다.",
       };
     } else if (result.operation === "cancelled") {

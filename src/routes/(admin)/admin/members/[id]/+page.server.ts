@@ -53,9 +53,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
           }
         : null,
       publicContactStatus: (member.publicContact ? "granted" : "unset") as
-        | "granted"
-        | "revoked"
-        | "unset",
+        "granted" | "revoked" | "unset",
       privateInfo: privateInfo
         ? {
             email: privateInfo.email,
@@ -86,7 +84,8 @@ function parseRoles(raw: string): MemberRole[] {
       if (space === -1) throw new AppError("VALIDATION_FAILED");
       const term = line.slice(0, space).trim();
       const title = line.slice(space + 1).trim();
-      if (!TERM_PATTERN.test(term) || !title) throw new AppError("VALIDATION_FAILED");
+      if (!TERM_PATTERN.test(term) || !title)
+        throw new AppError("VALIDATION_FAILED");
       return { term, title };
     });
   return roles;
@@ -105,7 +104,10 @@ export const actions = {
         joinedAt: (data.get("joinedAt") as string) || null,
         publicContact: (data.get("publicContact") as string)?.trim() || null,
         project: projectTitle
-          ? { title: projectTitle, url: (data.get("projectUrl") as string)?.trim() || undefined }
+          ? {
+              title: projectTitle,
+              url: (data.get("projectUrl") as string)?.trim() || undefined,
+            }
           : null,
       });
       return {};

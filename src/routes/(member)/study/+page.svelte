@@ -6,16 +6,21 @@
   let { data } = $props();
   const studies = $derived(data.studies);
   const transferOffers = $derived(data.transferOffers);
-  let notice = $state<{ tone: "success" | "error"; message: string } | null>(null);
+  let notice = $state<{ tone: "success" | "error"; message: string } | null>(
+    null,
+  );
   let processingStudyId = $state<string | null>(null);
 
   function statusLabel(status: string) {
-    return { recruiting: "모집 중", ongoing: "진행 중", finished: "종료" }[
+    return (
+      { recruiting: "모집 중", ongoing: "진행 중", finished: "종료" }[status] ??
       status
-    ] ?? status;
+    );
   }
 
-  function relationshipLabel(relationship: (typeof studies)[number]["myState"]) {
+  function relationshipLabel(
+    relationship: (typeof studies)[number]["myState"],
+  ) {
     return {
       organizer: "주최자",
       participant: "참여 중",
@@ -46,9 +51,12 @@
       }
       const data =
         result.type === "failure"
-          ? result.data as { error?: string; message?: string }
+          ? (result.data as { error?: string; message?: string })
           : null;
-      notice = { tone: "error", message: data?.message ?? data?.error ?? "제안을 처리하지 못했습니다." };
+      notice = {
+        tone: "error",
+        message: data?.message ?? data?.error ?? "제안을 처리하지 못했습니다.",
+      };
     };
   }
 </script>
@@ -91,13 +99,27 @@
             <span>{new Date(offer.requestedAt).toLocaleString("ko-KR")}</span>
           </div>
           <div class="offer-actions">
-            <form method="POST" action="?/declineTransfer" use:enhance={() => transferEnhancer(offer.studyId, false)}>
+            <form
+              method="POST"
+              action="?/declineTransfer"
+              use:enhance={() => transferEnhancer(offer.studyId, false)}
+            >
               <input type="hidden" name="studyId" value={offer.studyId} />
-              <button class="paper-btn small" disabled={processingStudyId === offer.studyId}>거절</button>
+              <button
+                class="paper-btn small"
+                disabled={processingStudyId === offer.studyId}>거절</button
+              >
             </form>
-            <form method="POST" action="?/acceptTransfer" use:enhance={() => transferEnhancer(offer.studyId, true)}>
+            <form
+              method="POST"
+              action="?/acceptTransfer"
+              use:enhance={() => transferEnhancer(offer.studyId, true)}
+            >
               <input type="hidden" name="studyId" value={offer.studyId} />
-              <button class="paper-btn primary small" disabled={processingStudyId === offer.studyId}>수락</button>
+              <button
+                class="paper-btn primary small"
+                disabled={processingStudyId === offer.studyId}>수락</button
+              >
             </form>
           </div>
         </article>
@@ -117,14 +139,25 @@
         </header>
         <p class="description">{study.description}</p>
         <dl>
-          <div><dt>교재</dt><dd>{study.textbook}</dd></div>
-          <div><dt>주최자</dt><dd>{study.organizerNames.join(", ")}</dd></div>
-          <div><dt>참여자</dt><dd>{study.participantCount}명</dd></div>
+          <div>
+            <dt>교재</dt>
+            <dd>{study.textbook}</dd>
+          </div>
+          <div>
+            <dt>주최자</dt>
+            <dd>{study.organizerNames.join(", ")}</dd>
+          </div>
+          <div>
+            <dt>참여자</dt>
+            <dd>{study.participantCount}명</dd>
+          </div>
         </dl>
         <div class="card-actions">
           <a class="paper-btn" href={`/study/${study.id}`}>상세 보기</a>
           {#if study.myState === "organizer"}
-            <a class="paper-btn primary" href={`/study/${study.id}/manage`}>스터디 관리</a>
+            <a class="paper-btn primary" href={`/study/${study.id}/manage`}
+              >스터디 관리</a
+            >
           {/if}
         </div>
       </article>
@@ -133,7 +166,9 @@
     {/each}
   </section>
 
-  <footer>데이터 기준 {new Date(data.generatedAt).toLocaleString("ko-KR")}</footer>
+  <footer>
+    데이터 기준 {new Date(data.generatedAt).toLocaleString("ko-KR")}
+  </footer>
 </article>
 
 <style>
@@ -199,8 +234,16 @@
     color: var(--latex-accent);
   }
 
-  .notice p { margin: 0; font-size: 0.8rem; }
-  .notice button { border: 0; background: transparent; color: inherit; cursor: pointer; }
+  .notice p {
+    margin: 0;
+    font-size: 0.8rem;
+  }
+  .notice button {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
 
   .transfer-inbox {
     margin-bottom: 1rem;
@@ -210,7 +253,9 @@
 
   .transfer-inbox > header p,
   .transfer-inbox > header h2,
-  .transfer-inbox article p { margin: 0; }
+  .transfer-inbox article p {
+    margin: 0;
+  }
 
   .transfer-inbox > header p {
     color: var(--latex-accent);
@@ -221,7 +266,9 @@
     text-transform: uppercase;
   }
 
-  .transfer-inbox > header h2 { margin-top: 0.15rem; }
+  .transfer-inbox > header h2 {
+    margin-top: 0.15rem;
+  }
 
   .transfer-inbox article {
     display: flex;
@@ -233,12 +280,27 @@
     border-top: 1px solid var(--latex-rule);
   }
 
-  .transfer-inbox article strong { font-size: 0.86rem; }
-  .transfer-inbox article p { margin-top: 0.2rem; color: var(--latex-muted); font-size: 0.76rem; }
-  .transfer-inbox article span { color: var(--latex-muted); font-family: var(--font-mono); font-size: 0.56rem; }
+  .transfer-inbox article strong {
+    font-size: 0.86rem;
+  }
+  .transfer-inbox article p {
+    margin-top: 0.2rem;
+    color: var(--latex-muted);
+    font-size: 0.76rem;
+  }
+  .transfer-inbox article span {
+    color: var(--latex-muted);
+    font-family: var(--font-mono);
+    font-size: 0.56rem;
+  }
   .offer-actions,
-  .card-actions { display: flex; gap: 0.4rem; }
-  .offer-actions form { margin: 0; }
+  .card-actions {
+    display: flex;
+    gap: 0.4rem;
+  }
+  .offer-actions form {
+    margin: 0;
+  }
 
   .study-list {
     display: grid;

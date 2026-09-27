@@ -12,7 +12,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions = {
-  default: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  default: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     const data = await request.formData();
     const title = (data.get("title") as string)?.trim();
     const dateRaw = data.get("date") as string; // YYYY-MM-DDTHH:mm (KST)

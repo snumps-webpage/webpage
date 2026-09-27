@@ -54,7 +54,9 @@ export const actions = {
     url: URL;
   }) => {
     if (dev && url.searchParams.get("preview") === "1") {
-      return fail(400, { error: "미리보기 모드에서는 신청을 제출할 수 없습니다." });
+      return fail(400, {
+        error: "미리보기 모드에서는 신청을 제출할 수 없습니다.",
+      });
     }
 
     return handleUserAction(locals, async (session) => {
@@ -67,7 +69,9 @@ export const actions = {
 
       const data = await request.formData();
       const phone = normalizePhoneNumber(data.get("phone") as string);
-      const studentId = stripInvisibles((data.get("studentId") as string) ?? "").trim();
+      const studentId = stripInvisibles(
+        (data.get("studentId") as string) ?? "",
+      ).trim();
       const background = (data.get("background") as string) ?? "";
       if (!/^\d{4}-?\d{4,6}$/.test(studentId)) {
         throw new AppError("VALIDATION_FAILED", {
@@ -97,7 +101,8 @@ export const actions = {
       } catch (e) {
         if (e instanceof AppError && e.code === "CONFLICT") {
           throw new AppError("CONFLICT", {
-            userMessage: "이미 제출된 신청이 있습니다. 수정 화면을 이용해 주세요.",
+            userMessage:
+              "이미 제출된 신청이 있습니다. 수정 화면을 이용해 주세요.",
           });
         }
         throw e;

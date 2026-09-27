@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 const testEnv = vi.hoisted(() => ({}) as Record<string, string | undefined>);
 vi.mock("$env/dynamic/private", () => ({ env: testEnv }));
-vi.mock("$lib/server/data/store", () => import("$lib/server/data/store-memory"));
+vi.mock(
+  "$lib/server/data/store",
+  () => import("$lib/server/data/store-memory"),
+);
 
 import { GET as applications } from "./admin/applications/+server";
 import { GET as seminarRequests } from "./admin/seminar-requests/+server";

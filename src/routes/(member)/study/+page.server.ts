@@ -8,13 +8,20 @@ import type { PageServerLoad } from "./$types";
 /** STU-02 entry: study list, recruiting first, with the viewer's state. */
 export const load: PageServerLoad = async ({ locals }) => {
   const memberId = locals.member!.memberId;
-  const [studies, members] = await Promise.all([getTable("studies"), memberPickers()]);
+  const [studies, members] = await Promise.all([
+    getTable("studies"),
+    memberPickers(),
+  ]);
   const nameOf = new Map(members.map((m) => [m.id, m.name]));
 
   const order = { recruiting: 0, ongoing: 1, finished: 2 } as const;
   return {
     studies: [...studies]
-      .sort((a, b) => order[a.status] - order[b.status] || b.semester.localeCompare(a.semester))
+      .sort(
+        (a, b) =>
+          order[a.status] - order[b.status] ||
+          b.semester.localeCompare(a.semester),
+      )
       .map((s) => ({
         id: s.id,
         title: s.title,

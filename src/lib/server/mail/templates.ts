@@ -15,7 +15,10 @@ export async function sendSignupNotification(applicantName: string) {
 /**
  * Sends an email notification to admins about a completed attendance request.
  */
-export async function sendAttendanceNotification(userName: string, eventName: string) {
+export async function sendAttendanceNotification(
+  userName: string,
+  eventName: string,
+) {
   await emitMailEvent("attendance.requested", { userName, eventName });
 }
 
@@ -29,7 +32,9 @@ export async function sendSeminarStatusNotification(
   status: "approved" | "rejected",
 ) {
   await emitMailEvent(
-    status === "approved" ? "seminar-request.approved" : "seminar-request.rejected",
+    status === "approved"
+      ? "seminar-request.approved"
+      : "seminar-request.rejected",
     { name: recipientName, title: seminarTitle },
     { partyEmail: recipientEmail },
   );
@@ -73,7 +78,10 @@ export async function sendSeminarApplicationNotification(
   applicantName: string,
   seminarTitle: string,
 ) {
-  await emitMailEvent("seminar-request.submitted", { applicantName, title: seminarTitle });
+  await emitMailEvent("seminar-request.submitted", {
+    applicantName,
+    title: seminarTitle,
+  });
 }
 
 /**
@@ -83,14 +91,24 @@ export async function sendStudyApplicationNotification(
   applicantName: string,
   studyTitle: string,
 ) {
-  await emitMailEvent("study-request.submitted", { applicantName, title: studyTitle });
+  await emitMailEvent("study-request.submitted", {
+    applicantName,
+    title: studyTitle,
+  });
 }
 
 /**
  * Sends a welcome email to a new member upon acceptance.
  */
-export async function sendWelcomeEmail(recipientEmail: string, recipientName: string) {
-  await emitMailEvent("application.approved", { name: recipientName }, {
-    partyEmail: recipientEmail,
-  });
+export async function sendWelcomeEmail(
+  recipientEmail: string,
+  recipientName: string,
+) {
+  await emitMailEvent(
+    "application.approved",
+    { name: recipientName },
+    {
+      partyEmail: recipientEmail,
+    },
+  );
 }

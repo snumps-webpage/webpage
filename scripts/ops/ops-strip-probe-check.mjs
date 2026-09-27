@@ -1,7 +1,10 @@
 // 차단 검증 프로브: 저장된 신청 행의 비가시 문자 검사 후 행 제거 (dev 전용)
 import { createClient } from "@supabase/supabase-js";
 
-const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
+const sb = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SECRET_KEY,
+);
 const email = process.argv[2];
 const INVISIBLE = /[\u00AD\u200B-\u200D\uFEFF\u2060]/;
 
@@ -22,8 +25,12 @@ for (const [k, v] of Object.entries(row)) {
     dirty += 1;
   }
 }
-console.log(`저장된 값: name=${JSON.stringify(row.name)} studentId=${JSON.stringify(row.studentId)} phone=${JSON.stringify(row.phone)}`);
-console.log(dirty === 0 ? "PASS — 전 필드 클린 (입구 차단 작동)" : `FAIL ${dirty}건`);
+console.log(
+  `저장된 값: name=${JSON.stringify(row.name)} studentId=${JSON.stringify(row.studentId)} phone=${JSON.stringify(row.phone)}`,
+);
+console.log(
+  dirty === 0 ? "PASS — 전 필드 클린 (입구 차단 작동)" : `FAIL ${dirty}건`,
+);
 
 // 정리
 const rows = data.doc.rows.filter((r) => r.email !== email);

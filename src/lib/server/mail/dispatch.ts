@@ -23,7 +23,8 @@ export interface MailEventContext {
 
 function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  for (let i = 0; i < items.length; i += size)
+    out.push(items.slice(i, i + size));
   return out;
 }
 
@@ -43,7 +44,9 @@ async function executiveEmails(): Promise<string[]> {
   ]);
   const executiveIds = members
     .filter((m) =>
-      m.roles.some((r) => r.term === term && ["회장", "부회장"].includes(r.title)),
+      m.roles.some(
+        (r) => r.term === term && ["회장", "부회장"].includes(r.title),
+      ),
     )
     .map((m) => m.id);
   const found = infos
@@ -70,7 +73,10 @@ async function resolveRecipients(
 ): Promise<{ emails: string[]; bcc: boolean }> {
   switch (kind) {
     case "party":
-      return { emails: context.partyEmail ? [context.partyEmail] : [], bcc: false };
+      return {
+        emails: context.partyEmail ? [context.partyEmail] : [],
+        bcc: false,
+      };
     case "admins":
       return { emails: adminEmails(), bcc: false };
     case "executives":
@@ -83,10 +89,14 @@ async function resolveRecipients(
 /** 이벤트의 유효 규칙: 테이블에 행이 있으면 그것이 전체 진실, 없으면 기본 규칙. */
 export async function effectiveRules(
   event: MailEventKey,
-): Promise<{ templateKey: string; recipient: RecipientKind; enabled: boolean }[]> {
+): Promise<
+  { templateKey: string; recipient: RecipientKind; enabled: boolean }[]
+> {
   const def = MAIL_EVENTS[event];
   try {
-    const rows = (await getTable("mail-rules")).filter((r) => r.event === event);
+    const rows = (await getTable("mail-rules")).filter(
+      (r) => r.event === event,
+    );
     if (rows.length > 0) {
       return rows.map((r) => ({
         templateKey: r.templateKey,
@@ -95,7 +105,10 @@ export async function effectiveRules(
       }));
     }
   } catch (e) {
-    console.error(`[Mail] rule lookup failed for "${event}" — using defaults:`, e);
+    console.error(
+      `[Mail] rule lookup failed for "${event}" — using defaults:`,
+      e,
+    );
   }
   return def.defaultRules.map((r) => ({ ...r, enabled: true }));
 }
@@ -116,14 +129,26 @@ export async function emitMailEvent(
       try {
         const rendered = await renderMailTemplate(rule.templateKey, vars);
         if (!rendered) continue; // 템플릿이 꺼져 있거나 삭제됨 — 이 규칙만 스킵
-        const { emails, bcc } = await resolveRecipients(rule.recipient, context);
+        const { emails, bcc } = await resolveRecipients(
+          rule.recipient,
+          context,
+        );
         if (emails.length === 0) continue;
         const accessToken = await getAdminAccessToken();
         for (const batch of chunk(emails, BATCH_SIZE)) {
           try {
-            await dispatchEmail(accessToken, batch, rendered.subject, rendered.body, { bcc });
+            await dispatchEmail(
+              accessToken,
+              batch,
+              rendered.subject,
+              rendered.body,
+              { bcc },
+            );
           } catch (e) {
-            console.error(`[Mail] ${event}/${rule.templateKey} batch failed:`, e);
+            console.error(
+              `[Mail] ${event}/${rule.templateKey} batch failed:`,
+              e,
+            );
             ok = false; // 재시도 없음 — 승인 재실행이 이중 발송하면 안 된다
           }
         }

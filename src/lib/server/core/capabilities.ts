@@ -32,7 +32,11 @@ export interface CapabilityInput {
 
 export function capabilitiesFor(input: CapabilityInput): Capability[] {
   if (input.registered) {
-    return [CAPABILITIES.VIEW_MEMBER_ZONE, CAPABILITIES.PARTICIPATE, CAPABILITIES.MANAGE_SELF];
+    return [
+      CAPABILITIES.VIEW_MEMBER_ZONE,
+      CAPABILITIES.PARTICIPATE,
+      CAPABILITIES.MANAGE_SELF,
+    ];
   }
   if (input.isAlumni) {
     // 동문: 미등록 학기에도 회원 존을 "보기만" 할 수 있다 + 본인 것 관리
@@ -41,6 +45,9 @@ export function capabilitiesFor(input: CapabilityInput): Capability[] {
   return [];
 }
 
-export function hasCapability(caps: readonly Capability[] | undefined, cap: Capability): boolean {
+export function hasCapability(
+  caps: readonly Capability[] | undefined,
+  cap: Capability,
+): boolean {
   return (caps ?? []).includes(cap);
 }

@@ -83,12 +83,7 @@ describe("frontend API client", () => {
         new Response(null, { status: 200 }),
       ) as typeof fetch;
     await expect(
-      uploadAdminFile(
-        file,
-        "seminar-material",
-        operationId,
-        retrying,
-      ),
+      uploadAdminFile(file, "seminar-material", operationId, retrying),
     ).resolves.toMatchObject({ s3Key: "pending/file" });
     expect(retrying).toHaveBeenCalledTimes(4);
 
@@ -99,12 +94,7 @@ describe("frontend API client", () => {
         new Response(null, { status: 403 }),
       ) as typeof fetch;
     await expect(
-      uploadAdminFile(
-        file,
-        "seminar-material",
-        operationId,
-        rejecting,
-      ),
+      uploadAdminFile(file, "seminar-material", operationId, rejecting),
     ).rejects.toMatchObject({ status: 403 });
     expect(rejecting).toHaveBeenCalledTimes(2);
   });

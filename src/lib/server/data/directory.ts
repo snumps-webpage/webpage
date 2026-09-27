@@ -20,7 +20,9 @@ export async function getMemberDirectory(): Promise<Member[]> {
     getTable("members"),
     getTable("legacy-members"),
   ]);
-  const shadowed = new Set(current.map((m) => m.legacyMemberId).filter(Boolean));
+  const shadowed = new Set(
+    current.map((m) => m.legacyMemberId).filter(Boolean),
+  );
   return [...current, ...legacy.filter((l) => !shadowed.has(l.id))];
 }
 

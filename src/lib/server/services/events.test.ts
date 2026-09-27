@@ -1,9 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("$lib/server/data/store", () => import("$lib/server/data/store-memory"));
+vi.mock(
+  "$lib/server/data/store",
+  () => import("$lib/server/data/store-memory"),
+);
 
 import { __reset } from "$lib/server/data/store-memory";
-import { _resetDataLayerForTests, getQueue, getTable, mutate } from "$lib/server/data/tables";
+import {
+  _resetDataLayerForTests,
+  getQueue,
+  getTable,
+  mutate,
+} from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { AppError } from "$lib/server/core/errors";
 import { toKstIso } from "$lib/server/core/time";
@@ -33,7 +41,10 @@ const past = () => toKstIso(new Date(Date.now() - 48 * 60 * 60 * 1000));
 
 describe("mergeAttendees — the one merge rule", () => {
   it("preserves attendees who arrived outside the allowed pool", () => {
-    expect(mergeAttendees(["walkin", "a"], ["a", "b"], ["b"])).toEqual(["walkin", "b"]);
+    expect(mergeAttendees(["walkin", "a"], ["a", "b"], ["b"])).toEqual([
+      "walkin",
+      "b",
+    ]);
   });
   it("dedupes and rejects selections outside the pool", () => {
     expect(mergeAttendees([], ["a"], ["a"])).toEqual(["a"]);
@@ -44,7 +55,10 @@ describe("mergeAttendees — the one merge rule", () => {
 describe("check-in (EVT-01)", () => {
   it("records a one-click pending row and refuses a second one", async () => {
     const event = await createEventWithActivity({
-      title: "세미나", startIso: future(), type: "세미나", status: "active",
+      title: "세미나",
+      startIso: future(),
+      type: "세미나",
+      status: "active",
     });
     const rec = await checkIn(event, "m1");
     expect(rec.status).toBe("pending");
@@ -56,7 +70,10 @@ describe("check-in (EVT-01)", () => {
 
   it("refuses check-in on a lazily-expired event even while status says active", async () => {
     const event = await createEventWithActivity({
-      title: "지난 세미나", startIso: past(), type: "세미나", status: "active",
+      title: "지난 세미나",
+      startIso: past(),
+      type: "세미나",
+      status: "active",
     });
     expect(effectiveStatus(event)).toBe("expired");
     await expect(checkIn(event, "m1")).rejects.toSatisfy(
@@ -68,7 +85,10 @@ describe("check-in (EVT-01)", () => {
 describe("queue administration (ADM-03)", () => {
   it("approval lands the member on the activity; rejecting it afterwards reverses", async () => {
     const event = await createEventWithActivity({
-      title: "세미나", startIso: future(), type: "세미나", status: "active",
+      title: "세미나",
+      startIso: future(),
+      type: "세미나",
+      status: "active",
     });
     const rec = await checkIn(event, "m1");
 
@@ -85,7 +105,10 @@ describe("queue administration (ADM-03)", () => {
 
   it("delete refuses while a pending check-in exists, then removes event + queue", async () => {
     const event = await createEventWithActivity({
-      title: "세미나", startIso: future(), type: "세미나", status: "active",
+      title: "세미나",
+      startIso: future(),
+      type: "세미나",
+      status: "active",
     });
     const rec = await checkIn(event, "m1");
 
@@ -103,10 +126,16 @@ describe("queue administration (ADM-03)", () => {
 describe("cron (§8-1)", () => {
   it("expires past-due active events and reports the count", async () => {
     await createEventWithActivity({
-      title: "지난 것", startIso: past(), type: "세미나", status: "active",
+      title: "지난 것",
+      startIso: past(),
+      type: "세미나",
+      status: "active",
     });
     await createEventWithActivity({
-      title: "다가올 것", startIso: future(), type: "세미나", status: "active",
+      title: "다가올 것",
+      startIso: future(),
+      type: "세미나",
+      status: "active",
     });
 
     const results = await runCron();
@@ -118,10 +147,15 @@ describe("cron (§8-1)", () => {
 
   it("never resurrects a cancelled event", async () => {
     const event = await createEventWithActivity({
-      title: "취소된 것", startIso: past(), type: "세미나", status: "active",
+      title: "취소된 것",
+      startIso: past(),
+      type: "세미나",
+      status: "active",
     });
     await mutate("events", (rows) =>
-      rows.map((e) => (e.id === event.id ? { ...e, status: "cancelled" as const } : e)),
+      rows.map((e) =>
+        e.id === event.id ? { ...e, status: "cancelled" as const } : e,
+      ),
     );
     await runCron();
     expect((await getTable("events"))[0].status).toBe("cancelled");
@@ -129,11 +163,16 @@ describe("cron (§8-1)", () => {
 
   it("uses date.end when present for expiry", async () => {
     const event = await createEventWithActivity({
-      title: "이틀 전 시작", startIso: past(), type: "세미나", status: "active",
+      title: "이틀 전 시작",
+      startIso: past(),
+      type: "세미나",
+      status: "active",
     });
     await mutate("events", (rows) =>
       rows.map((e) =>
-        e.id === event.id ? { ...e, date: { start: e.date.start, end: future() } } : e,
+        e.id === event.id
+          ? { ...e, date: { start: e.date.start, end: future() } }
+          : e,
       ),
     );
     const updated = (await getTable("events"))[0];

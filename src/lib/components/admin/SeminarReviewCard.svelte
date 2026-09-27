@@ -19,9 +19,7 @@
   let selectedKind = $state<SeminarKind>(untrack(() => request.kind));
   let processing = $state<"approve" | "reject" | null>(null);
 
-  function actionEnhancer(
-    operation: "approve" | "reject",
-  ): SubmitFunction {
+  function actionEnhancer(operation: "approve" | "reject"): SubmitFunction {
     return () => {
       processing = operation;
 
@@ -66,7 +64,9 @@
     </div>
     <div>
       <dt>발표자</dt>
-      <dd>{request.presenters.map((presenter) => presenter.name).join(", ")}</dd>
+      <dd>
+        {request.presenters.map((presenter) => presenter.name).join(", ")}
+      </dd>
     </div>
     <div>
       <dt>예상 시간</dt>
@@ -88,7 +88,9 @@
       <p>{request.description}</p>
       <p><strong>선수 지식</strong> {request.prerequisites || "없음"}</p>
       {#if request.attachmentUrl}
-        <a href={request.attachmentUrl} target="_blank" rel="noreferrer">외부 자료 열기 ↗</a>
+        <a href={request.attachmentUrl} target="_blank" rel="noreferrer"
+          >외부 자료 열기 ↗</a
+        >
       {/if}
       {#if request.posterUrl}
         <div class="poster-preview">
@@ -126,7 +128,8 @@
   </div>
 
   <p class="mail-policy">
-    승인 시 ‘일정 추후 안내’를 보내며, 확정 일정은 최초 공개할 때 다시 안내합니다.
+    승인 시 ‘일정 추후 안내’를 보내며, 확정 일정은 최초 공개할 때 다시
+    안내합니다.
   </p>
 
   <div class="card-actions">
@@ -159,8 +162,15 @@
 </article>
 
 <style>
-  .poster-preview { display: grid; gap: 0.4rem; margin-top: 0.6rem; }
-  .poster-preview img { max-width: 220px; border: 1px solid var(--latex-rule); }
+  .poster-preview {
+    display: grid;
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+  }
+  .poster-preview img {
+    max-width: 220px;
+    border: 1px solid var(--latex-rule);
+  }
   .review-card {
     display: grid;
     gap: 0.85rem;

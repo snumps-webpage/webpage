@@ -15,22 +15,35 @@ import type { PageServerLoad, Actions } from "./$types";
 
 function parsePresenterIds(raw: string | null): string[] {
   if (!raw) return [];
-  return [...new Set(raw.split(",").map((s) => s.trim()).filter(Boolean))];
+  return [
+    ...new Set(
+      raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
   const session = await ensureSession(locals, url);
 
-  const request = (await getTable("seminar-requests")).find((r) => r.id === params.id);
+  const request = (await getTable("seminar-requests")).find(
+    (r) => r.id === params.id,
+  );
   if (!request || request.status !== "pending") throw redirect(302, "/");
 
   // Own requests only (admins may inspect).
-  if (request.requesterId !== locals.member?.memberId && !locals.member?.isAdmin) {
+  if (
+    request.requesterId !== locals.member?.memberId &&
+    !locals.member?.isAdmin
+  ) {
     throw redirect(302, "/");
   }
 
   let memberDirectoryUnavailable = false;
-  let searchableMembers: { id: string; name: string; department: string }[] = [];
+  let searchableMembers: { id: string; name: string; department: string }[] =
+    [];
   try {
     searchableMembers = await memberPickers();
   } catch (error) {

@@ -55,7 +55,9 @@
             error?: string;
             message?: string;
           };
-          issues = data.issues ?? { _form: data.message ?? data.error ?? "회차를 수정하지 못했습니다." };
+          issues = data.issues ?? {
+            _form: data.message ?? data.error ?? "회차를 수정하지 못했습니다.",
+          };
           return;
         }
         issues = { _form: "회차를 수정하지 못했습니다." };
@@ -66,13 +68,17 @@
     <header>
       <p>Correction · Session {session.sessionNo}</p>
       <h2>회차 정보 정정</h2>
-      <span>회차 생성에는 입력이 없으며, 이 화면은 오입력 정정에만 사용합니다.</span>
+      <span
+        >회차 생성에는 입력이 없으며, 이 화면은 오입력 정정에만 사용합니다.</span
+      >
     </header>
 
     {#if issues._form}<p class="form-error" role="alert">{issues._form}</p>{/if}
 
     <div class="paper-field">
-      <label class="paper-label" for={`session-title-${session.eventId}`}>회차 제목</label>
+      <label class="paper-label" for={`session-title-${session.eventId}`}
+        >회차 제목</label
+      >
       <input
         id={`session-title-${session.eventId}`}
         name="title"
@@ -84,7 +90,9 @@
     </div>
 
     <div class="paper-field">
-      <label class="paper-label" for={`session-start-${session.eventId}`}>시작 시각 · KST</label>
+      <label class="paper-label" for={`session-start-${session.eventId}`}
+        >시작 시각 · KST</label
+      >
       <input
         id={`session-start-${session.eventId}`}
         name="date"
@@ -93,12 +101,21 @@
         aria-invalid={!!issues.startedAtLocal}
         oninput={() => delete issues.startedAtLocal}
       />
-      {#if issues.startedAtLocal}<p class="field-error">{issues.startedAtLocal}</p>{/if}
+      {#if issues.startedAtLocal}<p class="field-error">
+          {issues.startedAtLocal}
+        </p>{/if}
     </div>
 
     <div class="dialog-actions">
-      <button type="button" class="paper-btn" disabled={processing} onclick={() => dialog?.close()}>취소</button>
-      <button class="paper-btn primary" disabled={processing}>{processing ? "저장 중…" : "정정 저장"}</button>
+      <button
+        type="button"
+        class="paper-btn"
+        disabled={processing}
+        onclick={() => dialog?.close()}>취소</button
+      >
+      <button class="paper-btn primary" disabled={processing}
+        >{processing ? "저장 중…" : "정정 저장"}</button
+      >
     </div>
   </form>
 </dialog>

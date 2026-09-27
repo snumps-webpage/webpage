@@ -23,7 +23,9 @@ function initialRequests(): DevSeminarRequestRecord[] {
         "확률적 방법으로 존재성을 보이는 기본 아이디어와 대표 예제를 소개합니다.",
       prerequisites: "이산수학, 기초 확률론",
       duration: "90분",
-      preferredTiming: "9월 중반", attachmentUrl: "https://drive.google.com/example-probability", posterUrl: null,
+      preferredTiming: "9월 중반",
+      attachmentUrl: "https://drive.google.com/example-probability",
+      posterUrl: null,
       presenters: [
         { id: "member-president", name: "김회장", department: "수리과학부" },
       ],
@@ -43,7 +45,9 @@ function initialRequests(): DevSeminarRequestRecord[] {
         "매듭 불변량이 코호몰로지 이론과 만나는 지점을 짧은 계산으로 살펴봅니다.",
       prerequisites: "군론, 선형대수",
       duration: "60분",
-      preferredTiming: "", attachmentUrl: null, posterUrl: null,
+      preferredTiming: "",
+      attachmentUrl: null,
+      posterUrl: null,
       presenters: [
         { id: "member-editor", name: "이편집", department: "수리과학부" },
         { id: "dev-member", name: "Dev Member", department: "수리과학부" },
@@ -64,7 +68,9 @@ function initialRequests(): DevSeminarRequestRecord[] {
         "기본군의 계산과 피복공간의 분류 정리를 구체적인 예제와 함께 살펴봅니다.",
       prerequisites: "점집합 위상수학의 연결성·콤팩트성",
       duration: "90분",
-      preferredTiming: "10월 초", attachmentUrl: "https://drive.google.com/example", posterUrl: null,
+      preferredTiming: "10월 초",
+      attachmentUrl: "https://drive.google.com/example",
+      posterUrl: null,
       presenters: [
         { id: "dev-member", name: "Dev Member", department: "수리과학부" },
         { id: "member-editor", name: "이편집", department: "수리과학부" },

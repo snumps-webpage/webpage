@@ -5,7 +5,10 @@ const sent = vi.hoisted(
   () => [] as { to: string[]; subject: string; body: string; bcc: boolean }[],
 );
 vi.mock("$env/dynamic/private", () => ({ env: testEnv }));
-vi.mock("$lib/server/data/store", () => import("$lib/server/data/store-memory"));
+vi.mock(
+  "$lib/server/data/store",
+  () => import("$lib/server/data/store-memory"),
+);
 vi.mock("./client", () => ({
   getAdminAccessToken: async () => "token",
   dispatchEmail: async (
@@ -43,16 +46,25 @@ describe("mail dispatcher (S10)", () => {
     _resetDataLayerForTests();
     sent.length = 0;
     testEnv.ADMINS_EMAILS = "admin@snu.ac.kr";
-    for (const t of ["mail-rules", "mail-templates", "members", "private-info"]) {
+    for (const t of [
+      "mail-rules",
+      "mail-templates",
+      "members",
+      "private-info",
+    ]) {
       await invalidateCache(`table_${t}`);
     }
     seed();
   });
 
   it("fires the code default rule when no rows exist", async () => {
-    const ok = await emitMailEvent("application.approved", { name: "김수학" }, {
-      partyEmail: "new@snu.ac.kr",
-    });
+    const ok = await emitMailEvent(
+      "application.approved",
+      { name: "김수학" },
+      {
+        partyEmail: "new@snu.ac.kr",
+      },
+    );
     expect(ok).toBe(true);
     expect(sent).toHaveLength(1);
     expect(sent[0].to).toEqual(["new@snu.ac.kr"]);
@@ -72,9 +84,13 @@ describe("mail dispatcher (S10)", () => {
         },
       ],
     });
-    await emitMailEvent("application.approved", { name: "김수학" }, {
-      partyEmail: "new@snu.ac.kr",
-    });
+    await emitMailEvent(
+      "application.approved",
+      { name: "김수학" },
+      {
+        partyEmail: "new@snu.ac.kr",
+      },
+    );
     expect(sent).toHaveLength(1);
     expect(sent[0].to).toEqual(["admin@snu.ac.kr"]);
   });
@@ -92,9 +108,13 @@ describe("mail dispatcher (S10)", () => {
         },
       ],
     });
-    const ok = await emitMailEvent("application.approved", { name: "A" }, {
-      partyEmail: "x@snu.ac.kr",
-    });
+    const ok = await emitMailEvent(
+      "application.approved",
+      { name: "A" },
+      {
+        partyEmail: "x@snu.ac.kr",
+      },
+    );
     expect(ok).toBe(true);
     expect(sent).toHaveLength(0);
   });
@@ -131,9 +151,13 @@ describe("mail dispatcher (S10)", () => {
         },
       ],
     });
-    await emitMailEvent("application.approved", { name: "김수학" }, {
-      partyEmail: "new@snu.ac.kr",
-    });
+    await emitMailEvent(
+      "application.approved",
+      { name: "김수학" },
+      {
+        partyEmail: "new@snu.ac.kr",
+      },
+    );
     expect(sent).toHaveLength(2);
     const custom = sent.find((s) => s.subject === "커스텀 김수학");
     expect(custom?.to).toEqual(["admin@snu.ac.kr"]);
@@ -142,8 +166,26 @@ describe("mail dispatcher (S10)", () => {
   it("opted-in announcement goes bcc and skips opted-out members", async () => {
     seed({
       "private-info": [
-        { id: "p1", memberId: "m1", email: "a@snu.ac.kr", phone: "", studentId: "", background: "", mailPrefs: { announcements: true }, sourceRequestId: null },
-        { id: "p2", memberId: "m2", email: "b@snu.ac.kr", phone: "", studentId: "", background: "", mailPrefs: { announcements: false }, sourceRequestId: null },
+        {
+          id: "p1",
+          memberId: "m1",
+          email: "a@snu.ac.kr",
+          phone: "",
+          studentId: "",
+          background: "",
+          mailPrefs: { announcements: true },
+          sourceRequestId: null,
+        },
+        {
+          id: "p2",
+          memberId: "m2",
+          email: "b@snu.ac.kr",
+          phone: "",
+          studentId: "",
+          background: "",
+          mailPrefs: { announcements: false },
+          sourceRequestId: null,
+        },
       ],
     });
     await emitMailEvent("seminar.published", {

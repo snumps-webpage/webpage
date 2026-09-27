@@ -52,7 +52,9 @@ export class AppError extends Error {
 
 /** Strips explicitly-undefined keys so `{...row, ...patch}` can never delete
  *  a stored field through JSON serialization (review C1). */
-export function definedOnly<T extends Record<string, unknown>>(patch: T): Partial<T> {
+export function definedOnly<T extends Record<string, unknown>>(
+  patch: T,
+): Partial<T> {
   return Object.fromEntries(
     Object.entries(patch).filter(([, v]) => v !== undefined),
   ) as Partial<T>;

@@ -17,22 +17,22 @@
 
 ## 요약
 
-| # | 지적 | 분류 | 심각도 |
-|---|---|---|---|
-| **AG-2** | **39줄 본문이 문자열 하나만 다른 채 통째로 복제돼 있다** | 중복 | 🔴 |
-| **AG-1** | **삭제된 `/login`을 가리키는 참조 4곳 — 도메인 거부 사용자가 이유를 볼 수 없다** | 버그 | 🔴 |
-| **AG-12** | **`logic` 안의 `error(403)`이 `fail(500, "Action failed")`로 뭉개진다** | 버그 | 🟠 |
-| AG-13 | 라이브러리가 `isRedirect`/`isActionFailure`/`isHttpError`를 주는데 손으로 구조 판별 4곳 | 정확성 | 🟠 |
-| AG-14 | `locals.auth()`가 요청당 최대 4회 — 매번 세션 재복호화 + **쿠키 재기록** | 성능 | 🟠 |
-| AG-4 | 같은 함수의 두 `catch`가 리다이렉트를 반대로 다룬다 + 캐스트가 거짓 | 오류 처리 | 🟠 |
-| AG-3 | `invalidateCache`가 `await`되지 않는다 — 두 겹의 fire-and-forget | 버그 | 🟠 |
-| AG-6 | `AuthenticatedSession` 캐스트가 **세 곳 전부**에서 거짓말한다 | 타입 | 🟠 |
-| AG-5 | `ensureAdmin`의 두 동작 중 **덜 안전한 쪽이 기본값**이고 안전한 쪽만 쓰인다 | 보안 | 🟠 |
-| AG-7 | `requireAdminAction`이 export인데 외부 사용 0 + 판별 유니온이 아니다 | 정리 | 🟠 |
-| AG-11 | 내부 오류 메시지를 그대로 클라이언트에 내보낸다 | 노출 | 🟡 |
-| AG-10 | `ActionFailure`를 오리 타이핑으로 판별한다 | 정확성 | 🟡 |
-| AG-9 | `await import(...)`가 6곳 — 정적 의존을 동적으로 부른다 | 일관성 | 🟡 |
-| AG-8 | `successMessage` 옵션이 죽어 있고, 같은 이름의 살아 있는 prop이 따로 있다 | 정리 | 🟡 |
+| #         | 지적                                                                                    | 분류      | 심각도 |
+| --------- | --------------------------------------------------------------------------------------- | --------- | ------ |
+| **AG-2**  | **39줄 본문이 문자열 하나만 다른 채 통째로 복제돼 있다**                                | 중복      | 🔴     |
+| **AG-1**  | **삭제된 `/login`을 가리키는 참조 4곳 — 도메인 거부 사용자가 이유를 볼 수 없다**        | 버그      | 🔴     |
+| **AG-12** | **`logic` 안의 `error(403)`이 `fail(500, "Action failed")`로 뭉개진다**                 | 버그      | 🟠     |
+| AG-13     | 라이브러리가 `isRedirect`/`isActionFailure`/`isHttpError`를 주는데 손으로 구조 판별 4곳 | 정확성    | 🟠     |
+| AG-14     | `locals.auth()`가 요청당 최대 4회 — 매번 세션 재복호화 + **쿠키 재기록**                | 성능      | 🟠     |
+| AG-4      | 같은 함수의 두 `catch`가 리다이렉트를 반대로 다룬다 + 캐스트가 거짓                     | 오류 처리 | 🟠     |
+| AG-3      | `invalidateCache`가 `await`되지 않는다 — 두 겹의 fire-and-forget                        | 버그      | 🟠     |
+| AG-6      | `AuthenticatedSession` 캐스트가 **세 곳 전부**에서 거짓말한다                           | 타입      | 🟠     |
+| AG-5      | `ensureAdmin`의 두 동작 중 **덜 안전한 쪽이 기본값**이고 안전한 쪽만 쓰인다             | 보안      | 🟠     |
+| AG-7      | `requireAdminAction`이 export인데 외부 사용 0 + 판별 유니온이 아니다                    | 정리      | 🟠     |
+| AG-11     | 내부 오류 메시지를 그대로 클라이언트에 내보낸다                                         | 노출      | 🟡     |
+| AG-10     | `ActionFailure`를 오리 타이핑으로 판별한다                                              | 정확성    | 🟡     |
+| AG-9      | `await import(...)`가 6곳 — 정적 의존을 동적으로 부른다                                 | 일관성    | 🟡     |
+| AG-8      | `successMessage` 옵션이 죽어 있고, 같은 이름의 살아 있는 prop이 따로 있다               | 정리      | 🟡     |
 
 **호출부 실측** (import·주석 제외한 **실호출** 수):
 
@@ -51,7 +51,7 @@ handleAdminAction   6      ensureAdmin          1  (그 1곳이 { silent: true }
 ```
 $ diff <(sed -n '91,129p' auth-guards.ts) <(sed -n '150,189p' auth-guards.ts)
 25d24
-< 
+<
 38c37,39
 <     return fail(500, { error: (e as Error).message || "Action failed" });
 ---
@@ -66,10 +66,10 @@ $ diff <(sed -n '91,129p' auth-guards.ts) <(sed -n '150,189p' auth-guards.ts)
 
 두 함수의 **진짜 차이는 인증 한 줄**이다:
 
-| | 인증 |
-|---|---|
-| `handleUserAction:83` | `await ensureSession(locals)` (try/catch로 감쌈) |
-| `handleAdminAction:147` | `await requireAdminAction(locals)` |
+|                         | 인증                                             |
+| ----------------------- | ------------------------------------------------ |
+| `handleUserAction:83`   | `await ensureSession(locals)` (try/catch로 감쌈) |
+| `handleAdminAction:147` | `await requireAdminAction(locals)`               |
 
 **비용은 줄 수가 아니라 변경 지점이다.** 이 문서의 지적 **여섯 개**
 (AG-3·4·10·11·12·13)가 전부 두 곳을 고쳐야 한다.
@@ -86,7 +86,7 @@ async function handleAction<T>(
   authenticate: () => Promise<AuthResult>,
   logic: (s: AuthenticatedSession) => Promise<T | void>,
   options: { invalidate?: string | string[]; errorMessage?: string } = {},
-)
+);
 ```
 
 > 초판은 `authenticate`의 반환을 `AuthenticatedSession | ActionFailure<...>`로 제안했다.
@@ -110,12 +110,12 @@ throw redirect(302, loginPath);
 `src/routes/login/{+page.server.ts,+page.svelte}`를 삭제했고 **`HEAD`의 조상이다.**
 참조는 지우지 않았다:
 
-| 위치 | 참조 |
-|---|---|
-| `auth.ts:23` | `` return `/login?error=InvalidDomain` `` (도메인 거부 시) |
-| `auth.ts:37` | `pages: { signIn: "/login" }` |
-| `auth.ts:38` | `pages: { error: "/login" }` |
-| `auth-guards.ts:22-24` | 여기 |
+| 위치                   | 참조                                                       |
+| ---------------------- | ---------------------------------------------------------- |
+| `auth.ts:23`           | `` return `/login?error=InvalidDomain` `` (도메인 거부 시) |
+| `auth.ts:37`           | `pages: { signIn: "/login" }`                              |
+| `auth.ts:38`           | `pages: { error: "/login" }`                               |
+| `auth-guards.ts:22-24` | 여기                                                       |
 
 ### 실제로 무슨 일이 일어나는가
 
@@ -130,7 +130,9 @@ throw redirect(302, loginPath);
 따라서 `hooks.server.ts:42-43`:
 
 ```ts
-if (!session?.user?.email) { throw redirect(303, "/"); }
+if (!session?.user?.email) {
+  throw redirect(303, "/");
+}
 ```
 
 **`/`로 303 반송되고 `?error=InvalidDomain`은 버려진다.**
@@ -185,10 +187,10 @@ export class HttpError {
 
 **`status`와 `body`만 있고 최상위 `message`가 없다.** 그리고 403은 3xx가 아니다.
 
-| 던진 것 | 나가는 것 |
-|---|---|
+| 던진 것                   | 나가는 것                               |
+| ------------------------- | --------------------------------------- |
 | `error(403, "권한 없음")` | `fail(500, { error: "Action failed" })` |
-| `error(404, "없음")` | `fail(500, { error: "Action failed" })` |
+| `error(404, "없음")`      | `fail(500, { error: "Action failed" })` |
 
 **상태 코드가 거짓이 되고 `body`가 사라진다.** 로그에는 `[Action Error]`로만 남는다.
 
@@ -214,12 +216,12 @@ src/exports/index.js:216  export function isActionFailure(e)   { return e instan
 
 이 파일은 같은 판정을 **구조적으로 네 번** 손으로 짠다:
 
-| 위치 | 손으로 짠 것 | 있어야 할 것 |
-|---|---|---|
-| `:94-102` | `"status" in result && result.status >= 400` | `isActionFailure(result)` |
-| `:118-125` | `"status" in e && 300 <= e.status < 400` | `isRedirect(e)` |
-| `:153-161` | 〃 (복제) | 〃 |
-| `:176-183` | 〃 (복제) | 〃 |
+| 위치       | 손으로 짠 것                                 | 있어야 할 것              |
+| ---------- | -------------------------------------------- | ------------------------- |
+| `:94-102`  | `"status" in result && result.status >= 400` | `isActionFailure(result)` |
+| `:118-125` | `"status" in e && 300 <= e.status < 400`     | `isRedirect(e)`           |
+| `:153-161` | 〃 (복제)                                    | 〃                        |
+| `:176-183` | 〃 (복제)                                    | 〃                        |
 
 오리 타이핑과 신원 확인의 차이다. AG-10·AG-12·AG-4가 전부 이 하나에서 나온다:
 
@@ -254,12 +256,12 @@ const data = await response.json();
 
 `/admin/events/new` GET 한 번의 호출 지점:
 
-| # | 위치 |
-|---|---|
-| 1 | `hooks.server.ts:33` |
-| 2 | `src/routes/+layout.server.ts:11` |
-| 3 | `src/routes/admin/events/new/+layout.server.ts:6` |
-| 4 | `src/routes/admin/events/new/+page.server.ts:14` |
+| #   | 위치                                              |
+| --- | ------------------------------------------------- |
+| 1   | `hooks.server.ts:33`                              |
+| 2   | `src/routes/+layout.server.ts:11`                 |
+| 3   | `src/routes/admin/events/new/+layout.server.ts:6` |
+| 4   | `src/routes/admin/events/new/+page.server.ts:14`  |
 
 관리자 폼 액션은 훅(1) + `requireAdminAction:53`(2).
 
@@ -292,7 +294,10 @@ const data = await response.json();
 
 ```js
 export class Redirect {
-  constructor(status, location) { this.status = status; this.location = location; }
+  constructor(status, location) {
+    this.status = status;
+    this.location = location;
+  }
 }
 ```
 
@@ -324,7 +329,13 @@ keys.forEach((key) => invalidateCache(key));
 ```ts
 export async function invalidateCache(key: string) {
   localCache.delete(key);
-  if (redis) { try { await redis.del(key); } catch { /* Silently fail */ } }
+  if (redis) {
+    try {
+      await redis.del(key);
+    } catch {
+      /* Silently fail */
+    }
+  }
 }
 ```
 
@@ -357,14 +368,19 @@ export interface AuthenticatedSession {
 `@auth/core/types.d.ts:204-216`의 실제 타입:
 
 ```ts
-interface DefaultUser { id?: string; name?: string | null; email?: string | null; image?: string | null }
+interface DefaultUser {
+  id?: string;
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+}
 ```
 
-| 위치 | `email` | `name` | `image` |
-|---|---|---|---|
-| `ensureSession:21→:27` | 검사 ✅ | 검사 ✅ | **미검사** — `string \| null \| undefined`를 `string \| undefined`로 |
-| `ensureAdmin:41→:46` | 검사 ✅ | **미검사** | **미검사** |
-| `requireAdminAction:54→:63` | 검사 ✅ | **미검사** | **미검사** |
+| 위치                        | `email` | `name`     | `image`                                                              |
+| --------------------------- | ------- | ---------- | -------------------------------------------------------------------- |
+| `ensureSession:21→:27`      | 검사 ✅ | 검사 ✅    | **미검사** — `string \| null \| undefined`를 `string \| undefined`로 |
+| `ensureAdmin:41→:46`        | 검사 ✅ | **미검사** | **미검사**                                                           |
+| `requireAdminAction:54→:63` | 검사 ✅ | **미검사** | **미검사**                                                           |
 
 > 초판은 `ensureSession:27`을 "정당"이라고 **면죄했다.** 틀렸다.
 > `image?: string`은 `null`을 배제하는데 검사가 없다. **세 곳 전부 거짓말한다.**
@@ -437,12 +453,12 @@ return fail(500, { error: (e as Error).message || "Action failed" });
 
 `logic`이 던진 모든 것의 `message`가 클라이언트로 간다:
 
-| 출처 | 문구 |
-|---|---|
-| `src/lib/server/events.ts:183` | `"Failed to record attendance in Notion"` |
-| `src/routes/admin/+page.server.ts:183` | `"Member not found in database"` |
-| `notion/client.ts:79,144,173,198,221,251` | Notion 응답의 `data.message` 원문 |
-| `@auth/sveltekit/dist/actions.js:90` → `:87` | Auth.js 내부 오류 |
+| 출처                                         | 문구                                      |
+| -------------------------------------------- | ----------------------------------------- |
+| `src/lib/server/events.ts:183`               | `"Failed to record attendance in Notion"` |
+| `src/routes/admin/+page.server.ts:183`       | `"Member not found in database"`          |
+| `notion/client.ts:79,144,173,198,221,251`    | Notion 응답의 `data.message` 원문         |
+| `@auth/sveltekit/dist/actions.js:90` → `:87` | Auth.js 내부 오류                         |
 
 내부 구조(Notion 사용, DB 이름)가 노출되고 사용자에게는 조치 가능한 정보가 아니다.
 `events.md` SE-18과 짝이다 — 그쪽은 **너무 적게** 남기고 이쪽은 **너무 많이** 보낸다.
@@ -465,7 +481,7 @@ export interface ActionFailure<T = undefined> {
   status: number;
   data: T;
   [uniqueSymbol]: true; // necessary or else UnpackValidationError could wrongly
-                        // unpack objects with the same shape as ActionFailure
+  // unpack objects with the same shape as ActionFailure
 }
 ```
 
@@ -483,10 +499,10 @@ export interface ActionFailure<T = undefined> {
 
 ## AG-9 🟡 정적 의존을 동적으로 부르는 곳 6
 
-| 대상 | 위치 |
-|---|---|
-| `@sveltejs/kit`의 `fail` | `:55`, `:85`, `:127`, `:185` |
-| `./cache`의 `invalidateCache` | `:105`, `:164` |
+| 대상                          | 위치                         |
+| ----------------------------- | ---------------------------- |
+| `@sveltejs/kit`의 `fail`      | `:55`, `:85`, `:127`, `:185` |
+| `./cache`의 `invalidateCache` | `:105`, `:164`               |
 
 같은 패키지의 `redirect`, `error`, `type ActionFailure`는 `:1`에서 정적으로 가져온다.
 `fail`만 다르게 다룰 이유가 코드에 없다 — 순환 참조도 아니고(외부 패키지),
@@ -543,19 +559,19 @@ $ grep -rn "successMessage:" --include=*.ts src/
 
 ## 개정 이력
 
-| 변경 | 내용 |
-|---|---|
+| 변경                        | 내용                                                                                                                                                                                                                                                  |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **AG-1 메커니즘 전면 정정** | "네 곳이 **404**를 가리킨다" → **404는 안 난다.** 세션이 없으므로 `hooks.server.ts:42-43`이 `/`로 **303 반송**하고 `?error=`는 버려진다. `handle` 훅이 라우트 해석보다 먼저 돈다(`respond.js:457`). 결론(이유를 볼 수 없다)은 유지 — 오히려 더 나쁘다 |
-| **헤더 인용 날조 철회** | "`applications.md` AP-9의 정본"은 **거짓**. AP-9는 `hooks.server.ts`의 미래핑 import 이야기이고 `auth-guards`를 한 번도 언급하지 않는다(`grep -c` → 0). 실제 의존 문서는 `notion/events.md:106`·`notion/client.md:194` |
-| **AG-12 신설 🟠** | `logic` 안의 `error(403)`이 `fail(500,"Action failed")`가 된다. `HttpError`에 최상위 `message`가 없고 403은 3xx가 아니다 |
-| **AG-13 신설 🟠** | `isRedirect`/`isActionFailure`/`isHttpError`가 export돼 있는데 구조 판별을 4곳에서 손으로 짠다. AG-4·10·12의 공통 뿌리 |
-| **AG-14 신설 🟠** | `locals.auth ??=`는 함수만 캐시한다. 요청당 최대 4회 전체 세션 복호화 + **쿠키 재기록**. 가드 셋이 각자 다시 부른다 |
-| **AG-6 면죄부 철회** | `ensureSession:27`을 "정당"이라 했으나 `image?: string`이 `null`을 배제하는데 미검사. **3곳 전부 거짓말**. `id` 소실도 추가 |
-| **AG-10 근거 정정** | `uniqueSymbol`은 **컴파일타임 전용**이다(`internal/index.js:65-73`, `fail()`의 `@ts-expect-error`). "우회"가 아니라 "라이브러리 판별자를 손으로 재구현" |
-| **AG-4 과장 정정** | "항상 `undefined`" → 리다이렉트 경우만. `actions.js:90`이 진짜 `Error`를 던진다. 자기 다음 문단과 모순됐다. `:87`을 AG-11 목록에 추가 |
-| **AG-3 오인용 정정** | "Redis를 붙이는 것이 X-3 처방" → **아니다.** `CROSS-CUTTING.md:135`는 키 통합 + 직접 호출이다 |
-| **AG-2 제안 수정** | 초판 제안이 AG-10의 구조적 판별을 재도입했다. 판별 유니온으로 교체 |
-| AG-9 확대 | `fail` 4곳 → `./cache` 동적 import 2곳 포함 **6곳** |
-| AG-11 인용 정정 | `admin:172` → `src/routes/admin/+page.server.ts:183`. `:87` 추가 |
-| 비지적 #1 근거 교체 | `parseGoogleName`은 `string \| null`을 받는다(`utils.ts:88-89`) — 정당화 못 한다. `recordAttendance`의 `name: string`으로 교체. `:76` → `:57` |
-| 호출부 표 정정 | raw grep 수(import·주석 포함)를 "실측"이라 표기했다. **실호출 수**로 교체 |
+| **헤더 인용 날조 철회**     | "`applications.md` AP-9의 정본"은 **거짓**. AP-9는 `hooks.server.ts`의 미래핑 import 이야기이고 `auth-guards`를 한 번도 언급하지 않는다(`grep -c` → 0). 실제 의존 문서는 `notion/events.md:106`·`notion/client.md:194`                                |
+| **AG-12 신설 🟠**           | `logic` 안의 `error(403)`이 `fail(500,"Action failed")`가 된다. `HttpError`에 최상위 `message`가 없고 403은 3xx가 아니다                                                                                                                              |
+| **AG-13 신설 🟠**           | `isRedirect`/`isActionFailure`/`isHttpError`가 export돼 있는데 구조 판별을 4곳에서 손으로 짠다. AG-4·10·12의 공통 뿌리                                                                                                                                |
+| **AG-14 신설 🟠**           | `locals.auth ??=`는 함수만 캐시한다. 요청당 최대 4회 전체 세션 복호화 + **쿠키 재기록**. 가드 셋이 각자 다시 부른다                                                                                                                                   |
+| **AG-6 면죄부 철회**        | `ensureSession:27`을 "정당"이라 했으나 `image?: string`이 `null`을 배제하는데 미검사. **3곳 전부 거짓말**. `id` 소실도 추가                                                                                                                           |
+| **AG-10 근거 정정**         | `uniqueSymbol`은 **컴파일타임 전용**이다(`internal/index.js:65-73`, `fail()`의 `@ts-expect-error`). "우회"가 아니라 "라이브러리 판별자를 손으로 재구현"                                                                                               |
+| **AG-4 과장 정정**          | "항상 `undefined`" → 리다이렉트 경우만. `actions.js:90`이 진짜 `Error`를 던진다. 자기 다음 문단과 모순됐다. `:87`을 AG-11 목록에 추가                                                                                                                 |
+| **AG-3 오인용 정정**        | "Redis를 붙이는 것이 X-3 처방" → **아니다.** `CROSS-CUTTING.md:135`는 키 통합 + 직접 호출이다                                                                                                                                                         |
+| **AG-2 제안 수정**          | 초판 제안이 AG-10의 구조적 판별을 재도입했다. 판별 유니온으로 교체                                                                                                                                                                                    |
+| AG-9 확대                   | `fail` 4곳 → `./cache` 동적 import 2곳 포함 **6곳**                                                                                                                                                                                                   |
+| AG-11 인용 정정             | `admin:172` → `src/routes/admin/+page.server.ts:183`. `:87` 추가                                                                                                                                                                                      |
+| 비지적 #1 근거 교체         | `parseGoogleName`은 `string \| null`을 받는다(`utils.ts:88-89`) — 정당화 못 한다. `recordAttendance`의 `name: string`으로 교체. `:76` → `:57`                                                                                                         |
+| 호출부 표 정정              | raw grep 수(import·주석 포함)를 "실측"이라 표기했다. **실호출 수**로 교체                                                                                                                                                                             |

@@ -1,6 +1,9 @@
 import { redirect } from "@sveltejs/kit";
 import { handleUserAction } from "$lib/server/auth-guards";
-import { cancelWithdrawal, getWithdrawalState } from "$lib/server/services/withdrawal";
+import {
+  cancelWithdrawal,
+  getWithdrawalState,
+} from "$lib/server/services/withdrawal";
 import type { PageServerLoad } from "./$types";
 
 /** MEM-07: the grace-period landing page — status, deletion date, cancel button. */

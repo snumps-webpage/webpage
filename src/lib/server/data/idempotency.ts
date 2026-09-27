@@ -3,7 +3,9 @@ import type { RowOf, TableName } from "./schemas";
 
 /** Tables whose rows carry the §1-6 idempotency anchor. */
 type SourcedTable = {
-  [N in TableName]: RowOf<N> extends { sourceRequestId: string | null } ? N : never;
+  [N in TableName]: RowOf<N> extends { sourceRequestId: string | null }
+    ? N
+    : never;
 }[TableName];
 
 /**
@@ -17,7 +19,11 @@ export async function ensureCreated<N extends SourcedTable>(
   build: () => RowOf<N>,
 ): Promise<RowOf<N>> {
   const bySource = (rows: RowOf<N>[]) =>
-    rows.find((r) => (r as { sourceRequestId: string | null }).sourceRequestId === sourceRequestId);
+    rows.find(
+      (r) =>
+        (r as { sourceRequestId: string | null }).sourceRequestId ===
+        sourceRequestId,
+    );
 
   const existing = bySource(await getTable(name));
   if (existing) return existing;

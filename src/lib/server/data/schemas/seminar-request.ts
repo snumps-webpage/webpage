@@ -1,7 +1,12 @@
 import { z } from "zod";
 import { DateTime, Id } from "./common";
 
-export const RequestStatus = z.enum(["pending", "approved", "rejected", "withdrawn"]);
+export const RequestStatus = z.enum([
+  "pending",
+  "approved",
+  "rejected",
+  "withdrawn",
+]);
 export type RequestStatus = z.infer<typeof RequestStatus>;
 
 // 선호 세미나 시점 옵션의 단일 소스는 domain 계층 — 서버는 재수출만 한다.

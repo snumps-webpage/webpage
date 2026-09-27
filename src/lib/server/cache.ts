@@ -106,7 +106,8 @@ export async function withCache<T>(
           // Back-fill local cache for faster subsequent hits in this instance
           localCache.set(key, {
             data,
-            expiry: now + localTtl(key, Math.min(ttlMs, 60000), options?.localTtlMs),
+            expiry:
+              now + localTtl(key, Math.min(ttlMs, 60000), options?.localTtlMs),
           });
           return data as T;
         }
@@ -120,7 +121,10 @@ export async function withCache<T>(
   const data = await fetcher();
 
   // Populate local cache
-  localCache.set(key, { data, expiry: now + localTtl(key, ttlMs, options?.localTtlMs) });
+  localCache.set(key, {
+    data,
+    expiry: now + localTtl(key, ttlMs, options?.localTtlMs),
+  });
 
   // Populate Redis (if available)
   if (redis && !options?.skipCache) {

@@ -2,11 +2,18 @@
 // usage: node ops-app-row.mjs add|remove
 import { createClient } from "@supabase/supabase-js";
 
-const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
+const sb = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SECRET_KEY,
+);
 const mode = process.argv[2] ?? "add";
 const EMAIL = "e2e-ui-probe@snu.ac.kr";
 
-const { data } = await sb.from("app_tables").select("version, doc").eq("name", "applications").single();
+const { data } = await sb
+  .from("app_tables")
+  .select("version, doc")
+  .eq("name", "applications")
+  .single();
 const rows = data.doc.rows.filter((r) => r.email !== EMAIL);
 if (mode === "add") {
   rows.push({

@@ -93,7 +93,9 @@ export const actions = {
       const status = statusRaw ? StudyStatus.parse(statusRaw) : undefined;
       await updateStudy(data.get("id") as string, {
         title: (data.get("title") as string)?.trim() || undefined,
-        semester: data.get("semester") ? (data.get("semester") as string) : undefined,
+        semester: data.get("semester")
+          ? (data.get("semester") as string)
+          : undefined,
         textbook: (data.get("textbook") as string) ?? undefined,
         description: (data.get("description") as string) ?? undefined,
         note: (data.get("note") as string) ?? undefined,
@@ -141,7 +143,9 @@ export const actions = {
   removeFile: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
-      await setStudyPhotos(data.get("id") as string, { remove: data.get("s3Key") as string });
+      await setStudyPhotos(data.get("id") as string, {
+        remove: data.get("s3Key") as string,
+      });
       return { operation: "studyFileRemoved" };
     });
   },

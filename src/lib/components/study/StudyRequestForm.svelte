@@ -52,7 +52,8 @@
           message?: string;
         };
         issues = data.issues ?? {
-          _form: data.message ?? data.error ?? "스터디 신청을 제출하지 못했습니다.",
+          _form:
+            data.message ?? data.error ?? "스터디 신청을 제출하지 못했습니다.",
         };
         await tick();
         formElement
@@ -69,7 +70,9 @@
   {/if}
 
   <div class="paper-field">
-    <label class="paper-label" for="study-title">스터디 이름 <span>*</span></label>
+    <label class="paper-label" for="study-title"
+      >스터디 이름 <span>*</span></label
+    >
     <input
       id="study-title"
       name="title"
@@ -84,7 +87,9 @@
 
   <div class="form-row">
     <div class="paper-field">
-      <label class="paper-label" for="study-textbook">교재 또는 자료 <span>*</span></label>
+      <label class="paper-label" for="study-textbook"
+        >교재 또는 자료 <span>*</span></label
+      >
       <input
         id="study-textbook"
         name="textbook"
@@ -98,7 +103,8 @@
     </div>
 
     <div class="paper-field">
-      <label class="paper-label" for="study-semester">학기 <span>*</span></label>
+      <label class="paper-label" for="study-semester">학기 <span>*</span></label
+      >
       <input
         id="study-semester"
         name="semester"
@@ -113,7 +119,9 @@
   </div>
 
   <div class="paper-field">
-    <label class="paper-label" for="study-description">진행 내용 <span>*</span></label>
+    <label class="paper-label" for="study-description"
+      >진행 내용 <span>*</span></label
+    >
     <textarea
       id="study-description"
       name="description"
@@ -125,12 +133,16 @@
       placeholder="무엇을 공부하고 어떤 방식으로 진행할지 적어 주세요."
     ></textarea>
     {#if issues.description}<p class="field-error">{issues.description}</p>{/if}
-    <p class="paper-hint">일정은 신청 단계에서 정하지 않습니다. 승인 후 실제 모임이 시작될 때 회차를 만듭니다.</p>
+    <p class="paper-hint">
+      일정은 신청 단계에서 정하지 않습니다. 승인 후 실제 모임이 시작될 때 회차를
+      만듭니다.
+    </p>
   </div>
 
   <aside>
     <strong>제출 이후</strong>
-    운영진 승인 시 신청자가 주최자로 지정되고 모집 상태로 개설됩니다. 승인 전에는 신청을 철회할 수 있습니다.
+    운영진 승인 시 신청자가 주최자로 지정되고 모집 상태로 개설됩니다. 승인 전에는
+    신청을 철회할 수 있습니다.
   </aside>
 
   <div class="form-actions">

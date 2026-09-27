@@ -155,7 +155,14 @@ export const MAIL_TEMPLATE_DEFAULTS: Record<string, MailTemplateDefault> = {
   "seminar-announcement": {
     name: "새 세미나 전체 공지",
     description: "세미나 공개 시 수신 동의한 전 회원에게 (Bcc 배치)",
-    variables: ["title", "description", "schedule", "location", "siteUrl", "optOutUrl"],
+    variables: [
+      "title",
+      "description",
+      "schedule",
+      "location",
+      "siteUrl",
+      "optOutUrl",
+    ],
     subject: "[SNUMPS] 새 세미나 안내: {{title}}",
     body: `안녕하세요, 서울대학교 수학문제연구회입니다.
 
@@ -211,7 +218,8 @@ export const MAIL_TEMPLATE_DEFAULTS: Record<string, MailTemplateDefault> = {
   },
   "withdrawal-executive-notice": {
     name: "탈퇴 신청 통지 (회장단)",
-    description: "회원이 탈퇴를 신청하면 현 학기 회장·부회장에게 (없으면 관리자)",
+    description:
+      "회원이 탈퇴를 신청하면 현 학기 회장·부회장에게 (없으면 관리자)",
     variables: ["memberName", "adminUrl"],
     subject: "[SNUMPS] 회원 탈퇴 신청: {{memberName}}",
     body: `안녕하세요, 회장단님.
@@ -228,21 +236,33 @@ export const MAIL_TEMPLATE_DEFAULTS: Record<string, MailTemplateDefault> = {
 export type MailTemplateKey = keyof typeof MAIL_TEMPLATE_DEFAULTS;
 
 /** 공용 변수의 코드 기본값 — mail-variables 테이블 행이 덮어쓴다. */
-export const MAIL_VARIABLE_DEFAULTS: Record<string, { value: string; description: string }> = {
-  noticeChatLink: { value: CHATROOM_NOTICE_LINK, description: "카카오톡 공지방 초대 링크" },
-  casualChatLink: { value: CHATROOM_CHAT_LINK, description: "카카오톡 잡담방 초대 링크" },
+export const MAIL_VARIABLE_DEFAULTS: Record<
+  string,
+  { value: string; description: string }
+> = {
+  noticeChatLink: {
+    value: CHATROOM_NOTICE_LINK,
+    description: "카카오톡 공지방 초대 링크",
+  },
+  casualChatLink: {
+    value: CHATROOM_CHAT_LINK,
+    description: "카카오톡 잡담방 초대 링크",
+  },
 };
 
 /**
  * 현행 공용 변수 (기본값 + DB 오버라이드/추가). 조회 실패 시 기본값만 —
  * 메일이 본 동작을 막으면 안 된다.
  */
-export async function getGlobalMailVariables(): Promise<Record<string, string>> {
+export async function getGlobalMailVariables(): Promise<
+  Record<string, string>
+> {
   const merged: Record<string, string> = Object.fromEntries(
     Object.entries(MAIL_VARIABLE_DEFAULTS).map(([k, v]) => [k, v.value]),
   );
   try {
-    for (const row of await getTable("mail-variables")) merged[row.key] = row.value;
+    for (const row of await getTable("mail-variables"))
+      merged[row.key] = row.value;
   } catch (e) {
     console.error("[Mail] variable lookup failed — using defaults:", e);
   }
@@ -263,7 +283,8 @@ export async function renderMailTemplate(
   key: string,
   vars: Record<string, string>,
 ): Promise<{ subject: string; body: string } | null> {
-  const fallback = MAIL_TEMPLATE_DEFAULTS[key] as MailTemplateDefault | undefined;
+  const fallback = MAIL_TEMPLATE_DEFAULTS[key] as
+    MailTemplateDefault | undefined;
   let subject = fallback?.subject ?? null;
   let body = fallback?.body ?? null;
   try {
@@ -274,17 +295,24 @@ export async function renderMailTemplate(
       body = row.body;
     }
   } catch (e) {
-    console.error(`[Mail] template lookup failed for "${key}" — using default:`, e);
+    console.error(
+      `[Mail] template lookup failed for "${key}" — using default:`,
+      e,
+    );
   }
   if (subject === null || body === null) return null; // 삭제된 커스텀 키 등
   // 공용 변수 < 이벤트 변수 — 키가 겹치면 발송 시점 값이 이긴다
   const merged = { ...(await getGlobalMailVariables()), ...vars };
-  return { subject: interpolate(subject, merged), body: interpolate(body, merged) };
+  return {
+    subject: interpolate(subject, merged),
+    body: interpolate(body, merged),
+  };
 }
 
 /** 제목+본문에서 실제 사용 중인 {{변수}} 토큰을 추출한다. */
 export function extractVariableTokens(subject: string, body: string): string[] {
   const found = new Set<string>();
-  for (const m of `${subject}\n${body}`.matchAll(/\{\{\s*(\w+)\s*\}\}/g)) found.add(m[1]);
+  for (const m of `${subject}\n${body}`.matchAll(/\{\{\s*(\w+)\s*\}\}/g))
+    found.add(m[1]);
   return [...found];
 }

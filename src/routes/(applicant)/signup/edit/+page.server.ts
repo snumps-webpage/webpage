@@ -18,12 +18,22 @@ export const load: PageServerLoad = async (event) => {
   return {
     user: session.user,
     parsedInfo: parseGoogleName(session.user.name),
-    application: { ...application, accepted: false, submittedAt: application.createdAt },
+    application: {
+      ...application,
+      accepted: false,
+      submittedAt: application.createdAt,
+    },
   };
 };
 
 export const actions = {
-  default: async ({ request, locals }: { request: Request; locals: App.Locals }) => {
+  default: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
     return handleUserAction(locals, async (session) => {
       const { name, department } = parseGoogleName(session.user.name);
       if (!name || !department) {
@@ -40,7 +50,9 @@ export const actions = {
         });
       }
 
-      const studentId = stripInvisibles((data.get("studentId") as string) ?? "").trim();
+      const studentId = stripInvisibles(
+        (data.get("studentId") as string) ?? "",
+      ).trim();
       if (!/^\d{4}-?\d{4,6}$/.test(studentId)) {
         throw new AppError("VALIDATION_FAILED", {
           userMessage: "학번을 2024-12345 형식으로 입력해 주세요.",

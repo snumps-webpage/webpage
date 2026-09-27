@@ -65,7 +65,9 @@
       month: "long",
       day: "numeric",
       weekday: "short",
-      ...(timeKnown ? { hour: "2-digit" as const, minute: "2-digit" as const } : {}),
+      ...(timeKnown
+        ? { hour: "2-digit" as const, minute: "2-digit" as const }
+        : {}),
     }).format(new Date(value));
   }
 
@@ -88,7 +90,9 @@
 <article class="publication-card" data-status={seminar.publicationStatus}>
   <header class="card-heading">
     <div>
-      <p class="eyebrow">Seminar · {seminar.kind === "regular" ? "Regular" : "Irregular"}</p>
+      <p class="eyebrow">
+        Seminar · {seminar.kind === "regular" ? "Regular" : "Irregular"}
+      </p>
       <h3>{seminar.title}</h3>
     </div>
     <span class="status-chip">{statusLabel}</span>
@@ -103,7 +107,13 @@
     <div class="schedule-sheet">
       <div>
         <span>일시</span>
-        <strong>{formatScheduleRange(seminar.schedule.startsAt, seminar.schedule.endsAt, seminar.schedule.startTime)}</strong>
+        <strong
+          >{formatScheduleRange(
+            seminar.schedule.startsAt,
+            seminar.schedule.endsAt,
+            seminar.schedule.startTime,
+          )}</strong
+        >
       </div>
       <div>
         <span>장소</span>
@@ -117,13 +127,21 @@
       {/if}
     </div>
   {:else}
-    <p class="unscheduled-note">승인은 완료되었습니다. 발표자와 조율한 일정을 입력해 주세요.</p>
+    <p class="unscheduled-note">
+      승인은 완료되었습니다. 발표자와 조율한 일정을 입력해 주세요.
+    </p>
   {/if}
 
   {#if seminar.publicationStatus === "published"}
     <dl class="linkage">
-      <div><dt>Activity</dt><dd>{seminar.activityId}</dd></div>
-      <div><dt>Event</dt><dd>{seminar.eventId}</dd></div>
+      <div>
+        <dt>Activity</dt>
+        <dd>{seminar.activityId}</dd>
+      </div>
+      <div>
+        <dt>Event</dt>
+        <dd>{seminar.eventId}</dd>
+      </div>
     </dl>
   {/if}
 
@@ -168,7 +186,8 @@
       >
         <input type="hidden" name="seminarId" value={seminar.id} />
         <button class="paper-btn danger" type="submit" disabled={processing}
-          >취소</button>
+          >취소</button
+        >
       </form>
     {/if}
 
@@ -201,7 +220,8 @@
       >
         <input type="hidden" name="seminarId" value={seminar.id} />
         <button class="paper-btn small" type="submit" disabled={processing}
-          >취소 처리 재적용</button>
+          >취소 처리 재적용</button
+        >
       </form>
     {/if}
 
@@ -249,7 +269,9 @@
               // 서버는 전 회원 메일 실패를 정직하게 보고한다 — 삼키면 관리자가
               // 재발송이 필요하다는 사실을 알 길이 없다.
               if ("mailFailed" in payload && payload.mailFailed) {
-                onError("세미나는 공개했지만 전 회원 공지 발송에 실패했습니다. 다시 공개를 눌러 재발송할 수 있습니다.");
+                onError(
+                  "세미나는 공개했지만 전 회원 공지 발송에 실패했습니다. 다시 공개를 눌러 재발송할 수 있습니다.",
+                );
               }
               onTransition(payload);
             } else {
@@ -267,15 +289,21 @@
   </div>
 
   {#if seminar.publicationStatus === "published"}
-    <p class="mail-note">공개된 일정을 수정하면 출석 이벤트와 공개 아카이브가 함께 갱신됩니다.</p>
+    <p class="mail-note">
+      공개된 일정을 수정하면 출석 이벤트와 공개 아카이브가 함께 갱신됩니다.
+    </p>
   {:else if seminar.publicationStatus === "scheduled"}
-    <p class="mail-note">공개할 때 전 회원에게 확정 일정 안내 메일을 보냅니다.</p>
+    <p class="mail-note">
+      공개할 때 전 회원에게 확정 일정 안내 메일을 보냅니다.
+    </p>
   {:else if seminar.publicationStatus === "cancelled"}
     <p class="mail-note">
       취소된 세미나입니다. 회원·공개 화면에서는 사라졌고 출석 기록은 보존됩니다.
     </p>
   {:else if seminar.publicationStatus === "unscheduled"}
-    <p class="mail-note">일정 저장은 비공개 초안이며, 공개할 때 확정 일정 안내를 보냅니다.</p>
+    <p class="mail-note">
+      일정 저장은 비공개 초안이며, 공개할 때 확정 일정 안내를 보냅니다.
+    </p>
   {/if}
 </article>
 

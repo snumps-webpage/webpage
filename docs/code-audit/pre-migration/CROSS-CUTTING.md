@@ -25,15 +25,15 @@ utils.ts:2    import type { z } from "zod";   ← 타입 전용. 런타임에 �
 
 ### 왜 지금까지 안 드러났나
 
-| 검사 | 결과 | 이유 |
-|---|---|---|
-| `vitest run` | ✅ 8 passed | 테스트가 `utils.ts`만 건드리고, 거기 import는 **타입 전용**이라 소거된다 |
-| `eslint .` | ✅ clean | 모듈 해석을 하지 않는다 |
-| `svelte-check` | ❌ **잡고 있었다** | 아래 |
+| 검사           | 결과               | 이유                                                                     |
+| -------------- | ------------------ | ------------------------------------------------------------------------ |
+| `vitest run`   | ✅ 8 passed        | 테스트가 `utils.ts`만 건드리고, 거기 import는 **타입 전용**이라 소거된다 |
+| `eslint .`     | ✅ clean           | 모듈 해석을 하지 않는다                                                  |
+| `svelte-check` | ❌ **잡고 있었다** | 아래                                                                     |
 
 ### 🔴 내가 40개 오류를 읽지 않았다
 
-감사 내내 이렇게 보고했다 — *"`svelte-check` 40 errors = 기준선, 신규 오류 0"*.
+감사 내내 이렇게 보고했다 — _"`svelte-check` 40 errors = 기준선, 신규 오류 0"_.
 **그 40개가 무엇인지 한 번도 열어보지 않았다.** 그중 둘이 이것이다:
 
 ```
@@ -101,26 +101,27 @@ zod 코드를 넣으면서 의존성을 안 넣은 것으로 추정된다.
 
 2026-08-25 전수 대조. 정의된 키 12개 vs 무효화 시도 7개.
 
-| 캐시 키 (정의) | 무효화 | 판정 |
-|---|---|---|
-| `all_applications` | `admin:102,115` · `signup:103` · `signup/edit:71` | ✅ |
-| `all_members` | `admin:102` | ✅ |
-| `all_seminar_requests` | `admin:270,303` · `seminar/apply:82` · `seminar/edit:109` | ✅ |
-| `schema_${databaseId}` | 없음 | ✅ 정당 (1h TTL, 스키마 불변) |
-| `all_events` | `admin:141,153,165,270` **관리자 액션만** | ⚠️ **부분** — cron(`events.ts:222,234,240`)과 `load`(`events/[id]/[type]:29`) 두 쓰기 경로가 빠짐 (`events.md` SE-15) |
-| `member_${email}` (`notion/members.ts:57`) | `member_${id}` (`admin:102`) — **id는 신청서 page id** | ❌ 불일치 (`members.md` M-10) |
-| 〃 | `` `member_${locals.auth().then(...)}` `` (`+page.server.ts:278`) | ❌ **`member_[object Promise]`** — 상수 문자열, 완전 무동작. 주석은 `// Optimization: refresh member cache` |
-| `user_activities_${memberId}` | `user_activities_${userEmail}` (`admin:191`) | ❌ 불일치 (`activities.md` AC-1) |
-| `application_${email}` | 없음 | ❌ 0건 (`applications.md` AP-1) |
-| `attendance_queue` | 없음 — 쓰기 4개 전부 | ❌ 0건 (`events.md` SE-3) |
-| `all_activities` | 없음 — `createActivityPage`가 쓰는데 | ❌ 0건 |
-| `activities_${startDate}_${endDate}` | 없음 | ❌ 0건 |
-| `latest_executives` | 없음 | ❌ 0건 |
+| 캐시 키 (정의)                             | 무효화                                                            | 판정                                                                                                                  |
+| ------------------------------------------ | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `all_applications`                         | `admin:102,115` · `signup:103` · `signup/edit:71`                 | ✅                                                                                                                    |
+| `all_members`                              | `admin:102`                                                       | ✅                                                                                                                    |
+| `all_seminar_requests`                     | `admin:270,303` · `seminar/apply:82` · `seminar/edit:109`         | ✅                                                                                                                    |
+| `schema_${databaseId}`                     | 없음                                                              | ✅ 정당 (1h TTL, 스키마 불변)                                                                                         |
+| `all_events`                               | `admin:141,153,165,270` **관리자 액션만**                         | ⚠️ **부분** — cron(`events.ts:222,234,240`)과 `load`(`events/[id]/[type]:29`) 두 쓰기 경로가 빠짐 (`events.md` SE-15) |
+| `member_${email}` (`notion/members.ts:57`) | `member_${id}` (`admin:102`) — **id는 신청서 page id**            | ❌ 불일치 (`members.md` M-10)                                                                                         |
+| 〃                                         | `` `member_${locals.auth().then(...)}` `` (`+page.server.ts:278`) | ❌ **`member_[object Promise]`** — 상수 문자열, 완전 무동작. 주석은 `// Optimization: refresh member cache`           |
+| `user_activities_${memberId}`              | `user_activities_${userEmail}` (`admin:191`)                      | ❌ 불일치 (`activities.md` AC-1)                                                                                      |
+| `application_${email}`                     | 없음                                                              | ❌ 0건 (`applications.md` AP-1)                                                                                       |
+| `attendance_queue`                         | 없음 — 쓰기 4개 전부                                              | ❌ 0건 (`events.md` SE-3)                                                                                             |
+| `all_activities`                           | 없음 — `createActivityPage`가 쓰는데                              | ❌ 0건                                                                                                                |
+| `activities_${startDate}_${endDate}`       | 없음                                                              | ❌ 0건                                                                                                                |
+| `latest_executives`                        | 없음                                                              | ❌ 0건                                                                                                                |
 
 **개별 수정이 아니라 구조 문제다.** 키가 정의부와 무효화부에서 **각자 문자열로 조립된다.**
 같은 함수를 쓰지 않는 한 이 종류의 불일치는 계속 생긴다.
 
 **구조적 원인 두 가지:**
+
 1. (`applications.md` AP-1) 무효화 배열이 `handleAdminAction(locals, fn, { invalidate })`의
    **바깥 스코프**에서 만들어지는데 거기엔 신청 id밖에 없다. 이메일은 클로저 안에서야 해석된다
 2. (`events.md` SE-15) `invalidateCache`는 `auth-guards.ts`의 액션 래퍼를 통해서만 불린다.
@@ -145,6 +146,7 @@ notion/applications.ts:120 removeApplicationInNotion      = notionArchive
 ```
 
 공통 문제:
+
 - **DB 소속 검사가 없다.** 이벤트 id 자리에 회원 id가 오면 회원을 아카이브한다.
   별칭이 검사를 넣을 수 있는 유일한 자리를 지운다
 - 이름이 `delete`/`remove`인데 동작은 **복구 가능한 아카이브**다.
@@ -157,12 +159,12 @@ notion/applications.ts:120 removeApplicationInNotion      = notionArchive
 
 ## X-5 🟠 접근 계층이 상위 타입보다 넓은 시그니처를 갖는 습관
 
-| 위치 | 선언 | 상위 타입 |
-|---|---|---|
-| `notion/seminars.ts:201` | `status: string` | `"approved" \| "rejected"` (`seminars.ts:92`) |
-| `notion/events.ts:79` | `status: string` | `"draft" \| "active" \| "expired"` (`types.ts:57`) |
-| `notion/events.ts:127` | `updates: any` | — (아무것도 좁히지 않음) |
-| `notion/events.ts:49` · `:113` | `data: any` | — |
+| 위치                           | 선언             | 상위 타입                                          |
+| ------------------------------ | ---------------- | -------------------------------------------------- |
+| `notion/seminars.ts:201`       | `status: string` | `"approved" \| "rejected"` (`seminars.ts:92`)      |
+| `notion/events.ts:79`          | `status: string` | `"draft" \| "active" \| "expired"` (`types.ts:57`) |
+| `notion/events.ts:127`         | `updates: any`   | — (아무것도 좁히지 않음)                           |
+| `notion/events.ts:49` · `:113` | `data: any`      | —                                                  |
 
 `notion/activities.ts:125` `createActivityPage`는 **제대로 된 시그니처를 갖는다.**
 같은 계층에서 한쪽은 타입이 있고 한쪽은 없다.
@@ -221,13 +223,13 @@ notion/applications.ts:120 removeApplicationInNotion      = notionArchive
 /signup/edit  /wait
 ```
 
-| 위치 | 참조 | 도달 | 실제 결과 |
-|---|---|---|---|
-| `auth.ts:23` | `` return `/login?error=InvalidDomain` `` | ✅ **살아 있다** | **`/`로 303 반송, `?error=` 소실** |
-| `auth.ts:38` | `pages: { error: "/login" }` | ✅ | 〃 |
-| `auth.ts:37` | `pages: { signIn: "/login" }` | ❌ | `+page.svelte:470`의 `signIn('google')`이 프로바이더로 직행 |
-| `auth-guards.ts:22-24` | `redirect(302, "/login?redirect=…")` | ❌ | `hooks.server.ts:43`이 먼저 `/`로 보냄 |
-| `hooks.server.ts:48` | `path === "/signout"` (허용 목록) | ❌ | **`/signout` 라우트도 없다.** 로그아웃은 `signOut()` → `/auth/signout` |
+| 위치                   | 참조                                      | 도달             | 실제 결과                                                              |
+| ---------------------- | ----------------------------------------- | ---------------- | ---------------------------------------------------------------------- |
+| `auth.ts:23`           | `` return `/login?error=InvalidDomain` `` | ✅ **살아 있다** | **`/`로 303 반송, `?error=` 소실**                                     |
+| `auth.ts:38`           | `pages: { error: "/login" }`              | ✅               | 〃                                                                     |
+| `auth.ts:37`           | `pages: { signIn: "/login" }`             | ❌               | `+page.svelte:470`의 `signIn('google')`이 프로바이더로 직행            |
+| `auth-guards.ts:22-24` | `redirect(302, "/login?redirect=…")`      | ❌               | `hooks.server.ts:43`이 먼저 `/`로 보냄                                 |
+| `hooks.server.ts:48`   | `path === "/signout"` (허용 목록)         | ❌               | **`/signout` 라우트도 없다.** 로그아웃은 `signOut()` → `/auth/signout` |
 
 **404가 나지는 않는다.** SvelteKit은 라우트 해석보다 `handle` 훅을 먼저 돌고
 (`runtime/server/respond.js:457`), 도메인 거부된 사용자는 세션이 없으므로
@@ -254,20 +256,20 @@ notion/applications.ts:120 removeApplicationInNotion      = notionArchive
 
 `await import(...)`가 서버·라우트 전반에 16곳 있다. 정당한 것은 **하나뿐**이다.
 
-| 파일 | 대상 | 횟수 | 판정 |
-|---|---|---|---|
-| `components/poster/SeminarPosterDownloadPanel.svelte` | `html-to-image` | 1 | ✅ **정당** — 클라이언트 번들 분리 |
-| `lib/server/auth-guards.ts` | `@sveltejs/kit` | 4 | ❌ **`:1`에서 이미 정적** |
-| 〃 | `./cache` | 2 | ❌ |
-| `lib/server/admin.ts` | `./notion` | 1 | ❌ **`:6`에서 이미 정적** |
-| `lib/server/seminars.ts` | `./notion` | 1 | ❌ **같은 파일에서 정적으로도** |
-| `lib/server/notion/seminars.ts` | `../../utils` | 1 | ❌ |
-| `routes/events/[id]/[type]/+page.server.ts` | `@sveltejs/kit` | 1 | ❌ **`:1`에서 이미 정적** |
-| 〃 | `$lib/server/mail` | 1 | ❌ |
-| `routes/signup/+page.server.ts` | `$lib/server/admin` | 1 | ❌ **`:4`에서 이미 정적** |
-| 〃 | `$lib/server/mail` | 1 | ❌ |
-| `routes/+page.server.ts` | `$lib/server/admin` | 1 | ❌ |
-| `routes/seminar/apply/+page.server.ts` | `$lib/server/mail` | 1 | ❌ |
+| 파일                                                  | 대상                | 횟수 | 판정                               |
+| ----------------------------------------------------- | ------------------- | ---- | ---------------------------------- |
+| `components/poster/SeminarPosterDownloadPanel.svelte` | `html-to-image`     | 1    | ✅ **정당** — 클라이언트 번들 분리 |
+| `lib/server/auth-guards.ts`                           | `@sveltejs/kit`     | 4    | ❌ **`:1`에서 이미 정적**          |
+| 〃                                                    | `./cache`           | 2    | ❌                                 |
+| `lib/server/admin.ts`                                 | `./notion`          | 1    | ❌ **`:6`에서 이미 정적**          |
+| `lib/server/seminars.ts`                              | `./notion`          | 1    | ❌ **같은 파일에서 정적으로도**    |
+| `lib/server/notion/seminars.ts`                       | `../../utils`       | 1    | ❌                                 |
+| `routes/events/[id]/[type]/+page.server.ts`           | `@sveltejs/kit`     | 1    | ❌ **`:1`에서 이미 정적**          |
+| 〃                                                    | `$lib/server/mail`  | 1    | ❌                                 |
+| `routes/signup/+page.server.ts`                       | `$lib/server/admin` | 1    | ❌ **`:4`에서 이미 정적**          |
+| 〃                                                    | `$lib/server/mail`  | 1    | ❌                                 |
+| `routes/+page.server.ts`                              | `$lib/server/admin` | 1    | ❌                                 |
+| `routes/seminar/apply/+page.server.ts`                | `$lib/server/mail`  | 1    | ❌                                 |
 
 **5개 파일이 같은 모듈을 정적·동적으로 둘 다 가져온다** —
 `auth-guards.ts`(`@sveltejs/kit`), `admin.ts`(`./notion`), `seminars.ts`(`./notion`),
@@ -296,37 +298,37 @@ notion/applications.ts:120 removeApplicationInNotion      = notionArchive
 
 전수 조사(2026-08-28). `catch` 블록 51개를 본문으로 분류했다.
 
-| 규약 | 수 | 뜻 |
-|---|---|---|
-| 재전파 (`throw`) | 16 | 호출부가 판단 |
-| 폴백값 반환 (`return null` / `[]` / `false`) | 14 | 장애를 "없음"으로 |
-| 로그만 (`console.*` 후 암묵 `undefined`) | 17 | 호출부가 알 수 없음 |
-| 완전 침묵 (주석뿐) | 4 | 흔적 없음 |
+| 규약                                         | 수  | 뜻                  |
+| -------------------------------------------- | --- | ------------------- |
+| 재전파 (`throw`)                             | 16  | 호출부가 판단       |
+| 폴백값 반환 (`return null` / `[]` / `false`) | 14  | 장애를 "없음"으로   |
+| 로그만 (`console.*` 후 암묵 `undefined`)     | 17  | 호출부가 알 수 없음 |
+| 완전 침묵 (주석뿐)                           | 4   | 흔적 없음           |
 
 **분포 자체는 문제가 아니다.** 문제는 **같은 계층 안에서 갈린다**는 것이다.
 
 ### 규약이 있는 계층
 
-| 파일 | 규약 | 일관성 |
-|---|---|---|
-| `notion/client.ts` | 재전파 6/6 | ✅ **완전히 일관** |
-| `mail/templates.ts` | 로그만 5/5 | ✅ 일관 (규약 자체는 MT-1이 지적) |
-| `notion/{events,members,utils}.ts` | 폴백 1/1씩 | ✅ |
+| 파일                               | 규약       | 일관성                            |
+| ---------------------------------- | ---------- | --------------------------------- |
+| `notion/client.ts`                 | 재전파 6/6 | ✅ **완전히 일관**                |
+| `mail/templates.ts`                | 로그만 5/5 | ✅ 일관 (규약 자체는 MT-1이 지적) |
+| `notion/{events,members,utils}.ts` | 폴백 1/1씩 | ✅                                |
 
 Notion 접근 계층은 **재전파로 통일돼 있다.** 설계가 있었다는 뜻이다.
 
 ### 규약이 없는 계층 — 파일 안에서 갈리는 8곳
 
-| 파일 | 침묵 | 로그만 | 폴백 | 재전파 | 규약수 |
-|---|---|---|---|---|---|
-| `lib/server/admin.ts` | 0 | 1 | 2 | 2 | **3** |
-| `lib/server/auth-guards.ts` | 0 | 0 | 1 | 2 | 2 |
-| `lib/server/cache.ts` | **3** | 1 | 0 | 0 | 2 |
-| `lib/server/events.ts` | 0 | 1 | 2 | 0 | 2 |
-| `lib/server/seminars.ts` | 0 | 0 | 3 | 4 | 2 |
-| `routes/+page.server.ts` | 0 | 1 | 2 | 0 | 2 |
-| `routes/admin/events/new/+page.server.ts` | 0 | 1 | 0 | 1 | 2 |
-| `routes/seminar/edit/[id]/+page.server.ts` | 0 | 1 | 0 | 1 | 2 |
+| 파일                                       | 침묵  | 로그만 | 폴백 | 재전파 | 규약수 |
+| ------------------------------------------ | ----- | ------ | ---- | ------ | ------ |
+| `lib/server/admin.ts`                      | 0     | 1      | 2    | 2      | **3**  |
+| `lib/server/auth-guards.ts`                | 0     | 0      | 1    | 2      | 2      |
+| `lib/server/cache.ts`                      | **3** | 1      | 0    | 0      | 2      |
+| `lib/server/events.ts`                     | 0     | 1      | 2    | 0      | 2      |
+| `lib/server/seminars.ts`                   | 0     | 0      | 3    | 4      | 2      |
+| `routes/+page.server.ts`                   | 0     | 1      | 2    | 0      | 2      |
+| `routes/admin/events/new/+page.server.ts`  | 0     | 1      | 0    | 1      | 2      |
+| `routes/seminar/edit/[id]/+page.server.ts` | 0     | 1      | 0    | 1      | 2      |
 
 **도메인 서비스 계층 전체가 규약 없이 쓰였다.**
 `admin.ts` 하나가 세 규약을 쓰고(AD-5), `seminars.ts`는 폴백 3 + 재전파 4다(A-17에서 확인).
@@ -339,13 +341,13 @@ Notion 접근 계층은 **재전파로 통일돼 있다.** 설계가 있었다�
 
 이미 실제 피해로 이어졌다:
 
-| 결함 | 규약 부재의 결과 |
-|---|---|
-| `admin.md` AD-5 ③ | `getApplications() → []` 가 `signup:47` 가드를 무력화 → 중복 신청 → AP-10 영구 잠김 |
-| `events.md` SE-12 | `getEvents() → []` 로 관리자가 "이벤트 없음"을 본다 |
-| `templates.md` MT-1 | 승인 메일 실패가 호출부에 전달되지 않아 채팅방 링크가 영영 사라진다 |
-| `cache.md` CA-5 | 무효화 **실패**가 무효화 **부재**와 구별되지 않는다 |
-| `cache.md` CA-13 | fetcher가 삼킨 `[]`가 **캐시되어 Redis로 확산**된다 — 삼킴이 전파된다 |
+| 결함                | 규약 부재의 결과                                                                    |
+| ------------------- | ----------------------------------------------------------------------------------- |
+| `admin.md` AD-5 ③   | `getApplications() → []` 가 `signup:47` 가드를 무력화 → 중복 신청 → AP-10 영구 잠김 |
+| `events.md` SE-12   | `getEvents() → []` 로 관리자가 "이벤트 없음"을 본다                                 |
+| `templates.md` MT-1 | 승인 메일 실패가 호출부에 전달되지 않아 채팅방 링크가 영영 사라진다                 |
+| `cache.md` CA-5     | 무효화 **실패**가 무효화 **부재**와 구별되지 않는다                                 |
+| `cache.md` CA-13    | fetcher가 삼킨 `[]`가 **캐시되어 Redis로 확산**된다 — 삼킴이 전파된다               |
 
 ### 처방
 

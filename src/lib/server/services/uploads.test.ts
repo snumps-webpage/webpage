@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("$lib/server/data/storage", () => import("$lib/server/data/storage-memory"));
+vi.mock(
+  "$lib/server/data/storage",
+  () => import("$lib/server/data/storage-memory"),
+);
 
 import { __exists, __reset, __stage } from "$lib/server/data/storage-memory";
 import { AppError } from "$lib/server/core/errors";
@@ -16,7 +19,11 @@ beforeEach(() => {
 
 describe("presign validation (§8-2)", () => {
   it("refuses unknown purposes, wrong types, and out-of-range sizes", async () => {
-    const base = { filename: "a.pdf", contentType: "application/pdf", size: 1000 };
+    const base = {
+      filename: "a.pdf",
+      contentType: "application/pdf",
+      size: 1000,
+    };
     for (const bad of [
       { ...base, purpose: "nope" },
       { purpose: "seminar-material", ...base, contentType: "image/png" },
@@ -31,7 +38,10 @@ describe("presign validation (§8-2)", () => {
 
   it("issues a pending-prefixed staging path and a URL", async () => {
     const { uploadUrl, s3Key } = await createPresignedUpload({
-      purpose: "seminar-photo", filename: "발표 사진.PNG", contentType: "image/png", size: 500,
+      purpose: "seminar-photo",
+      filename: "발표 사진.PNG",
+      contentType: "image/png",
+      size: 500,
     });
     expect(s3Key).toMatch(/^pending\/seminar-photo\/.+\.png$/);
     expect(uploadUrl).toContain("memory.test/upload/");
@@ -41,11 +51,24 @@ describe("presign validation (§8-2)", () => {
 describe("promotion — the real enforcement point (review §8-2)", () => {
   it("promotes a valid staged object to a final hashed key, mirrors it, and clears staging", async () => {
     const { s3Key } = await createPresignedUpload({
-      purpose: "seminar-photo", filename: "p.png", contentType: "image/png", size: 500,
+      purpose: "seminar-photo",
+      filename: "p.png",
+      contentType: "image/png",
+      size: 500,
     });
-    __stage(s3Key, 500, "image/png", undefined, new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    __stage(
+      s3Key,
+      500,
+      "image/png",
+      undefined,
+      new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    );
 
-    const finalKey = await promotePendingUpload(s3Key, "seminar-photo", "rec-1");
+    const finalKey = await promotePendingUpload(
+      s3Key,
+      "seminar-photo",
+      "rec-1",
+    );
     expect(finalKey).toMatch(/^seminars\/rec-1\/[a-z0-9]{8}-.+\.png$/);
     expect(__exists("assets", finalKey)).toBe(true);
     expect(__exists("staging", s3Key)).toBe(false); // pending removed
@@ -56,53 +79,94 @@ describe("promotion — the real enforcement point (review §8-2)", () => {
   it("refuses keys outside the purpose prefix", async () => {
     await expect(
       promotePendingUpload("tables/members.json.gz", "seminar-photo", "rec"),
-    ).rejects.toSatisfy((e) => e instanceof AppError && e.code === "VALIDATION_FAILED");
+    ).rejects.toSatisfy(
+      (e) => e instanceof AppError && e.code === "VALIDATION_FAILED",
+    );
   });
 
   it("reports NOT_FOUND for a never-uploaded or cleanup-reaped key", async () => {
     const { s3Key } = await createPresignedUpload({
-      purpose: "study-photo", filename: "p.png", contentType: "image/png", size: 500,
+      purpose: "study-photo",
+      filename: "p.png",
+      contentType: "image/png",
+      size: 500,
     });
     // no __stage — the object never landed (or was reaped)
-    await expect(promotePendingUpload(s3Key, "study-photo", "rec")).rejects.toSatisfy(
-      (e) => e instanceof AppError && e.code === "NOT_FOUND",
-    );
+    await expect(
+      promotePendingUpload(s3Key, "study-photo", "rec"),
+    ).rejects.toSatisfy((e) => e instanceof AppError && e.code === "NOT_FOUND");
   });
 
   it("refuses oversize and content-type-spoofed uploads at promotion time", async () => {
     const { s3Key } = await createPresignedUpload({
-      purpose: "gallery-photo", filename: "p.png", contentType: "image/png", size: 500,
+      purpose: "gallery-photo",
+      filename: "p.png",
+      contentType: "image/png",
+      size: 500,
     });
-    __stage(s3Key, 11_000_000, "image/png", undefined, new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])); // lied about the size
-    await expect(promotePendingUpload(s3Key, "gallery-photo", "rec")).rejects.toSatisfy(
+    __stage(
+      s3Key,
+      11_000_000,
+      "image/png",
+      undefined,
+      new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    ); // lied about the size
+    await expect(
+      promotePendingUpload(s3Key, "gallery-photo", "rec"),
+    ).rejects.toSatisfy(
       (e) => e instanceof AppError && e.code === "VALIDATION_FAILED",
     );
 
     const second = await createPresignedUpload({
-      purpose: "gallery-photo", filename: "q.png", contentType: "image/png", size: 500,
+      purpose: "gallery-photo",
+      filename: "q.png",
+      contentType: "image/png",
+      size: 500,
     });
     __stage(second.s3Key, 500, "application/x-executable"); // spoofed type
     await expect(
       promotePendingUpload(second.s3Key, "gallery-photo", "rec"),
-    ).rejects.toSatisfy((e) => e instanceof AppError && e.code === "VALIDATION_FAILED");
+    ).rejects.toSatisfy(
+      (e) => e instanceof AppError && e.code === "VALIDATION_FAILED",
+    );
   });
 
   it("rejects a fake image: correct Content-Type but non-image bytes (magic-byte check)", async () => {
     const { s3Key } = await createPresignedUpload({
-      purpose: "seminar-poster", filename: "evil.png", contentType: "image/png", size: 500,
+      purpose: "seminar-poster",
+      filename: "evil.png",
+      contentType: "image/png",
+      size: 500,
     });
     // 확장자·Content-Type은 png인데 실제 바이트는 HTML ("<!DOCTYPE…")
-    __stage(s3Key, 500, "image/png", undefined, new Uint8Array([0x3c, 0x21, 0x44, 0x4f, 0x43]));
-    await expect(promotePendingUpload(s3Key, "seminar-poster", "rec")).rejects.toSatisfy(
+    __stage(
+      s3Key,
+      500,
+      "image/png",
+      undefined,
+      new Uint8Array([0x3c, 0x21, 0x44, 0x4f, 0x43]),
+    );
+    await expect(
+      promotePendingUpload(s3Key, "seminar-poster", "rec"),
+    ).rejects.toSatisfy(
       (e) => e instanceof AppError && e.code === "VALIDATION_FAILED",
     );
   });
 
   it("accepts a real JPEG by signature", async () => {
     const { s3Key } = await createPresignedUpload({
-      purpose: "seminar-poster", filename: "real.jpg", contentType: "image/jpeg", size: 500,
+      purpose: "seminar-poster",
+      filename: "real.jpg",
+      contentType: "image/jpeg",
+      size: 500,
     });
-    __stage(s3Key, 500, "image/jpeg", undefined, new Uint8Array([0xff, 0xd8, 0xff, 0xe0]));
+    __stage(
+      s3Key,
+      500,
+      "image/jpeg",
+      undefined,
+      new Uint8Array([0xff, 0xd8, 0xff, 0xe0]),
+    );
     const finalKey = await promotePendingUpload(s3Key, "seminar-poster", "rec");
     expect(__exists("assets", finalKey)).toBe(true);
   });
@@ -110,7 +174,10 @@ describe("promotion — the real enforcement point (review §8-2)", () => {
 
 describe("slugifyFilename", () => {
   it("keeps hangul, lowercases, and defaults sensibly", () => {
-    expect(slugifyFilename("발표 자료 v2.PDF")).toEqual({ slug: "발표-자료-v2", ext: "pdf" });
+    expect(slugifyFilename("발표 자료 v2.PDF")).toEqual({
+      slug: "발표-자료-v2",
+      ext: "pdf",
+    });
     expect(slugifyFilename("...")).toEqual({ slug: "file", ext: "bin" });
   });
 });

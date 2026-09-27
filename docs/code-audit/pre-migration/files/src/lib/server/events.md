@@ -14,28 +14,28 @@
 
 ## 요약
 
-| # | 지적 | 분류 | 심각도 |
-|---|---|---|---|
-| **SE-16** | **거부된 출석이 회원을 영구 잠그고, 그 사실을 "이미 출석하셨습니다"로 보고한다** | 버그 | 🔴 |
-| **SE-17** | **과거 날짜 이벤트가 `draft`→`active`→`expired`를 거치며 공개 출석 창을 연다** | 버그 | 🔴 |
-| **SE-15** | **`syncEventStatuses`가 캐시를 지나지 않는 쓰기 경로다 — `all_events`도 관리되지 않는다** | 버그 | 🔴 |
-| **SE-3** | **`attendance_queue` 캐시가 어떤 쓰기에도 무효화되지 않아 중복 방지 가드가 뚫린다** | 버그 | 🔴 |
-| **SE-2** | **`publishEvent`는 "atomically"라고 문서화됐지만 실패 시 Notion 페이지를 고아로 남긴다** | 버그 | 🔴 |
-| **SE-1** | **`syncEventStatuses`가 형식이 다른 두 값을 문자열 비교한다 + 주석이 거짓** | 버그 | 🔴 |
-| SE-6 | 이벤트 `date`의 형식 소유자가 없다 — 생산자 3곳이 형식 2가지를 쓴다 | 설계 | 🟠 |
-| SE-7 | `publishEvent`가 있는데 같은 두 단계가 다른 두 곳에 재구현돼 있다 | 중복 | 🟠 |
-| SE-8 | 서비스 계층이 반만 있다 — 라우트가 6곳에서 Notion을 직접 부른다 | 계층 | 🟠 |
-| SE-9 | `deleteEvent`가 가드 없는 통과 함수라 공개 라우트의 GET이 이벤트를 지운다 | 안전성 | 🟠 |
-| SE-4 | `recordAttendance`가 쓰지 않은 값을 쓴 것처럼 반환한다 | 버그 | 🟠 |
-| SE-5 | KST 벽시계 값에 `Z`가 붙은 채 세 경로로 영속화된다 (9시간 오차) | 버그 | 🟠 |
-| SE-18 | `:179-183`이 오류 원인을 버리고 두 실패를 같은 문자열로 만든다 | 오류 처리 | 🟠 |
-| SE-13 | `attendCode`가 44비트다 — `.slice(0,12)`가 하이픈을 먹는다 | 설계 | 🟠 |
-| SE-11 | `getEvent`/`getEventByPathId`가 `skipCache`를 전달하지 않는다 | 일관성 | 🟡 |
-| SE-12 | 오류를 `[]`로 삼켜 "장애"와 "없음"을 구분할 수 없다 | 오류 처리 | 🟡 |
-| SE-20 | `syncEventStatuses`가 상한 없는 직렬 팬아웃이다 | 확장성 | 🟡 |
-| SE-14 | `id`와 `notionId`가 항상 같은데 필드가 둘이다 | 설계 | 🟡 |
-| SE-19 | `:219` 로그가 "removed"라고 하는데 코드는 `expired`로 바꾼다 | 명료성 | 🟡 |
-| SE-10 | TTL 매직 넘버 2개 | 하드코딩 | 🟡 |
+| #         | 지적                                                                                      | 분류      | 심각도 |
+| --------- | ----------------------------------------------------------------------------------------- | --------- | ------ |
+| **SE-16** | **거부된 출석이 회원을 영구 잠그고, 그 사실을 "이미 출석하셨습니다"로 보고한다**          | 버그      | 🔴     |
+| **SE-17** | **과거 날짜 이벤트가 `draft`→`active`→`expired`를 거치며 공개 출석 창을 연다**            | 버그      | 🔴     |
+| **SE-15** | **`syncEventStatuses`가 캐시를 지나지 않는 쓰기 경로다 — `all_events`도 관리되지 않는다** | 버그      | 🔴     |
+| **SE-3**  | **`attendance_queue` 캐시가 어떤 쓰기에도 무효화되지 않아 중복 방지 가드가 뚫린다**       | 버그      | 🔴     |
+| **SE-2**  | **`publishEvent`는 "atomically"라고 문서화됐지만 실패 시 Notion 페이지를 고아로 남긴다**  | 버그      | 🔴     |
+| **SE-1**  | **`syncEventStatuses`가 형식이 다른 두 값을 문자열 비교한다 + 주석이 거짓**               | 버그      | 🔴     |
+| SE-6      | 이벤트 `date`의 형식 소유자가 없다 — 생산자 3곳이 형식 2가지를 쓴다                       | 설계      | 🟠     |
+| SE-7      | `publishEvent`가 있는데 같은 두 단계가 다른 두 곳에 재구현돼 있다                         | 중복      | 🟠     |
+| SE-8      | 서비스 계층이 반만 있다 — 라우트가 6곳에서 Notion을 직접 부른다                           | 계층      | 🟠     |
+| SE-9      | `deleteEvent`가 가드 없는 통과 함수라 공개 라우트의 GET이 이벤트를 지운다                 | 안전성    | 🟠     |
+| SE-4      | `recordAttendance`가 쓰지 않은 값을 쓴 것처럼 반환한다                                    | 버그      | 🟠     |
+| SE-5      | KST 벽시계 값에 `Z`가 붙은 채 세 경로로 영속화된다 (9시간 오차)                           | 버그      | 🟠     |
+| SE-18     | `:179-183`이 오류 원인을 버리고 두 실패를 같은 문자열로 만든다                            | 오류 처리 | 🟠     |
+| SE-13     | `attendCode`가 44비트다 — `.slice(0,12)`가 하이픈을 먹는다                                | 설계      | 🟠     |
+| SE-11     | `getEvent`/`getEventByPathId`가 `skipCache`를 전달하지 않는다                             | 일관성    | 🟡     |
+| SE-12     | 오류를 `[]`로 삼켜 "장애"와 "없음"을 구분할 수 없다                                       | 오류 처리 | 🟡     |
+| SE-20     | `syncEventStatuses`가 상한 없는 직렬 팬아웃이다                                           | 확장성    | 🟡     |
+| SE-14     | `id`와 `notionId`가 항상 같은데 필드가 둘이다                                             | 설계      | 🟡     |
+| SE-19     | `:219` 로그가 "removed"라고 하는데 코드는 `expired`로 바꾼다                              | 명료성    | 🟡     |
+| SE-10     | TTL 매직 넘버 2개                                                                         | 하드코딩  | 🟡     |
 
 **환경 사실**(감면 근거 아님, 검증 방법에만 영향):
 `.env`에 `NOTION_DB_EVENTS` · `NOTION_DB_ATTENDANCE_QUEUE` · `CRON_SECRET` · `REDIS_URL`이 없다.
@@ -72,12 +72,12 @@ await updateAttendanceStatus(data.get("id") as string, "rejected");
 
 연쇄:
 
-| 단계 | 결과 |
-|---|---|
-| 회원이 출석 → 관리자가 거부 | 행이 `rejected`로 남음 |
-| 회원이 다시 출석 시도 | `:141`이 그 행을 찾음 → `isNew: false` |
-| `events/[id]/[type]/+page.server.ts:78` | `fail(409, "이미 출석하셨습니다.")` |
-| 관리자 대시보드 | `admin:57` `queue.filter((r) => r.status === "pending")` → **거부된 행은 안 보임** |
+| 단계                                    | 결과                                                                               |
+| --------------------------------------- | ---------------------------------------------------------------------------------- |
+| 회원이 출석 → 관리자가 거부             | 행이 `rejected`로 남음                                                             |
+| 회원이 다시 출석 시도                   | `:141`이 그 행을 찾음 → `isNew: false`                                             |
+| `events/[id]/[type]/+page.server.ts:78` | `fail(409, "이미 출석하셨습니다.")`                                                |
+| 관리자 대시보드                         | `admin:57` `queue.filter((r) => r.status === "pending")` → **거부된 행은 안 보임** |
 
 **거부가 되돌릴 수 없는 함정이 되고, 스스로를 "중복"이라고 보고한다.**
 회원은 출석했다는 말을 듣고, 관리자는 그런 시도가 있었다는 것조차 못 본다.
@@ -106,10 +106,10 @@ if (event.status === "active" && todayKST > eventDay) {   // "draft" !== "active
 `+page.svelte:87`이 그 활동의 원래 날짜를 hidden으로 실어 보낸다.
 `createEvent:58`은 무조건 `status: "draft"`를 준다.
 
-| cron 회차 | 조건 | 결과 |
-|---|---|---|
-| 1회차 | `todayKST >= 과거날짜` → true | **`active`** |
-| 2회차 | `todayKST > 과거날짜` → true | `expired` |
+| cron 회차 | 조건                          | 결과         |
+| --------- | ----------------------------- | ------------ |
+| 1회차     | `todayKST >= 과거날짜` → true | **`active`** |
+| 2회차     | `todayKST > 과거날짜` → true  | `expired`    |
 
 **두 회차 사이에 `/events/{pathId}/{attendCode}`가 살아 있다.**
 `events/[id]/[type]/+page.server.ts:34`가 `status === "active"`만 보므로
@@ -168,12 +168,12 @@ $ grep -rn "attendance_queue" --include=*.ts src/
 src/lib/server/events.ts:115        ← 정의부. 이게 전부다
 ```
 
-| 쓰기 함수 | 줄 | 캐시 무효화 |
-|---|---|---|
-| `recordAttendance` | `:136` | ❌ |
-| `updateAttendanceRecord` | `:186` | ❌ |
-| `updateAttendanceStatus` | `:194` | ❌ |
-| `removeAttendanceRecord` | `:201` | ❌ |
+| 쓰기 함수                | 줄     | 캐시 무효화 |
+| ------------------------ | ------ | ----------- |
+| `recordAttendance`       | `:136` | ❌          |
+| `updateAttendanceRecord` | `:186` | ❌          |
+| `updateAttendanceStatus` | `:194` | ❌          |
+| `removeAttendanceRecord` | `:201` | ❌          |
 
 호출부도 마찬가지다 — `admin:191`은 `user_activities_${userEmail}`만 지우고,
 `:198`·`:221`은 무효화 옵션이 없다.
@@ -208,12 +208,12 @@ const event = await createEvent({...});               // 2단계 — 실패하�
 (`auth-guards.ts:175-189`) → `fail(500)`. `admin/+page.server.ts:246`
 `createSeminarInNotion`과 `:267` `updateSeminarRequestStatus`는 **도달하지 않는다.**
 
-| | 상태 |
-|---|---|
-| Notion Activity 페이지 | **생성됨. 고아.** |
-| Event 레코드 | 없음 |
-| 세미나 신청 | **pending 그대로** |
-| 재승인 시 | `:239`가 `createActivityPage`를 무조건 다시 부름 → **고아 하나 더** |
+|                        | 상태                                                                |
+| ---------------------- | ------------------------------------------------------------------- |
+| Notion Activity 페이지 | **생성됨. 고아.**                                                   |
+| Event 레코드           | 없음                                                                |
+| 세미나 신청            | **pending 그대로**                                                  |
+| 재승인 시              | `:239`가 `createActivityPage`를 무조건 다시 부름 → **고아 하나 더** |
 
 `createEventInNotion`이 `null`을 주는 조건은 `notion/events.ts:51` `if (!dbId) return null`뿐이다
 (`notionCreate`는 `client.ts:142-151`에서 `!ok`에 던진다). 즉 지금 환경에서는 **매번** 이 경로다.
@@ -243,11 +243,11 @@ if (event.status === "active" && todayKST > eventDay) { ... }
 
 `:228`의 주석이 **거짓**이다. 생산자 세 곳 중 하나만 `YYYY-MM-DD`다:
 
-| 생산자 | 형식 |
-|---|---|
-| `admin/events/new/+page.svelte:26` `<input type="datetime-local">` → `+page.server.ts:45` (`// YYYY-MM-DDTHH:mm` 주석까지 붙어 있다) | 날짜+시각 |
-| `admin/events/connect/+page.svelte:87` hidden, Notion 원본 | 날짜 또는 날짜+시각 |
-| `admin/+page.server.ts:237` `getKSTDate(undefined, true)` → `publishEvent` | `YYYY-MM-DD` |
+| 생산자                                                                                                                               | 형식                |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ------------------- |
+| `admin/events/new/+page.svelte:26` `<input type="datetime-local">` → `+page.server.ts:45` (`// YYYY-MM-DDTHH:mm` 주석까지 붙어 있다) | 날짜+시각           |
+| `admin/events/connect/+page.svelte:87` hidden, Notion 원본                                                                           | 날짜 또는 날짜+시각 |
+| `admin/+page.server.ts:237` `getKSTDate(undefined, true)` → `publishEvent`                                                           | `YYYY-MM-DD`        |
 
 **첫 번째 경우의 비교** (실행 확인):
 
@@ -262,11 +262,11 @@ getKSTDate(undefined, true)                        →  "2026-08-25"
 길이가 10자를 넘고 11번째 문자가 `T`인데, `"T"`(0x54)는 모든 숫자(0x30–0x39)보다 크다.
 따라서 `todayKST`가 항상 사전순으로 작다.
 
-| 시점 | `draft → active` | 출석 체크인 |
-|---|---|---|
-| 행사 당일 | 일어나지 않음 | **403** (`events/[id]/[type]/+page.server.ts:34`) |
-| 다음 날 | true → 활성화 *(추정. Notion이 날짜 부분을 보존한다는 가정)* | 가능 |
-| 그 다음 cron | `>` 도 true → `expired` | 403 |
+| 시점         | `draft → active`                                             | 출석 체크인                                       |
+| ------------ | ------------------------------------------------------------ | ------------------------------------------------- |
+| 행사 당일    | 일어나지 않음                                                | **403** (`events/[id]/[type]/+page.server.ts:34`) |
+| 다음 날      | true → 활성화 _(추정. Notion이 날짜 부분을 보존한다는 가정)_ | 가능                                              |
+| 그 다음 cron | `>` 도 true → `expired`                                      | 403                                               |
 
 **행사 당일에는 절대 체크인이 안 되고, 하루 늦게 하루만 열린다.**
 
@@ -296,10 +296,10 @@ getKSTDate(undefined, true)                        →  "2026-08-25"
 
 `publishEvent`(`:74-95`)의 전부는 `createActivityPage` → `createEvent`다.
 
-| 위치 | 형태 |
-|---|---|
-| `events.ts:80-92` `publishEvent` | 원본 |
-| `admin/events/new/+page.server.ts:53-66` | **동일한 두 호출을 인라인 재구현** (`:5`에서 `createActivityPage` 직접 import) |
+| 위치                                            | 형태                                                                           |
+| ----------------------------------------------- | ------------------------------------------------------------------------------ |
+| `events.ts:80-92` `publishEvent`                | 원본                                                                           |
+| `admin/events/new/+page.server.ts:53-66`        | **동일한 두 호출을 인라인 재구현** (`:5`에서 `createActivityPage` 직접 import) |
 | `admin/+page.server.ts:130-135` `activateEvent` | `createActivityPage` → `updateEventStatus`. 클론은 아니지만 **같은 고아 위험** |
 
 - SE-2의 고아 문제가 **세 곳에** 있다. 한 곳을 고쳐도 나머지가 남는다
@@ -312,14 +312,14 @@ getKSTDate(undefined, true)                        →  "2026-08-25"
 이 파일의 목적은 라우트를 Notion에서 떼어놓는 것이고, 그 목적 자체는 옳다.
 문제는 **경계가 뚫려 있다**는 것이다:
 
-| 라우트 | 직접 부르는 Notion 함수 |
-|---|---|
-| `events/[id]/[type]/+page.server.ts:10,24` | `checkPageExists` |
-| `admin/events/new/+page.server.ts:5,54` | `createActivityPage` |
-| `admin/events/new/+page.server.ts:6,24` | `getDatabaseSchema` |
+| 라우트                                      | 직접 부르는 Notion 함수                      |
+| ------------------------------------------- | -------------------------------------------- |
+| `events/[id]/[type]/+page.server.ts:10,24`  | `checkPageExists`                            |
+| `admin/events/new/+page.server.ts:5,54`     | `createActivityPage`                         |
+| `admin/events/new/+page.server.ts:6,24`     | `getDatabaseSchema`                          |
 | `admin/events/connect/+page.server.ts:2,14` | `getAllActivities` ← SE-1 표 2행의 날짜 출처 |
-| `admin/+page.server.ts:6,130` | `createActivityPage` |
-| `admin/+page.server.ts:7,186` | `addAttendeeToActivity` |
+| `admin/+page.server.ts:6,130`               | `createActivityPage`                         |
+| `admin/+page.server.ts:7,186`               | `addAttendeeToActivity`                      |
 
 반대편에는 이름만 바꾼 통과 함수 5개(`deleteEvent`, `updateEventStatus`,
 `updateAttendanceRecord`, `updateAttendanceStatus`, `removeAttendanceRecord`)가 있다.
@@ -334,12 +334,14 @@ getKSTDate(undefined, true)                        →  "2026-08-25"
 ## SE-9 🟠 `deleteEvent`에 가드가 없다
 
 ```ts
-export async function deleteEvent(id: string) { await deleteEventInNotion(id); }
+export async function deleteEvent(id: string) {
+  await deleteEventInNotion(id);
+}
 ```
 
-| 호출부 | 게이트 |
-|---|---|
-| `admin/+page.server.ts:162` | 관리자 ✅ |
+| 호출부                                  | 게이트                                                       |
+| --------------------------------------- | ------------------------------------------------------------ |
+| `admin/+page.server.ts:162`             | 관리자 ✅                                                    |
 | `events/[id]/[type]/+page.server.ts:29` | **`ensureSession`뿐 — 로그인한 회원 누구나, `load` 안(GET)** |
 
 `deleteEventInNotion`은 `notionArchive`의 별칭이다(`notion/events.ts:95`) —
@@ -388,10 +390,10 @@ return `${yyyymmdd}T${getPart("hour")}:${getPart("minute")}:${getPart("second")}
 
 이 파일을 지나는 영속화 경로 **세 개**:
 
-| 경로 | 줄 |
-|---|---|
-| `createAttendanceRecordInNotion({ startTime: nowKST })` | `:157` |
-| `updateAttendanceRecordInNotion(notionId, { endTime: nowKST })` | `:162` |
+| 경로                                                                                              | 줄         |
+| ------------------------------------------------------------------------------------------------- | ---------- |
+| `createAttendanceRecordInNotion({ startTime: nowKST })`                                           | `:157`     |
+| `updateAttendanceRecordInNotion(notionId, { endTime: nowKST })`                                   | `:162`     |
 | `updateAttendanceRecord(recordId, updates)` ← `admin:211-212`가 `getKSTDate(new Date(startTime))` | `:186-191` |
 
 세 번째가 가장 나쁘다. `admin`이 `datetime-local` 문자열을 `new Date()`로 파싱하는데
@@ -505,9 +507,11 @@ Vercel cron에는 벽시계 예산이 있다. 이벤트 *k*에서 시간이 끝�
 `:218-223`:
 
 ```ts
-console.warn(`Event '${event.title}' ... removed because Notion page ... is missing or archived.`);
+console.warn(
+  `Event '${event.title}' ... removed because Notion page ... is missing or archived.`,
+);
 if (event.status !== "expired") {
-  await updateEventStatusInNotion(event.id, "expired");   // removed가 아니라 expired
+  await updateEventStatusInNotion(event.id, "expired"); // removed가 아니라 expired
 }
 ```
 
@@ -556,24 +560,24 @@ if (event.status !== "expired") {
 
 ## 개정 이력
 
-| 변경 | 내용 |
-|---|---|
-| **SE-16 신설 🔴** | 거부된 출석이 영구 잠금 + "이미 출석하셨습니다"로 오보. 관리자 화면에서도 안 보임 |
-| **SE-17 신설 🔴** | 순차 `if` 두 개 + 낡은 `event.status` → 과거 날짜 이벤트가 cron 두 회차 사이에 공개 출석 창을 연다. `connect` 라우트의 주 용도가 진입점 |
-| **SE-15 신설 🔴** | `syncEventStatuses`가 `invalidateCache`를 지나지 않는다. `events.ts`에서 무효화는 0회 |
-| **면죄부 철회** | 초판이 "`all_events`는 제대로 되어 있는 쪽"이라고 **적었다.** 그 자리가 SE-15다. 놓친 것보다 나쁘다 |
-| **SE-18 신설 🟠** | `:179-183`이 원인을 버리고 두 실패를 같은 문자열로 만든다 |
-| **SE-19 · SE-20 신설 🟡** | 로그가 동작과 모순 / 상한 없는 직렬 팬아웃 |
-| **SE-11 인과 정정** | "관리자가 방금 바꾼 경우"는 **거짓** — `admin:141`이 무효화한다. 실제 피해자는 cron |
-| **SE-13 승격 🟡→🟠 + 근거 교체** | `.slice(0,12)`가 하이픈을 먹어 **44비트**. 실행 확인. `.find()` 논거는 패딩이라 철회 |
-| SE-3 수정안 보강 | 무효화만으로 안 고쳐진다 — Redis 부재 + TOCTOU. **감면이 아니라 수정안 기각** |
-| SE-5 인용 정정 | `:174`는 쓰기가 아니다 → `:157`·`:162`. 세 번째 경로(`admin:211`, 이중 오염) 추가 |
-| SE-7 확대 | 고아 발생 지점 2곳 → **3곳** (`admin:130-135` 추가) |
-| SE-8 확대 | 계층 우회 4곳 → **6곳** (`getDatabaseSchema`, `getAllActivities` 추가) |
-| SE-1 논거 강화 | Notion 정규화 형식과 **무관**함을 증명(`"T"` > 모든 숫자). 2행은 추정으로 명시 |
-| SE-2 추적 보강 | 실패 시 세미나가 pending에 남고 재시도가 고아를 더한다는 것을 호출 경로로 확인 |
-| SE-4 · SE-9 보강 | 수정의 선행 조건(`EndTime` 속성 부재) / X-4 연결 |
-| 줄번호 정정 5건 | `admin:238`→`237`/`239`, `events/[id]/[type]:33`→`34`, `notion/events.ts:85`→`87`, SE-5 `:174`→`:162` |
-| 잘못된 상호참조 삭제 | SE-10의 `CROSS-CUTTING.md` TTL 참조 — 그런 항목 없음 |
-| SE-14 정정 | "생산 경로가 하나뿐"과 `:167-168` 인용이 모순. 둘이다 |
-| 라우트 결함 격리 | `connect` `publish` 액션에 관리자 검사 없음 — A-f로 보냄, 여기서 재도출 금지 |
+| 변경                             | 내용                                                                                                                                    |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **SE-16 신설 🔴**                | 거부된 출석이 영구 잠금 + "이미 출석하셨습니다"로 오보. 관리자 화면에서도 안 보임                                                       |
+| **SE-17 신설 🔴**                | 순차 `if` 두 개 + 낡은 `event.status` → 과거 날짜 이벤트가 cron 두 회차 사이에 공개 출석 창을 연다. `connect` 라우트의 주 용도가 진입점 |
+| **SE-15 신설 🔴**                | `syncEventStatuses`가 `invalidateCache`를 지나지 않는다. `events.ts`에서 무효화는 0회                                                   |
+| **면죄부 철회**                  | 초판이 "`all_events`는 제대로 되어 있는 쪽"이라고 **적었다.** 그 자리가 SE-15다. 놓친 것보다 나쁘다                                     |
+| **SE-18 신설 🟠**                | `:179-183`이 원인을 버리고 두 실패를 같은 문자열로 만든다                                                                               |
+| **SE-19 · SE-20 신설 🟡**        | 로그가 동작과 모순 / 상한 없는 직렬 팬아웃                                                                                              |
+| **SE-11 인과 정정**              | "관리자가 방금 바꾼 경우"는 **거짓** — `admin:141`이 무효화한다. 실제 피해자는 cron                                                     |
+| **SE-13 승격 🟡→🟠 + 근거 교체** | `.slice(0,12)`가 하이픈을 먹어 **44비트**. 실행 확인. `.find()` 논거는 패딩이라 철회                                                    |
+| SE-3 수정안 보강                 | 무효화만으로 안 고쳐진다 — Redis 부재 + TOCTOU. **감면이 아니라 수정안 기각**                                                           |
+| SE-5 인용 정정                   | `:174`는 쓰기가 아니다 → `:157`·`:162`. 세 번째 경로(`admin:211`, 이중 오염) 추가                                                       |
+| SE-7 확대                        | 고아 발생 지점 2곳 → **3곳** (`admin:130-135` 추가)                                                                                     |
+| SE-8 확대                        | 계층 우회 4곳 → **6곳** (`getDatabaseSchema`, `getAllActivities` 추가)                                                                  |
+| SE-1 논거 강화                   | Notion 정규화 형식과 **무관**함을 증명(`"T"` > 모든 숫자). 2행은 추정으로 명시                                                          |
+| SE-2 추적 보강                   | 실패 시 세미나가 pending에 남고 재시도가 고아를 더한다는 것을 호출 경로로 확인                                                          |
+| SE-4 · SE-9 보강                 | 수정의 선행 조건(`EndTime` 속성 부재) / X-4 연결                                                                                        |
+| 줄번호 정정 5건                  | `admin:238`→`237`/`239`, `events/[id]/[type]:33`→`34`, `notion/events.ts:85`→`87`, SE-5 `:174`→`:162`                                   |
+| 잘못된 상호참조 삭제             | SE-10의 `CROSS-CUTTING.md` TTL 참조 — 그런 항목 없음                                                                                    |
+| SE-14 정정                       | "생산 경로가 하나뿐"과 `:167-168` 인용이 모순. 둘이다                                                                                   |
+| 라우트 결함 격리                 | `connect` `publish` 액션에 관리자 검사 없음 — A-f로 보냄, 여기서 재도출 금지                                                            |

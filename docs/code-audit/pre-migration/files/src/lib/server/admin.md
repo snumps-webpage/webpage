@@ -16,25 +16,25 @@
 
 ## 요약
 
-| # | 지적 | 분류 | 심각도 |
-|---|---|---|---|
-| **AD-13** | **훅에 관리자 우회가 없어 비회원 관리자가 `/admin`에 도달할 수 없다** | 버그 | 🔴 |
-| **AD-1** | **래퍼와 피래퍼의 export 이름이 같아, 전역 훅이 감싸지 않은 쪽을 집었다** | 버그 | 🔴 |
-| AD-14 | `getSearchableMembers`가 매 호출마다 개인정보 DB 전수를 무캐시로 긁는다 | 성능 | 🟠 |
-| AD-15 | 회원 전원의 이메일이 모든 인증 사용자의 브라우저로 전송된다 | 노출 | 🟠 |
-| AD-2 | 관리자 게이트가 6곳에 인라인 복제돼 있고 응답이 제각각이다 | 보안 | 🟠 |
-| AD-3 | `isAdmin`이 대소문자를 구분한다 | 버그 | 🟠 |
-| AD-4 | `ADMINS_EMAILS` 파서가 두 벌이고 갈라져 있다 | 중복 | 🟠 |
-| AD-6 | `addApplication`이 `null` id를 검사 없이 반환한다 | 버그 | 🟠 |
-| AD-7 | `submittedAt`을 지어낸다 — 어디에도 저장되지 않는 값이다 | 정합성 | 🟠 |
-| AD-5 | 이 파일에 오류 처리 규약이 없다 — 같은 계층에서 **네 가지** | 오류 처리 | 🟠 |
-| AD-8 | `getSearchableMembers`가 회원을 조용히 뺀다 — 발표자로 선택 불가 | 도메인 | 🟡 |
-| AD-16 | "관리자다"의 파생이 셋이고 서로 다른 답을 낼 수 있다 | 정합성 | 🟡 |
-| AD-9 | `SearchableMember.email`이 빈 문자열일 수 있다 | 타입 | 🟡 |
-| AD-10 | `Application` 인터페이스가 `schema.ts`의 동명 타입과 경쟁한다 | 정합성 | 🟡 |
-| AD-17 | 계층 역전 — `admin.ts`가 상위 계층 `auth-guards`를 import한다 | 계층 | 🟡 |
-| AD-18 | 반환 타입 미선언 3개 + `isAdmin`이 호출마다 env를 재파싱 | 타입 | 🟡 |
-| AD-11 | `updateApplication`만 동적 import | 일관성 | 🟡 |
+| #         | 지적                                                                      | 분류      | 심각도 |
+| --------- | ------------------------------------------------------------------------- | --------- | ------ |
+| **AD-13** | **훅에 관리자 우회가 없어 비회원 관리자가 `/admin`에 도달할 수 없다**     | 버그      | 🔴     |
+| **AD-1**  | **래퍼와 피래퍼의 export 이름이 같아, 전역 훅이 감싸지 않은 쪽을 집었다** | 버그      | 🔴     |
+| AD-14     | `getSearchableMembers`가 매 호출마다 개인정보 DB 전수를 무캐시로 긁는다   | 성능      | 🟠     |
+| AD-15     | 회원 전원의 이메일이 모든 인증 사용자의 브라우저로 전송된다               | 노출      | 🟠     |
+| AD-2      | 관리자 게이트가 6곳에 인라인 복제돼 있고 응답이 제각각이다                | 보안      | 🟠     |
+| AD-3      | `isAdmin`이 대소문자를 구분한다                                           | 버그      | 🟠     |
+| AD-4      | `ADMINS_EMAILS` 파서가 두 벌이고 갈라져 있다                              | 중복      | 🟠     |
+| AD-6      | `addApplication`이 `null` id를 검사 없이 반환한다                         | 버그      | 🟠     |
+| AD-7      | `submittedAt`을 지어낸다 — 어디에도 저장되지 않는 값이다                  | 정합성    | 🟠     |
+| AD-5      | 이 파일에 오류 처리 규약이 없다 — 같은 계층에서 **네 가지**               | 오류 처리 | 🟠     |
+| AD-8      | `getSearchableMembers`가 회원을 조용히 뺀다 — 발표자로 선택 불가          | 도메인    | 🟡     |
+| AD-16     | "관리자다"의 파생이 셋이고 서로 다른 답을 낼 수 있다                      | 정합성    | 🟡     |
+| AD-9      | `SearchableMember.email`이 빈 문자열일 수 있다                            | 타입      | 🟡     |
+| AD-10     | `Application` 인터페이스가 `schema.ts`의 동명 타입과 경쟁한다             | 정합성    | 🟡     |
+| AD-17     | 계층 역전 — `admin.ts`가 상위 계층 `auth-guards`를 import한다             | 계층      | 🟡     |
+| AD-18     | 반환 타입 미선언 3개 + `isAdmin`이 호출마다 env를 재파싱                  | 타입      | 🟡     |
+| AD-11     | `updateApplication`만 동적 import                                         | 일관성    | 🟡     |
 
 **호출부 실측** (실호출 수):
 
@@ -55,8 +55,12 @@ if (!member) {
   const app = await getApplicationByEmail(session.user.email);
   event.locals.userApplication = app;
 
-  if (!app && path !== "/signup") { throw redirect(303, "/signup"); }
-  if (app && !app.accepted && path !== "/wait") { throw redirect(303, "/wait"); }
+  if (!app && path !== "/signup") {
+    throw redirect(303, "/signup");
+  }
+  if (app && !app.accepted && path !== "/wait") {
+    throw redirect(303, "/wait");
+  }
 }
 ```
 
@@ -64,11 +68,11 @@ if (!member) {
 
 반면 라우트 세 곳은 전부 관리자를 예외로 둔다:
 
-| 위치 | 우회 |
-|---|---|
-| `signup/+page.server.ts:39` | `const isUserAdmin = isAdmin(user.email)` |
+| 위치                                    | 우회                                                              |
+| --------------------------------------- | ----------------------------------------------------------------- |
+| `signup/+page.server.ts:39`             | `const isUserAdmin = isAdmin(user.email)`                         |
 | `signup/edit/+page.server.ts:22`, `:30` | `if (member && !isAdmin(...))` / `if (!pending && !isAdmin(...))` |
-| `wait/+page.server.ts:12`, `:17` | `if (isMember && !isAdmin)` / `if (!application && !isAdmin)` |
+| `wait/+page.server.ts:12`, `:17`        | `if (isMember && !isAdmin)` / `if (!application && !isAdmin)`     |
 
 **훅이 먼저 돈다.** 라우트의 우회는 훅을 통과한 뒤에야 평가된다.
 따라서 Notion 회원 DB에 없는 관리자가 갈 수 있는 곳은
@@ -116,10 +120,10 @@ export async function getApplicationByEmail(email, skipCache = false): Promise<A
 **두 모듈이 같은 이름을 export한다** — `notion/applications.ts:16`(원본)과 여기(`:80`, 래퍼).
 **개명이 감싸는 쪽이 아니라 감싸지는 쪽에 붙어 있다.**
 
-| 호출부 | import 경로 | 얻는 것 |
-|---|---|---|
-| `+page.server.ts:152` | `$lib/server/admin` | 래퍼 — 실패 시 `null` |
-| **`hooks.server.ts:11,57`** | **`$lib/server/notion`** | **원본 — 예외 전파** |
+| 호출부                      | import 경로              | 얻는 것               |
+| --------------------------- | ------------------------ | --------------------- |
+| `+page.server.ts:152`       | `$lib/server/admin`      | 래퍼 — 실패 시 `null` |
+| **`hooks.server.ts:11,57`** | **`$lib/server/notion`** | **원본 — 예외 전파**  |
 
 `$lib/server/notion`은 4줄 셰임(`notion.ts`) → `notion/index.ts:6` → `applications.ts`로
 해석된다. 훅은 감싸지 않은 것을 받는다. 확인했다.
@@ -175,8 +179,8 @@ AD-1의 실제 delta는 좁다 — **비회원**이면서, 회원 캐시(300초)
 
 ```ts
 const [members, privateInfos] = await Promise.all([
-  getAllMembers(),      // withCache("all_members", 60000)  — members.ts:104
-  getAllPrivateInfo(),  // 캐시 없음                          — members.ts:235
+  getAllMembers(), // withCache("all_members", 60000)  — members.ts:104
+  getAllPrivateInfo(), // 캐시 없음                          — members.ts:235
 ]);
 ```
 
@@ -198,7 +202,7 @@ const [members, privateInfos] = await Promise.all([
 
 ```ts
 const memberMap = new Map(members.map((m) => [m.id, m]));
-return privateInfos.filter((p) => p.memberId && memberMap.has(p.memberId))
+return privateInfos.filter((p) => p.memberId && memberMap.has(p.memberId));
 ```
 
 그 60초 창에 생성된 회원은 `privateInfos`에는 있고 `memberMap`에는 없다 →
@@ -235,14 +239,14 @@ SpeakerSelector.svelte:79          <span class="r-email">{member.email}</span>  
 
 동일 표현식 `if (!session?.user?.email || !isAdmin(session.user.email))`가 여섯 번:
 
-| 위치 | 실패 시 응답 |
-|---|---|
-| `admin/events/connect/+page.server.ts:10` | `throw error(404, "Not Found")` |
-| `admin/events/new/+layout.server.ts:7` | `throw redirect(302, "/")` |
-| `admin/events/new/+page.server.ts:15` | `throw error(404, "Not Found")` |
-| `admin/events/new/+page.server.ts:40` | `return fail(401, { error: "Unauthorized" })` |
+| 위치                                      | 실패 시 응답                                       |
+| ----------------------------------------- | -------------------------------------------------- |
+| `admin/events/connect/+page.server.ts:10` | `throw error(404, "Not Found")`                    |
+| `admin/events/new/+layout.server.ts:7`    | `throw redirect(302, "/")`                         |
+| `admin/events/new/+page.server.ts:15`     | `throw error(404, "Not Found")`                    |
+| `admin/events/new/+page.server.ts:40`     | `return fail(401, { error: "Unauthorized" })`      |
 | `api/admin/seminar-requests/+server.ts:9` | `json({ error: "Unauthorized" }, { status: 401 })` |
-| `api/admin/applications/+server.ts:7` | 〃 |
+| `api/admin/applications/+server.ts:7`     | 〃                                                 |
 
 **메커니즘 4가지, 상태 코드 3가지**(404 / 302 / 401)다.
 `fail(401)`과 `json(…, {status:401})`은 코드가 같다 — 초판이 "응답 4가지"라고 뭉갰다.
@@ -284,10 +288,10 @@ return admins.includes(email);
 
 ## AD-4 🟠 `ADMINS_EMAILS` 파서가 두 벌이고 갈라져 있다
 
-| 위치 | 코드 |
-|---|---|
-| `admin.ts:144` | `.split(",").map((e) => e.trim())` |
-| `mail/templates.ts:13-16` | 〃 `+ .filter(Boolean)` |
+| 위치                      | 코드                               |
+| ------------------------- | ---------------------------------- |
+| `admin.ts:144`            | `.split(",").map((e) => e.trim())` |
+| `mail/templates.ts:13-16` | 〃 `+ .filter(Boolean)`            |
 
 후행 쉼표가 있으면 `admin.ts` 쪽 배열에만 `""`가 들어간다.
 현재 `.env`의 값에는 쉼표가 **0개**(관리자 1명)라 발현하지 않는다.
@@ -352,15 +356,15 @@ applications.ts:63   submittedAt: (page as any).created_time,
 
 ## AD-5 🟠 오류 처리 규약이 없다 — 같은 계층에서 네 가지
 
-| 함수 | 줄 | 실패 시 |
-|---|---|---|
-| `addApplication` | `:114-117` | log + **rethrow** |
-| `updateApplication` | `:127-130` | log + **rethrow** |
-| `removeApplication` | `:136-138` | log + **삼킴** |
-| `getApplicationByEmail` | `:84-89` | `null` |
-| `getApplications` | `:95-100` | `[]` |
-| `resolveActualName` | `:66-78` | **전파** (try/catch 없음) |
-| 〃 | `:69` | `""` — 이메일 없을 때 |
+| 함수                    | 줄         | 실패 시                   |
+| ----------------------- | ---------- | ------------------------- |
+| `addApplication`        | `:114-117` | log + **rethrow**         |
+| `updateApplication`     | `:127-130` | log + **rethrow**         |
+| `removeApplication`     | `:136-138` | log + **삼킴**            |
+| `getApplicationByEmail` | `:84-89`   | `null`                    |
+| `getApplications`       | `:95-100`  | `[]`                      |
+| `resolveActualName`     | `:66-78`   | **전파** (try/catch 없음) |
+| 〃                      | `:69`      | `""` — 이메일 없을 때     |
 
 **여덟 함수 중 여섯이 실패를 다루는데 규약이 넷이다.**
 
@@ -424,11 +428,11 @@ Notion 장애 → signup/+page.server.ts:36  apps = []
 
 ## AD-16 🟡 "관리자다"의 파생이 셋이다
 
-| 위치 | 식 |
-|---|---|
-| `admin.ts:141` | `isAdmin(email)` — 원시 술어 |
+| 위치                      | 식                                                               |
+| ------------------------- | ---------------------------------------------------------------- |
+| `admin.ts:141`            | `isAdmin(email)` — 원시 술어                                     |
 | `+layout.server.ts:14-16` | `devPreviewRole === "admin" \|\| isAdmin(email)` — **독립 파생** |
-| `wait/+page.server.ts:5` | `event.parent()`의 `isAdmin` — 위 ②의 값을 소비 |
+| `wait/+page.server.ts:5`  | `event.parent()`의 `isAdmin` — 위 ②의 값을 소비                  |
 
 ②는 ①이 거짓일 때도 참일 수 있다. 그리고 `wait`은 ①을 아예 안 부른다.
 
@@ -455,11 +459,11 @@ AD-2가 "정책을 아무도 소유하지 않는다"를 지적했다면 이것�
 
 ## AD-10 🟡 `Application`이 셋이다
 
-| 정의 | 검증 | 사용 |
-|---|---|---|
+| 정의                                            | 검증 | 사용                                             |
+| ----------------------------------------------- | ---- | ------------------------------------------------ |
 | `admin.ts:20-29` `export interface Application` | 없음 | `app.d.ts:13`, `signup:4,45`, `signup/edit:7,27` |
-| `schema.ts:41` `export type Application` | zod | **0곳** |
-| `admin/+page.svelte:17` `interface Application` | 없음 | 그 컴포넌트 지역 |
+| `schema.ts:41` `export type Application`        | zod  | **0곳**                                          |
+| `admin/+page.svelte:17` `interface Application` | 없음 | 그 컴포넌트 지역                                 |
 
 **같은 이름이고 검증되는 쪽이 죽어 있다**(`applications.md` AP-2).
 AD-1과 같은 병이다 — **이름이 겹치는데 안전하지 않은 쪽이 이긴다.**
@@ -541,17 +545,17 @@ AD-3·AD-4의 수정이 앉을 자리다.
 
 ## 개정 이력
 
-| 변경 | 내용 |
-|---|---|
-| **AD-13 신설 🔴** | 훅(`hooks.server.ts:55-66`)에 관리자 우회가 없는데 라우트 세 곳에는 있다. 훅이 먼저 돌아 **비회원 관리자는 `/admin`에 도달 불가**. `dev-admin@snu.ac.kr`이 실증 — 관리자 미리보기가 관리자 화면을 못 연다 |
-| **면죄부 철회 → AD-14 신설 🟠** | 초판이 "하위 두 함수가 각각 캐시된다"고 **거짓 전제로 면죄**했다. `getAllPrivateInfo`(`members.ts:235`)는 무캐시다. 세미나 페이지마다 개인정보 DB 전수 조회. 신선/낡은 조인이 AD-8의 세 번째 원인 |
-| **AD-15 신설 🟠** | 전 회원 이메일이 모든 인증 사용자 페이로드에 실린다. 검색이 클라이언트에서 돈다. MT-12보다 큰 노출인데 미지적이었다 |
-| **AD-16 · AD-17 · AD-18 신설 🟡** | 관리자 술어 3중 파생 / `admin`↔`auth-guards` 순환 / 반환 타입 3개 미선언 + 12곳 재파싱 |
-| **AD-1 범위 축소** | "로그인한 **모든** 사용자" → **비회원만**(`:55` 게이트 안). 내가 인용한 AP-9가 정확히 그렇게 적혀 있었는데 넓혔다 |
-| **AD-1 처방 정정** | "AP-9가 닫힌다"는 **거짓**. `hooks.server.ts:52` `memberRepo.findByEmail` 경로에 try/catch가 전혀 없어 **그쪽이 먼저, 더 넓게** 500을 낸다. 처방 ②의 IX-1 인용도 방향이 반대였고 `admin.ts:15`를 깬다 |
-| **AD-7 부논거 철회** | "UTC라 KST 도메인과 어긋난다, 세 번째 시간 표현"은 **거짓** — Notion `created_time`도 UTC ISO다. 형식은 동일하다 |
-| **AD-5 + AD-12 병합, 결과 정정** | 쓰기/조회를 나눠 이중 계상했다. 하나로 합치고 `""` 반환을 네 번째로 추가. 그리고 "`Promise.all`이라 전체 실패"는 **거짓** — 두 호출부 모두 `memberDirectoryUnavailable` 대체 경로를 갖는다. **대체 장기이지 차단기가 아니다** |
-| **AD-5 피해 구체화** | `getApplications() → []`가 `signup:47` 가드를 무력화해 중복 신청 → AP-10의 영구 잠김으로 이어진다 |
-| **AD-2 정정** | "응답 4가지" → **메커니즘 4, 상태 코드 3**(`fail(401)`과 `json 401`은 같다) |
-| **AD-10 확대** | 정의 2개 → **3개**(`admin/+page.svelte:17` 지역 선언) |
-| 줄번호 정정 2건 | `members.ts:90`→`:91`, AD-5의 `auth-guards.ts:184`는 현재 경로 아님(`:126`만) |
+| 변경                              | 내용                                                                                                                                                                                                                          |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **AD-13 신설 🔴**                 | 훅(`hooks.server.ts:55-66`)에 관리자 우회가 없는데 라우트 세 곳에는 있다. 훅이 먼저 돌아 **비회원 관리자는 `/admin`에 도달 불가**. `dev-admin@snu.ac.kr`이 실증 — 관리자 미리보기가 관리자 화면을 못 연다                     |
+| **면죄부 철회 → AD-14 신설 🟠**   | 초판이 "하위 두 함수가 각각 캐시된다"고 **거짓 전제로 면죄**했다. `getAllPrivateInfo`(`members.ts:235`)는 무캐시다. 세미나 페이지마다 개인정보 DB 전수 조회. 신선/낡은 조인이 AD-8의 세 번째 원인                             |
+| **AD-15 신설 🟠**                 | 전 회원 이메일이 모든 인증 사용자 페이로드에 실린다. 검색이 클라이언트에서 돈다. MT-12보다 큰 노출인데 미지적이었다                                                                                                           |
+| **AD-16 · AD-17 · AD-18 신설 🟡** | 관리자 술어 3중 파생 / `admin`↔`auth-guards` 순환 / 반환 타입 3개 미선언 + 12곳 재파싱                                                                                                                                        |
+| **AD-1 범위 축소**                | "로그인한 **모든** 사용자" → **비회원만**(`:55` 게이트 안). 내가 인용한 AP-9가 정확히 그렇게 적혀 있었는데 넓혔다                                                                                                             |
+| **AD-1 처방 정정**                | "AP-9가 닫힌다"는 **거짓**. `hooks.server.ts:52` `memberRepo.findByEmail` 경로에 try/catch가 전혀 없어 **그쪽이 먼저, 더 넓게** 500을 낸다. 처방 ②의 IX-1 인용도 방향이 반대였고 `admin.ts:15`를 깬다                         |
+| **AD-7 부논거 철회**              | "UTC라 KST 도메인과 어긋난다, 세 번째 시간 표현"은 **거짓** — Notion `created_time`도 UTC ISO다. 형식은 동일하다                                                                                                              |
+| **AD-5 + AD-12 병합, 결과 정정**  | 쓰기/조회를 나눠 이중 계상했다. 하나로 합치고 `""` 반환을 네 번째로 추가. 그리고 "`Promise.all`이라 전체 실패"는 **거짓** — 두 호출부 모두 `memberDirectoryUnavailable` 대체 경로를 갖는다. **대체 장기이지 차단기가 아니다** |
+| **AD-5 피해 구체화**              | `getApplications() → []`가 `signup:47` 가드를 무력화해 중복 신청 → AP-10의 영구 잠김으로 이어진다                                                                                                                             |
+| **AD-2 정정**                     | "응답 4가지" → **메커니즘 4, 상태 코드 3**(`fail(401)`과 `json 401`은 같다)                                                                                                                                                   |
+| **AD-10 확대**                    | 정의 2개 → **3개**(`admin/+page.svelte:17` 지역 선언)                                                                                                                                                                         |
+| 줄번호 정정 2건                   | `members.ts:90`→`:91`, AD-5의 `auth-guards.ts:184`는 현재 경로 아님(`:126`만)                                                                                                                                                 |
