@@ -173,6 +173,32 @@ export async function table(/** @type {string} */ name) {
   const doc = await res.json();
   return doc?.rows ?? [];
 }
+/** 이메일로 회원 id 찾기 (private-info가 이메일을 가진다). */
+export const memberIdOf = async (/** @type {string} */ addr) =>
+  (await table("private-info")).find((p) => p.email === addr)?.memberId;
+
+/**
+ * 세미나 신청 폼이 보내는 그대로 — 폼은 신청자를 발표자로 미리 골라 둔다.
+ * 스키마가 kind·duration·발표자 1명 이상을 요구한다.
+ */
+export async function applySeminar(
+  /** @type {string} */ title,
+  /** @type {string} */ cookie,
+  /** @type {string} */ requesterEmail,
+) {
+  return action(
+    "/seminar/apply",
+    null,
+    {
+      kind: "regular",
+      title,
+      description: "설명",
+      duration: "60분",
+      speakerIds: (await memberIdOf(requesterEmail)) ?? "",
+    },
+    cookie,
+  );
+}
 /** @returns {Promise<any[]>} */
 export async function queue(/** @type {string} */ eventId) {
   const res = await fetch(

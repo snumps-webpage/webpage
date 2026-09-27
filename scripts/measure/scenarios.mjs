@@ -17,6 +17,8 @@ import {
   PREVIOUS_TERM_AT,
   TERM,
   at,
+  applySeminar,
+  memberIdOf,
 } from "./lib.mjs";
 
 const EVIL = "evil.example";
@@ -30,9 +32,6 @@ const admin = await session(email.admin, "관리자 / 학부생 / 수리과학�
 const A = await session(email.a, "홍길동 / 학부생 / 수리과학부");
 const B = await session(email.b, "김발표 / 학부생 / 물리천문학부");
 const C = await session(email.c, "이참가 / 대학원생 / 통계학과");
-
-const memberIdOf = async (addr) =>
-  (await table("private-info")).find((p) => p.email === addr)?.memberId;
 
 async function signupAndApprove(cookie, addr, phone) {
   const sub = await action(
@@ -155,12 +154,7 @@ check(`setup: B, C approved in ${TERM}`, !!idB && !!idC);
 
 // ---------------------------------------------------------------- seminar helpers
 async function publishedSeminar(title, startsAtLocal) {
-  await action(
-    "/seminar/apply",
-    null,
-    { title, description: "설명", speakerIds: "" },
-    B,
-  );
+  await applySeminar(title, B, email.b);
   const reqs = await adminQueue("seminar-requests", admin);
   const req = (reqs.items ?? []).find((i) => i.title === title);
   await action("/admin", "approveSeminar", { id: req?.id ?? "" }, admin);

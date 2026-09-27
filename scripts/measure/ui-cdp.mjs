@@ -129,6 +129,16 @@ const submitPhone = async (value) => {
 };
 out.profileBad = await submitPhone("12");
 out.profileBare = await submitPhone("01012341234");
+
+// seminar apply: the form starts with the requester (C, 이참가) as presenter
+await send("Page.navigate", { url: `${base}/seminar/apply` });
+await sleep(4000);
+out.applyPresenters = await evaluate(
+  `document.querySelector('input[name="speakerIds"]')?.value ?? null`,
+);
+out.applyPresenterShown = await evaluate(
+  `[...document.querySelectorAll(".paper-section")].some((n) => n.textContent.includes("발표자") && n.textContent.includes("이참가"))`,
+);
 out.consoleErrors = consoleErrors;
 
 console.log(JSON.stringify(out, null, 2));
@@ -137,5 +147,10 @@ chrome.kill();
 await sleep(500);
 fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5 });
 await setClock(null); // ui-setup.mjs pinned it
-if (out.consoleErrors.length || !String(out.afterApply).includes("신청됨"))
+if (
+  out.consoleErrors.length ||
+  !String(out.afterApply).includes("신청됨") ||
+  !out.applyPresenters ||
+  !out.applyPresenterShown
+)
   process.exitCode = 1;

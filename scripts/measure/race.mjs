@@ -15,6 +15,7 @@ import {
   table,
   ANCHOR,
   at,
+  applySeminar,
 } from "./lib.mjs";
 
 const RUNS = Number(process.env.RUNS ?? 10);
@@ -39,12 +40,7 @@ const item = (await adminQueue("applications", admin)).items.find(
 await action("/admin", "approve", { id: item.id }, admin);
 
 async function scheduled(title) {
-  await action(
-    "/seminar/apply",
-    null,
-    { title, description: "d", speakerIds: "" },
-    B,
-  );
+  await applySeminar(title, B, "b@snu.ac.kr");
   const req = (await adminQueue("seminar-requests", admin)).items.find(
     (i) => i.title === title,
   );

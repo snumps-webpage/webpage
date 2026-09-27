@@ -11,6 +11,7 @@ import {
   ANCHOR,
   MEASURE_DIR,
   at,
+  applySeminar,
 } from "./lib.mjs";
 
 await probeSeed({ op: "reset" });
@@ -34,12 +35,7 @@ for (const [cookie, addr, phone] of [
   await action("/admin", "approve", { id: item.id }, admin);
 }
 const title = "UI 확인용 세미나";
-await action(
-  "/seminar/apply",
-  null,
-  { title, description: "설명", speakerIds: "" },
-  B,
-);
+await applySeminar(title, B, "b@snu.ac.kr");
 const req = (await adminQueue("seminar-requests", admin)).items.find(
   (i) => i.title === title,
 );
