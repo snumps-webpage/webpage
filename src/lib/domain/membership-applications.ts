@@ -22,11 +22,3 @@ export const membershipApplicationUpdateSchema =
   membershipApplicationInputSchema.omit({
     agreement: true,
   });
-
-export function membershipApplicationIssues(error: z.ZodError) {
-  const issues: Record<string, string> = {};
-  for (const issue of error.issues) {
-    issues[String(issue.path[0] ?? "_form")] ??= issue.message;
-  }
-  return issues;
-}

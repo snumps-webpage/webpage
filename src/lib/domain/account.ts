@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { formText } from "$lib/domain/form-data";
+import { fieldIssues, formText } from "$lib/domain/form-data";
 
 export interface MailPreferenceFormFailure {
   error: "VALIDATION_FAILED";
@@ -110,19 +110,11 @@ export function validateWithdrawalRequestForm(
   const result = schema.safeParse(values);
   if (result.success) return result;
 
-  const issues: WithdrawalFormFailure["issues"] = {};
-  for (const issue of result.error.issues) {
-    const field = issue.path[0];
-    if (
-      field === "ackInfo" ||
-      field === "ackDataPolicy" ||
-      field === "confirmName"
-    ) {
-      issues[field] ??= issue.message;
-    } else {
-      issues._form ??= issue.message;
-    }
-  }
+  const issues: WithdrawalFormFailure["issues"] = fieldIssues(result.error, [
+    "ackInfo",
+    "ackDataPolicy",
+    "confirmName",
+  ] as const);
 
   return {
     ...result,

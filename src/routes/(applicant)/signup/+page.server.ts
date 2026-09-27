@@ -8,11 +8,8 @@ import {
 import { normalizePhoneNumber, parseGoogleName } from "$lib/utils";
 import { AppError } from "$lib/server/core/errors";
 import { stripInvisibles } from "$lib/server/core/strings";
-import { formText } from "$lib/domain/form-data";
-import {
-  membershipApplicationInputSchema,
-  membershipApplicationIssues,
-} from "$lib/domain/membership-applications";
+import { formText, fieldIssues } from "$lib/domain/form-data";
+import { membershipApplicationInputSchema } from "$lib/domain/membership-applications";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
@@ -83,7 +80,7 @@ export const actions = {
       if (!parsed.success) {
         return fail(400, {
           error: "VALIDATION_FAILED",
-          issues: membershipApplicationIssues(parsed.error),
+          issues: fieldIssues(parsed.error),
           values: {
             phone: values.phone,
             studentId: values.studentId,

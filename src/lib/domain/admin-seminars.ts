@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { fieldIssues } from "$lib/domain/form-data";
 import type {
   MemberPickerItem,
   SeminarKind,
@@ -185,19 +186,11 @@ export function seminarScheduleValuesFromFormData(
 export function seminarScheduleIssues(
   error: z.ZodError<SeminarScheduleFormValues>,
 ): SeminarScheduleIssues {
-  const issues: SeminarScheduleIssues = {};
-
-  for (const issue of error.issues) {
-    const path = issue.path[0];
-    const field =
-      path === "startsAtLocal" || path === "endsAtLocal" || path === "location"
-        ? path
-        : "_form";
-
-    issues[field] ??= issue.message;
-  }
-
-  return issues;
+  return fieldIssues(error, [
+    "startsAtLocal",
+    "endsAtLocal",
+    "location",
+  ] as const);
 }
 
 export function validateSeminarScheduleForm(formData: FormData) {

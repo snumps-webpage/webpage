@@ -10,11 +10,10 @@ import {
 import { fail } from "@sveltejs/kit";
 import { kstInputToIso, nowKstIso } from "$lib/server/core/time";
 import { ACTIVITY_TYPES } from "$lib/server/data/schemas";
-import { formText } from "$lib/domain/form-data";
+import { formText, fieldIssues } from "$lib/domain/form-data";
 import {
   adminActivityRecordSchema,
   adminActivityRecordUpdateSchema,
-  zodFieldIssues,
 } from "$lib/domain/admin-records";
 import type { PageServerLoad } from "./$types";
 
@@ -60,7 +59,7 @@ export const actions = {
       if (!parsed.success) {
         return fail(400, {
           error: "VALIDATION_FAILED",
-          issues: zodFieldIssues(parsed.error),
+          issues: fieldIssues(parsed.error),
           values,
         });
       }
@@ -87,7 +86,7 @@ export const actions = {
         return fail(400, {
           error: "VALIDATION_FAILED",
           id,
-          issues: zodFieldIssues(parsed.error),
+          issues: fieldIssues(parsed.error),
           values,
         });
       }

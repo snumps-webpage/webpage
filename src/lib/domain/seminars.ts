@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { formText } from "$lib/domain/form-data";
+import { formText, fieldIssues } from "$lib/domain/form-data";
 
 export const SEMINAR_KINDS = ["regular", "irregular"] as const;
 
@@ -186,28 +186,15 @@ export function seminarRequestValuesFromFormData(
 export function seminarFormIssues(
   error: z.ZodError<SeminarRequestInput>,
 ): SeminarFormIssues {
-  const issues: SeminarFormIssues = {};
-
-  for (const issue of error.issues) {
-    const path = issue.path[0];
-    const field =
-      typeof path === "string" &&
-      [
-        "kind",
-        "title",
-        "description",
-        "prerequisites",
-        "duration",
-        "attachmentUrl",
-        "presenterIds",
-      ].includes(path)
-        ? (path as SeminarRequestField)
-        : "_form";
-
-    issues[field] ??= issue.message;
-  }
-
-  return issues;
+  return fieldIssues(error, [
+    "kind",
+    "title",
+    "description",
+    "prerequisites",
+    "duration",
+    "attachmentUrl",
+    "presenterIds",
+  ] as const);
 }
 
 export function validateSeminarRequestForm(formData: FormData) {

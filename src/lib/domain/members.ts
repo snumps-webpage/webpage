@@ -83,7 +83,7 @@ export interface PublicExecutiveRoster {
 /*
  * Member administration input — the single source of the rules. The
  * /admin/members/[id] actions validate with these and answer
- * {error: VALIDATION_FAILED, issues: memberFormIssues(…), values}.
+ * {error: VALIDATION_FAILED, issues: fieldIssues(…), values}.
  */
 
 const PHONE_MESSAGE = "전화번호는 010-XXXX-XXXX 형식이어야 합니다.";
@@ -298,15 +298,6 @@ export function parseRoleLines(value: string) {
         : { term: line.slice(0, space), title: line.slice(space + 1) };
     });
   return memberRolesSchema.safeParse(roles);
-}
-
-/** Per-field issues, first message per field; unpathed issues land on `_form`. */
-export function memberFormIssues(error: z.ZodError) {
-  const issues: Record<string, string> = {};
-  for (const issue of error.issues) {
-    issues[String(issue.path[0] ?? "_form")] ??= issue.message;
-  }
-  return issues;
 }
 
 /** The roles form has one field: its issue names the offending line. */

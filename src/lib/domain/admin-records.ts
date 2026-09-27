@@ -127,11 +127,3 @@ export const adminStudyRecordSchema = z.object({
 export const adminStudyRecordCreateSchema = adminStudyRecordSchema.extend({
   organizerId: pickedIdSchema.min(1, "주최자를 선택해 주세요."),
 });
-
-export function zodFieldIssues(error: z.ZodError) {
-  const issues: Record<string, string> = {};
-  for (const issue of error.issues) {
-    issues[String(issue.path[0] ?? "_form")] ??= issue.message;
-  }
-  return issues;
-}

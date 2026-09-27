@@ -8,11 +8,8 @@ import {
 } from "$lib/server/services/records-admin";
 import { promotePendingUpload } from "$lib/server/services/uploads";
 import { fail } from "@sveltejs/kit";
-import { formText } from "$lib/domain/form-data";
-import {
-  adminGalleryRecordSchema,
-  zodFieldIssues,
-} from "$lib/domain/admin-records";
+import { formText, fieldIssues } from "$lib/domain/form-data";
+import { adminGalleryRecordSchema } from "$lib/domain/admin-records";
 import { nowKstIso } from "$lib/server/core/time";
 import type { PageServerLoad } from "./$types";
 
@@ -69,7 +66,7 @@ export const actions = {
       if (!parsed.success) {
         return fail(400, {
           error: "VALIDATION_FAILED",
-          issues: zodFieldIssues(parsed.error),
+          issues: fieldIssues(parsed.error),
           values,
         });
       }
@@ -91,7 +88,7 @@ export const actions = {
         return fail(400, {
           error: "VALIDATION_FAILED",
           id,
-          issues: zodFieldIssues(parsed.error),
+          issues: fieldIssues(parsed.error),
           values,
         });
       }

@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { fieldIssues } from "$lib/domain/form-data";
 import type { ActivityType } from "$lib/constants";
 
 export type DashboardActivityState =
@@ -96,14 +97,5 @@ export function dashboardActivityErrorMessage(code: string | undefined) {
 }
 
 export function dashboardProfileIssues(error: z.ZodError) {
-  const issues: Partial<Record<"phone" | "background" | "_form", string>> = {};
-  for (const issue of error.issues) {
-    const field = issue.path[0];
-    if (field === "phone" || field === "background") {
-      issues[field] ??= issue.message;
-    } else {
-      issues._form ??= issue.message;
-    }
-  }
-  return issues;
+  return fieldIssues(error, ["phone", "background"] as const);
 }

@@ -10,11 +10,10 @@ import {
 } from "$lib/server/services/records-admin";
 import { promotePendingUpload } from "$lib/server/services/uploads";
 import { fail } from "@sveltejs/kit";
-import { formText } from "$lib/domain/form-data";
+import { formText, fieldIssues } from "$lib/domain/form-data";
 import {
   adminStudyRecordCreateSchema,
   adminStudyRecordSchema,
-  zodFieldIssues,
 } from "$lib/domain/admin-records";
 import { currentTerm } from "$lib/server/core/semester";
 import { nowKstIso } from "$lib/server/core/time";
@@ -88,7 +87,7 @@ function studyValues(data: FormData) {
 
 function invalid(
   scope: "record-create" | "record-update",
-  error: Parameters<typeof zodFieldIssues>[0],
+  error: Parameters<typeof fieldIssues>[0],
   values: Record<string, string>,
   id?: string,
 ) {
@@ -96,7 +95,7 @@ function invalid(
     error: "VALIDATION_FAILED",
     scope,
     id,
-    issues: zodFieldIssues(error),
+    issues: fieldIssues(error),
     values,
   });
 }

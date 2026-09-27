@@ -1,8 +1,7 @@
 import { fail, type ActionFailure } from "@sveltejs/kit";
 import type { z } from "zod/v4";
-import { formText } from "$lib/domain/form-data";
+import { formText, fieldIssues } from "$lib/domain/form-data";
 import {
-  studyFormIssues,
   studyParticipantInputSchema,
   studySessionCreateInputSchema,
   studySessionTargetInputSchema,
@@ -119,7 +118,7 @@ function parse<T>(
   return {
     failure: fail(400, {
       error: "VALIDATION_FAILED",
-      issues: studyFormIssues(parsed.error),
+      issues: fieldIssues(parsed.error),
       values,
     }),
   };

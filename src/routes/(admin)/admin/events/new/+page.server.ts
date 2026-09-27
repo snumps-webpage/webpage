@@ -3,11 +3,8 @@ import { ensureAdmin, handleAdminAction } from "$lib/server/auth-guards";
 import { ACTIVITY_TYPES } from "$lib/server/data/schemas";
 import { kstInputToIso } from "$lib/server/core/time";
 import { createEventWithActivity } from "$lib/server/services/events";
-import {
-  adminEventInputSchema,
-  adminFormIssues,
-} from "$lib/domain/admin-dashboard";
-import { formText } from "$lib/domain/form-data";
+import { adminEventInputSchema } from "$lib/domain/admin-dashboard";
+import { formText, fieldIssues } from "$lib/domain/form-data";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -38,7 +35,7 @@ export const actions = {
         return fail(400, {
           error: "VALIDATION_FAILED",
           message: "제목·일시·종류를 확인해 주세요.",
-          issues: adminFormIssues(parsed.error),
+          issues: fieldIssues(parsed.error),
           values,
         });
       }

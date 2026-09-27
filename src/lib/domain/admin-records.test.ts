@@ -6,8 +6,8 @@ import {
   adminSeminarRecordSchema,
   adminStudyRecordCreateSchema,
   adminStudyRecordSchema,
-  zodFieldIssues,
 } from "./admin-records";
+import { fieldIssues } from "$lib/domain/form-data";
 
 describe("admin record validation", () => {
   it("accepts only the activity types a record can store", () => {
@@ -37,7 +37,7 @@ describe("admin record validation", () => {
     });
     expect(result.success).toBe(false);
     if (!result.success)
-      expect(zodFieldIssues(result.error).year).toContain("연도");
+      expect(fieldIssues(result.error).year).toContain("연도");
   });
 
   it("validates seminar and study editor fields", () => {
@@ -71,7 +71,7 @@ describe("admin record validation", () => {
     });
     expect(result.success).toBe(false);
     if (!result.success)
-      expect(Object.keys(zodFieldIssues(result.error)).sort()).toEqual([
+      expect(Object.keys(fieldIssues(result.error)).sort()).toEqual([
         "description",
         "organizerId",
       ]);

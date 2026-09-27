@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { formText } from "$lib/domain/form-data";
+import { formText, fieldIssues } from "$lib/domain/form-data";
 import { mergeManagedAttendance } from "$lib/domain/attendance";
 
 export const STUDY_STATUSES = ["recruiting", "ongoing", "finished"] as const;
@@ -146,16 +146,6 @@ export const studyTransferInputSchema = z.object({
   toMemberId: studyTargetIdSchema,
 });
 
-/** First message per field; an issue off any field goes to `_form`. */
-export function studyFormIssues(error: z.ZodError): Record<string, string> {
-  const issues: Record<string, string> = {};
-  for (const issue of error.issues) {
-    const field = issue.path[0];
-    issues[typeof field === "string" ? field : "_form"] ??= issue.message;
-  }
-  return issues;
-}
-
 export function nextStudyStatuses(status: StudyStatus): StudyStatus[] {
   switch (status) {
     case "recruiting":
@@ -206,21 +196,12 @@ export function studyRequestValuesFromFormData(
 
 /** One message per field, the first one zod reports. */
 export function studyRequestIssues(error: z.ZodError): StudyRequestFormIssues {
-  const issues: StudyRequestFormIssues = {};
-  for (const issue of error.issues) {
-    const field = issue.path[0];
-    if (
-      field === "title" ||
-      field === "textbook" ||
-      field === "description" ||
-      field === "semester"
-    ) {
-      issues[field] ??= issue.message;
-    } else {
-      issues._form ??= issue.message;
-    }
-  }
-  return issues;
+  return fieldIssues(error, [
+    "title",
+    "textbook",
+    "description",
+    "semester",
+  ] as const);
 }
 
 export function validateStudyRequestForm(formData: FormData) {

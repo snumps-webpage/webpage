@@ -19,11 +19,8 @@ import {
   byCreatedAtAsc,
 } from "$lib/server/data/admin-queue-views";
 import { validateSeminarScheduleForm } from "$lib/domain/admin-seminars";
-import {
-  adminSeminarRecordSchema,
-  zodFieldIssues,
-} from "$lib/domain/admin-records";
-import { formText } from "$lib/domain/form-data";
+import { adminSeminarRecordSchema } from "$lib/domain/admin-records";
+import { formText, fieldIssues } from "$lib/domain/form-data";
 import {
   cancelSeminar,
   publishSeminar,
@@ -162,7 +159,7 @@ function parseSeminarRecord(data: FormData) {
         error: "VALIDATION_FAILED",
         scope,
         id,
-        issues: zodFieldIssues(parsed.error),
+        issues: fieldIssues(parsed.error),
         values: {
           ...values,
           kind: formText(data, "kind"),

@@ -14,12 +14,11 @@ import {
   updatePrivateInfo,
 } from "$lib/server/services/members-admin";
 import { formatPhoneForDisplay, normalizePhoneNumber } from "$lib/utils";
-import { formText } from "$lib/domain/form-data";
+import { formText, fieldIssues } from "$lib/domain/form-data";
 import {
   alumniRevocationInputSchema,
   joinPublicContact,
   memberAdminInputSchema,
-  memberFormIssues,
   memberRecordInputSchema,
   memberRolesIssues,
   memberStatusInputSchema,
@@ -118,8 +117,8 @@ export const actions = {
       if (!record.success || !contact.success) {
         return invalid(
           {
-            ...(record.success ? {} : memberFormIssues(record.error)),
-            ...(contact.success ? {} : memberFormIssues(contact.error)),
+            ...(record.success ? {} : fieldIssues(record.error)),
+            ...(contact.success ? {} : fieldIssues(contact.error)),
           },
           values,
         );
@@ -137,7 +136,7 @@ export const actions = {
     return handleAdminAction(locals, async () => {
       const parsed = memberStatusInputSchema.safeParse(values);
       if (!parsed.success) {
-        return invalid(memberFormIssues(parsed.error), values);
+        return invalid(fieldIssues(parsed.error), values);
       }
       await setStatus(params.id, parsed.data.status, locals.member!.memberId);
       return {};
@@ -149,7 +148,7 @@ export const actions = {
     return handleAdminAction(locals, async () => {
       const parsed = alumniRevocationInputSchema.safeParse(values);
       if (!parsed.success) {
-        return invalid(memberFormIssues(parsed.error), values);
+        return invalid(fieldIssues(parsed.error), values);
       }
       await revokeAlumni(
         params.id,
@@ -177,7 +176,7 @@ export const actions = {
     return handleAdminAction(locals, async () => {
       const parsed = memberAdminInputSchema.safeParse(values);
       if (!parsed.success) {
-        return invalid(memberFormIssues(parsed.error), values);
+        return invalid(fieldIssues(parsed.error), values);
       }
       await setAdmin(params.id, parsed.data.isAdmin, locals.member!.memberId);
       return {};
@@ -194,7 +193,7 @@ export const actions = {
       };
       const parsed = privateInfoUpdateSchema.safeParse(values);
       if (!parsed.success) {
-        return invalid(memberFormIssues(parsed.error), values);
+        return invalid(fieldIssues(parsed.error), values);
       }
       await updatePrivateInfo(
         params.id,

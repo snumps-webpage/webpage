@@ -34,9 +34,8 @@ import {
   adminDashboardIdsSchema,
   adminEventCapabilities,
   adminEventInputSchema,
-  adminFormIssues,
 } from "$lib/domain/admin-dashboard";
-import { formText } from "$lib/domain/form-data";
+import { formText, fieldIssues } from "$lib/domain/form-data";
 import { fail } from "@sveltejs/kit";
 import { nowKstIso } from "$lib/server/core/time";
 import {
@@ -207,7 +206,7 @@ function readIds<K extends string>(data: FormData, ...keys: K[]) {
         ids: null,
         failure: fail(400, {
           error: "VALIDATION_FAILED",
-          issues: adminFormIssues(parsed.error),
+          issues: fieldIssues(parsed.error),
         }),
       };
 }
@@ -285,7 +284,7 @@ export const actions = {
         return fail(400, {
           error: "VALIDATION_FAILED",
           issues: {
-            ...(parsed.success ? {} : adminFormIssues(parsed.error)),
+            ...(parsed.success ? {} : fieldIssues(parsed.error)),
             ...(failure ? failure.data.issues : {}),
           },
           values,
@@ -346,7 +345,7 @@ export const actions = {
         return fail(400, {
           error: "VALIDATION_FAILED",
           issues: {
-            ...(parsed.success ? {} : adminFormIssues(parsed.error)),
+            ...(parsed.success ? {} : fieldIssues(parsed.error)),
             ...(failure ? failure.data.issues : {}),
           },
           values,

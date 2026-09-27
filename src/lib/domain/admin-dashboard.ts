@@ -147,11 +147,3 @@ export function adminAttendanceCapabilities(status: AdminAttendanceStatus) {
     canDelete: true,
   };
 }
-
-export function adminFormIssues(error: z.ZodError) {
-  const issues: Record<string, string> = {};
-  for (const issue of error.issues) {
-    issues[String(issue.path[0] ?? "_form")] ??= issue.message;
-  }
-  return issues;
-}
