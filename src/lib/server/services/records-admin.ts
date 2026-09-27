@@ -1,7 +1,12 @@
 import { AppError, definedOnly } from "$lib/server/core/errors";
 import { newId } from "$lib/server/core/id";
 import { nowKstIso } from "$lib/server/core/time";
-import { getTable, mutate } from "$lib/server/data/tables";
+import {
+  deleteQueue,
+  getQueue,
+  getTable,
+  mutate,
+} from "$lib/server/data/tables";
 import { audit } from "$lib/server/data/audit";
 import { promoteSeminarPoster } from "$lib/server/services/uploads";
 import { forgetUnreferencedAssets } from "./asset-cleanup";
@@ -154,12 +159,83 @@ export async function updateSeminar(
   await forgetUnreferencedAssets([replacedPoster]);
 }
 
+/**
+ * An unpublished or cancelled seminar is what hides its activity
+ * (visibility.ts); without the seminar row that activity goes public again.
+ * So the delete takes the hidden activity and its sessions with it — unless
+ * someone besides the presenters was credited or a check-in is still open.
+ * That is attendance evidence (it counts toward regular membership) and must
+ * be cleared by hand (activity editor / attendance queue), not lost silently.
+ * The presenters' own credit is stamped automatically at publication, so it
+ * proves nothing and does not block.
+ *
+ * Anything else hanging off the activity — another seminar, a gallery entry,
+ * a study session — would be left dangling, so that refuses too.
+ *
+ * Not atomic. Order: the activity (credit re-checked inside the write, so a
+ * refusal leaves everything in place), then its sessions, then (in the
+ * caller) the source request and the seminar. A failure part-way leaves the
+ * seminar row, which keeps hiding whatever is left, and a retry finishes.
+ */
+async function retireHiddenActivity(seminar: Seminar): Promise<void> {
+  const activityId = seminar.activityId!;
+  const [seminars, activities, events, galleries] = await Promise.all([
+    getTable("seminars"),
+    getTable("activities"),
+    getTable("events"),
+    getTable("gallery-dinner"),
+  ]);
+  const sessions = events.filter((e) => e.activityId === activityId);
+  if (
+    seminars.some((s) => s.id !== seminar.id && s.activityId === activityId) ||
+    galleries.some((g) => g.activityId === activityId) ||
+    sessions.some((e) => e.studyId !== null)
+  ) {
+    throw new AppError("CONFLICT");
+  }
+  const credited = (a: Activity | undefined) =>
+    !!a && a.attendeeIds.some((id) => !seminar.presenterIds.includes(id));
+  if (credited(activities.find((a) => a.id === activityId))) {
+    throw new AppError("CONFLICT");
+  }
+  for (const e of sessions) {
+    if ((await getQueue(e.id)).some((r) => r.status !== "rejected")) {
+      throw new AppError("CONFLICT");
+    }
+  }
+
+  await mutate("activities", (rows) => {
+    if (credited(rows.find((a) => a.id === activityId))) {
+      throw new AppError("CONFLICT"); // credit landed after the check above
+    }
+    return rows.filter((a) => a.id !== activityId);
+  });
+  for (const e of sessions) await deleteQueue(e.id);
+  await mutate("events", (rows) =>
+    rows.filter((e) => e.activityId !== activityId),
+  );
+}
+
 export async function deleteSeminar(id: string): Promise<void> {
+  const seminar = (await getTable("seminars")).find((s) => s.id === id);
+  if (!seminar) throw new AppError("NOT_FOUND");
+  const hidden = seminar.publicationStatus !== "published";
+  if (hidden && seminar.activityId) await retireHiddenActivity(seminar);
+
   let removed:
     { materials: string[]; photos: string[]; posterKey: string } | undefined;
   await mutate("seminars", (rows) => {
     const row = rows.find((s) => s.id === id);
     if (!row) throw new AppError("NOT_FOUND");
+    // Everything above was decided from a read. A publish or cancel that
+    // committed since (publish ∥ delete, cancel ∥ delete) changes what the
+    // delete must take with it — refuse and let the admin retry on fresh state.
+    if (
+      row.publicationStatus !== seminar.publicationStatus ||
+      row.activityId !== seminar.activityId
+    ) {
+      throw new AppError("WRITE_CONFLICT");
+    }
     removed = {
       materials: row.materials,
       photos: row.photos,
@@ -167,6 +243,20 @@ export async function deleteSeminar(id: string): Promise<void> {
     };
     return rows.filter((s) => s.id !== id);
   });
+  // The hidden seminar was also what kept its approved request off the
+  // presenter's dashboard (cancelledRequestIds); gone, the request would read
+  // "승인" for a seminar that no longer exists. After the delete, so a refused
+  // delete keeps it; unless another seminar still points at the same request.
+  if (hidden && seminar.sourceRequestId) {
+    const sharedBy = (await getTable("seminars")).some(
+      (s) => s.sourceRequestId === seminar.sourceRequestId,
+    );
+    if (!sharedBy) {
+      await mutate("seminar-requests", (rows) =>
+        rows.filter((r) => r.id !== seminar.sourceRequestId),
+      );
+    }
+  }
   await forgetUnreferencedAssets([
     ...removed!.materials,
     ...removed!.photos,
