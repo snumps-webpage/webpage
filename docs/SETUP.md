@@ -2,16 +2,17 @@
 
 ## 🛠️ Prerequisites
 
-- **Node.js**: Version 18 or higher (Tested on v25).
-- **Notion Integration**: Create an internal integration at [developers.notion.com](https://developers.notion.com/) and share your databases with it.
-- **Google Cloud Credentials**: Create an OAuth 2.0 Client ID at [console.cloud.google.com](https://console.cloud.google.com/).
+- **Node.js**: 22 이상 (`package.json` `engines`, Vercel 런타임 `nodejs22.x`).
+- **Supabase**: dev 프로젝트 접근 권한 (아래 "로컬 개발"). prod 키는 로컬에 두지 않는다.
+- **Google Cloud Credentials**: OAuth 2.0 Client ID ([console.cloud.google.com](https://console.cloud.google.com/)) — 로그인과 Gmail 발송에 같이 쓴다.
+- **Notion Integration** (선택): 이주 원본을 조회·복구하는 스크립트에만 필요하다. 앱은 Notion을 읽지 않는다.
 
 ## 📥 Installation
 
 ```bash
 git clone <repository-url>
-cd snumps-webpage-fork
-npm install
+cd webpage
+npm ci      # Vercel과 같은 package-lock.json 기준
 ```
 
 ## ✉️ Automated Email Setup
@@ -31,7 +32,7 @@ To enable the system to send automated alerts from a preset Gmail account:
 
 ## ⚙️ Environment Configuration
 
-Rename `.env.example` to `.env.safe` or `.env` and configure the following variables. See [**Authentication Variables**](AUTH_VARS.md) for detailed information on how `ADMINS_EMAILS` and `AUTHORIZED_USERS` are used.
+`.env.example`을 `.env`로 복사해 아래 값을 채운다 (`.env`는 gitignore 대상). See [**Authentication Variables**](AUTH_VARS.md) for detailed information on how `ADMINS_EMAILS` and `AUTHORIZED_USERS` are used.
 
 ```env
 # 인증 (없으면 로그인 자체가 뜨지 않는다 — hooks.server.ts가 FATAL을 남긴다)
@@ -93,12 +94,20 @@ SITE_ORIGIN=https://snumps.vercel.app          # links inside outgoing mail (no 
 
 ## 🔍 Utilities
 
-- **Schema Inspector**: `node --env-file=.env.safe inspect-db.js <database_id>`
-- **Data Querier**: `node --env-file=.env.safe query-db.js <database_id>`
+운영·점검 스크립트는 `scripts/ops/`에 있다 — 무엇이 필요한지와 어떤 것이 데이터를 바꾸는지는
+[`scripts/ops/README.md`](../scripts/ops/README.md). 예:
+
+- `node scripts/ops/ops-env-names.mjs SUPABASE` — `.env`에 어떤 키가 있는지 (값은 출력하지 않음)
+- `node scripts/ops/ops-notion-inspect.mjs` — Notion 원본 조회
+- `node scripts/ops/ops-backup-db.mjs` — DB 스냅숏 (`backups/`, 개인정보 포함)
 
 ## 🚀 Running & Building
 
 ```bash
-npm run dev    # Development server
-npm run build  # Production build
+npm run dev      # 개발 서버 (?dev_preview=member|admin 으로 로그인 없이 화면 확인)
+npm run build    # 프로덕션 빌드
+npm test         # vitest
+npm run check    # svelte-check
 ```
+
+CI(`.github/workflows/ci.yml`)는 eslint → vitest → svelte-check → vite build를 비밀값 없이 실행한다.

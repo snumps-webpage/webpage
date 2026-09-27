@@ -1,37 +1,62 @@
 # SNUMPS Webpage
 
-A secure SvelteKit web application designed to manage membership, activity tracking, and academic records for SNUMPS, utilizing Notion as the primary database.
+서울대학교 수학문제연구회(SNUMPS)의 운영 사이트 — 회원 가입·학기별 등록, 세미나 신청과 공개,
+스터디, 출석, 탈퇴, 관리자 도구, 공개 아카이브를 한 SvelteKit 앱으로 다룬다.
 
-## 🚀 Quick Links
+데이터는 **Supabase**(Postgres + Storage)에 있다. 2026-09에 Notion에서 이주했고, Notion은 이제
+이주·복구 스크립트만 읽는다 (앱 런타임은 쓰지 않는다).
 
-- **[Features Overview](./docs/FEATURES.md)**: Explore the authentication, membership, and attendance systems.
-- **[Setup & Installation](./docs/SETUP.md)**: Instructions for local development and Gmail API configuration.
-- **[System Architecture](./docs/ARCHITECTURE.md)**: Detailed breakdown of the project structure and hybrid storage model.
-- **[Design Blueprint](./docs/DESIGN_BLUEPRINT.md)**: Guest landing LaTeX/arXiv design rules and implementation constraints.
+## 기술 스택
 
-## 🌟 Key Highlights
+| 영역       | 사용                                                                                 |
+| ---------- | ------------------------------------------------------------------------------------ |
+| 프레임워크 | SvelteKit 2 + Svelte 5 (runes 전용), TypeScript strict                               |
+| 인증       | Auth.js — Google OAuth, `@snu.ac.kr` 계정만                                          |
+| 데이터     | Supabase Postgres — 테이블당 JSONB 문서 1개, version CAS 쓰기, zod 검증              |
+| 파일       | Supabase Storage — `staging` → 검증 후 `assets` 승격, `/media/<key>` 프록시로만 서빙 |
+| 캐시       | 인스턴스 메모리 + 선택적 Redis (`REDIS_URL`)                                         |
+| 메일       | Gmail API (이벤트 → 규칙 → 템플릿 3층, 관리자 화면에서 편집)                         |
+| 배포       | Vercel (`adapter-vercel`, nodejs22.x) + cron-job.org + Healthchecks.io               |
+| 테스트     | Vitest (jsdom), 데이터 계층은 `store-memory`로 대체                                  |
 
-- **Math Journal Aesthetic**: A distinctive editorial UI overhaul using `Crimson Pro`, `Newsreader`, and `Gowun Batang` typography. Features atmospheric paper-like backgrounds and staggered entrance animations for a refined academic experience.
-- **Robust Admin Approval**: Enhanced approval workflows with instant button disabling, backend verification, and real-time state synchronization to prevent duplicate entries and ensure data integrity.
-- **High Performance**: Optimized backend actions using parallelized Notion requests and intelligent token caching, ensuring sub-second response times.
-- **Smart Integration**: Two-way sync with multiple Notion databases for members and activities.
+## 빠른 시작
 
-## 🛠️ Tech Stack
+```bash
+npm ci
+cp .env.example .env     # dev Supabase 프로젝트 값을 채운다 — prod 키 금지
+npx tsx scripts/seed-dev.ts
+npm run dev
+```
 
-- **Frontend**: Svelte 5 (Runes) & SvelteKit.
-- **Backend**: SvelteKit Server Routes with In-memory Caching.
-- **Authentication**: Auth.js with Google OAuth.
-- **Storage**: Notion (Primary) + In-Memory Cache.
-- **Communication**: Google Gmail API.
+자세한 절차는 [SETUP](docs/SETUP.md). 품질 게이트는 CI와 같다:
 
----
+```bash
+./node_modules/.bin/eslint .
+./node_modules/.bin/vitest run
+./node_modules/.bin/svelte-kit sync && ./node_modules/.bin/svelte-check --tsconfig ./tsconfig.json
+./node_modules/.bin/vite build
+```
 
-- [**Setup Guide**](docs/SETUP.md) - Environment variables and initial configuration.
-- [**Auth Variables**](docs/AUTH_VARS.md) - Usage of Admin and Authorized user lists.
-- [**Architecture**](docs/ARCHITECTURE.md) - System design and operational protocols.
-- [**Features**](docs/FEATURES.md) - Detailed breakdown of application capabilities.
-- [**Component Guide**](docs/COMPONENTS.md) - Documentation for reusable UI components and utilities.
-- [**Maintenance Guide**](docs/MAINTAINING_DOCS.md) - Guidelines for documentation and system maintenance.
-- [**Design Blueprint**](docs/DESIGN_BLUEPRINT.md) - Pre-login landing design principles and guardrails.
-- [**Caching Policy**](docs/CACHE.md) - Cache durations and management strategy.
-- [**Database Schema**](docs/schema.md) - Notion database structures and property mappings.
+## 문서
+
+**현재 상태를 설명하는 문서**
+
+- [Architecture](docs/ARCHITECTURE.md) — 요청 흐름, 접근 존, 데이터 계층, 자산, 크론
+- [Features](docs/FEATURES.md) — 사용자·관리자 기능 요약
+- [Setup](docs/SETUP.md) — 환경변수, 로컬 개발, 메일 발신 설정
+- [Auth Variables](docs/AUTH_VARS.md) — 인증·권한 관련 env
+- [Database Schema](docs/schema.md) — 테이블(zod 스키마) 요약
+- [Caching](docs/CACHE.md) — 캐시 계층과 HTTP 캐시 금지 정책
+- [Components](docs/COMPONENTS.md) — 컴포넌트·공용 유틸
+- [Design Blueprint](docs/DESIGN_BLUEPRINT.md) — LaTeX/논문형 시각 규칙
+- [Performance](docs/PERFORMANCE.md) — 적용된 최적화 기록
+- [Operator TODO](docs/OPERATOR-TODO.md) — 사람이 해야 하는 셋업·운영 작업
+- [Maintaining Docs](docs/MAINTAINING_DOCS.md) — 문서 분류와 갱신 규칙
+
+**명세·감사**
+
+- [`docs/spec/`](docs/spec) — 기능·API·구현·Supabase 이주 명세. 문서 간 불일치가 있다 —
+  최신은 `FUNCTIONAL-SPEC`·`API-SPEC`·`SUPABASE-MIGRATION-SPEC`, 확정 결정은 `FRONTEND-DECISIONS`
+- [`docs/code-audit/`](docs/code-audit) — 진행 중인 코드 감사 (감사 종료 시 삭제 예정)
+- [`scripts/ops/README.md`](scripts/ops/README.md) · [`scripts/migration/README.md`](scripts/migration/README.md) — 운영·이주 스크립트
+- [`scripts/measure/README.md`](scripts/measure/README.md) — 실측 하네스 (격리 서버를 띄워 HTTP·브라우저로 끝-끝 검증, HEAD 대조)

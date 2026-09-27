@@ -1,33 +1,65 @@
 # Application Features
 
-## 🔐 Authentication & Security
+> 사용자 관점의 요약이다. 기능 ID와 정확한 규칙은 [`spec/FUNCTIONAL-SPEC.md`](spec/FUNCTIONAL-SPEC.md).
 
-- **Google OAuth**: Secure login via Auth.js, restricted strictly to `@snu.ac.kr` domains.
-- **Role-Based Access**: Automatic distinction between regular Members and Admins.
-- **Obfuscated Attendance Links**: Generates unique, randomized URLs (e.g., `/events/[id]/[random_code]`) for simplified and secure check-in.
-- **Input Validation**: Robust server-side checks prevent IDOR attacks and unauthorized data manipulation.
+## 🔐 인증과 접근
 
-## 👥 Membership System
+- **Google 로그인** — `@snu.ac.kr` 계정만 (AUTH-01). 전용 로그인 페이지 `/login`, 로그인 후 원래
+  페이지로 복귀(안전한 내부 경로만).
+- **라우트 그룹 = 접근 존** — 공개 / 신청자 / 회원 / 관리자. 관리자 화면은 권한이 없으면 404.
+- **학기별 등록제 (S9)** — 회원의 참여 권한은 이번 학기 등록에서 나온다. 미등록 동문은 회원 화면
+  열람과 본인 설정만 가능하고, 그 외 미등록 회원은 재가입 신청이 필요하다.
 
-- **Signup Flow**: New users must apply for membership. Applications are processed through Notion for Admin approval.
-- **Robust Approval Workflow**: Admin actions (Accept/Reject) include instant button disabling and state verification to prevent duplicate entries and ensure data integrity.
-- **User Profile**: Members can view their full participation history with standardized semester filtering and manage personal details (Phone, Bio, Background).
-- **Seminar Application**: Members can propose and organize their own seminars directly through the web interface.
-- **Automated Alerts**: Admins receive instant email notifications for new signups and completed attendance requests via the Gmail API.
+## 🌐 공개 영역
 
-## 📅 Event & Attendance System
+- `/` — 비로그인 랜딩(논문 표지 형식, 현 회장단 연락처는 동의한 경우만).
+- `/about/*` — 회칙(개정 이력 포함), 역대 임원진. 선거·재정·보도는 자료 준비 중 안내 페이지.
+- `/archive/*` — 세미나(상세·사진 포함), 스터디, 활동, 갤러리, 프로젝트, 기타. 출석 명단은 공개하지 않는다.
+- `/members` — 공개 회원 명부 (탈퇴자 제외, 개인정보 없음).
+- 파일은 `/media/<key>`로만 제공 — 취소·미공개 세미나의 파일은 관리자에게만.
 
-- **Event Lifecycle**: Admins can Create (Draft), Activate (Publish), Expire, and Delete events. Expired events can be reactivated.
-- **Existing Event Connection**: Ability to link new attendance sessions to already existing Notion activity records.
-- **Seminar Approval**: Admins review member-submitted seminar proposals. Approved seminars are automatically converted into official Activities in Notion.
-- **Attendance Tracking**: Users check in via obfuscated links. One-click completion records both start and end times for admin review.
+## 👥 회원
 
-## 🎨 UI & UX
+- **가입 신청** `/signup` → **대기** `/wait` (수정·철회 가능) → 관리자 승인 시 회원 등록 + 환영 메일.
+- **대시보드** `/` — 이번 학기 활동과 참여 상태, 세미나 참가 신청·취소, 내 신청·스터디, 주최자 인계 제안, 내 정보 수정.
+- **알림 설정** `/settings/notifications` — 전체 공지 메일 수신 여부, 회장단일 때 전화번호 공개 여부.
+- **탈퇴** `/settings/withdraw` — 3단계 확인, 즉시 접근 중지, 1개월 유예 동안 `/withdraw/pending`에서 취소 가능.
+  진행 중인 스터디 주최자는 먼저 인계해야 한다. 유예 이후 처리(익명화)는 임원진 결정 전까지 **구현하지 않는다**.
 
-- **Dynamic Theme Selection**: Easily switch between **Light, Dark, and System** themes via text-based controls in the universal footer.
-- **Form Integrity**: Textareas like the "Background" info are fixed-size to maintain dashboard layout.
-- **Standardized Error Feedback**: Detailed error messages and standard HTTP status codes provide clear feedback during form submissions.
-- **Smart Phone Normalization**: Automatically converts various input styles (e.g., `01012345678`, `010 1234 5678`) into the standardized `010-XXXX-XXXX` format.
-- **Smart Paging**: Handles large databases via automatic pagination helpers.
-- **Skeleton Loaders**: Shimmering placeholders ensure a smooth perceived performance during data loading.
-- **Robust Admin Feedback**: Instant button throttling combined with background state verification and automated refresh for critical operations like membership and seminar approvals.
+## 🎤 세미나
+
+- **신청** `/seminar/apply` — 정기/비정기, 소개·선수지식·소요 시간·선호 시기, 공동 발표자, 외부 자료 링크,
+  포스터(자동 생성 또는 업로드).
+- **수명주기** — 승인(신청자에게만 통보) → 일정 미정 → 일정 확정 → **공개**(활동·출석 이벤트 생성 + 전 회원 공지 1회) → (취소).
+  일정 변경·취소 공지는 이미 공지된 세미나에만 나간다. 취소해도 기록은 남는다.
+- **발표자 출석 관리** `/events/manage` — 참가 신청자 중에서 출석을 표시. 다른 경로의 출석은 보존(merge).
+
+## 📅 출석
+
+- **출석 링크** `/events/<pathId>/<attendCode>` — 체크인하면 관리자 승인 대기 큐에 들어간다.
+- 이벤트 상태: 초안 → 활성 → 만료(재활성 가능) / 취소(최종). 만료는 읽는 시점에 판정한다.
+
+## 📚 스터디
+
+- **개설 신청** `/study/apply` → 관리자 승인 → 주최자 지정.
+- **참여** `/study/<id>` — 참여 신청·탈퇴. 주최자가 수락.
+- **주최자 도구** `/study/<id>/manage` — 참가자 관리, 모집중 → 진행 → 종료, 회차 생성(입력 없이 현재 시각),
+  회차 정정·취소, 주최자 인계(제안 → 수락). `/study/<id>/attendance`에서 회차별 출석.
+
+## 🛠️ 관리자 (`/admin`)
+
+- **대시보드** — 가입 신청, 세미나·스터디 신청, 출석 큐, 탈퇴 유예 목록. 30초 폴링(탭이 보일 때만).
+- **회원** — 지위(준회원/정회원/동문 취소), 임원 직위, 관리자 권한, 개인정보 수정, 탈퇴 보류. 전부 감사 로그.
+- **임원진** — 학기별 직위 배정, 커스텀 직위.
+- **세미나** — 일정 확정·공개·취소, 기록 편집, 파일 추가·삭제.
+  취소·미공개 세미나를 삭제하면 숨겨져 있던 활동·출석 세션·원 신청까지 함께 정리한다(다시 공개되지 않도록).
+  발표자 외 출석자나 대기·승인 체크인이 남아 있으면 거부한다 — 활동 편집·출석 큐에서 먼저 정리.
+  게시된 세미나는 기록만 지우고 활동은 아카이브에 남는다.
+- **스터디·활동·갤러리** — 기록 편집, 출석자 일괄 지정(유일하게 허용된 덮어쓰기).
+- **이벤트** — 새 출석 이벤트, 기존 활동에 연결.
+- **메일** — 템플릿·발송 규칙·공용 변수 편집, 직전 버전 되돌리기, 테스트 발송.
+
+## 🎨 UI
+
+- LaTeX·학술지 문법의 문서형 화면 ([DESIGN_BLUEPRINT](DESIGN_BLUEPRINT.md)), 라이트/다크/시스템 테마.
+- 전화번호는 `010-XXXX-XXXX`로 정규화해 저장한다.

@@ -12,9 +12,13 @@ This document explains the purpose of each documentation file in this project, h
 | `FEATURES.md`         | User-Facing  | Product/Users   | Comprehensive list of application capabilities.            |
 | `SETUP.md`            | Installation | New Developers  | Environment variables, local setup, and API configuration. |
 | `AUTH_VARS.md`        | Security     | Admins/Devs     | Guidance on Admin and Authorized user lists.               |
-| `CACHE.md`            | Performance  | Backend Devs    | Caching strategy, TTL values, and cache key patterns.      |
-| `schema.md`           | Database     | Backend Devs    | Notion database properties and relation mappings.          |
+| `CACHE.md`            | Performance  | Backend Devs    | HTTP no-store policy, table cache tiers and TTLs.          |
+| `schema.md`           | Database     | Backend Devs    | Summary of the zod table schemas and storage format.       |
 | `DESIGN_BLUEPRINT.md` | UI/UX        | Designers/Devs  | Authoritative rules for LaTeX/Academic visual style.       |
+| `PERFORMANCE.md`      | Performance  | Engineers       | Applied optimizations — what, how, why, how to revert.     |
+| `OPERATOR-TODO.md`    | Operations   | Operators       | Setup and runbook tasks a person must do (living list).    |
+| `spec/`               | Specs        | Engineers       | Functional/API/implementation/migration specs & decisions. |
+| `code-audit/`         | Audit        | Engineers       | In-progress code audit; deleted when the audit closes.     |
 
 ---
 
@@ -46,13 +50,13 @@ This document explains the purpose of each documentation file in this project, h
 
 ### `SETUP.md` & `AUTH_VARS.md`
 
-- **When to update**: When introducing a new environment variable or changing the required Notion database structure.
+- **When to update**: When introducing, renaming or removing an environment variable (also update `.env.example`).
 - **How to extend**: Update the environment variable list and provide clear instructions on how to obtain the new values.
 
 ### `schema.md`
 
-- **When to update**: When adding a new property or relation to any Notion database.
-- **How to extend**: Update the corresponding table with the property name, type, and purpose.
+- **When to update**: When a zod schema in `src/lib/server/data/schemas/` gains, loses or changes a field, or a table is added to `TABLES`.
+- **How to extend**: Update the corresponding table with the field name, meaning and any invariant. The zod file stays authoritative.
 
 ### `DESIGN_BLUEPRINT.md`
 

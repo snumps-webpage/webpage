@@ -2,20 +2,20 @@
 
 ## 1. Project Overview
 
-**SNUMPS Webpage** is a secure SvelteKit web application designed to manage membership, activity tracking, and seminar organization for the SNUMPS club. It utilizes **Notion** as the primary persistent database while employing a local JSON caching layer for performance and reliability.
+**SNUMPS Webpage** is a SvelteKit application that runs the SNUMPS club: membership with per-term registration, seminars, studies, attendance, withdrawal, admin tools and a public archive. Data lives in **Supabase** (Postgres + Storage); it was migrated from Notion in 2026-09, and Notion is now read only by migration/repair scripts. See `docs/ARCHITECTURE.md`.
 
 ### Key Features
 
-- **Membership System:** Google OAuth login (restricted to `@snu.ac.kr`), automated signup flow, and profile management.
-- **Event & Attendance:** Admin-managed events with automated activation/expiration. One-click attendance tracking for members.
-- **Seminar System:** Member-led seminar proposals with a full approval workflow, including automated Notion page creation and email notifications.
-- **Performance Caching:** In-memory caching layer reduces Notion API load and improves dashboard responsiveness.
+- **Membership:** Google OAuth (`@snu.ac.kr` only), signup → admin approval → term registration; capabilities derive from this term's registration.
+- **Seminars:** proposal → approval → schedule → publish (activity + attendance event + one all-member announcement) → optional cancel.
+- **Studies & Attendance:** organizer tools, session creation, obfuscated check-in links, admin attendance queue.
+- **Admin:** member records, roles, record editors, mail templates/rules, all audited where required.
 
 ### Tech Stack
 
-- **Framework:** SvelteKit (Svelte 5 Runes)
-- **Language:** TypeScript
-- **Database:** Notion API (Primary), In-Memory Cache
+- **Framework:** SvelteKit 2 (Svelte 5 Runes), TypeScript strict
+- **Data:** Supabase Postgres as a version-CAS JSONB document store, validated with zod; Supabase Storage behind `/media/<key>`
+- **Cache:** in-memory table cache + optional Redis; HTTP responses are always `no-store`
 - **Auth:** Auth.js (Google Provider)
 - **Styling:** Custom CSS with CSS Variables (Dark Mode supported)
 
@@ -55,16 +55,13 @@ npm run lint
 
 ### Directory Structure
 
-- `src/routes/`: SvelteKit file-based routing.
-  - `admin/`: Restricted administrative dashboard (returns 404 for unauthorized users).
-  - `events/`: Public attendance check-in pages.
-  - `seminar/`: Seminar application flow.
-- `src/lib/server/`: Server-side business logic.
-  - `notion.ts`: Low-level Notion API wrapper and type parsers.
-  - `events.ts`: Event lifecycle and attendance queue logic.
-  - `seminars.ts`: Seminar request queue logic.
-  - `admin.ts`: Membership application logic.
-  - `mail.ts`: Gmail API integration for notifications.
+- `src/routes/`: route groups are access zones — `(public)`, `(applicant)`, `(member)`, `(admin)`, plus `api/`.
+- `src/lib/domain/`: pure, browser-safe logic, view types and input schemas.
+- `src/lib/server/`:
+  - `guards/`: zone decisions (`zone.ts`) and session → member resolution.
+  - `data/`: `store.ts` (the only Supabase data access), `tables.ts` (`getTable`/`mutate`), `schemas/` (zod).
+  - `services/`: membership, seminars, studies, events, uploads, withdrawal, admin records.
+  - `mail/`: Gmail transport, event catalog, rule/template resolution.
 
 ### Operational Protocols
 
@@ -89,14 +86,14 @@ npm run lint
 
 #### 3. Security
 
-- **Obscurity**: Unauthorized access to admin routes must return `404 Not Found`, not a redirect (except for `events/*` and `seminar/*`).
-- **Data Safety**: Always sanitize inputs and use strict typing for Notion interactions.
-- **Production Hardening**: Source maps are disabled; `robots.txt` blocks crawling.
+- **Obscurity**: Non-admins get `404 Not Found` in the `(admin)` zone, never a redirect. The `(member)` zone redirects to `/login`, `/signup` or `/wait`.
+- **Data Safety**: Validate inputs with the domain zod schemas; every table write goes through `mutate` (schema-checked). Public loads return projected views only — never raw rows or PII.
+- **Production Hardening**: Source maps are disabled; every SSR response is `no-store` (no ISR, no prerender).
 
-#### 4. In-Memory Caching
+#### 4. Caching
 
-- **Ephemeral Nature**: Caches are per-instance and ephemeral. Do not rely on them for persistent storage or critical data consistency.
-- **TTL Strategy**: Use short TTLs (e.g. 1-5 minutes) for frequent reads to balance performance with data freshness.
+- **Table cache only**: `getTable` caches `table_<name>` keys and `mutate` invalidates them. Do not add derived cache keys.
+- **Ephemeral Nature**: Caches are per-instance (local TTL ≤ 15 s for tables). Never rely on them for consistency.
 
 #### 5. Development Performance
 

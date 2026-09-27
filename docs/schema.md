@@ -1,79 +1,112 @@
-# Notion Database Schema Reference
+# Database Schema Reference
 
-This document outlines the expected property structure for the Notion databases used in SNUMPS Webpage.
+> 권위 있는 정의는 zod 스키마다 — `src/lib/server/data/schemas/*.ts`, 레지스트리는 `schemas/index.ts`의 `TABLES`.
+> 이 문서는 그 요약이며, 필드가 바뀌면 함께 갱신한다. 관계는 전부 id 참조(외래키 없음)다.
 
-## 1. Members DB (`NOTION_DB_MEMBERS`)
+## 저장 형식
 
-**Purpose:** Stores public member information and serves as the primary identity record.
+| Postgres 테이블 | 키                      | 내용                                                            |
+| --------------- | ----------------------- | --------------------------------------------------------------- |
+| `app_tables`    | `name` (앱 테이블 이름) | `doc = {schemaVersion: 1, rows: [...]}`, `version` (CAS용)      |
+| `app_queues`    | `event_id`              | 이벤트 하나의 출석 큐 문서                                      |
+| `audit_log`     | `id`                    | `at, actor, action, target_tb, target_id, detail` — INSERT 전용 |
 
-| Property Name | Type        | Description                                       |
-| :------------ | :---------- | :------------------------------------------------ |
-| **이름**      | Title       | Member's full name.                               |
-| **학과**      | RichText    | Member's academic department.                     |
-| **가입일**    | Date        | Date when the member joined the club.             |
-| **개인 정보** | Relation    | Link to the _Private Info_ database (1:1).        |
-| **임원**      | MultiSelect | Roles like "25-2 회 장" for identifying officers. |
-| **활동 기록** | Relation    | Link to the _Activities_ database (Multiple).     |
+마이그레이션: `supabase/migrations/20260901000000_documents.sql` (테이블 3종, RLS deny-all, 버킷 3개).
 
-## 2. Private Info DB (`NOTION_DB_PRIVATE_INFO`)
+## 공용 타입 (`schemas/common.ts`)
 
-**Purpose:** Stores sensitive or detailed member information. Linked 1:1 with Members DB.
+- `DateTime` — 오프셋 포함 ISO 8601, KST(`+09:00`)로 저장. `DateOnly` — `YYYY-MM-DD`.
+- `Term` — 학기 `YY-1`(3–8월) / `YY-2`(9–2월). 파생 학기와 직위 학기는 이것만 쓴다.
+- `Semester` — 기록용 학기, 방학 `YY-S`/`YY-W`까지 허용 (세미나·스터디).
+- `ActivityType` — `세미나 | 스터디 | 회의 | 회식 | 기타`.
+- `SourceRequestId` — 멱등 앵커 (신청 id 또는 `<studyId>:<date>`), 없으면 `null`.
 
-| Property Name | Type        | Description                              |
-| :------------ | :---------- | :--------------------------------------- |
-| **이름**      | Title       | Member's full name (matches Members DB). |
-| **이메일**    | Email       | Unique identifier for lookup.            |
-| **전화번호**  | PhoneNumber | Contact number.                          |
-| **배경 지식** | RichText    | Academic background or skills.           |
-| **회원 정보** | Relation    | Link back to the _Members_ database.     |
+## 회원
 
-## 3. Activities DB (`NOTION_DB_ACTIVITIES`)
+### `members` 🔒 일부
 
-**Purpose:** Stores official club events and attendance records.
+| 필드                                   | 설명                                                                     |
+| -------------------------------------- | ------------------------------------------------------------------------ |
+| `id`, `name`, `department`, `joinedAt` | 기본 정보                                                                |
+| `status`                               | `associate`(준회원) · `regular`(정회원) · `withdrawn`, `statusChangedAt` |
+| `withdrawal`                           | 탈퇴 유예 `{requestedAt, previousStatus, holdBy, holdAt}` 또는 `null`    |
+| `isAlumni`, `alumniRevoked`            | 동문 지위. 취소 플래그는 끈적하다 — 재승격해도 동문이 되살아나지 않는다  |
+| `roles[]`                              | `{term, title}` — 학기별 임원 직위                                       |
+| `isAdmin`                              | 관리자 권한의 유일한 원천 (D4)                                           |
+| `publicContact`                        | 공개 연락처 (공개 로드에 허용된 유일한 예외)                             |
+| `project`                              | `{title, url?}` 또는 `null`                                              |
+| `legacyMemberId`                       | 재가입 시 매칭된 `legacy-members` 행                                     |
 
-| Property Name | Type     | Description                                          |
-| :------------ | :------- | :--------------------------------------------------- |
-| **활동명**    | Title    | Name of the event.                                   |
-| **일정**      | Date     | Date and time of the event.                          |
-| **활동 종류** | Select   | Category (e.g., "세미나", "스터디", "회의", "회식"). |
-| **출석**      | Relation | Link to _Members_ database (Attendees).              |
+### `private-info` 🔒 PII — 공개 로드에 절대 나가지 않는다
 
-## 4. Applications DB (`NOTION_DB_APPLICATIONS`)
+`memberId`(→ members, 단방향), `email`(로그인 키, 옛 회원은 빈 문자열), `phone`, `background`,
+`studentId`, `mailPrefs.announcements`, `hidePublicPhone`.
 
-**Purpose:** Stores new membership applications before approval.
+### `registrations` (S9)
 
-| Property Name | Type        | Description                     |
-| :------------ | :---------- | :------------------------------ |
-| **이름**      | Title       | Applicant's name.               |
-| **이메일**    | Email       | Applicant's email.              |
-| **전화 번호** | PhoneNumber | Applicant's phone number.       |
-| **학과**      | RichText    | Applicant's department.         |
-| **배경 지식** | RichText    | Applicant's background info.    |
-| **수락됨**    | Checkbox    | Toggled by admin upon approval. |
+`memberId`, `term`, `registeredAt` — 가입/재가입 승인이 만든다. 이번 학기 행이 있어야 참여 권한이 생긴다.
 
-## 5. Seminar Requests DB (`NOTION_DB_SEMINAR_REQUESTS`)
+### `legacy-members`, `legacy-private-info`
 
-**Purpose:** Stores member-submitted seminar proposals.
+Notion 이주분 원본 — 스키마는 `members`/`private-info`와 같고 **앱은 쓰지 않는다**. 표시용 디렉터리만 읽는다.
 
-| Property Name      | Type     | Description                            |
-| :----------------- | :------- | :------------------------------------- |
-| **제목**           | Title    | Seminar topic/title.                   |
-| **설명**           | RichText | Detailed description of the seminar.   |
-| **선수 지식**      | RichText | Required background knowledge.         |
-| **예상 소요 시간** | RichText | Proposed duration.                     |
-| **진행자**         | Relation | Link to _Members_ database (Speakers). |
-| **승인됨**         | Checkbox | Toggled by admin upon approval.        |
+### `applications` 🔒
 
-## 6. Attendance Queue DB (`NOTION_DB_ATTENDANCE_QUEUE`)
+미처리 가입 신청만 (`name, email, phone, department, studentId, background, createdAt`). 상태 필드 없음 —
+승인·거절·철회 모두 행을 지운다.
 
-**Purpose:** Stores temporary attendance records pending admin approval.
+## 활동과 출석
 
-| Property Name | Type     | Description                        |
-| :------------ | :------- | :--------------------------------- |
-| **UserName**  | Title    | Name of the user checking in.      |
-| **UserEmail** | Email    | Email of the user.                 |
-| **UserDept**  | RichText | Department of the user.            |
-| **EventId**   | RichText | ID of the target event.            |
-| **StartTime** | Date     | Check-in timestamp.                |
-| **EndTime**   | Date     | Check-out timestamp.               |
-| **Status**    | Select   | `pending`, `approved`, `rejected`. |
+### `activities`
+
+`title`, `date{start, end}`, `type`, `attendeeIds[]` — 출석 기록의 원천.
+
+### `events`
+
+출석 세션. `status`: `draft | active | expired | cancelled`(최종). `pathId`·`attendCode`(출석 링크),
+`activityId`(필수), `applicantIds[]`, `presenterIds[]`, `studyId`, `sessionNo`, `autoGenerated`.
+
+### 출석 큐 (`app_queues`, 레지스트리 밖)
+
+`memberId, eventId, startTime, endTime, status(pending|approved|rejected)`.
+
+## 세미나
+
+### `seminar-requests`
+
+`title, description, prerequisites, duration, preferredTiming, presenterIds[], attachment, posterKey,
+requesterId, status(pending|approved|rejected|withdrawn), createdAt`.
+
+### `seminars`
+
+| 필드                                   | 설명                                                                                                                      |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `title`, `semester`, `semesterPinned`  | 학기는 일정에서 자동 도출, 관리자가 직접 정하면 고정                                                                      |
+| `description`, `note`                  | 소개글과 비고는 별개                                                                                                      |
+| `presenterIds[]`, `externalPresenters` | 회원 발표자, 외부 발표자(자유 텍스트)                                                                                     |
+| `materials[]`, `photos[]`, `posterKey` | `assets` 버킷 키                                                                                                          |
+| `publicationStatus`                    | `unscheduled → scheduled → published`, `cancelled`. **필드가 없으면 `published`** (이주 규칙, 첫 쓰기 때 디스크에 굳는다) |
+| `schedule`                             | `{startsAt, startTime("HH:mm" 또는 모름=null), endsAt, location}` — 의도된 일정의 원천                                    |
+| `announcedAt`                          | 전체 공지를 실제로 보낸 시각 (중복 공지 방지 앵커)                                                                        |
+| `activityId`                           | 공개 시 연결. 미공개·취소 세미나는 이 활동을 회원·공개 화면에서 가린다                                                    |
+
+## 스터디
+
+### `study-requests`
+
+`title, textbook, description, semester, requesterId, status, createdAt`.
+
+### `studies`
+
+`organizerIds[]`(현재 불변식: 1명), `participantIds[]`, `pendingParticipantIds[]`, `pendingTransfer`,
+`transferHistory[]`, `schedule[]`(명세상 폐기, 크론이 아직 읽는다), `photos[]`,
+`status(recruiting|ongoing|finished)`.
+
+## 기타
+
+- `gallery-dinner` — `year, photos[], activityId`.
+- `mail-templates` — 코드 기본 문구의 오버라이드 (`key, subject, body, enabled, previous`).
+- `mail-rules` — 이벤트 → 템플릿 → 수신자(`party|admins|executives|members-opted-in`) 규칙.
+- `mail-variables` — 전 템플릿 공용 `{{key}}` 값.
+- `mail-rule-history` — 이벤트별 직전 규칙 세트 (되돌리기 1단계).
+- `role-titles` — 커스텀 임원 직위 (기본 직위는 코드).
