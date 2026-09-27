@@ -30,6 +30,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     user: session.user,
     actualName: locals.member?.name || parseGoogleName(session.user.name).name,
     members: searchableMembers,
+    // The requester starts as the presenter (removable) — the schema needs
+    // at least one, and "the requester presents" is the usual case.
+    initialPresenters: searchableMembers.filter(
+      (m) => m.id === locals.member?.memberId,
+    ),
     memberDirectoryUnavailable,
     timingOptions: seminarTimingOptions(currentTerm()),
   };

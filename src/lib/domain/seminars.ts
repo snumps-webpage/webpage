@@ -93,8 +93,8 @@ export const SEMINAR_MAX_PRESENTERS = 20;
 
 /**
  * Seminar request rules — the single source; the apply and edit actions
- * validate with this. `kind` is asked by the form and checked here, but the
- * stored request has no column for it, so it is not persisted.
+ * validate with this. The stored request keeps `kind` too (null on rows
+ * written before the form asked it).
  */
 export const seminarRequestInputSchema = z.object({
   kind: z.enum(SEMINAR_KINDS, {

@@ -10,13 +10,18 @@ const mail = vi.hoisted(() => ({
 vi.mock("$lib/server/mail", () => mail);
 
 import { __reset } from "$lib/server/data/store-memory";
-import { _resetDataLayerForTests, getTable } from "$lib/server/data/tables";
+import {
+  _resetDataLayerForTests,
+  getTable,
+  mutate,
+} from "$lib/server/data/tables";
+import { nowKstIso } from "$lib/server/core/time";
 import { invalidateCache } from "$lib/server/cache";
 import {
   submitSeminarRequest,
   withdrawSeminarRequest,
 } from "$lib/server/services/seminar-requests";
-import { actions as apply } from "./apply/+page.server";
+import { actions as apply, load as applyLoad } from "./apply/+page.server";
 import { actions as edit, load as editLoad } from "./edit/[id]/+page.server";
 
 /**
@@ -98,10 +103,45 @@ beforeEach(async () => {
   __reset();
   _resetDataLayerForTests({ backoffBaseMs: 1 });
   await invalidateCache("table_seminar-requests");
+  await invalidateCache("table_members");
   mail.sendSeminarApplicationNotification.mockClear();
 });
 
 describe("seminar/apply", () => {
+  // The action used to make the requester the presenter when none was
+  // picked; the schema now requires one, so the form starts with the
+  // requester already picked — the same default, visible and removable.
+  it("load hands the form the requester as the starting presenter", async () => {
+    await mutate("members", () => [
+      {
+        id: MEMBER_ID,
+        name: "회원",
+        department: "수리과학부",
+        joinedAt: null,
+        status: "regular" as const,
+        statusChangedAt: nowKstIso(),
+        withdrawal: null,
+        isAlumni: false,
+        alumniRevoked: false,
+        roles: [],
+        isAdmin: false,
+        publicContact: null,
+        project: null,
+        legacyMemberId: null,
+        sourceRequestId: null,
+      },
+    ]);
+
+    const data = (await applyLoad({
+      locals,
+      url: new URL("http://localhost/seminar/apply"),
+    } as never)) as { initialPresenters: unknown[] };
+
+    expect(data.initialPresenters).toEqual([
+      { id: MEMBER_ID, name: "회원", department: "수리과학부" },
+    ]);
+  });
+
   it("stores a valid request, trimmed, with its kind", async () => {
     const result = await apply.default(post(valid));
 
