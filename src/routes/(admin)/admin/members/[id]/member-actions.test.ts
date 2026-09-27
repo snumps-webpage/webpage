@@ -321,11 +321,30 @@ describe("setAdmin", () => {
   });
 
   it("revokes admin", async () => {
-    await mutate("members", () => [{ ...member, isAdmin: true }]);
+    // the acting admin stays one: the last admin cannot be revoked (LB25-2)
+    await mutate("members", () => [
+      { ...member, isAdmin: true },
+      { ...member, id: "admin", name: "관리자", isAdmin: true },
+    ]);
 
     await post("setAdmin", { isAdmin: "false" });
 
     expect((await storedMember()).isAdmin).toBe(false);
+  });
+
+  it("refuses to revoke the last admin and says why", async () => {
+    await mutate("members", () => [{ ...member, isAdmin: true }]);
+
+    const result = await post("setAdmin", { isAdmin: "false" });
+
+    expect(result).toMatchObject({
+      status: 409,
+      data: {
+        error: "CONFLICT",
+        message: "마지막 관리자의 권한은 회수할 수 없습니다.",
+      },
+    });
+    expect((await storedMember()).isAdmin).toBe(true);
   });
 
   it.each(["", "yes", "TRUE"])(

@@ -102,6 +102,28 @@ describe("admin flag", () => {
     );
     await setAdmin(admin.id, true, admin.id); // self no-op grant is fine
   });
+
+  // Two admins revoking each other both passed the self check (each is the
+  // other's "someone else") and left none — the invariant is a count, and
+  // only SQL could restore it (audit LB25-2).
+  it("refuses to revoke the last admin, whoever asks", async () => {
+    const a = await seedMember({ isAdmin: true });
+    const b = await seedMember({ isAdmin: true });
+    const [first, second] = await Promise.allSettled([
+      setAdmin(b.id, false, a.id),
+      setAdmin(a.id, false, b.id),
+    ]);
+    const outcomes = [first.status, second.status].sort();
+    expect(outcomes).toEqual(["fulfilled", "rejected"]);
+    const rejected = [first, second].find((r) => r.status === "rejected");
+    expect(
+      rejected?.status === "rejected" &&
+        rejected.reason instanceof AppError &&
+        rejected.reason.code,
+    ).toBe("CONFLICT");
+    const members = await getTable("members");
+    expect(members.filter((m) => m.isAdmin)).toHaveLength(1);
+  });
 });
 
 describe("withdrawal hold (ADM-17)", () => {

@@ -99,14 +99,33 @@ export async function setRoles(
   });
 }
 
-/** Grant/revoke admin. Self-revocation is refused — the last admin must not vanish. */
+/**
+ * Grant/revoke admin. Self-revocation is refused (API-SPEC), and so is
+ * revoking the last admin: two admins revoking each other both passed the
+ * self check and left none, which only SQL could undo (audit LB25-2). The
+ * count is checked inside the write, so a concurrent revocation re-checks it.
+ */
 export async function setAdmin(
   targetId: string,
   isAdmin: boolean,
   actorId: string,
 ): Promise<void> {
-  if (targetId === actorId && !isAdmin) throw new AppError("CONFLICT");
-  await patchMember(targetId, (m) => ({ ...m, isAdmin }));
+  if (targetId === actorId && !isAdmin) {
+    throw new AppError("CONFLICT", {
+      userMessage: "본인의 관리자 권한은 회수할 수 없습니다.",
+    });
+  }
+  await mutate("members", (rows) => {
+    const idx = rows.findIndex((m) => m.id === targetId);
+    if (idx === -1) throw new AppError("NOT_FOUND");
+    rows[idx] = { ...rows[idx], isAdmin };
+    if (!rows.some((m) => m.isAdmin)) {
+      throw new AppError("CONFLICT", {
+        userMessage: "마지막 관리자의 권한은 회수할 수 없습니다.",
+      });
+    }
+    return rows;
+  });
   await audit({
     actorMemberId: actorId,
     action: "member.set-admin",
