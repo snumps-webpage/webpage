@@ -1,4 +1,5 @@
 import { getTable } from "$lib/server/data/tables";
+import { listAssetOwners } from "./asset-owners";
 
 /**
  * 자산 한 개를 **누가** 받을 수 있는가.
@@ -16,32 +17,11 @@ export type AssetAccess = "public" | "admin" | "none";
 export async function resolveAssetAccess(key: string): Promise<AssetAccess> {
   if (!key || key.includes("..")) return "none";
 
-  const [seminars, requests, studies, dinners] = await Promise.all([
-    getTable("seminars"),
-    getTable("seminar-requests"),
-    getTable("studies"),
-    getTable("gallery-dinner"),
-  ]);
-
-  // 한 키를 여러 기록이 가리킬 수 있다. **세미나끼리** 겹치면 가장 엄격한 쪽을
-  // 따른다 — 표의 순서가 정책을 정하게 두지 않는다.
-  let verdict: AssetAccess = "none";
-  let ownedBySeminar = false;
-  const restrict = (next: Exclude<AssetAccess, "none">) => {
-    if (next === "admin" || verdict === "none") verdict = next;
-  };
-
-  for (const seminar of seminars) {
-    const owns =
-      seminar.posterKey === key ||
-      seminar.materials.includes(key) ||
-      seminar.photos.includes(key);
-    // 세미나의 자산은 세미나와 같은 운명을 따른다 — 공개된 것만 공개다.
-    if (owns) {
-      ownedBySeminar = true;
-      restrict(seminar.publicationStatus === "published" ? "public" : "admin");
-    }
-  }
+  // Which records own which keys is one list shared with asset-cleanup.ts
+  // (audit LB17-1); the verdict over them is decided here.
+  const owners = (await listAssetOwners(getTable)).filter((o) =>
+    o.keys.includes(key),
+  );
 
   // 신청 포스터가 그려지는 곳은 관리자 심사 화면뿐이다.
   //
@@ -50,15 +30,14 @@ export async function resolveAssetAccess(key: string): Promise<AssetAccess> {
   // 올라온 세미나는 공개된 뒤에도 신청 행과 같은 키를 공유한다. 여기서 신청을
   // 이유로 관리자 전용으로 끌어내리면 **정상적으로 공개된 세미나의 포스터가
   // 게스트에게 404가 된다** — 예외가 아니라 보통 경로다(실측).
-  if (
-    !ownedBySeminar &&
-    requests.some((request) => request.posterKey === key)
-  ) {
-    restrict("admin");
-  }
+  const ownedBySeminar = owners.some((o) => o.table === "seminars");
+  const deciding = owners.filter(
+    (o) => !(ownedBySeminar && o.table === "seminar-requests"),
+  );
 
-  if (studies.some((study) => study.photos.includes(key))) restrict("public");
-  if (dinners.some((dinner) => dinner.photos.includes(key))) restrict("public");
-
-  return verdict;
+  // 한 키를 여러 기록이 가리킬 수 있다. 겹치면 가장 엄격한 쪽을 따른다 —
+  // 표의 순서가 정책을 정하게 두지 않는다.
+  if (deciding.some((o) => o.access === "admin")) return "admin";
+  if (deciding.length > 0) return "public";
+  return "none";
 }
