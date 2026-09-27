@@ -1,10 +1,11 @@
 import { AppError } from "$lib/server/core/errors";
 import { newId, randomToken } from "$lib/server/core/id";
-import { nowKstIso } from "$lib/server/core/time";
+import { isKstInstant, nowKstIso } from "$lib/server/core/time";
 import { mutate } from "$lib/server/data/tables";
 import { callFlow, type FlowResult } from "$lib/server/data/flows";
 import {
   SeminarSchema,
+  SeminarScheduleSchema,
   type Seminar,
   type SeminarSchedule,
 } from "$lib/server/data/schemas";
@@ -169,10 +170,25 @@ async function announce(id: string, seminar: Seminar): Promise<boolean> {
  * 이주로 일정을 잃은 레거시 행(`published` + `schedule: null`)을 고치는 입구도
  * 여기다. 그 행들은 `scheduleSeminar`가 받지 않는다(이미 공개됐으므로).
  */
+/** The schedule rules the stored schema holds, plus canonical instants. */
+function assertStorableSchedule(schedule: SeminarSchedule): void {
+  if (
+    !SeminarScheduleSchema.safeParse(schedule).success ||
+    !isKstInstant(schedule.startsAt) ||
+    (schedule.endsAt !== null && !isKstInstant(schedule.endsAt))
+  ) {
+    throw new AppError("VALIDATION_FAILED");
+  }
+}
+
 export async function updateSeminarSchedule(
   id: string,
   schedule: SeminarSchedule,
 ): Promise<{ seminar: Seminar; mailFailed: boolean }> {
+  // A published seminar's schedule is written by the flow, which has no zod
+  // gate: a schedule the schema refuses would be committed and then make the
+  // seminars table unreadable (audit LA26-2). Check it here, first.
+  assertStorableSchedule(schedule);
   const out = await callFlow<
     FlowResult & { seminar: unknown; changed: boolean }
   >("flow_update_seminar_schedule", { id, schedule });
