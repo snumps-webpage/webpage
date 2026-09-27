@@ -86,6 +86,23 @@ export function dashboardActivityState(
   return "scheduled";
 }
 
+/**
+ * What the ledger says when apply/cancel is refused. A cancelled event is 404
+ * on purpose — for members it no longer exists (services/visibility.ts).
+ */
+export function dashboardActivityErrorMessage(code: string | undefined) {
+  switch (code) {
+    case "EVENT_NOT_OPEN":
+      return "신청 가능한 시간이 지났습니다.";
+    case "NOT_FOUND":
+      return "더 이상 신청할 수 없는 활동입니다. 새로고침해 주세요.";
+    case "FORBIDDEN":
+      return "이번 학기 등록 회원만 참여할 수 있습니다.";
+    default:
+      return "참여 상태를 변경하지 못했습니다.";
+  }
+}
+
 export function dashboardProfileIssues(error: z.ZodError) {
   const issues: Partial<Record<"phone" | "background" | "_form", string>> = {};
   for (const issue of error.issues) {

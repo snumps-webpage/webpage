@@ -7,7 +7,10 @@
     DashboardActivityItem,
     DashboardOperationResult,
   } from "$lib/domain/dashboard";
-  import { dashboardActivityState } from "$lib/domain/dashboard";
+  import {
+    dashboardActivityErrorMessage,
+    dashboardActivityState,
+  } from "$lib/domain/dashboard";
 
   let {
     initialActivities,
@@ -101,10 +104,7 @@
         result.type === "failure" ? (result.data as { error?: string }) : null;
       notice = {
         tone: "error",
-        message:
-          payload?.error === "EVENT_NOT_OPEN"
-            ? "신청 가능한 시간이 지났습니다."
-            : "참여 상태를 변경하지 못했습니다.",
+        message: dashboardActivityErrorMessage(payload?.error),
       };
     };
   }
