@@ -188,8 +188,9 @@ describe("cron (§8-1)", () => {
       status: "active",
     });
 
-    const results = await runCron();
-    expect(results.expired).toBe(1);
+    const { counts, failures } = await runCron();
+    expect(failures).toEqual([]);
+    expect(counts.expired).toBe(1);
     const events = await getTable("events");
     expect(events.find((e) => e.title === "지난 것")?.status).toBe("expired");
     expect(events.find((e) => e.title === "다가올 것")?.status).toBe("active");

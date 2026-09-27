@@ -799,14 +799,16 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용 — `$lib/doma
 - 응답 (v0.8):
   - **성공** — `200 { success: true, steps_total: 1, expired: n }`.
     이때만 dead-man's switch에 ping한다 (`SUPABASE-MIGRATION-SPEC` §5-3)
-  - **실패** — `500 { success: false, failures: [키…], …결과 }`. **ping하지 않는다**
-  - 실패 판정은 결과 맵의 세 표기를 본다: `<스텝>_failed`(스텝이 던짐) ·
-    `<단계>_errors`(스텝이 항목별 실패를 내부에서 삼키고 센 수) · `keptAlive: false`.
-    `services/cron-status.ts`의 `cronFailures()`가 유일한 판정자다
+  - **실패** — `500 { …결과, success: false, failures: ["<스텝>_failed", …] }`. **ping하지 않는다**
+  - 실패는 생산자가 **별도 채널**(`CronReport.failures`)로 낸다 — 결과 맵의 키 이름으로
+    실패를 추론하지 않는다 (감사 LB19-1). 스텝이 던지면 `runIsolated`가 `<스텝>_failed`를,
+    던지지 않고 알아챈 실패는 `markFailed`가 기록한다 (`services/cron-status.ts`).
+    결과 맵(`…결과`)은 로그·본문용 카운터일 뿐이다
   - **왜 명시하는가**: `runCron`/`runMaintenance`는 스텝별로 격리해 **던지지 않는다.**
     따라서 라우트의 try/catch로는 실패를 알 수 없고, 이 규약이 없으면 전 스텝이 실패한 실행도
     `200 success`로 보고되며 heartbeat까지 눌린다 — 실제로 그랬다 (감사 `CS-5`·`CM-4`)
-  - 같은 규약이 `GET /api/cron/maintenance`에 적용된다 (`backup_push_failed` 포함)
+  - 같은 규약이 `GET /api/cron/maintenance`에 적용된다. 실패 이름: `keepalive_failed`
+    (이때 본문의 `keptAlive`는 `false`) · `cleanup_failed` · `backup_failed` · `backup_push_failed`
 
 ### 8-2. 업로드 — SYS-03
 

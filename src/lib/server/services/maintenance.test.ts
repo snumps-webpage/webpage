@@ -170,22 +170,26 @@ describe("runMaintenance", () => {
 
   it("keeps alive and cleans staging without dump keys on a non-Sunday (KST)", async () => {
     await dumpTakenAgo(1); // yesterday's Sunday dump
-    const results = await runMaintenance(MONDAY_KST);
+    const { counts, failures } = await runMaintenance(MONDAY_KST);
 
-    expect(results.keptAlive).toBe(true);
-    expect(results.stagedRemoved).toBe(0);
-    expect(results).not.toHaveProperty("dumped");
-    expect(results).not.toHaveProperty("pushed");
+    expect(failures).toEqual([]);
+    expect(counts.keptAlive).toBe(true);
+    expect(counts.stagedRemoved).toBe(0);
+    expect(counts).not.toHaveProperty("dumped");
+    expect(counts).not.toHaveProperty("pushed");
   });
 
   it("branches into the weekly backup on a KST Sunday", async () => {
     __putRawDoc("table", "members", { schemaVersion: 1, rows: [] });
 
-    const results = await runMaintenance(SUNDAY_KST);
+    const { counts, failures } = await runMaintenance(SUNDAY_KST);
 
-    expect(results.keptAlive).toBe(true);
-    expect(results.dumped).toBe(1);
-    expect(results.pushed).toBe(false);
+    expect(failures).toEqual([]);
+    expect(counts.keptAlive).toBe(true);
+    expect(counts.dumped).toBe(1);
+    expect(counts.pushed).toBe(false);
+    // pushFailed is a failure signal, not a counter: it never reaches the body.
+    expect(counts).not.toHaveProperty("pushFailed");
     expect(__exists("backups", dumpPathFor(SUNDAY_KST))).toBe(true);
   });
 
@@ -194,9 +198,9 @@ describe("runMaintenance", () => {
   // be 14 days old against an RPO of 7 (audit LB24-2).
   it("catches up on a later day when the last dump is a week old", async () => {
     await dumpTakenAgo(8); // the Sunday before last; yesterday's run failed
-    const results = await runMaintenance(MONDAY_KST);
+    const { counts } = await runMaintenance(MONDAY_KST);
 
-    expect(results).toHaveProperty("dumped");
+    expect(counts).toHaveProperty("dumped");
     expect(__exists("backups", dumpPathFor(MONDAY_KST))).toBe(true);
   });
 
@@ -211,18 +215,37 @@ describe("runMaintenance", () => {
       vi.fn(async () => ({ ok: false, status: 500 }) as Response),
     );
     try {
-      const results = await runMaintenance(SUNDAY_KST);
+      const { counts, failures } = await runMaintenance(SUNDAY_KST);
 
-      expect(results.pushed).toBe(false);
-      expect(results.backup_push_failed).toBe(1);
+      expect(counts.pushed).toBe(false);
+      expect(failures).toEqual(["backup_push_failed"]);
     } finally {
       vi.unstubAllGlobals();
     }
   });
 
   it("backs up on any day when there is no dump at all", async () => {
-    const results = await runMaintenance(MONDAY_KST);
+    const { counts } = await runMaintenance(MONDAY_KST);
 
-    expect(results).toHaveProperty("dumped");
+    expect(counts).toHaveProperty("dumped");
+  });
+
+  // LB19-1: a failed phase is reported on the failures channel, not as a
+  // counter spelling the route has to recognise; the other phases still run.
+  it("reports a phase that threw in failures and runs the rest", async () => {
+    await dumpTakenAgo(1);
+    const store = await import("$lib/server/data/store-memory");
+    const spy = vi
+      .spyOn(store, "readVersion")
+      .mockRejectedValueOnce(new Error("db down"));
+    try {
+      const { counts, failures } = await runMaintenance(MONDAY_KST);
+
+      expect(failures).toEqual(["keepalive_failed"]);
+      expect(counts.keptAlive).toBe(false);
+      expect(counts.stagedRemoved).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

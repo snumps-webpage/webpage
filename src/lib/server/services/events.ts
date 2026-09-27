@@ -10,6 +10,7 @@ import {
 import { callFlow, type FlowResult } from "$lib/server/data/flows";
 import { getDirectoryIndex } from "$lib/server/data/directory";
 import { getMemberVisibleEvents } from "./visibility";
+import { newCronReport, runIsolated, type CronReport } from "./cron-status";
 import type {
   Activity,
   AttendanceRecord,
@@ -391,18 +392,12 @@ const cronSteps: CronStep[] = [
   },
 ];
 
-export async function runCron(): Promise<Record<string, number>> {
-  const results: Record<string, number> = {};
-  for (const step of cronSteps) {
-    try {
-      Object.assign(results, await step.run());
-    } catch (e) {
-      console.error(`[Cron] step '${step.name}' failed:`, e);
-      results[`${step.name}_failed`] = 1;
-    }
-  }
+/** Every step runs isolated; a failed one lands in `failures` as `<name>_failed`. */
+export async function runCron(): Promise<CronReport> {
+  const report = newCronReport();
+  for (const step of cronSteps) await runIsolated(report, step.name, step.run);
   // The route cannot tell a partial failure from a total one without knowing how
   // many steps there were — an empty registry and an all-green run look alike.
-  results.steps_total = cronSteps.length;
-  return results;
+  report.counts.steps_total = cronSteps.length;
+  return report;
 }

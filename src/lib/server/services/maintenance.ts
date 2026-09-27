@@ -8,6 +8,12 @@ import {
   uploadToBackups,
 } from "$lib/server/data/storage";
 import { callFlow, type FlowResult } from "$lib/server/data/flows";
+import {
+  markFailed,
+  newCronReport,
+  runIsolated,
+  type CronReport,
+} from "./cron-status";
 
 /**
  * Maintenance job (SUPABASE-MIGRATION-SPEC §5 잡3, R2-9): staging cleanup,
@@ -161,7 +167,8 @@ export async function runWeeklyBackup(now: Date = new Date()): Promise<{
   queues: number;
   auditRows: number;
   pushed: boolean;
-  backup_push_failed?: number;
+  /** The push was configured and did not land — `pushed: false` alone is also "not configured". */
+  pushFailed: boolean;
 }> {
   const tables = await callFlow<
     FlowResult & {
@@ -178,14 +185,14 @@ export async function runWeeklyBackup(now: Date = new Date()): Promise<{
   await pruneOldDumps(now); // 8-week rotation — never throws
 
   // The off-platform copy is the only recovery path once a paused project
-  // expires (spec §7), so a failed push has to reach the failure census — it
+  // expires (spec §7), so a failed push has to reach the run's failures — it
   // used to return `pushed: false`, which is also the not-configured value.
   return {
     dumped: tables.app_tables.length,
     queues: tables.app_queues.length,
     auditRows: tables.audit_log.length,
     pushed: push === "pushed",
-    ...(push === "failed" ? { backup_push_failed: 1 } : {}),
+    pushFailed: push === "failed",
   };
 }
 
@@ -235,36 +242,45 @@ async function backupDue(now: Date): Promise<boolean> {
 }
 
 /**
- * The daily maintenance run (잡3). Each phase is try/catch-isolated like
- * runCron — one failing phase reports itself without starving the others.
+ * The daily maintenance run (잡3). Each phase is isolated like runCron — one
+ * failing phase reports itself in `failures` without starving the others.
+ * Failures: keepalive_failed, cleanup_failed, backup_failed,
+ * backup_push_failed.
  */
 export async function runMaintenance(
   now: Date = new Date(),
-): Promise<Record<string, number | boolean>> {
-  const results: Record<string, number | boolean> = {};
+): Promise<CronReport> {
+  const report = newCronReport();
+  const log = "[maintenance]";
 
-  try {
-    results.keptAlive = await keepAliveSelect();
-  } catch (e) {
-    console.error("[maintenance] keep-alive failed:", e);
-    results.keptAlive = false;
-  }
+  const keptAlive = await runIsolated(
+    report,
+    "keepalive",
+    async () => ({ keptAlive: await keepAliveSelect() }),
+    log,
+  );
+  // The response body has always carried keptAlive; false says why it is red.
+  if (!keptAlive) report.counts.keptAlive = false;
 
-  try {
-    results.stagedRemoved = await cleanupStaging(now);
-  } catch (e) {
-    console.error("[maintenance] staging cleanup failed:", e);
-    results.cleanup_failed = 1;
-  }
+  await runIsolated(
+    report,
+    "cleanup",
+    async () => ({ stagedRemoved: await cleanupStaging(now) }),
+    log,
+  );
 
   if (await backupDue(now)) {
-    try {
-      Object.assign(results, await runWeeklyBackup(now));
-    } catch (e) {
-      console.error("[maintenance] weekly backup failed:", e);
-      results.backup_failed = 1;
-    }
+    await runIsolated(
+      report,
+      "backup",
+      async () => {
+        const { pushFailed, ...counts } = await runWeeklyBackup(now);
+        if (pushFailed) markFailed(report, "backup_push");
+        return counts;
+      },
+      log,
+    );
   }
 
-  return results;
+  return report;
 }

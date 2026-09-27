@@ -1,68 +1,62 @@
-import { describe, expect, it } from "vitest";
-import { cronFailures } from "./cron-status";
+import { describe, expect, it, vi } from "vitest";
+import { markFailed, newCronReport, runIsolated } from "./cron-status";
 
 /**
  * The defect this guards against: `runCron`/`runMaintenance` never throw, so the
  * routes' try/catch could not see a failed step and every run reported 200
- * `success: true` — including a run in which nothing worked. The census is the
- * only thing standing between that and a false-green cron.
+ * `success: true` — including a run in which nothing worked. The census read
+ * failure out of counter names, and a spelling it did not know read as green
+ * (audit LB19-1). Failures now travel on their own channel.
  */
-describe("cronFailures", () => {
-  it("finds nothing in an all-green run", () => {
-    expect(
-      cronFailures({
-        expired: 0,
-        generated: 3,
-        keptAlive: true,
-        steps_total: 2,
-      }),
-    ).toEqual([]);
+describe("cron report", () => {
+  it("an all-green run has counters and no failures", async () => {
+    const report = newCronReport();
+    await runIsolated(report, "expire", async () => ({ expired: 0 }));
+    await runIsolated(report, "keepalive", async () => ({ keptAlive: true }));
+
+    expect(report).toEqual({
+      counts: { expired: 0, keptAlive: true },
+      failures: [],
+    });
   });
 
-  it("catches a step the runner caught and flagged", () => {
-    expect(
-      cronFailures({ expired: 1, "generate-study-sessions_failed": 1 }),
-    ).toEqual(["generate-study-sessions_failed"]);
+  it("a step that throws is a failure; the next step still runs", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const report = newCronReport();
+      const first = await runIsolated(report, "cleanup", async () => {
+        throw new Error("boom");
+      });
+      const second = await runIsolated(report, "backup", async () => ({
+        dumped: 1,
+      }));
+
+      expect([first, second]).toEqual([false, true]);
+      expect(report.failures).toEqual(["cleanup_failed"]);
+      expect(report.counts).toEqual({ dumped: 1 });
+    } finally {
+      error.mockRestore();
+    }
   });
 
-  it("catches errors a step swallowed internally and reported as a count", () => {
-    // studySessionCronStep skips a bad entry and keeps going; without the count
-    // a run where every entry failed looks like a run with nothing to do.
-    expect(cronFailures({ generated: 0, generation_errors: 4 })).toEqual([
-      "generation_errors",
-    ]);
-    expect(cronFailures({ generated: 2, generation_errors: 0 })).toEqual([]);
+  it("a failure noticed without a throw is reported explicitly", () => {
+    // `pushed: false` is ALSO the not-configured value, so the push failure
+    // has to be marked or the weekly backup fails behind a green check.
+    const report = newCronReport();
+    report.counts.pushed = false;
+    markFailed(report, "backup_push");
+
+    expect(report.failures).toEqual(["backup_push_failed"]);
   });
 
-  it("treats a false keep-alive as a failure — it is spelled differently", () => {
-    expect(cronFailures({ keptAlive: false, stagedRemoved: 2 })).toEqual([
-      "keptAlive",
-    ]);
-  });
+  it("no counter name means failure any more", async () => {
+    const report = newCronReport();
+    await runIsolated(report, "odd", async () => ({
+      keptAlive: false,
+      legacy_failed: 1,
+      generation_errors: 4,
+    }));
 
-  it("reports every failing phase of a total maintenance failure", () => {
-    expect(
-      cronFailures({ keptAlive: false, cleanup_failed: 1, backup_failed: 1 }),
-    ).toEqual(["keptAlive", "cleanup_failed", "backup_failed"]);
-  });
-
-  it("does not mistake ordinary counters for failures", () => {
-    expect(
-      cronFailures({ expired: 7, generated: 9, stagedRemoved: 3, dumped: 1 }),
-    ).toEqual([]);
-  });
-});
-
-describe("cronFailures — signals that used to slip through", () => {
-  it("catches a failed off-platform backup push", () => {
-    // `pushed: false` is ALSO the not-configured value, so the push failure has
-    // to arrive under its own key or the weekly backup fails behind a green check.
-    expect(
-      cronFailures({ dumped: 1, pushed: false, backup_push_failed: 1 }),
-    ).toEqual(["backup_push_failed"]);
-  });
-
-  it("does not treat an unconfigured push as a failure", () => {
-    expect(cronFailures({ dumped: 1, pushed: false })).toEqual([]);
+    expect(report.failures).toEqual([]);
   });
 });
