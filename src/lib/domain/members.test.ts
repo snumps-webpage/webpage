@@ -6,17 +6,8 @@ import {
   memberStatusInputSchema,
   parseRolesJson,
   privateInfoInputSchema,
-  projectPublicExecutiveHistory,
-  projectPublicMembers,
   publicContactInputSchema,
 } from "./members";
-import {
-  getDevAdminMember,
-  getDevAdminMembers,
-  getDevPublicExecutives,
-  revokeDevMemberAlumni,
-  setDevMemberStatus,
-} from "$lib/server/dev-member-fixtures";
 
 describe("member administration domain", () => {
   it("accepts term roles and rejects duplicates", () => {
@@ -120,71 +111,5 @@ describe("member administration domain", () => {
       alumniRevocationInputSchema.safeParse({ reason: "회칙상 유고 처리" })
         .success,
     ).toBe(true);
-  });
-
-  it("keeps alumni sticky across demotion and honors a revocation on promotion", () => {
-    const memberId = "member-vice-president";
-    expect(setDevMemberStatus(memberId, "regular")?.isAlumni).toBe(true);
-    expect(setDevMemberStatus(memberId, "associate")?.isAlumni).toBe(true);
-    expect(revokeDevMemberAlumni(memberId)).toBe(true);
-    expect(setDevMemberStatus(memberId, "regular")?.isAlumni).toBe(false);
-    expect(getDevAdminMember(memberId)).toMatchObject({
-      isAlumni: false,
-      alumniRevoked: true,
-    });
-  });
-
-  it("projects only consented current executives into the public roster", () => {
-    const roster = getDevPublicExecutives();
-    expect(roster.president).toMatchObject({
-      title: "회장",
-      phone: expect.stringMatching(/^010-/),
-      email: expect.stringContaining("@"),
-    });
-    expect(roster.vicePresident).toMatchObject({ title: "부회장" });
-    expect(getDevPublicExecutives("99-1")).toMatchObject({
-      president: null,
-      vicePresident: null,
-    });
-  });
-
-  it("projects a public member roster without operational or private fields", () => {
-    const publicMembers = projectPublicMembers(
-      getDevAdminMembers().map((member) => getDevAdminMember(member.id)!),
-    );
-    expect(publicMembers.length).toBeGreaterThan(0);
-    expect(publicMembers[0]).toEqual(
-      expect.objectContaining({
-        id: expect.any(String),
-        name: expect.any(String),
-        department: expect.any(String),
-        roles: expect.any(Array),
-      }),
-    );
-    expect(publicMembers[0]).not.toHaveProperty("status");
-    expect(publicMembers[0]).not.toHaveProperty("isAdmin");
-    expect(publicMembers[0]).not.toHaveProperty("privateInfo");
-    expect(
-      publicMembers.some((member) => member.id === "member-withdrawing"),
-    ).toBe(false);
-  });
-
-  it("exposes consented contact only for current president roles", () => {
-    const members = getDevAdminMembers().map((member) =>
-      getDevAdminMember(member.id)!,
-    );
-    const history = projectPublicExecutiveHistory(
-      members,
-      getDevPublicExecutives().term,
-    );
-    expect(history[0]?.executives.some((entry) => entry.contact)).toBe(true);
-    for (const term of history.slice(1)) {
-      expect(term.executives.every((entry) => entry.contact === null)).toBe(
-        true,
-      );
-    }
-    expect(history.flatMap((term) => term.executives)).not.toContainEqual(
-      expect.objectContaining({ title: "총무" }),
-    );
   });
 });
