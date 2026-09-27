@@ -41,3 +41,18 @@ describe("adminSeminarRequestItem", () => {
     );
   });
 });
+
+// The https check lives only in the member form; the migration copied
+// Notion URLs as they were, and the card renders this as a link (LA29-7).
+describe("adminSeminarRequestItem attachment link", () => {
+  it("keeps an https attachment and drops a script URL", () => {
+    const withAttachment = (attachment: string) =>
+      adminSeminarRequestItem({ ...request("regular"), attachment }, new Map())
+        .attachmentUrl;
+    expect(withAttachment("https://drive.example/a")).toBe(
+      "https://drive.example/a",
+    );
+    expect(withAttachment("javascript:alert(1)")).toBeNull();
+    expect(withAttachment("")).toBeNull();
+  });
+});

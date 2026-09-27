@@ -1,4 +1,5 @@
 import { compareSemesters } from "./semester-order";
+import { externalHref } from "./links";
 import type { ActivityType } from "$lib/constants";
 
 export interface PublicFileReference {
@@ -151,6 +152,6 @@ export function projectIndexItems(
       eyebrow: project.memberName,
       description: project.department,
       metadata: [],
-      href: project.url ?? undefined,
+      href: externalHref(project.url) ?? undefined,
     }));
 }

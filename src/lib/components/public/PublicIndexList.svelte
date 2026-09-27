@@ -16,6 +16,8 @@
 
   let query = $state("");
   const filtered = $derived(filterPublicIndex(items, query));
+  // external links open in a new tab; the scheme is case-insensitive
+  const isExternal = (href: string) => /^https?:/i.test(href);
 </script>
 
 <section class="index-tools">
@@ -41,10 +43,9 @@
           {#if item.href}
             <a
               href={item.href}
-              target={item.href.startsWith("http") ? "_blank" : undefined}
-              rel={item.href.startsWith("http")
-                ? "noopener noreferrer"
-                : undefined}>{item.title}</a
+              target={isExternal(item.href) ? "_blank" : undefined}
+              rel={isExternal(item.href) ? "noopener noreferrer" : undefined}
+              >{item.title}</a
             >
           {:else}
             {item.title}

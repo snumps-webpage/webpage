@@ -7,6 +7,7 @@ import type {
 import type { AdminMembershipApplicationItem } from "$lib/domain/admin-dashboard";
 import type { AdminSeminarRequestItem } from "$lib/domain/admin-seminars";
 import type { AdminStudyRequestItem } from "$lib/domain/studies";
+import { externalHref } from "$lib/domain/links";
 import { assetUrl } from "$lib/server/public/archive";
 import { getDirectoryIndex } from "./directory";
 
@@ -91,7 +92,7 @@ export function adminSeminarRequestItem(
     prerequisites: r.prerequisites,
     duration: r.duration,
     preferredTiming: r.preferredTiming,
-    attachmentUrl: r.attachment || null,
+    attachmentUrl: externalHref(r.attachment),
     posterUrl: r.posterKey ? assetUrl(r.posterKey) : null,
     presenters: r.presenterIds.map(
       (id) => members.get(id) ?? { ...UNKNOWN_MEMBER, id },

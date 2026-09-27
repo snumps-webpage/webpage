@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   filterPublicIndex,
   formatArchiveTerm,
+  projectIndexItems,
   seminarIndexItems,
   type PublicSeminarRecord,
 } from "./public-content";
@@ -88,5 +89,30 @@ describe("seminarIndexItems 정렬", () => {
       "newer",
       "older",
     ]);
+  });
+});
+
+// The stored project URL became the public link as it was; a row the
+// migration wrote could carry `javascript:` (audit LC13-1).
+describe("projectIndexItems links", () => {
+  const project = (url: string | null) => ({
+    memberId: "m1",
+    memberName: "김수학",
+    department: "수리과학부",
+    title: "프로젝트",
+    url,
+  });
+
+  it("links an http(s) project URL", () => {
+    expect(projectIndexItems([project("https://example.com")])[0]?.href).toBe(
+      "https://example.com",
+    );
+  });
+
+  it("renders no link for any other scheme", () => {
+    expect(
+      projectIndexItems([project("javascript:alert(1)")])[0]?.href,
+    ).toBeUndefined();
+    expect(projectIndexItems([project(null)])[0]?.href).toBeUndefined();
   });
 });
