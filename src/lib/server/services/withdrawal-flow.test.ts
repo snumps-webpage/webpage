@@ -203,3 +203,37 @@ describe("request: an organizer must hand over first", () => {
     expect(await __auditRows()).toEqual([]);
   });
 });
+
+// A cancelled study (never ran, #4/#20) is closed like a finished one: its
+// organizer has nothing to hand over. The flow counted only "finished" as
+// done, so the organizer of a cancelled study could never withdraw.
+describe("request: a closed study needs no handover", () => {
+  it.each(["finished", "cancelled"] as const)(
+    "lets the organizer of a %s study withdraw",
+    async (status) => {
+      const m = await seed();
+      await mutate("studies", () => [
+        {
+          id: newId(),
+          title: "해석학",
+          semester: "26-2",
+          textbook: "",
+          description: "",
+          note: "",
+          organizerIds: [m.id],
+          participantIds: [m.id],
+          pendingParticipantIds: [],
+          pendingTransfer: null,
+          schedule: [],
+          transferHistory: [],
+          photos: [],
+          status,
+          sourceRequestId: null,
+        },
+      ]);
+
+      await requestWithdrawal(m.id, confirm(m.name));
+      expect((await getTable("members"))[0].status).toBe("withdrawn");
+    },
+  );
+});

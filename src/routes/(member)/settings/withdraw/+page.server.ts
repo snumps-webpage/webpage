@@ -1,4 +1,5 @@
 import { fail, redirect } from "@sveltejs/kit";
+import { isStudyClosed } from "$lib/domain/studies";
 import { validateWithdrawalRequestForm } from "$lib/domain/account";
 import { handleUserAction } from "$lib/server/auth-guards";
 import { requestWithdrawal } from "$lib/server/services/withdrawal";
@@ -20,7 +21,7 @@ export const load: PageServerLoad = async ({ locals }) => {
   const organizedStudies = studies
     .filter(
       (s) =>
-        s.organizerIds.some((id) => ids.has(id)) && s.status !== "finished",
+        s.organizerIds.some((id) => ids.has(id)) && !isStudyClosed(s.status),
     )
     .map((s) => s.title);
   return { memberName: locals.member!.name, organizedStudies };

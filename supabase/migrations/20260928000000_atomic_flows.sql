@@ -1339,7 +1339,7 @@ $$;
 
 -- A member's own withdrawal request (MEM-07, API-SPEC §4-7). The triple
 -- confirmation is checked here on the member as stored; an organizer of an
--- unfinished study must hand over first — read under a share lock, so a
+-- open (not finished or cancelled) study must hand over first — read under a share lock, so a
 -- handover accepted meanwhile cannot slip past. The status change and its
 -- audit row commit together.
 --   p = { memberId, ackInfo, ackDataPolicy, confirmName (trimmed), now,
@@ -1367,7 +1367,7 @@ begin
   -- are theirs (the same rule as auth-guards ensureOrganizer; audit LB02-6).
   if exists (select 1 from jsonb_array_elements(app_rows('studies')) s
               where s -> 'organizerIds' ?| array_remove(array[v_id, v_m ->> 'legacyMemberId'], null)
-                and s ->> 'status' <> 'finished') then
+                and s ->> 'status' not in ('finished', 'cancelled')) then
     raise exception 'CONFLICT';
   end if;
 
