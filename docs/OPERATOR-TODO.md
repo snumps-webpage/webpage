@@ -119,14 +119,16 @@ DB에 없으면 그 기능이 전부 500이 된다. 또 세미나 스키마가 `
 > 기본 설정(`ASSETS_ACCESS` 미등록)에서 `/media`로 서빙하므로 비공개 버킷과 맞는다. dev·새 환경은
 > 이 순서와 무관하다.
 
-1. ⬜ **dev** — `snumps-dev`는 2026-09-28 Restore됐다(`ACTIVE_HEALTHY`). 무료 플랜은 DB 활동이 약 7일 없으면
+1. ✅ **dev** (2026-09-28 적용 — 5개 파일, `supabase migration list`로 로컬·원격 일치 확인) — `snumps-dev`는 2026-09-28 Restore됐다(`ACTIVE_HEALTHY`). 무료 플랜은 DB 활동이 약 7일 없으면
    다시 멈추므로, 멈춰 있으면 대시보드에서 Restore한 뒤:
    ```bash
    supabase link --project-ref gcahkryexewswzvtfltj -p "$(tr -d '\n' < .env.devdbpass)"
    supabase db push -p "$(tr -d '\n' < .env.devdbpass)"
    ```
-   dev에는 CLI 이력이 있으므로(2절, `db push`로 적용) 새 파일만 적용된다.
-2. ⬜ **dev 확인** (SQL Editor):
+   dev에는 CLI 이력이 있으므로(2절, `db push`로 적용) 새 파일만 적용된다. `supabase login` 세션이 있으면
+   CLI가 로그인 역할로 접속하므로 `-p` 없이도 된다(2026-09-28 dev push가 그렇게 됐다).
+2. ✅ **dev 확인** (2026-09-28: 흐름 함수 19, 백필 누락 0·0·0, anon 실행 false, assets 공개 false). SQL Editor 또는
+   `supabase db query --linked -f <파일>`:
    ```sql
    select count(*) from pg_proc where proname like 'flow\_%';          -- 19
    select count(*) from app_tables t, jsonb_array_elements(t.doc->'rows') r
