@@ -8,6 +8,22 @@ All notable changes to this project will be documented in this file.
 > flow and backfill migrations **before** deploying this code, and push the assets-bucket
 > migration only together with the deploy (docs/OPERATOR-TODO.md §2-2).
 
+### Owner decisions carried out (2026-09-28)
+
+- **Studies**: status changes follow the domain rule; a study ended while still recruiting is
+  `cancelled` (취소됨, new stored status); finished and cancelled studies are read-only except
+  attendance correction and the admin record editor; closing clears pending requests.
+- **Seminars**: `kind`, `durationMinutes` and `prerequisites` are stored (approval copies kind and
+  prerequisites from the request; the record editor edits them); records the admin creates
+  directly carry `announce: false` and send no mail; a presenter change moves the automatic
+  presenter credit; moving a schedule forward reopens an expired attendance event.
+- **Members**: `publicContact` is retired (field kept, deprecated) — the public roster uses the
+  private-info phone with its opt-out; the alumni revocation reason lives on the member row and
+  the audit log records only that one was given; approval refuses a member without a join date.
+- **Admin mail**: approval and review screens warn when the notice mail failed.
+- **Deploy**: two more backfill migrations, `20260928000300` (seminar fields) and
+  `20260928000400` (revocation reason), go with the others before the code.
+
 ### Fixed after the layer audit (2026-09-28, docs/code-audit/LAYER-AUDIT.md)
 
 - **Data safety**: flows no longer write values the stored schemas reject (an impossible date

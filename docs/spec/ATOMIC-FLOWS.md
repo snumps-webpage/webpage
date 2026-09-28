@@ -112,6 +112,7 @@ PGlite에는 Supabase의 `storage` 스키마가 없어서, 마이그레이션 �
 | `20260928000100_seminar_publication_status.sql` | `publicationStatus`가 없는 세미나 행에 `"published"`를 명시                      |
 | `20260928000200_assets_bucket_private.sql`      | `assets` 버킷을 비공개로(C-22). 흐름과 무관 — 배포 순서는 OPERATOR-TODO §2-2     |
 | `20260928000300_seminar_fields.sql`             | 세미나 행에 `kind`·`durationMinutes`·`prerequisites`·`announce`를 명시(아래)     |
+| `20260928000400_member_revocation_reason.sql`   | 회원·옛 회원 행에 `alumniRevocationReason: null`을 명시(결정 #18)                |
 
 - 순서는 **흐름·보정 마이그레이션 적용 → 코드 배포**. 새 코드는 흐름 함수를 부르고, `SeminarSchema`에서
   `publicationStatus` 기본값을 뺐고 네 필드를 기본값 없이 필수로 두었으므로, 보정 전 행이 있으면 세미나 표

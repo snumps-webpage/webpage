@@ -18,6 +18,9 @@
 | `20260901000000_documents.sql`                  | 테이블 3종, RLS deny-all, 버킷 3개                                                             |
 | `20260928000000_atomic_flows.sql`               | 여러 문서를 한 트랜잭션에서 바꾸는 `flow_*` 함수와 헬퍼 ([ATOMIC-FLOWS](spec/ATOMIC-FLOWS.md)) |
 | `20260928000100_seminar_publication_status.sql` | `publicationStatus`가 없는 세미나 행에 `"published"`를 명시 (코드 배포 전에 적용)              |
+| `20260928000200_assets_bucket_private.sql`      | `assets` 버킷을 비공개로 (C-22)                                                                |
+| `20260928000300_seminar_fields.sql`             | 세미나 행에 `kind`·`durationMinutes`·`prerequisites`·`announce`를 명시 (코드 배포 전에 적용)   |
+| `20260928000400_member_revocation_reason.sql`   | 회원 행에 `alumniRevocationReason: null`을 명시 (코드 배포 전에 적용)                          |
 
 SQL 흐름이 쓴 행은 zod 쓰기 게이트를 거치지 않는다. 그래서 흐름은 기본값까지 명시해 행을 만들고, 흐름
 테스트는 `expectTablesValid()`로 저장된 문서를 엄격하게 다시 디코드한다(모르는 키·기본값에 기댄 행 거부).
@@ -96,16 +99,18 @@ kind, requesterId, status(pending|approved|rejected|withdrawn), closedAs, create
 
 ### `seminars`
 
-| 필드                                   | 설명                                                                                                                                          |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `title`, `semester`, `semesterPinned`  | 학기는 일정에서 자동 도출, 관리자가 직접 정하면 고정                                                                                          |
-| `description`, `note`                  | 소개글과 비고는 별개                                                                                                                          |
-| `presenterIds[]`, `externalPresenters` | 회원 발표자, 외부 발표자(자유 텍스트)                                                                                                         |
-| `materials[]`, `photos[]`, `posterKey` | `assets` 버킷 키                                                                                                                              |
-| `publicationStatus`                    | `unscheduled → scheduled → published`, `cancelled`. **필수, 기본값 없음** — 옛 행의 "없으면 공개" 규칙은 마이그레이션이 디스크에 한 번 적었다 |
-| `schedule`                             | `{startsAt, startTime("HH:mm" 또는 모름=null), endsAt, location}` — 의도된 일정의 원천                                                        |
-| `announcedAt`                          | 전체 공지를 실제로 보낸 시각 (중복 공지 방지 앵커)                                                                                            |
-| `activityId`                           | 공개 시 연결. 미공개·취소 세미나는 이 활동을 회원·공개 화면에서 가린다                                                                        |
+| 필드                                       | 설명                                                                                                                                          |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `title`, `semester`, `semesterPinned`      | 학기는 일정에서 자동 도출, 관리자가 직접 정하면 고정                                                                                          |
+| `description`, `note`                      | 소개글과 비고는 별개                                                                                                                          |
+| `presenterIds[]`, `externalPresenters`     | 회원 발표자, 외부 발표자(자유 텍스트)                                                                                                         |
+| `kind`, `durationMinutes`, `prerequisites` | 정기/비정기(이주분은 `null`), 소요 시간(분, 10–600 또는 `null`), 선수 지식. 승인 시 신청에서 구분·선수 지식을 복사, 기록 편집기에서 수정      |
+| `announce`                                 | 공지 대상인가. 관리자가 직접 만든 기록은 `false` — 공개·일정 변경·취소 메일을 보내지 않는다                                                   |
+| `materials[]`, `photos[]`, `posterKey`     | `assets` 버킷 키                                                                                                                              |
+| `publicationStatus`                        | `unscheduled → scheduled → published`, `cancelled`. **필수, 기본값 없음** — 옛 행의 "없으면 공개" 규칙은 마이그레이션이 디스크에 한 번 적었다 |
+| `schedule`                                 | `{startsAt, startTime("HH:mm" 또는 모름=null), endsAt, location}` — 의도된 일정의 원천                                                        |
+| `announcedAt`                              | 전체 공지를 실제로 보낸 시각 (중복 공지 방지 앵커)                                                                                            |
+| `activityId`                               | 공개 시 연결. 미공개·취소 세미나는 이 활동을 회원·공개 화면에서 가린다                                                                        |
 
 ## 스터디
 

@@ -107,6 +107,7 @@ DB에 없으면 그 기능이 전부 500이 된다. 또 세미나 스키마가 `
 | `supabase/migrations/20260928000100_seminar_publication_status.sql` | `publicationStatus` 없는 세미나 행에 `"published"` 명시 (재실행 안전)              |
 | `supabase/migrations/20260928000200_assets_bucket_private.sql`      | `assets` 버킷을 비공개로 (C-22, 3-1절과 같은 전환 — 재실행 안전)                   |
 | `supabase/migrations/20260928000300_seminar_fields.sql`             | 세미나 행에 `kind`·`durationMinutes`·`prerequisites`·`announce` 명시 (재실행 안전) |
+| `supabase/migrations/20260928000400_member_revocation_reason.sql`   | 회원·옛 회원 행에 `alumniRevocationReason: null` 명시 (재실행 안전)                |
 
 > `20260928000300`은 신청에서 온 세미나에 신청의 구분·선수지식을 옮기고, 나머지는 `kind: null`·
 > `prerequisites: ""`, 모두 `durationMinutes: null`·`announce: true`로 적는다(지금 동작 그대로 — 기존
@@ -118,7 +119,8 @@ DB에 없으면 그 기능이 전부 500이 된다. 또 세미나 스키마가 `
 > 기본 설정(`ASSETS_ACCESS` 미등록)에서 `/media`로 서빙하므로 비공개 버킷과 맞는다. dev·새 환경은
 > 이 순서와 무관하다.
 
-1. ⬜ **dev** — `snumps-dev`가 **일시정지(INACTIVE)** 상태다(2026-09-27 확인). 대시보드에서 Restore한 뒤:
+1. ⬜ **dev** — `snumps-dev`는 2026-09-28 Restore됐다(`ACTIVE_HEALTHY`). 무료 플랜은 DB 활동이 약 7일 없으면
+   다시 멈추므로, 멈춰 있으면 대시보드에서 Restore한 뒤:
    ```bash
    supabase link --project-ref gcahkryexewswzvtfltj -p "$(tr -d '\n' < .env.devdbpass)"
    supabase db push -p "$(tr -d '\n' < .env.devdbpass)"
@@ -135,6 +137,9 @@ DB에 없으면 그 기능이 전부 500이 된다. 또 세미나 스키마가 `
            or jsonb_typeof(r->'durationMinutes') not in ('number', 'null') or r->'durationMinutes' is null
            or jsonb_typeof(r->'prerequisites') is distinct from 'string'
            or jsonb_typeof(r->'announce') is distinct from 'boolean');     -- 0
+   select count(*) from app_tables t, jsonb_array_elements(t.doc->'rows') r
+    where t.name in ('members', 'legacy-members')
+      and not r ? 'alumniRevocationReason';                             -- 0
    select has_function_privilege('anon', 'flow_publish_seminar(jsonb)', 'execute'); -- false
    select public from storage.buckets where id = 'assets';             -- false
    ```

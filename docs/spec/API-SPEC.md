@@ -373,6 +373,13 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용 — `$lib/doma
   "note": "string",
   "presenterIds": ["ULID"],
   "externalPresenters": "string",
+  // 결정 #7·#12(2026-09-28): 승인 시 신청의 구분·선수 지식을 복사, 기록 편집기에서 수정.
+  // 이주분은 kind null. 소요 시간은 분 단위(10–600), 신청의 자유 텍스트는 옮기지 않는다.
+  "kind": "regular | irregular | null",
+  "durationMinutes": "number | null",
+  "prerequisites": "string",
+  // 결정 #21: 관리자가 직접 만든 기록은 false — 공개·일정 변경·취소 메일을 보내지 않는다.
+  "announce": "boolean",
   "materials": ["s3Key"],
   "photos": ["s3Key"],
   "posterKey": "s3Key | \"\"", // 직접 업로드 포스터. 빈 값이면 자동 생성
