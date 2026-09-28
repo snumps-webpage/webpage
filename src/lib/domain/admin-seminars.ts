@@ -52,7 +52,8 @@ export interface SeminarSchedule {
 export interface AdminSeminarItem {
   id: string;
   sourceRequestId: string;
-  kind: SeminarKind;
+  /** the seminar's stored kind — null when not known (migrated rows) */
+  kind: SeminarKind | null;
   title: string;
   description: string;
   prerequisites: string;
@@ -67,6 +68,7 @@ export interface AdminSeminarItem {
   canPublish: boolean;
   /**
    * 공개는 됐는데 **공지가 나가지 않은** 상태인가 (`announcedAt === null`).
+   * 공지 대상이 아닌 세미나("기록 직접 생성", `announce: false`)에는 없다 (#21).
    *
    * 전 회원 메일이 실패하면 `publishSeminar`가 앵커를 되돌려 놓는다 — 다시 공개를
    * 실행하면 재발송된다. 그런데 공개 후에는 `canPublish`가 false라 버튼이

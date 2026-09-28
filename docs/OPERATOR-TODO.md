@@ -98,17 +98,22 @@
 **왜**: `chore/code-audit-v2`의 코드는 여러 문서를 함께 바꾸는 흐름(세미나 게시·취소·삭제, 출석 결정,
 가입·신청 승인, 탈퇴 등)을 Postgres 함수로 실행한다([ATOMIC-FLOWS.md](./spec/ATOMIC-FLOWS.md)). 함수가
 DB에 없으면 그 기능이 전부 500이 된다. 또 세미나 스키마가 `publicationStatus`를 필수로 바꿨으므로, 보정
-마이그레이션 없이 배포하면 **세미나 표 읽기 자체가 실패한다.** 앞의 두 파일은 확장만(expand-only)이라
+마이그레이션 없이 배포하면 **세미나 표 읽기 자체가 실패한다.** `…000200`(버킷) 외의 파일은 확장만(expand-only)이라
 지금 운영 중인 코드와 함께 있어도 무해하다 — 그래서 **먼저 적용하고, 그다음 배포**한다.
 
-| 파일                                                                | 하는 일                                                               |
-| ------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `supabase/migrations/20260928000000_atomic_flows.sql`               | 헬퍼·흐름 함수 19개(백업 스냅숏 포함), `service_role` 전용 권한       |
-| `supabase/migrations/20260928000100_seminar_publication_status.sql` | `publicationStatus` 없는 세미나 행에 `"published"` 명시 (재실행 안전) |
-| `supabase/migrations/20260928000200_assets_bucket_private.sql`      | `assets` 버킷을 비공개로 (C-22, 3-1절과 같은 전환 — 재실행 안전)      |
+| 파일                                                                | 하는 일                                                                            |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `supabase/migrations/20260928000000_atomic_flows.sql`               | 헬퍼·흐름 함수 19개(백업 스냅숏 포함), `service_role` 전용 권한                    |
+| `supabase/migrations/20260928000100_seminar_publication_status.sql` | `publicationStatus` 없는 세미나 행에 `"published"` 명시 (재실행 안전)              |
+| `supabase/migrations/20260928000200_assets_bucket_private.sql`      | `assets` 버킷을 비공개로 (C-22, 3-1절과 같은 전환 — 재실행 안전)                   |
+| `supabase/migrations/20260928000300_seminar_fields.sql`             | 세미나 행에 `kind`·`durationMinutes`·`prerequisites`·`announce` 명시 (재실행 안전) |
 
-> ⚠️ **세 번째 파일은 옛 코드와 함께 있으면 무해하지 않다.** 지금 운영 중인 `main`은 자산을 공개 버킷
-> URL로 직접 링크한다(`/media` 프록시가 없다). `db push`는 세 파일을 한꺼번에 적용하므로, prod에서는
+> `20260928000300`은 신청에서 온 세미나에 신청의 구분·선수지식을 옮기고, 나머지는 `kind: null`·
+> `prerequisites: ""`, 모두 `durationMinutes: null`·`announce: true`로 적는다(지금 동작 그대로 — 기존
+> 세미나는 모두 공지 대상). 이 파일도 확장만이라 옛 코드와 함께 있어도 무해하다.
+
+> ⚠️ **`…000200`(버킷) 파일은 옛 코드와 함께 있으면 무해하지 않다.** 지금 운영 중인 `main`은 자산을 공개 버킷
+> URL로 직접 링크한다(`/media` 프록시가 없다). `db push`는 새 파일을 한꺼번에 적용하므로, prod에서는
 > **push 직후 바로 새 코드를 배포**해 포스터·사진이 깨지는 구간을 배포 시간으로 줄인다. 새 코드는
 > 기본 설정(`ASSETS_ACCESS` 미등록)에서 `/media`로 서빙하므로 비공개 버킷과 맞는다. dev·새 환경은
 > 이 순서와 무관하다.
@@ -118,12 +123,18 @@ DB에 없으면 그 기능이 전부 500이 된다. 또 세미나 스키마가 `
    supabase link --project-ref gcahkryexewswzvtfltj -p "$(tr -d '\n' < .env.devdbpass)"
    supabase db push -p "$(tr -d '\n' < .env.devdbpass)"
    ```
-   dev에는 CLI 이력이 있으므로(2절, `db push`로 적용) 새 세 파일만 적용된다.
+   dev에는 CLI 이력이 있으므로(2절, `db push`로 적용) 새 파일만 적용된다.
 2. ⬜ **dev 확인** (SQL Editor):
    ```sql
    select count(*) from pg_proc where proname like 'flow\_%';          -- 19
    select count(*) from app_tables t, jsonb_array_elements(t.doc->'rows') r
     where t.name = 'seminars' and not r ? 'publicationStatus';          -- 0
+   select count(*) from app_tables t, jsonb_array_elements(t.doc->'rows') r
+    where t.name = 'seminars'
+      and (jsonb_typeof(r->'kind') not in ('string', 'null') or r->'kind' is null
+           or jsonb_typeof(r->'durationMinutes') not in ('number', 'null') or r->'durationMinutes' is null
+           or jsonb_typeof(r->'prerequisites') is distinct from 'string'
+           or jsonb_typeof(r->'announce') is distinct from 'boolean');     -- 0
    select has_function_privilege('anon', 'flow_publish_seminar(jsonb)', 'execute'); -- false
    select public from storage.buckets where id = 'assets';             -- false
    ```

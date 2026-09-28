@@ -10,8 +10,10 @@ import { formatPhoneForDisplay } from "$lib/utils";
 /**
  * Public-zone reads (API-SPEC §3 / BE-60·61). EVERYTHING here is guest-facing:
  * only the D2 public fields ever leave these functions — no private-info
- * fields, no isAdmin, no operational lists, no withdrawn members on the
- * roster. The BE-64 snapshot suite enforces that contract.
+ * fields (one exception: the current president's and vice-president's
+ * phone, opt-out by hidePublicPhone — getPublicExecutives), no isAdmin, no
+ * operational lists, no withdrawn members on the roster. The BE-64 snapshot
+ * suite enforces that contract.
  */
 
 let warnedMissingCdn = false;
@@ -162,6 +164,10 @@ export async function getPublicSeminar(id: string) {
     // 소개글은 세미나 자신의 것이다. 신청에서 오는 설명은 신청 흐름으로 만든
     // 세미나에만 있고, 이주분에는 없다(원본에서는 페이지 본문에 있었다).
     description: s.description,
+    // the seminar's own record (#7, #12); approval copies the request's
+    // prerequisites, and minutes exist only where an admin recorded them
+    prerequisites: s.prerequisites,
+    durationMinutes: s.durationMinutes,
     presenters: s.presenterIds.map((pid) => names.get(pid) ?? "Unknown"),
     externalPresenters: s.externalPresenters,
     materials: s.materials.map(assetUrl),

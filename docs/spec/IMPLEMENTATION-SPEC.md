@@ -459,7 +459,8 @@ src/lib/server/repositories/
 ```
 
 - 모든 조회는 `getTable` + 메모리 필터. **인덱스·쿼리 계층 만들지 않는다** (605행 — API-SPEC §1-3 임계값 주석을 코드에 남김)
-- `getLatestExecutives`류: `members.roles`에서 `currentTerm()` 매칭 + `publicContact` — private-info 접근 제거
+- `getLatestExecutives`류: `members.roles`에서 `currentTerm()` 매칭 + 현 회장·부회장의 `private-info.phone`
+  (`hidePublicPhone` 옵트아웃, 운영자 결정 2026-09-01). `publicContact`는 폐기(결정 #19)
 
 ### BE-31 쓰기 호출부 매핑
 
@@ -605,7 +606,7 @@ export async function anonymizeExpiredWithdrawals(now: Date): Promise<number> {
   // 대상: withdrawn && !holdBy && requestedAt + 30일 < now && 미익명화(private-info 행 존재로 판정)
   // 순서(각 단계 멱등):
   //   a. mutate(private-info): 해당 행 filter 제거          ← PII 소거가 최우선
-  //   b. mutate(members): joinedAt/publicContact/project → null, statusChangedAt 갱신
+  //   b. mutate(members): joinedAt/publicContact/alumniRevocationReason/project → null, statusChangedAt 갱신
   //      (name/department/status/roles/isAlumni 유지)
   //   c. audit("withdrawal.auto-anonymize", actor: "system")
 }

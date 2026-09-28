@@ -91,7 +91,11 @@
   <header class="card-heading">
     <div>
       <p class="eyebrow">
-        Seminar · {seminar.kind === "regular" ? "Regular" : "Irregular"}
+        Seminar{seminar.kind === "regular"
+          ? " · Regular"
+          : seminar.kind === "irregular"
+            ? " · Irregular"
+            : ""}
       </p>
       <h3>{seminar.title}</h3>
     </div>

@@ -34,12 +34,7 @@ async function patchMember(
 
 export async function updateMember(
   id: string,
-  patch: Partial<
-    Pick<
-      Member,
-      "name" | "department" | "joinedAt" | "project" | "publicContact"
-    >
-  >,
+  patch: Partial<Pick<Member, "name" | "department" | "joinedAt" | "project">>,
 ): Promise<void> {
   await patchMember(id, (m) => ({ ...m, ...definedOnly(patch) }));
 }
@@ -68,24 +63,32 @@ export async function setStatus(
   });
 }
 
-/** 유고 박탈 — reason is mandatory and the flag is sticky against re-promotion. */
+/**
+ * 유고 박탈 — reason is mandatory and the flag is sticky against re-promotion.
+ * The reason is free text about one member, so it is stored on the member
+ * row (erased with it) and the append-only audit log records only that one
+ * was given (decision #18, audit LA30-1). Audit rows written before this
+ * change still carry { reason } — they are immutable and stay as they are.
+ */
 export async function revokeAlumni(
   targetId: string,
   reason: string,
   actorId: string,
 ): Promise<void> {
-  if (!reason.trim()) throw new AppError("VALIDATION_FAILED");
+  const trimmed = reason.trim();
+  if (!trimmed) throw new AppError("VALIDATION_FAILED");
   await patchMember(targetId, (m) => ({
     ...m,
     isAlumni: false,
     alumniRevoked: true,
+    alumniRevocationReason: trimmed,
   }));
   await audit({
     actorMemberId: actorId,
     action: "member.revoke-alumni",
     targetTable: "members",
     targetId,
-    detail: { reason },
+    detail: { hasReason: true },
   });
 }
 

@@ -24,10 +24,6 @@
       status
     ];
   }
-
-  function contactLabel(status: AdminMemberListItem["publicContactStatus"]) {
-    return { granted: "공개", revoked: "철회", unset: "미설정" }[status];
-  }
 </script>
 
 <svelte:head><title>회원·역할 관리 · SNUMPS 관리자</title></svelte:head>
@@ -68,9 +64,6 @@
           </div>
           <div class="badges">
             {#if member.isAdmin}<span class="badge admin">Admin</span>{/if}
-            <span class="badge"
-              >연락처 {contactLabel(member.publicContactStatus)}</span
-            >
           </div>
         </header>
         <div class="role-list">

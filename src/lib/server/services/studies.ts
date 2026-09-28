@@ -1,7 +1,7 @@
 import { AppError } from "$lib/server/core/errors";
 import { newId, randomToken } from "$lib/server/core/id";
 import { isKstInstant, nowKstIso } from "$lib/server/core/time";
-import { getTable, mutate } from "$lib/server/data/tables";
+import { getTable, getTableFresh, mutate } from "$lib/server/data/tables";
 import { getDirectoryIndex } from "$lib/server/data/directory";
 import { mergeAttendees } from "$lib/server/attendance";
 import { callFlow, type FlowResult } from "$lib/server/data/flows";
@@ -11,6 +11,11 @@ import {
   type Study,
   type StudyRequest,
 } from "$lib/server/data/schemas";
+import {
+  isStudyClosed,
+  nextStudyStatuses,
+  STUDY_STATUS_LABELS,
+} from "$lib/domain/studies";
 import { effectiveStatus } from "./events";
 
 /**
@@ -79,11 +84,40 @@ export async function rejectStudy(id: string): Promise<StudyRequest> {
 
 // ---- participation (STU-02 / STU-04) ---------------------------------------
 
-async function patchStudy(id: string, fn: (s: Study) => Study): Promise<Study> {
+/** The flows raise these DETAILs for the same refusal (flow_*_study_session). */
+const CLOSED_STUDY_MESSAGES = {
+  "study-finished": "종료된 스터디는 수정할 수 없습니다.",
+  "study-cancelled": "취소된 스터디는 수정할 수 없습니다.",
+} as const;
+
+/**
+ * A finished or cancelled study is immutable (#4/#20, audit LB31-2). The
+ * exceptions go around this on purpose: attendance on an existing session
+ * (saveStudyAttendance) and the admin record editor (records-admin.ts).
+ */
+function assertStudyOpen(s: Study): void {
+  if (s.status === "finished" || s.status === "cancelled") {
+    throw new AppError("CONFLICT", {
+      userMessage: CLOSED_STUDY_MESSAGES[`study-${s.status}`],
+    });
+  }
+}
+
+/**
+ * Every write here is judged on the stored row, and none reaches a closed
+ * study — `judgesClosed` only for a caller whose own check already refuses
+ * one with a better code (joinStudy's STUDY_NOT_RECRUITING).
+ */
+async function patchStudy(
+  id: string,
+  fn: (s: Study) => Study,
+  { judgesClosed = false } = {},
+): Promise<Study> {
   let updated: Study | undefined;
   await mutate("studies", (rows) => {
     const idx = rows.findIndex((s) => s.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
+    if (!judgesClosed) assertStudyOpen(rows[idx]);
     updated = fn(rows[idx]);
     rows[idx] = updated;
     return rows;
@@ -95,19 +129,23 @@ export async function joinStudy(
   studyId: string,
   memberId: string,
 ): Promise<void> {
-  await patchStudy(studyId, (s) => {
-    if (s.status !== "recruiting") throw new AppError("STUDY_NOT_RECRUITING");
-    if (
-      s.participantIds.includes(memberId) ||
-      s.pendingParticipantIds.includes(memberId)
-    ) {
-      return s; // idempotent
-    }
-    return {
-      ...s,
-      pendingParticipantIds: [...s.pendingParticipantIds, memberId],
-    };
-  });
+  await patchStudy(
+    studyId,
+    (s) => {
+      if (s.status !== "recruiting") throw new AppError("STUDY_NOT_RECRUITING");
+      if (
+        s.participantIds.includes(memberId) ||
+        s.pendingParticipantIds.includes(memberId)
+      ) {
+        return s; // idempotent
+      }
+      return {
+        ...s,
+        pendingParticipantIds: [...s.pendingParticipantIds, memberId],
+      };
+    },
+    { judgesClosed: true },
+  );
 }
 
 export async function leaveStudy(
@@ -169,13 +207,19 @@ export async function setStudyStatus(
   status: Study["status"],
 ): Promise<void> {
   await patchStudy(studyId, (s) => {
-    // §6-4: recruiting ↔ ongoing → finished. Finished is terminal — an
-    // organizer must not resurrect a study whose sessions/cron treat it as
-    // closed (review M1). Admin plenary updateStudy stays unrestricted.
-    if (s.status === "finished" && status !== "finished") {
-      throw new AppError("CONFLICT");
+    // The domain rule, and only it (#4/#20, audit LB31-3): recruiting ↔
+    // ongoing → finished, recruiting → cancelled. A closed study never gets
+    // here (patchStudy); admin plenary updateStudy stays unrestricted.
+    if (!nextStudyStatuses(s.status).includes(status)) {
+      throw new AppError("CONFLICT", {
+        userMessage: `‘${STUDY_STATUS_LABELS[s.status]}’ 스터디를 ‘${STUDY_STATUS_LABELS[status]}’ 상태로 바꿀 수 없습니다.`,
+      });
     }
-    return { ...s, status };
+    // Closing is the organizer's last write: join requests and a handover
+    // still in flight could never be answered afterwards, so they go with it.
+    return isStudyClosed(status)
+      ? { ...s, status, pendingParticipantIds: [], pendingTransfer: null }
+      : { ...s, status };
   });
 }
 
@@ -187,6 +231,7 @@ export async function setStudyStatus(
  * click returns the same session; the session number is taken under the lock,
  * so two sessions created at once never share one. A cancelled session holds
  * its slot forever (review M2) — refused visibly, pick a different datetime.
+ * A closed study is refused under the lock (#4/#20, audit LB31-2).
  */
 export async function createStudySession(
   study: Study,
@@ -210,6 +255,7 @@ export async function createStudySession(
     },
     {
       messages: {
+        ...CLOSED_STUDY_MESSAGES,
         "session-slot-cancelled":
           "취소된 회차와 같은 일시입니다. 다른 일시를 선택해 주세요.",
       },
@@ -223,7 +269,9 @@ export async function createStudySession(
  * together (flow_update_study_session) — archives and term grouping key off
  * the ACTIVITY's date (review M5). The composite key keeps the ORIGINAL date
  * on purpose: the old slot stays consumed, a session at the new datetime is
- * a different slot. A cancelled session is refused — terminal, like its slot.
+ * a different slot. A cancelled session is refused — terminal, like its slot
+ * — and so is any session of a closed study (#4/#20, audit LB31-2);
+ * attendance on it stays correctable (saveStudyAttendance).
  */
 export async function updateSession(
   studyId: string,
@@ -243,7 +291,10 @@ export async function updateSession(
       date: patch.dateIso ?? "",
     },
     {
-      messages: { "session-cancelled": "취소된 회차는 정정할 수 없습니다." },
+      messages: {
+        ...CLOSED_STUDY_MESSAGES,
+        "session-cancelled": "취소된 회차는 정정할 수 없습니다.",
+      },
     },
   );
 }
@@ -253,6 +304,12 @@ export async function cancelSession(
   studyId: string,
   eventId: string,
 ): Promise<void> {
+  // A closed study's sessions stay as they ran (#4/#20, audit LB31-2). Read
+  // fresh; closing is terminal for the organizer, so a cancel racing the
+  // close is one that came just before it.
+  const study = (await getTableFresh("studies")).find((s) => s.id === studyId);
+  if (!study) throw new AppError("NOT_FOUND");
+  assertStudyOpen(study);
   await mutate("events", (rows) => {
     const idx = rows.findIndex(
       (e) => e.id === eventId && e.studyId === studyId,
@@ -384,7 +441,10 @@ export async function getAttendanceSheet(study: Study) {
   return { sessions, participants };
 }
 
-/** Same merge rule as the presenter save — walk-ins survive (§6-6). */
+/**
+ * Same merge rule as the presenter save — walk-ins survive (§6-6). Open on a
+ * closed study on purpose: attendance gets corrected after the end (#4/#20).
+ */
 export async function saveStudyAttendance(
   study: Study,
   eventId: string,

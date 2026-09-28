@@ -16,9 +16,13 @@ export interface PublicExecutiveTerm {
 
 /**
  * Adapts the term-list payload to the roster the header/footer components
- * render. Only the newest term carries contacts (D4 — publicContact is the
- * one sanctioned public field, exposed for the current term only), and the
- * stored value is a single string using the `"phone · email"` join convention.
+ * render. Only the newest term carries contacts: getPublicExecutives
+ * (server/public/archive.ts) fills `contact` with the current president's
+ * and vice-president's private-info phone unless they opted out
+ * (hidePublicPhone — operator decision 2026-09-01), else null. That is the
+ * one public contact source; members.publicContact is deprecated and read by
+ * nobody (decision #19, audit LB16-3). The `·`/`@` split below still reads
+ * a phone-only value correctly, so an email part is simply never present.
  */
 export function toExecutiveRoster(
   terms: PublicExecutiveTerm[] | null | undefined,

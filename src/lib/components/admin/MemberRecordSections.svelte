@@ -143,98 +143,88 @@
         <h2>회원 기본정보</h2>
       </div>
     </header>
-    {#if member.joinedAt}
-      <form
-        method="POST"
-        action="?/updateMember"
-        use:enhance={() => actionEnhancer("record")}
-      >
-        <!-- publicContact rides along unchanged — the action would otherwise
-             null the single opt-in contact string. -->
+    <!-- Shown for every member: one stored without a join date gets the
+         form too, asking for the date (decision #3, audit LC11-3). -->
+    <form
+      method="POST"
+      action="?/updateMember"
+      use:enhance={() => actionEnhancer("record")}
+    >
+      <label class="paper-field">
+        <span class="paper-label">이름</span>
         <input
-          type="hidden"
-          name="publicContact"
-          value={member.publicContact
-            ? `${member.publicContact.phone} · ${member.publicContact.email}`
-            : ""}
+          name="name"
+          bind:value={name}
+          aria-invalid={!!recordIssues.name}
         />
+        {#if recordIssues.name}<span class="field-error"
+            >{recordIssues.name}</span
+          >{/if}
+      </label>
+      <label class="paper-field">
+        <span class="paper-label">학과</span>
+        <input
+          name="department"
+          bind:value={department}
+          aria-invalid={!!recordIssues.department}
+        />
+        {#if recordIssues.department}<span class="field-error"
+            >{recordIssues.department}</span
+          >{/if}
+      </label>
+      <label class="paper-field">
+        <span class="paper-label">가입일</span>
+        <input
+          type="date"
+          name="joinedAt"
+          bind:value={joinedAt}
+          required
+          aria-invalid={!!recordIssues.joinedAt}
+        />
+        {#if recordIssues.joinedAt}<span class="field-error"
+            >{recordIssues.joinedAt}</span
+          >{:else if !member.joinedAt}<span class="field-note"
+            >가입일 기록이 없습니다. 가입일을 입력해야 기본정보를 저장할 수
+            있습니다.</span
+          >{/if}
+      </label>
+      <div class="project-fields">
         <label class="paper-field">
-          <span class="paper-label">이름</span>
+          <span class="paper-label">개인 프로젝트 제목</span>
           <input
-            name="name"
-            bind:value={name}
-            aria-invalid={!!recordIssues.name}
+            name="projectTitle"
+            bind:value={projectTitle}
+            aria-invalid={!!recordIssues.projectTitle}
+            placeholder="선택 입력"
           />
-          {#if recordIssues.name}<span class="field-error"
-              >{recordIssues.name}</span
+          {#if recordIssues.projectTitle}<span class="field-error"
+              >{recordIssues.projectTitle}</span
             >{/if}
         </label>
         <label class="paper-field">
-          <span class="paper-label">학과</span>
+          <span class="paper-label">프로젝트 URL</span>
           <input
-            name="department"
-            bind:value={department}
-            aria-invalid={!!recordIssues.department}
+            type="url"
+            name="projectUrl"
+            bind:value={projectUrl}
+            aria-invalid={!!recordIssues.projectUrl}
+            placeholder="https://"
           />
-          {#if recordIssues.department}<span class="field-error"
-              >{recordIssues.department}</span
+          {#if recordIssues.projectUrl}<span class="field-error"
+              >{recordIssues.projectUrl}</span
             >{/if}
         </label>
-        <label class="paper-field">
-          <span class="paper-label">가입일</span>
-          <input
-            type="date"
-            name="joinedAt"
-            bind:value={joinedAt}
-            aria-invalid={!!recordIssues.joinedAt}
-          />
-          {#if recordIssues.joinedAt}<span class="field-error"
-              >{recordIssues.joinedAt}</span
-            >{/if}
-        </label>
-        <div class="project-fields">
-          <label class="paper-field">
-            <span class="paper-label">개인 프로젝트 제목</span>
-            <input
-              name="projectTitle"
-              bind:value={projectTitle}
-              aria-invalid={!!recordIssues.projectTitle}
-              placeholder="선택 입력"
-            />
-            {#if recordIssues.projectTitle}<span class="field-error"
-                >{recordIssues.projectTitle}</span
-              >{/if}
-          </label>
-          <label class="paper-field">
-            <span class="paper-label">프로젝트 URL</span>
-            <input
-              type="url"
-              name="projectUrl"
-              bind:value={projectUrl}
-              aria-invalid={!!recordIssues.projectUrl}
-              placeholder="https://"
-            />
-            {#if recordIssues.projectUrl}<span class="field-error"
-                >{recordIssues.projectUrl}</span
-              >{/if}
-          </label>
-        </div>
-        {#if recordIssues._form}<p class="field-error">
-            {recordIssues._form}
-          </p>{/if}
-        {#if recordIssues.phone || recordIssues.email}<p class="field-error">
-            공개 연락처: {recordIssues.phone ?? recordIssues.email}
-          </p>{/if}
-        <footer>
-          <p>공개 회원 명단과 프로젝트 아카이브의 원본 데이터입니다.</p>
-          <button class="paper-btn primary" disabled={processing === "record"}>
-            기본정보 저장
-          </button>
-        </footer>
-      </form>
-    {:else}
-      <p class="section-note">가입 정보 레코드가 없어 수정할 수 없습니다.</p>
-    {/if}
+      </div>
+      {#if recordIssues._form}<p class="field-error">
+          {recordIssues._form}
+        </p>{/if}
+      <footer>
+        <p>공개 회원 명단과 프로젝트 아카이브의 원본 데이터입니다.</p>
+        <button class="paper-btn primary" disabled={processing === "record"}>
+          기본정보 저장
+        </button>
+      </footer>
+    </form>
   </section>
 
   <section class="record-section status-section">
@@ -340,7 +330,7 @@
             rows="2"
             bind:value={alumniReason}
             aria-invalid={!!statusIssues.reason}
-            placeholder="감사 기록에 남길 구체적인 사유"></textarea>
+            placeholder="회원 기록에 남길 구체적인 사유"></textarea>
           {#if statusIssues.reason}<span class="field-error"
               >{statusIssues.reason}</span
             >{/if}
@@ -362,6 +352,10 @@
     {:else if member.alumniRevoked}
       <p class="revoked-note">
         박탈 이력이 있어 정회원으로 승격해도 동문 지위가 자동 부여되지 않습니다.
+      </p>
+      <p class="revoked-note">
+        박탈 사유: {member.alumniRevocationReason ??
+          "회원 기록에 없음 (필드 도입 전 박탈 — 감사 로그 참조)"}
       </p>
     {/if}
     {#if statusIssues._form}<p class="field-error section-error">
@@ -503,6 +497,12 @@
     color: var(--latex-accent);
     font-size: 0.72rem;
     font-weight: 650;
+  }
+  .field-note {
+    display: block;
+    margin: 0.3rem 0 0;
+    color: var(--latex-muted);
+    font-size: 0.72rem;
   }
   .status-summary {
     display: grid;

@@ -77,7 +77,8 @@ const members = [
     alumniRevoked: false,
     roles: [{ term, title: "회장" }],
     isAdmin: true,
-    publicContact: null,
+    publicContact: null, // deprecated, written by nobody (#19)
+    alumniRevocationReason: null,
     project: null,
     legacyMemberId: null,
     sourceRequestId: null,
@@ -94,7 +95,8 @@ const members = [
     alumniRevoked: false,
     roles: [],
     isAdmin: false,
-    publicContact: "github.com/dev-regular",
+    publicContact: null, // deprecated, written by nobody (#19)
+    alumniRevocationReason: null,
     project: { title: "졸업 프로젝트", url: "https://example.com/project" },
     legacyMemberId: null,
     sourceRequestId: null,
@@ -111,7 +113,8 @@ const members = [
     alumniRevoked: false,
     roles: [],
     isAdmin: false,
-    publicContact: null,
+    publicContact: null, // deprecated, written by nobody (#19)
+    alumniRevocationReason: null,
     project: null,
     legacyMemberId: null,
     sourceRequestId: null,
@@ -133,7 +136,8 @@ const members = [
     alumniRevoked: false,
     roles: [],
     isAdmin: false,
-    publicContact: null,
+    publicContact: null, // deprecated, written by nobody (#19)
+    alumniRevocationReason: null,
     project: null,
     legacyMemberId: null,
     sourceRequestId: null,
@@ -250,6 +254,10 @@ const seminars = [
     posterKey: "",
     preferredTiming: "10월 초",
     publicationStatus: "published",
+    kind: null,
+    durationMinutes: null,
+    prerequisites: "",
+    announce: false, // an archive record, as "기록 직접 생성" makes (#21)
     activityId: null,
     sourceRequestId: null,
   },

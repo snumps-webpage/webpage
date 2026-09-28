@@ -56,8 +56,13 @@ export const load: PageServerLoad = async ({ locals }) => {
   });
   const presenterOf = (id: string) =>
     summaries.get(id) ?? { id, name: "알 수 없음", department: "" };
-  const kindOf = (sourceRequestId: string | null) =>
-    (sourceRequestId ? "irregular" : "regular") as "regular" | "irregular";
+  // 구분·소요 시간·선수지식은 세미나에 저장된 값이다 (#7, #12). 예전에는 구분을
+  // sourceRequestId 유무로 추측했고(신청 → 비정기), 소요 시간은 신청서의 자유
+  // 서술을 숫자로 읽다 실패하면 60분을 지어냈다.
+  const durationLabel = (
+    minutes: number | null,
+    requestText: string | undefined,
+  ) => (minutes !== null ? `${minutes}분` : (requestText ?? ""));
 
   return {
     dashboard: {
@@ -68,11 +73,11 @@ export const load: PageServerLoad = async ({ locals }) => {
       seminars: rows.map(({ s, request, event }) => ({
         id: s.id,
         sourceRequestId: s.sourceRequestId ?? "",
-        kind: kindOf(s.sourceRequestId),
+        kind: s.kind,
         title: s.title,
         description: s.note,
-        prerequisites: request?.prerequisites ?? "",
-        duration: request?.duration ?? "",
+        prerequisites: s.prerequisites,
+        duration: durationLabel(s.durationMinutes, request?.duration),
         attachmentUrl: request?.attachment || null,
         presenters: s.presenterIds.map(presenterOf),
         // 저장된 상태가 권위다. 예전에는 `activityId` 유무로 추측해서, 승인만
@@ -90,7 +95,9 @@ export const load: PageServerLoad = async ({ locals }) => {
         // 공개됐는데 공지가 나가지 않았고 아직 열리지 않았다 = 보낼 공지가 남았다
         // (메일 실패로 되돌려졌거나, 이주분처럼 알린 적이 없다). 이미 시작된
         // 세미나에는 공지가 없다 — 버튼을 띄우면 이주 세미나 전부에 뜬다.
+        // 공지 대상이 아닌 직접 기록에는 보낼 공지가 없다 (#21).
         canResendNotice:
+          s.announce &&
           s.publicationStatus === "published" &&
           s.announcedAt === null &&
           s.schedule !== null &&
@@ -103,15 +110,15 @@ export const load: PageServerLoad = async ({ locals }) => {
       })),
       generatedAt: nowKstIso(),
     },
-    records: rows.map(({ s, request, event }) => ({
+    records: rows.map(({ s, event }) => ({
       id: s.id,
       sourceRequestId: s.sourceRequestId,
-      kind: kindOf(s.sourceRequestId),
+      kind: s.kind,
       title: s.title,
       term: s.semester,
       description: s.note,
-      prerequisites: request?.prerequisites ?? "",
-      durationMinutes: Number.parseInt(request?.duration ?? "", 10) || 60,
+      prerequisites: s.prerequisites,
+      durationMinutes: s.durationMinutes,
       preferredTiming: s.preferredTiming,
       presenterIds: s.presenterIds,
       presenterNames: s.presenterIds.map((id) => presenterOf(id).name),
@@ -154,6 +161,9 @@ function parseSeminarRecord(data: FormData) {
     term: formText(data, "semester"),
     description: formText(data, "note"),
     externalPresenters: formText(data, "externalPresenters"),
+    kind: formText(data, "kind"),
+    durationMinutes: formText(data, "durationMinutes"),
+    prerequisites: formText(data, "prerequisites"),
   };
   const parsed = adminSeminarRecordSchema.safeParse(values);
   if (parsed.success) return { success: true as const, data: parsed.data };
@@ -165,16 +175,15 @@ function parseSeminarRecord(data: FormData) {
         scope,
         id,
         issues: fieldIssues(parsed.error),
-        values: {
-          ...values,
-          kind: formText(data, "kind"),
-          durationMinutes: formText(data, "durationMinutes"),
-          prerequisites: formText(data, "prerequisites"),
-        },
+        values,
         presenterIds: parseIds(data.get("presenterIds") as string),
       }),
   };
 }
+
+/** A field the editor did not send is left as stored — never cleared. */
+const sent = <T>(data: FormData, field: string, value: T) =>
+  data.has(field) ? value : undefined;
 
 export const actions = {
   /** 일정 확정 — UI(SeminarScheduleDialog)가 보내는 필드를 도메인 검증에 그대로 태운다. */
@@ -263,7 +272,8 @@ export const actions = {
     return handleAdminAction(locals, async () => {
       const parsed = parseSeminarRecord(data);
       if (!parsed.success) return parsed.fail("record-create");
-      const { title, term, description, externalPresenters } = parsed.data;
+      const { title, term, description, externalPresenters, ...fields } =
+        parsed.data;
       await createSeminar(
         {
           title,
@@ -271,6 +281,9 @@ export const actions = {
           note: description,
           presenterIds: parseIds(data.get("presenterIds") as string),
           externalPresenters,
+          kind: fields.kind,
+          durationMinutes: fields.durationMinutes,
+          prerequisites: fields.prerequisites,
         },
         (data.get("posterPendingKey") as string) || "",
       );
@@ -284,20 +297,30 @@ export const actions = {
       const id = data.get("id") as string;
       const parsed = parseSeminarRecord(data);
       if (!parsed.success) return parsed.fail("record-update", id);
-      const { title, term, description, externalPresenters } = parsed.data;
+      const { title, term, description, externalPresenters, ...fields } =
+        parsed.data;
       await updateSeminar(
         id,
         {
           title,
           semester: term,
           // 편집기가 보내지 않는 칸은 그대로 둔다 — 빈 값으로 지우지 않는다.
-          note: data.has("note") ? description : undefined,
+          note: sent(data, "note", description),
           presenterIds: data.get("presenterIds")
             ? parseIds(data.get("presenterIds") as string)
             : undefined,
-          externalPresenters: data.has("externalPresenters")
-            ? externalPresenters
-            : undefined,
+          externalPresenters: sent(
+            data,
+            "externalPresenters",
+            externalPresenters,
+          ),
+          kind: sent(data, "kind", fields.kind),
+          durationMinutes: sent(
+            data,
+            "durationMinutes",
+            fields.durationMinutes,
+          ),
+          prerequisites: sent(data, "prerequisites", fields.prerequisites),
         },
         (data.get("posterPendingKey") as string) || "",
       );

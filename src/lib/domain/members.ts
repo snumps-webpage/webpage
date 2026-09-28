@@ -36,22 +36,6 @@ export interface MemberPrivateInfo {
   mailPrefs: MailPrefs;
 }
 
-export type PublicContactState =
-  | {
-      status: "granted";
-      phone: string;
-      email: string;
-      changedAt: string;
-      changedBy: string;
-    }
-  | {
-      status: "revoked";
-      phone: null;
-      email: null;
-      changedAt: string;
-      changedBy: string;
-    };
-
 export interface AdminMemberListItem {
   id: string;
   name: string;
@@ -63,13 +47,13 @@ export interface AdminMemberListItem {
   alumniRevoked: boolean;
   roles: MemberRoleAssignment[];
   isAdmin: boolean;
-  publicContactStatus: PublicContactState["status"] | "unset";
 }
 
 export interface AdminMemberDetail extends AdminMemberListItem {
   withdrawal: MemberWithdrawal | null;
   project: MemberProject | null;
-  publicContact: PublicContactState | null;
+  /** 유고 박탈 사유 as stored on the member row (decision #18, audit LA30-1). */
+  alumniRevocationReason: string | null;
   privateInfo: MemberPrivateInfo | null;
 }
 
@@ -96,8 +80,7 @@ export interface PublicExecutiveRoster {
 
 /**
  * The stored `private-info.phone` as every entry point takes it — signup,
- * the member's own dashboard, the admin edit and the public-contact grant
- * (audit LC11-4). Normalized first, so "01012345678" or "010 1234 5678"
+ * the member's own dashboard and the admin edit (audit LC11-4). Normalized first, so "01012345678" or "010 1234 5678"
  * reads as "010-1234-5678"; what is left must be exactly that shape.
  */
 export const phoneInput = z
@@ -259,47 +242,6 @@ export const memberRolesSchema = z
       seen.add(key);
     }
   });
-
-const grantedPublicContactSchema = z.object({
-  status: z.literal("granted"),
-  phone: phoneInput,
-  email: emailSchema,
-});
-
-const revokedPublicContactSchema = z.object({
-  status: z.literal("revoked"),
-  phone: z.null(),
-  email: z.null(),
-});
-
-export const publicContactInputSchema = z.discriminatedUnion("status", [
-  grantedPublicContactSchema,
-  revokedPublicContactSchema,
-]);
-
-export type PublicContactInput = z.input<typeof publicContactInputSchema>;
-
-/**
- * The stored members.publicContact is ONE nullable string joined as
- * "phone · email" (executive-roster.ts), and that is what the forms post.
- * Empty means revoked; anything else is a grant to validate as such.
- */
-export function splitPublicContact(value: string): PublicContactInput {
-  if (!value.trim()) return { status: "revoked", phone: null, email: null };
-  const separator = value.indexOf("·");
-  const phone = separator === -1 ? value : value.slice(0, separator);
-  const email = separator === -1 ? "" : value.slice(separator + 1);
-  return { status: "granted", phone: phone.trim(), email: email.trim() };
-}
-
-/** The stored form of a validated contact: "phone · email", or null. */
-export function joinPublicContact(
-  contact: z.output<typeof publicContactInputSchema>,
-): string | null {
-  return contact.status === "granted"
-    ? `${contact.phone} · ${contact.email}`
-    : null;
-}
 
 export function parseRolesJson(value: string) {
   try {

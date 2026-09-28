@@ -39,8 +39,13 @@
     return records.filter(
       (record) =>
         !normalized ||
-        [record.title, record.term, record.kind, ...record.presenterNames].some(
-          (value) => value.toLocaleLowerCase("ko-KR").includes(normalized),
+        [
+          record.title,
+          record.term,
+          kindText(record.kind),
+          ...record.presenterNames,
+        ].some((value) =>
+          value.toLocaleLowerCase("ko-KR").includes(normalized),
         ),
     );
   });
@@ -58,6 +63,9 @@
     seminarRecordDeleted: "세미나 레코드를 삭제했습니다.",
   };
   const kindLabel = { regular: "정기", irregular: "비정기" } as const;
+  /** null = not known (migrated rows) — shown as such, never guessed. */
+  const kindText = (kind: AdminSeminarRecord["kind"]) =>
+    kind ? kindLabel[kind] : "구분 미상";
 
   /** The backend action reads one comma-separated `presenterIds` field. */
   function joinPresenterIds(event: FormDataEvent) {
@@ -127,12 +135,15 @@
             >{/if}</label
         >
         <label
-          ><span class="paper-label">구분</span><select name="kind"
+          ><span class="paper-label">구분</span><select
+            name="kind"
+            aria-invalid={!!createIssues.kind}
             ><option value="regular">정기</option><option
               value="irregular"
               selected={form?.values?.kind === "irregular"}>비정기</option
+            ><option value="" selected={form?.values?.kind === ""}>미상</option
             ></select
-          ></label
+          >{#if createIssues.kind}<small>{createIssues.kind}</small>{/if}</label
         >
         <label
           ><span class="paper-label">소요 시간(분)</span><input
@@ -218,7 +229,7 @@
         <summary
           ><div>
             <span
-              >{record.term} · {kindLabel[record.kind]} · {scheduleLabel(
+              >{record.term} · {kindText(record.kind)} · {scheduleLabel(
                 record.scheduledAt,
               )}</span
             ><strong>{record.title}</strong>
@@ -252,22 +263,30 @@
                 />{#if updateIssues.term}<small>{updateIssues.term}</small
                   >{/if}</label
               ><label
-                ><span class="paper-label">구분</span><select name="kind"
+                ><span class="paper-label">구분</span><select
+                  name="kind"
+                  aria-invalid={!!updateIssues.kind}
                   ><option value="regular" selected={record.kind === "regular"}
                     >정기</option
                   ><option
                     value="irregular"
                     selected={record.kind === "irregular"}>비정기</option
+                  ><option value="" selected={record.kind === null}>미상</option
                   ></select
-                ></label
+                >{#if updateIssues.kind}<small>{updateIssues.kind}</small
+                  >{/if}</label
               ><label
                 ><span class="paper-label">소요 시간(분)</span><input
                   type="number"
                   name="durationMinutes"
                   min="10"
                   max="600"
-                  value={record.durationMinutes}
-                /></label
+                  placeholder="미상"
+                  value={record.durationMinutes ?? ""}
+                  aria-invalid={!!updateIssues.durationMinutes}
+                />{#if updateIssues.durationMinutes}<small
+                    >{updateIssues.durationMinutes}</small
+                  >{/if}</label
               ><label
                 ><span class="paper-label">선호 시점 (신청자 제출)</span><input
                   value={record.preferredTiming || "미선택"}
@@ -286,7 +305,10 @@
                 ><span class="paper-label">선수지식</span><input
                   name="prerequisites"
                   value={record.prerequisites}
-                /></label
+                  aria-invalid={!!updateIssues.prerequisites}
+                />{#if updateIssues.prerequisites}<small
+                    >{updateIssues.prerequisites}</small
+                  >{/if}</label
               >
             </div>
             <fieldset class="member-picker">

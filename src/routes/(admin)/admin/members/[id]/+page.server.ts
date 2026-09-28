@@ -18,15 +18,12 @@ import { formatPhoneForDisplay } from "$lib/utils";
 import { formText, fieldIssues } from "$lib/domain/form-data";
 import {
   alumniRevocationInputSchema,
-  joinPublicContact,
   memberAdminInputSchema,
   memberRecordInputSchema,
   memberRolesIssues,
   memberStatusInputSchema,
   parseRoleLines,
   privateInfoUpdateSchema,
-  publicContactInputSchema,
-  splitPublicContact,
 } from "$lib/domain/members";
 import type { PageServerLoad } from "./$types";
 
@@ -45,26 +42,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     targetId: member.id,
   });
 
-  // The stored publicContact is one opt-in string ("phone · email"); the
-  // authority record view splits it for display.
-  const [contactPhone = "", contactEmail = ""] = (member.publicContact ?? "")
-    .split(" · ")
-    .map((part) => part.trim());
+  // The deprecated publicContact stays off the page: nobody reads or writes
+  // it (decision #19, audit LB16-3).
+  const { publicContact: _deprecated, ...record } = member;
 
   return {
     member: {
-      ...member,
-      publicContact: member.publicContact
-        ? {
-            status: "granted" as const,
-            phone: contactPhone,
-            email: contactEmail,
-            changedAt: member.statusChangedAt,
-            changedBy: "",
-          }
-        : null,
-      publicContactStatus: (member.publicContact ? "granted" : "unset") as
-        "granted" | "revoked" | "unset",
+      ...record,
       privateInfo: privateInfo
         ? {
             email: privateInfo.email,
@@ -107,27 +91,14 @@ export const actions = {
         joinedAt: formText(data, "joinedAt"),
         projectTitle: formText(data, "projectTitle"),
         projectUrl: formText(data, "projectUrl"),
-        publicContact: formText(data, "publicContact"),
       };
       const record = memberRecordInputSchema.safeParse(values);
-      // publicContact stays one stored string; its halves are validated as
-      // the domain's structured contact (the phone rule normalizes first).
-      const contact = publicContactInputSchema.safeParse(
-        splitPublicContact(values.publicContact),
-      );
-      if (!record.success || !contact.success) {
-        return invalid(
-          {
-            ...(record.success ? {} : fieldIssues(record.error)),
-            ...(contact.success ? {} : fieldIssues(contact.error)),
-          },
-          values,
-        );
+      if (!record.success) {
+        return invalid(fieldIssues(record.error), values);
       }
-      await updateMember(params.id, {
-        ...record.data,
-        publicContact: joinPublicContact(contact.data),
-      });
+      // The record only: the deprecated publicContact is written by nobody
+      // (decision #19, audit LB16-3, LC11-1).
+      await updateMember(params.id, record.data);
       return {};
     });
   },

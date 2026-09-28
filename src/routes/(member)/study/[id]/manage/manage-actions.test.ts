@@ -71,6 +71,7 @@ const member = (id: string, name: string): Member => ({
   roles: [],
   isAdmin: false,
   publicContact: null,
+  alumniRevocationReason: null,
   project: null,
   legacyMemberId: null,
   sourceRequestId: null,
@@ -129,6 +130,18 @@ describe("setStudyStatus", () => {
     const result = await actions.setStudyStatus(post({ status: "recruiting" }));
     expect(result).toMatchObject({ success: true });
     expect((await theStudy()).status).toBe("recruiting");
+  });
+
+  // #4/#20, LB31-3: the action passed any known status to the service, which
+  // only refused leaving "finished". An ongoing study cannot be cancelled —
+  // cancelling is for one that never started.
+  it("answers 409 with a message for a transition the rule does not list", async () => {
+    const result = await actions.setStudyStatus(post({ status: "cancelled" }));
+    expect(result).toMatchObject({
+      status: 409,
+      data: { error: "CONFLICT", message: expect.any(String) },
+    });
+    expect((await theStudy()).status).toBe("ongoing");
   });
 
   it.each<Record<string, string>>([{ status: "paused" }, {}])(

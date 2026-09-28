@@ -90,6 +90,7 @@ const seedMember = async (
       roles: [],
       isAdmin: false,
       publicContact: null,
+      alumniRevocationReason: null,
       project: null,
       legacyMemberId: null,
       sourceRequestId: null,
@@ -825,8 +826,9 @@ describe("updateSeminar keeps a published seminar's copies in step", () => {
     const seminarEvent = events.find((e) => e.id === "e-seminar");
     const other = events.find((e) => e.id === "e-other");
     expect(activity?.title).toBe("새 제목");
-    // credit already given is not moved — a separate decision
-    expect(activity?.attendeeIds).toEqual(["m-a"]);
+    // the presenters' automatic credit moves with them (#14 — pinned in
+    // seminar-record-fields.test.ts)
+    expect(activity?.attendeeIds).toEqual(["m-b"]);
     expect(seminarEvent).toMatchObject({
       title: "새 제목",
       presenterIds: ["m-b"],

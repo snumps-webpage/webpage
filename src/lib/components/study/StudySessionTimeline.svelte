@@ -8,12 +8,14 @@
   interface Props {
     studyId: string;
     sessions: StudySession[];
-    canCreate: boolean;
+    /** False on a closed study (#4/#20): no new, corrected or cancelled
+     * session. Its attendance sheet stays open. */
+    canEdit: boolean;
     onNotice: (message: string) => void;
     onError: (message: string) => void;
   }
 
-  let { studyId, sessions, canCreate, onNotice, onError }: Props = $props();
+  let { studyId, sessions, canEdit, onNotice, onError }: Props = $props();
   let creating = $state(false);
   let cancellingEventId = $state<string | null>(null);
   let selectedSession = $state<StudySession | null>(null);
@@ -117,7 +119,7 @@
       }}
     >
       <input type="hidden" name="date" value={nowKstLocal()} />
-      <button class="paper-btn primary" disabled={!canCreate || creating}>
+      <button class="paper-btn primary" disabled={!canEdit || creating}>
         {creating ? "회차 생성 중…" : "새 회차 만들기"}
       </button>
     </form>
@@ -179,13 +181,13 @@
                 >출석부</a
               >
             {/if}
-            {#if session.status !== "cancelled"}
+            {#if canEdit && session.status !== "cancelled"}
               <button
                 class="paper-btn small"
                 onclick={() => (selectedSession = session)}>정정</button
               >
             {/if}
-            {#if session.status !== "cancelled"}
+            {#if canEdit && session.status !== "cancelled"}
               <form
                 method="POST"
                 action="?/cancelSession"

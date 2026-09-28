@@ -58,6 +58,9 @@
 | 4   | **감사 로그 계약 부재** — 요구만 있고 저장소·스키마 없음. 단일 JSON 테이블에 넣으면 경합                                                 | §1-5 신설: 건당 S3 객체(append-only), 스키마·대상·비대상 명시                                         |
 | 5   | **스터디 상태 전이 주인 없음** — recruiting→finished를 바꿀 액션이 없고, finished에도 join 가능                                          | `?/setStudyStatus` 신설, `join`에 `STUDY_NOT_RECRUITING`, `createSession`에 finished 차단             |
 
+> **후속 (2026-09-28)**: High #1의 `members.publicContact`는 폐기됐다(결정 #19, audit LB16-3). 공개 연락처는
+> 현 회장·부회장의 `private-info` 전화번호이고 본인이 `hidePublicPhone`으로 거부할 수 있다(운영자 결정 2026-09-01).
+
 ## Medium (주요) — 전부 수정
 
 - **회원 피커 데이터 경로 부재** → `/seminar/apply`·`/seminar/edit`·관리자 편집 로드가 피커 목록(id·name·department) 반환 명시

@@ -53,6 +53,7 @@ async function seed(over: Partial<Member> = {}): Promise<Member> {
     roles: [],
     isAdmin: false,
     publicContact: null,
+    alumniRevocationReason: null,
     project: null,
     legacyMemberId: null,
     sourceRequestId: null,

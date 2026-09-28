@@ -4,7 +4,12 @@
   import StudyRosterPanel from "$lib/components/study/StudyRosterPanel.svelte";
   import StudySessionTimeline from "$lib/components/study/StudySessionTimeline.svelte";
   import StudyTransferPanel from "$lib/components/study/StudyTransferPanel.svelte";
-  import type { StudyStatus } from "$lib/domain/studies";
+  import {
+    isStudyClosed,
+    nextStudyStatuses,
+    STUDY_STATUS_LABELS,
+    type StudyStatus,
+  } from "$lib/domain/studies";
   import { MANUSCRIPT } from "$lib/constants";
 
   let { data } = $props();
@@ -12,8 +17,11 @@
   const participants = $derived(data.participants);
   const pendingParticipants = $derived(data.pendingParticipants);
   const sessions = $derived(data.sessions);
-  // §6-4: finished is terminal — every organizer mutation locks with it.
-  const canMutate = $derived(study.status !== "finished");
+  // §6-4 / #4/#20: finished and cancelled are terminal — every organizer
+  // mutation locks with them (the server refuses too); attendance stays open.
+  const canMutate = $derived(!isStudyClosed(study.status));
+  // The one transition rule — the server enforces the same function.
+  const nextStatuses = $derived(nextStudyStatuses(study.status));
   const transferCandidates = $derived(
     data.members.filter((member) => !study.organizerIds.includes(member.id)),
   );
@@ -22,11 +30,43 @@
   );
   let statusProcessing = $state(false);
 
-  const statusLabel = $derived(
-    { recruiting: "모집 중", ongoing: "진행 중", finished: "종료" }[
-      study.status
-    ],
-  );
+  const statusLabel = $derived(STUDY_STATUS_LABELS[study.status]);
+
+  /** How each transition is offered — which ones exist is nextStudyStatuses'. */
+  const TRANSITIONS: Record<
+    StudyStatus,
+    {
+      label: string;
+      tone: "primary" | "plain" | "danger";
+      fallback: string;
+      confirm?: string;
+    }
+  > = {
+    recruiting: {
+      label: "모집 다시 열기",
+      tone: "plain",
+      fallback: "스터디 상태를 변경하지 못했습니다.",
+    },
+    ongoing: {
+      label: "진행 시작",
+      tone: "primary",
+      fallback: "스터디를 시작하지 못했습니다.",
+    },
+    finished: {
+      label: "스터디 종료",
+      tone: "danger",
+      fallback: "스터디를 종료하지 못했습니다.",
+      confirm:
+        "스터디를 종료하면 새 회차를 만들거나 참여자를 변경할 수 없고, 대기 중인 참여 신청과 주최자 변경 제안은 사라집니다. 종료하시겠습니까?",
+    },
+    cancelled: {
+      label: "스터디 취소",
+      tone: "danger",
+      fallback: "스터디를 취소하지 못했습니다.",
+      confirm:
+        "한 번도 진행하지 않은 스터디를 취소합니다. 취소한 스터디는 다시 열 수 없고, 대기 중인 참여 신청과 주최자 변경 제안은 사라집니다. 취소하시겠습니까?",
+    },
+  };
 
   function showError(message: string) {
     notice = { tone: "error", message };
@@ -48,7 +88,9 @@
       statusProcessing = false;
       if (result.type === "success") {
         await update();
-        showNotice(`스터디 상태를 ‘${statusName(next)}’ 상태로 변경했습니다.`);
+        showNotice(
+          `스터디 상태를 ‘${STUDY_STATUS_LABELS[next]}’ 상태로 변경했습니다.`,
+        );
         return;
       }
       const data =
@@ -63,12 +105,6 @@
         data?.issues?.status ?? data?.message ?? data?.error ?? fallback,
       );
     };
-  }
-
-  function statusName(status: StudyStatus) {
-    return { recruiting: "모집 중", ongoing: "진행 중", finished: "종료" }[
-      status
-    ];
   }
 </script>
 
@@ -115,54 +151,32 @@
     </div>
     <div class="status-control">
       <span>Study State</span>
-      {#if study.status === "recruiting"}
+      {#each nextStatuses as next (next)}
+        {@const transition = TRANSITIONS[next]}
         <form
           method="POST"
           action="?/setStudyStatus"
-          use:enhance={() =>
-            statusEnhancer("ongoing", "스터디를 시작하지 못했습니다.")}
+          use:enhance={() => statusEnhancer(next, transition.fallback)}
         >
-          <input type="hidden" name="status" value="ongoing" />
-          <button class="paper-btn primary small" disabled={statusProcessing}
-            >진행 시작</button
-          >
-        </form>
-      {:else if study.status === "ongoing"}
-        <form
-          method="POST"
-          action="?/setStudyStatus"
-          use:enhance={() =>
-            statusEnhancer("recruiting", "스터디 상태를 변경하지 못했습니다.")}
-        >
-          <input type="hidden" name="status" value="recruiting" />
-          <button class="paper-btn small" disabled={statusProcessing}
-            >모집 다시 열기</button
-          >
-        </form>
-        <form
-          method="POST"
-          action="?/setStudyStatus"
-          use:enhance={() =>
-            statusEnhancer("finished", "스터디를 종료하지 못했습니다.")}
-        >
-          <input type="hidden" name="status" value="finished" />
+          <input type="hidden" name="status" value={next} />
           <button
-            class="paper-btn danger small"
+            class="paper-btn small"
+            class:primary={transition.tone === "primary"}
+            class:danger={transition.tone === "danger"}
             disabled={statusProcessing}
             onclick={(event) => {
-              if (
-                !confirm(
-                  "스터디를 종료하면 새 회차를 만들거나 참여자를 변경할 수 없습니다. 종료하시겠습니까?",
-                )
-              ) {
+              if (transition.confirm && !confirm(transition.confirm)) {
                 event.preventDefault();
               }
-            }}>스터디 종료</button
+            }}>{transition.label}</button
           >
         </form>
       {:else}
-        <p>종료된 스터디입니다. 새 회차와 참여자 변경이 잠겼습니다.</p>
-      {/if}
+        <p>
+          {study.status === "cancelled" ? "취소된" : "종료된"} 스터디입니다. 회차와
+          참여자 변경이 잠겼고, 출석부 정정만 할 수 있습니다.
+        </p>
+      {/each}
     </div>
   </section>
 
@@ -177,7 +191,7 @@
     <StudySessionTimeline
       studyId={study.id}
       {sessions}
-      canCreate={canMutate}
+      canEdit={canMutate}
       onNotice={showNotice}
       onError={showError}
     />

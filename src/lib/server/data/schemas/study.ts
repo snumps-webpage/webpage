@@ -1,7 +1,13 @@
 import { z } from "zod";
 import { DateTime, Id, Semester, SourceRequestId } from "./common";
 
-export const StudyStatus = z.enum(["recruiting", "ongoing", "finished"]);
+// "cancelled": ended while still recruiting — never ran (#4/#20).
+export const StudyStatus = z.enum([
+  "recruiting",
+  "ongoing",
+  "finished",
+  "cancelled",
+]);
 export type StudyStatus = z.infer<typeof StudyStatus>;
 
 export const StudySchema = z.object({

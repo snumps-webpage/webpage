@@ -11,18 +11,14 @@
   // The load is the record authority; successful actions re-run it (update()),
   // so the page state is derived and the editable drafts resync afterwards.
   const member = $derived(data.member);
+  // $state, not a writable $derived: the rows are edited in place through
+  // bind:value, which needs the deep-reactive proxy only $state gives.
+  // eslint-disable-next-line svelte/prefer-writable-derived
   let roles = $state<MemberRoleAssignment[]>([]);
-  let contactStatus = $state<"granted" | "revoked">("revoked");
-  let contactPhone = $state("");
-  let contactEmail = $state("");
   $effect(() => {
     roles = structuredClone($state.snapshot(data.member.roles));
-    contactStatus = data.member.publicContact ? "granted" : "revoked";
-    contactPhone = data.member.publicContact?.phone ?? "";
-    contactEmail = data.member.publicContact?.email ?? "";
   });
   let roleIssue = $state<string | null>(null);
-  let contactIssues = $state<Record<string, string>>({});
   let processing = $state<string | null>(null);
   let notice = $state<{ tone: "success" | "error"; message: string } | null>(
     null,
@@ -75,30 +71,10 @@
     }
   }
 
-  /**
-   * ?/updateMember answers phone/email issues for the contact halves; any
-   * other issue is about the record fields riding along, shown form-wide.
-   */
-  function contactIssuesOf(
-    issues: Record<string, string> | undefined,
-    detail: string | undefined,
-  ): Record<string, string> {
-    if (!issues)
-      return { _form: detail ?? "공개 연락처를 저장하지 못했습니다." };
-    const { phone, email, ...rest } = issues;
-    const other = Object.values(rest)[0];
-    return {
-      ...(phone ? { phone } : {}),
-      ...(email ? { email } : {}),
-      ...(other ? { _form: other } : {}),
-    };
-  }
-
-  function actionEnhancer(kind: "roles" | "admin" | "contact") {
+  function actionEnhancer(kind: "roles" | "admin") {
     processing = kind;
     notice = null;
     if (kind === "roles") roleIssue = null;
-    if (kind === "contact") contactIssues = {};
     return async ({
       result,
       update,
@@ -117,18 +93,10 @@
             tone: "success",
             message: "학기별 직책을 저장하고 감사 기록을 남겼습니다.",
           };
-        } else if (kind === "admin") {
-          notice = {
-            tone: "success",
-            message: `관리자 권한을 ${member.isAdmin ? "부여" : "회수"}했습니다.`,
-          };
         } else {
           notice = {
             tone: "success",
-            message:
-              contactStatus === "granted"
-                ? "전화번호와 이메일 공개 상태를 승인했습니다. 현재 회장단 역할일 때만 공개됩니다."
-                : "공개 동의를 철회하고 저장된 공개 전화번호와 이메일을 제거했습니다.",
+            message: `관리자 권한을 ${member.isAdmin ? "부여" : "회수"}했습니다.`,
           };
         }
         return;
@@ -145,8 +113,6 @@
       const issues = failure?.issues;
       if (kind === "roles")
         roleIssue = issues?.roles ?? detail ?? "직책을 저장하지 못했습니다.";
-      else if (kind === "contact")
-        contactIssues = contactIssuesOf(issues, detail);
       else
         notice = {
           tone: "error",
@@ -298,91 +264,6 @@
           현재 로그인한 관리자의 자기 권한 회수는 차단됩니다.
         </p>{/if}
     </section>
-
-    <section class="authority-section contact-section">
-      <header>
-        <div>
-          <p>06 · Public Contact</p>
-          <h2>공개 연락처 동의</h2>
-        </div>
-      </header>
-      <form
-        method="POST"
-        action="?/updateMember"
-        use:enhance={() => actionEnhancer("contact")}
-      >
-        <!-- ?/updateMember is the single contact authority: the current record
-             fields ride along so the partial form cannot blank them. -->
-        <input type="hidden" name="name" value={member.name} />
-        <input type="hidden" name="department" value={member.department} />
-        <input type="hidden" name="joinedAt" value={member.joinedAt ?? ""} />
-        <input
-          type="hidden"
-          name="projectTitle"
-          value={member.project?.title ?? ""}
-        />
-        <input
-          type="hidden"
-          name="projectUrl"
-          value={member.project?.url ?? ""}
-        />
-        <!-- Both halves always ride, so a missing one is reported in place
-             (granted needs phone AND email) instead of shifting position. -->
-        <input
-          type="hidden"
-          name="publicContact"
-          value={contactStatus === "granted"
-            ? `${contactPhone.trim()} · ${contactEmail.trim()}`
-            : ""}
-        />
-        <fieldset>
-          <legend>공개 상태</legend>
-          <label
-            ><input type="radio" value="granted" bind:group={contactStatus} /> 공개
-            승인</label
-          >
-          <label
-            ><input type="radio" value="revoked" bind:group={contactStatus} /> 공개
-            철회</label
-          >
-        </fieldset>
-        {#if contactStatus === "granted"}
-          <label class="paper-field">
-            <span class="paper-label">공개 전화번호</span>
-            <input
-              bind:value={contactPhone}
-              aria-invalid={!!contactIssues.phone}
-              placeholder="010-1234-5678"
-            />
-            {#if contactIssues.phone}<span class="field-error"
-                >{contactIssues.phone}</span
-              >{/if}
-          </label>
-          <label class="paper-field">
-            <span class="paper-label">공개 이메일</span>
-            <input
-              type="email"
-              bind:value={contactEmail}
-              aria-invalid={!!contactIssues.email}
-              placeholder="office@snumps.org"
-            />
-            {#if contactIssues.email}<span class="field-error"
-                >{contactIssues.email}</span
-              >{/if}
-          </label>
-        {/if}
-        {#if contactIssues._form}<p class="field-error">
-            {contactIssues._form}
-          </p>{/if}
-        <aside>
-          당사자 확인 후 승인합니다. 현재 학기의 회장·부회장 역할을 가진 회원만
-          공개 화면에 표시됩니다.
-        </aside>
-        <button class="paper-btn primary" disabled={processing === "contact"}
-          >공개 상태 저장</button
-        >
-      </form>
-    </section>
   </div>
 
   <footer class="page-footer">
@@ -480,8 +361,7 @@
   .roles-section {
     grid-row: span 2;
   }
-  .roles-section form,
-  .contact-section form {
+  .roles-section form {
     padding: 0.8rem;
   }
   .role-editor {
@@ -541,38 +421,6 @@
   .locked-note {
     margin: 0.8rem;
   }
-  .contact-section {
-    grid-column: 1 / -1;
-  }
-  .contact-section form {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.8rem;
-    align-items: end;
-  }
-  .contact-section fieldset {
-    grid-column: 1 / -1;
-    display: flex;
-    gap: 1rem;
-    margin: 0;
-    padding: 0.65rem 0.75rem;
-    border: 1px solid var(--latex-rule);
-  }
-  .contact-section legend {
-    padding: 0 0.35rem;
-    color: var(--latex-muted);
-    font-size: 0.68rem;
-  }
-  .contact-section aside {
-    padding: 0.65rem;
-    border: 1px solid var(--latex-rule);
-    color: var(--latex-muted);
-    font-size: 0.72rem;
-    line-height: 1.55;
-  }
-  .contact-section form > button {
-    justify-self: end;
-  }
   .page-footer {
     display: flex;
     margin-top: 1rem;
@@ -592,8 +440,7 @@
     .authority-grid {
       grid-template-columns: 1fr;
     }
-    .roles-section,
-    .contact-section {
+    .roles-section {
       grid-column: auto;
       grid-row: auto;
     }
@@ -611,19 +458,9 @@
       align-self: stretch;
       height: auto;
     }
-    .roles-section footer,
-    .contact-section form {
+    .roles-section footer {
       align-items: stretch;
-      grid-template-columns: 1fr;
       flex-direction: column;
-    }
-    .contact-section fieldset,
-    .contact-section aside {
-      grid-column: auto;
-    }
-    .contact-section form > button {
-      justify-self: stretch;
-      width: 100%;
     }
   }
 </style>

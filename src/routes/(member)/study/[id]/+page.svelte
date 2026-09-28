@@ -2,6 +2,7 @@
   import { enhance } from "$app/forms";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import { MANUSCRIPT } from "$lib/constants";
+  import { isStudyClosed, STUDY_STATUS_LABELS } from "$lib/domain/studies";
 
   let { data } = $props();
   const study = $derived(data.study);
@@ -23,11 +24,9 @@
     null,
   );
 
-  const statusLabel = $derived(
-    { recruiting: "모집 중", ongoing: "진행 중", finished: "종료" }[
-      study.status
-    ],
-  );
+  // #4/#20: a closed study's roster is fixed — the server refuses a leave.
+  const closed = $derived(isStudyClosed(study.status));
+  const statusLabel = $derived(STUDY_STATUS_LABELS[study.status]);
   const relationshipLabel = $derived(
     {
       organizer: "주최자",
@@ -135,6 +134,11 @@
         <a class="paper-btn primary" href={`/study/${study.id}/manage`}
           >스터디 관리</a
         >
+      {:else if closed && relationship !== "none"}
+        <p>
+          {study.status === "cancelled" ? "취소된" : "종료된"} 스터디입니다. 참여
+          상태는 더 바꿀 수 없습니다.
+        </p>
       {:else if relationship === "participant"}
         <p>
           현재 참여자로 등록되어 있습니다. 나가면 참여자 명단에서 즉시

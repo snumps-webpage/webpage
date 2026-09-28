@@ -7,7 +7,7 @@
 //   - roles: `임원` multi_select "25-2 회장" → {term,title}, 정규식 ^(\d{2}-[12])\s+(.+)$
 //     — 매칭 실패 항목은 전부 리포트 후 **중단** (조용한 드롭 금지)
 //   - isAdmin: private-info 이메일을 env ADMINS_EMAILS(콤마 구분)와 대조
-//   - publicContact: 전원 null (기존 공개 연락처는 동의 재확인 후 수동 이전)
+//   - publicContact: 전원 null (폐기된 필드 — 아무도 쓰지 않는다, 결정 #19)
 //   - project: `개인 프로젝트` checkbox → { title: "" } | null
 //   - private-info.mailPrefs = { announcements: true }
 //   - activities.type / events.type: "Seminar" → "세미나" 통일 (닫힌 집합 밖 값은 중단)
@@ -273,9 +273,10 @@ async function main() {
       withdrawal: null,
       isAlumni: false, // §9: 재분류 작업에서 부여
       alumniRevoked: false,
+      alumniRevocationReason: null,
       roles,
       isAdmin: email !== undefined && admins.includes(email),
-      publicContact: null, // §9: 동의 재확인 후 수동 이전
+      publicContact: null, // 폐기된 필드 (결정 #19) — 저장 형태만 유지
       project: hasProject ? { title: "" } : null, // §9: 내용은 추후 입력
       sourceRequestId: null,
     });
@@ -695,6 +696,7 @@ const TABLE_CHECKS: Record<string, Record<string, Check>> = {
     withdrawal: nul,
     isAlumni: bool,
     alumniRevoked: bool,
+    alumniRevocationReason: strOrNull,
     roles: (v) =>
       Array.isArray(v) && v.every((r) => term(r?.term) && nonEmpty(r?.title)),
     isAdmin: bool,

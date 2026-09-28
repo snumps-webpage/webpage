@@ -38,6 +38,7 @@ const member = (over: Partial<Member>): Member => ({
   roles: [],
   isAdmin: false,
   publicContact: null,
+  alumniRevocationReason: null,
   project: null,
   legacyMemberId: null,
   sourceRequestId: null,

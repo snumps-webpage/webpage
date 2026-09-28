@@ -117,18 +117,26 @@ export async function createSeminar(
   input: Pick<
     Seminar,
     "title" | "semester" | "note" | "presenterIds" | "externalPresenters"
-  >,
+  > &
+    Partial<Pick<Seminar, "kind" | "durationMinutes" | "prerequisites">>,
   posterPendingKey = "",
 ): Promise<Seminar> {
+  const { kind = null, durationMinutes = null, prerequisites = "" } = input;
   const row: Seminar = {
     id: newId(),
     ...input,
+    kind,
+    durationMinutes,
+    prerequisites,
     description: "",
     materials: [],
     photos: [],
     // 이 경로에는 아직 일정 입력 칸이 없다(입력은 title·semester·note·발표자뿐).
     // 일정 확정 흐름이 필요하면 승인 경로를 쓴다.
     publicationStatus: "published",
+    // 아카이브 기록이지 알릴 행사가 아니다 — 나중에 앞날의 일정을 줘도 전 회원
+    // 공지·일정 변경·취소 안내가 나가지 않는다 (#21, flow_publish_seminar).
+    announce: false,
     schedule: null,
     announcedAt: null,
     // 관리자가 학기를 직접 입력하는 유일한 경로 — 이후 일정 변경이 덮지 않는다.
@@ -154,6 +162,9 @@ export async function updateSeminar(
       | "presenterIds"
       | "externalPresenters"
       | "activityId"
+      | "kind"
+      | "durationMinutes"
+      | "prerequisites"
     >
   >,
   posterPendingKey = "",
@@ -166,10 +177,11 @@ export async function updateSeminar(
     ? await promoteSeminarPoster(posterPendingKey)
     : null;
   // One transaction: the row, and — for a published seminar — the title and
-  // presenters its activity and attendance event carry (audit LB28-1). The
-  // flow also pins a term the admin actually changed: the editor resends an
-  // unchanged term every time, and reading that as a decision would stop
-  // every record's term derivation after one save.
+  // presenters its activity and attendance event carry (audit LB28-1), with
+  // the presenters' automatic credit on the activity moving to the new ones
+  // (#14). The flow also pins a term the admin actually changed: the editor
+  // resends an unchanged term every time, and reading that as a decision
+  // would stop every record's term derivation after one save.
   const { replacedPoster } = await callFlow<
     FlowResult & { replacedPoster: string | null }
   >("flow_update_seminar_record", {

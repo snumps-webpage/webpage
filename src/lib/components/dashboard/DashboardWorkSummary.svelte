@@ -1,6 +1,10 @@
 <script lang="ts">
   import type { DashboardRequestItem } from "$lib/domain/dashboard";
-  import type { StudyRelationship, StudyStatus } from "$lib/domain/studies";
+  import {
+    STUDY_STATUS_LABELS,
+    type StudyRelationship,
+    type StudyStatus,
+  } from "$lib/domain/studies";
 
   interface WorkStudyItem {
     id: string;
@@ -98,13 +102,7 @@
             >
           </div>
           <div class="record-action">
-            <span
-              >{study.status === "recruiting"
-                ? "모집 중"
-                : study.status === "ongoing"
-                  ? "진행 중"
-                  : "종료"}</span
-            ><a
+            <span>{STUDY_STATUS_LABELS[study.status]}</span><a
               href={study.canManage
                 ? `/study/${study.id}/manage`
                 : `/study/${study.id}`}>{study.canManage ? "관리" : "상세"}</a

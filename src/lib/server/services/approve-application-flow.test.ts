@@ -12,6 +12,7 @@ import { expectTablesValid } from "$lib/server/data/expect-tables-valid";
 import { _resetDataLayerForTests, getTable } from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { AppError } from "$lib/server/core/errors";
+import { callFlow } from "$lib/server/data/flows";
 import {
   approveApplication,
   rejectApplication,
@@ -71,6 +72,81 @@ describe("bootstrap admin stamp", () => {
     testEnv.ADMINS_EMAILS = "";
     await approveApplication((await apply("back@snu.ac.kr")).id);
     expect((await getTable("members"))[0].isAdmin).toBe(true);
+  });
+});
+
+// Decision #3 (audit LC11-3): approval is the one path that creates a
+// member row, and no new row may start without a join date. The flow writes
+// straight to the table — past the TS write gate — so the rule is its own.
+describe("join date on the new member row", () => {
+  const flowArgs = (id: string, today: string) => ({
+    id,
+    now: "2026-09-28T10:00:00+09:00",
+    today,
+    term: "26-2",
+    adminEmailHashes: [],
+    memberId: "M-NEW",
+    privateInfoId: "P-NEW",
+    registrationId: "R-NEW",
+  });
+
+  it("is the legacy join date, or today when the archive has none", async () => {
+    await __putRawDoc("table", "legacy-members", {
+      schemaVersion: 1,
+      rows: [
+        {
+          id: "LEG1",
+          name: "김기존",
+          department: "수리과학부",
+          joinedAt: null,
+          status: "associate",
+          statusChangedAt: "2022-03-05T00:00:00+09:00",
+          withdrawal: null,
+          isAlumni: false,
+          alumniRevoked: false,
+          roles: [],
+          isAdmin: false,
+          publicContact: null,
+          alumniRevocationReason: null,
+          project: null,
+          legacyMemberId: null,
+          sourceRequestId: null,
+        },
+      ],
+    });
+    await __putRawDoc("table", "legacy-private-info", {
+      schemaVersion: 1,
+      rows: [
+        {
+          id: "LEGP1",
+          memberId: "LEG1",
+          email: "old@snu.ac.kr",
+          phone: "010-0000-0000",
+          studentId: "",
+          background: "",
+          mailPrefs: { announcements: true },
+          hidePublicPhone: false,
+          sourceRequestId: null,
+        },
+      ],
+    });
+
+    const { id } = await apply("old@snu.ac.kr");
+    await callFlow("flow_approve_application", flowArgs(id, "2026-09-28"));
+
+    const [member] = await getTable("members");
+    expect(member.legacyMemberId).toBe("LEG1");
+    expect(member.joinedAt).toBe("2026-09-28");
+  });
+
+  it("refuses to create a member whose join date is not a date", async () => {
+    const { id } = await apply("new@snu.ac.kr");
+
+    await expect(
+      callFlow("flow_approve_application", flowArgs(id, "someday")),
+    ).rejects.toSatisfy((e) => codeOf(e) === "VALIDATION_FAILED");
+    expect(await getTable("members")).toEqual([]);
+    expect(await getTable("applications")).toHaveLength(1);
   });
 });
 

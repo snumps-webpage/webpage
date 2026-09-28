@@ -35,19 +35,20 @@ SQL 흐름이 쓴 행은 zod 쓰기 게이트를 거치지 않는다. 그래서 
 
 ### `members` 🔒 일부
 
-| 필드                                   | 설명                                                                     |
-| -------------------------------------- | ------------------------------------------------------------------------ |
-| `id`, `name`, `department`, `joinedAt` | 기본 정보                                                                |
-| `status`                               | `associate`(준회원) · `regular`(정회원) · `withdrawn`, `statusChangedAt` |
-| `withdrawal`                           | 탈퇴 유예 `{requestedAt, previousStatus, holdBy, holdAt}` 또는 `null`    |
-| `isAlumni`, `alumniRevoked`            | 동문 지위. 취소 플래그는 끈적하다 — 재승격해도 동문이 되살아나지 않는다  |
-| `roles[]`                              | `{term, title}` — 학기별 임원 직위                                       |
-| `isAdmin`                              | 관리자 권한의 유일한 원천 (D4)                                           |
-| `publicContact`                        | 공개 연락처 (공개 로드에 허용된 유일한 예외)                             |
-| `project`                              | `{title, url?}` 또는 `null`                                              |
-| `legacyMemberId`                       | 재가입 시 매칭된 `legacy-members` 행                                     |
+| 필드                                   | 설명                                                                                                         |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `id`, `name`, `department`, `joinedAt` | 기본 정보. `joinedAt`은 새 행에 필수(승인 흐름이 채우고 날짜가 아니면 거부) — `null`은 규칙 전 행의 디코드용 |
+| `status`                               | `associate`(준회원) · `regular`(정회원) · `withdrawn`, `statusChangedAt`                                     |
+| `withdrawal`                           | 탈퇴 유예 `{requestedAt, previousStatus, holdBy, holdAt}` 또는 `null`                                        |
+| `isAlumni`, `alumniRevoked`            | 동문 지위. 취소 플래그는 끈적하다 — 재승격해도 동문이 되살아나지 않는다                                      |
+| `alumniRevocationReason`               | 유고 박탈 사유 또는 `null`. 회원 행과 함께 지워진다 — 감사 로그에는 `{hasReason: true}`만(결정 #18)          |
+| `roles[]`                              | `{term, title}` — 학기별 임원 직위                                                                           |
+| `isAdmin`                              | 관리자 권한의 유일한 원천 (D4)                                                                               |
+| `publicContact`                        | **폐기** (결정 #19) — 아무도 쓰거나 읽지 않는다. 기존 문서·백업 디코드용으로만 남은 필드                     |
+| `project`                              | `{title, url?}` 또는 `null`                                                                                  |
+| `legacyMemberId`                       | 재가입 시 매칭된 `legacy-members` 행                                                                         |
 
-### `private-info` 🔒 PII — 공개 로드에 절대 나가지 않는다
+### `private-info` 🔒 PII — 공개 로드에 나가지 않는다 (예외: 현 회장·부회장의 `phone`, `hidePublicPhone` 옵트아웃)
 
 `memberId`(→ members, 단방향), `email`(로그인 키, 옛 회원은 빈 문자열), `phone`, `background`,
 `studentId`, `mailPrefs.announcements`, `hidePublicPhone`.
@@ -116,7 +117,8 @@ kind, requesterId, status(pending|approved|rejected|withdrawn), closedAs, create
 
 `organizerIds[]`(현재 불변식: 1명), `participantIds[]`, `pendingParticipantIds[]`, `pendingTransfer`,
 `transferHistory[]`, `schedule[]`(폐기 — 기존 문서 검증용으로만 남음, 아무도 읽지 않음), `photos[]`,
-`status(recruiting|ongoing|finished)`.
+`status(recruiting|ongoing|finished|cancelled)` — `cancelled`는 모집 중에 끝난(한 번도 진행하지 않은) 스터디.
+종료·취소된 스터디는 불변이다(출석 정정과 관리자 기록 편집만 예외, #4/#20).
 
 ## 기타
 

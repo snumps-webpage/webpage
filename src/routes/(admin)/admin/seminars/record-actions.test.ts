@@ -11,9 +11,13 @@ vi.mock("$lib/server/mail/dispatch", () => ({
 }));
 
 import { __reset } from "$lib/server/data/store-memory";
-import { _resetDataLayerForTests, getTable } from "$lib/server/data/tables";
+import {
+  _resetDataLayerForTests,
+  getTable,
+  mutate,
+} from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
-import { actions } from "./+page.server";
+import { actions, load } from "./+page.server";
 
 /**
  * The seminar record editor already renders per-field issues under a
@@ -109,6 +113,56 @@ describe("?/create", () => {
     },
   );
 
+  // #7 / #12 — the editor posted these and the action dropped them.
+  it("stores kind, duration and prerequisites; a direct record is not announced", async () => {
+    await actions.create(
+      post({
+        ...valid,
+        kind: "irregular",
+        durationMinutes: "90",
+        prerequisites: "  선형대수  ",
+      }),
+    );
+
+    const [row] = await getTable("seminars");
+    expect(row).toMatchObject({
+      kind: "irregular",
+      durationMinutes: 90,
+      prerequisites: "선형대수",
+      announce: false,
+    });
+  });
+
+  it("reads an empty kind or duration as unknown", async () => {
+    await actions.create(post({ ...valid, kind: "", durationMinutes: "" }));
+
+    const [row] = await getTable("seminars");
+    expect(row).toMatchObject({ kind: null, durationMinutes: null });
+  });
+
+  it.each([
+    ["kind", { kind: "weekly" }],
+    ["durationMinutes", { durationMinutes: "5" }],
+    ["durationMinutes", { durationMinutes: "601" }],
+    ["durationMinutes", { durationMinutes: "1.5" }],
+    ["durationMinutes", { durationMinutes: "한 시간" }],
+    ["prerequisites", { prerequisites: "가".repeat(2001) }],
+  ])(
+    "refuses a bad %s with a field issue and writes nothing (%o)",
+    async (field, over) => {
+      const result = await actions.create(post({ ...valid, ...over }));
+
+      expect(result).toMatchObject({
+        status: 400,
+        data: {
+          scope: "record-create",
+          issues: { [field]: expect.any(String) },
+        },
+      });
+      expect(await getTable("seminars")).toEqual([]);
+    },
+  );
+
   it("reports every bad field at once", async () => {
     const result = (await actions.create(
       post({ ...valid, title: "", semester: "x", note: "가".repeat(2401) }),
@@ -142,6 +196,40 @@ describe("?/update", () => {
     });
   });
 
+  it("edits kind, duration and prerequisites", async () => {
+    await actions.update(
+      post({
+        ...valid,
+        id: await id(),
+        kind: "irregular",
+        durationMinutes: "120",
+        prerequisites: "위상수학",
+      }),
+    );
+
+    const [row] = await getTable("seminars");
+    expect(row).toMatchObject({
+      kind: "irregular",
+      durationMinutes: 120,
+      prerequisites: "위상수학",
+    });
+  });
+
+  it("leaves kind, duration and prerequisites when the editor does not send them", async () => {
+    const seminarId = await id();
+    const { kind: _k, durationMinutes: _d, prerequisites: _p, ...rest } = valid;
+    void [_k, _d, _p];
+
+    await actions.update(post({ ...rest, id: seminarId }));
+
+    const [row] = await getTable("seminars");
+    expect(row).toMatchObject({
+      kind: "regular",
+      durationMinutes: 60,
+      prerequisites: "",
+    });
+  });
+
   it("refuses bad fields at once under the record's scope and keeps the row", async () => {
     const seminarId = await id();
     const result = (await actions.update(
@@ -159,5 +247,85 @@ describe("?/update", () => {
     expect(Object.keys(result.data.issues).sort()).toEqual(["term", "title"]);
     const [row] = await getTable("seminars");
     expect(row).toMatchObject({ title: "조합론 세미나", semester: "26-2" });
+  });
+});
+
+/**
+ * The page reads what is stored: kind was guessed from sourceRequestId
+ * (request → 비정기, else 정기), duration defaulted to 60 minutes and
+ * prerequisites came from the request (#7). "공지 재발송" is not offered for a
+ * direct record — it would mail every member about an archive entry (#21).
+ */
+describe("load", () => {
+  const HOUR = 60 * 60 * 1000;
+  type Loaded = {
+    dashboard: {
+      seminars: {
+        id: string;
+        kind: string | null;
+        prerequisites: string;
+        canResendNotice: boolean;
+      }[];
+    };
+    records: {
+      id: string;
+      kind: string | null;
+      durationMinutes: number | null;
+      prerequisites: string;
+    }[];
+  };
+  const loadPage = async () =>
+    (await load({ locals: admin } as never)) as unknown as Loaded;
+
+  it("shows the stored kind, duration and prerequisites", async () => {
+    await actions.create(
+      post({
+        ...valid,
+        kind: "irregular",
+        durationMinutes: "",
+        prerequisites: "군론",
+      }),
+    );
+
+    const page = await loadPage();
+
+    expect(page.records[0]).toMatchObject({
+      kind: "irregular",
+      durationMinutes: null,
+      prerequisites: "군론",
+    });
+    expect(page.dashboard.seminars[0]).toMatchObject({
+      kind: "irregular",
+      prerequisites: "군론",
+    });
+  });
+
+  it("does not offer 공지 재발송 for a direct record given a future date", async () => {
+    await actions.create(post(valid));
+    const [row] = await getTable("seminars");
+    await mutate("seminars", (rows) =>
+      rows.map((r) =>
+        r.id === row.id
+          ? {
+              ...r,
+              schedule: {
+                startsAt: new Date(Date.now() + 72 * HOUR).toISOString(),
+                startTime: null,
+                endsAt: null,
+                location: "27동",
+              },
+            }
+          : r,
+      ),
+    );
+
+    const page = await loadPage();
+
+    expect(page.dashboard.seminars[0].canResendNotice).toBe(false);
+    // the same row as an announcement target would be offered it
+    await mutate("seminars", (rows) =>
+      rows.map((r) => ({ ...r, announce: true })),
+    );
+    expect((await loadPage()).dashboard.seminars[0].canResendNotice).toBe(true);
   });
 });

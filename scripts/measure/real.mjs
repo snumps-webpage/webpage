@@ -19,14 +19,34 @@ import {
 const snap = JSON.parse(fs.readFileSync(process.argv[2], "utf8")).tables;
 // Backups taken before migration 20260928000100 hold seminars without
 // publicationStatus; the app no longer defaults it. Apply the migration's
-// rule (missing → "published") to the snapshot, as the deploy would.
+// rule (missing → "published") to the snapshot, as the deploy would. The
+// same for 20260928000300 (kind / durationMinutes / prerequisites / announce;
+// kind and prerequisites from the source request, #7 #12 #21).
 let backfilled = 0;
+const requestById = new Map(
+  (
+    snap.app_tables.find((t) => t.name === "seminar-requests")?.doc.rows ?? []
+  ).map((r) => [r.id, r]),
+);
 for (const t of snap.app_tables) {
   if (t.name !== "seminars") continue;
   t.doc.rows = t.doc.rows.map((s) => {
-    if (s.publicationStatus !== undefined) return s;
-    backfilled++;
-    return { ...s, publicationStatus: "published" };
+    const request = requestById.get(s.sourceRequestId);
+    const out = { ...s };
+    if (s.publicationStatus == null) {
+      backfilled++;
+      out.publicationStatus = "published";
+    }
+    if (!("kind" in s))
+      out.kind = ["regular", "irregular"].includes(request?.kind)
+        ? request.kind
+        : null;
+    if (typeof s.prerequisites !== "string")
+      out.prerequisites =
+        typeof request?.prerequisites === "string" ? request.prerequisites : "";
+    if (!("durationMinutes" in s)) out.durationMinutes = null;
+    if (typeof s.announce !== "boolean") out.announce = true;
+    return out;
   });
 }
 await setClock(null);

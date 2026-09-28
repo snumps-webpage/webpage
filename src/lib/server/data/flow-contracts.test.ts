@@ -58,6 +58,10 @@ const legacySeminar = (over: Partial<Seminar> = {}): Seminar => ({
   posterKey: "",
   preferredTiming: "",
   publicationStatus: "published",
+  kind: null,
+  durationMinutes: null,
+  prerequisites: "",
+  announce: true,
   schedule: {
     startsAt: FUTURE,
     startTime: "19:00",
@@ -135,6 +139,13 @@ describe("flows refuse missing arguments", () => {
     ["flow_member_withdrawal", { memberId: "m1", actorId: "a", now: FUTURE }],
     ["flow_cancel_seminar", { id: "s1", isAdmin: false, now: FUTURE }],
     ["flow_update_seminar_schedule", { id: "s1" }],
+    [
+      "flow_update_seminar_schedule",
+      {
+        id: "s1",
+        schedule: { startsAt: FUTURE, location: "27동" },
+      },
+    ],
     ["flow_update_seminar_record", { patch: { title: "x" } }],
     ["flow_update_seminar_record", { id: "s1", patch: [] }],
     [
@@ -283,7 +294,7 @@ describe("flow_update_seminar_schedule: changed", () => {
     (
       await callFlow<FlowResult & { changed: boolean }>(
         "flow_update_seminar_schedule",
-        { id: "s1", schedule: { ...schedule, ...next } },
+        { id: "s1", schedule: { ...schedule, ...next }, now: FUTURE },
       )
     ).changed;
 

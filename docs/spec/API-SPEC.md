@@ -153,6 +153,10 @@ mutate<T>(name: TableName, fn: (rows: T[]) => T[]): Promise<T[]>
   - `?/setStatus`, `?/setRoles`, `?/setAdmin`, `?/revokeAlumni` — 지위·권한 변경 전부
   - `?/setOrganizer` (직권 전달)
   - 탈퇴 수명주기: `?/requestWithdrawal`·`?/cancelWithdrawal`(본인 행위지만 파기 트리거), `?/holdWithdrawal`·`?/releaseWithdrawalHold`, 크론 자동 익명화
+- `detail`에는 값이 아니라 **필드 이름·열거값·수**만 싣는다. 회원에 대한 자유 서술은 로그에 두지 않는다 —
+  로그는 지울 수 없고 회원 행은 지워진다. `?/revokeAlumni`의 사유는 회원 행 `alumniRevocationReason`에 저장하고
+  로그에는 `{ hasReason: true }`만 남긴다(결정 #18, audit LA30-1). **이 변경 전에 쓰인 `member.revoke-alumni` 행은
+  `{ reason }`을 그대로 갖는다** — `audit_log`는 불변이라 고쳐 쓰지 않고, 그 회원 행의 사유는 `null`로 남는다
 - 탈퇴 수명주기 항목(`withdrawal.*`)은 파기 증거라 **상태 변경과 같은 트랜잭션**에서 흐름 함수가 삽입한다
   (`app_audit`) — 감사 실패는 액션 실패다. 그 밖의 항목은 TS `audit()`가 변경 뒤에 남긴다
 - **비대상**: 본인이 본인 개인정보를 읽고 고치는 경로(§4), 세션 훅의 회원 매칭 조회 —
@@ -201,9 +205,10 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용 — `$lib/doma
   // holdBy 설정 = 보존 집행(ADM-17) — 자동 삭제 중단. previousStatus는 철회 시 복원용
   "isAlumni": false, // 동문 영구 지위
   "alumniRevoked": false, // 유고 박탈 이력 — true면 setStatus 승격이 isAlumni를 되살리지 않는다
+  "alumniRevocationReason": null, // string | null — 유고 박탈 사유 (결정 #18). 감사 로그에는 { hasReason: true }만
   "roles": [{ "term": "26-1", "title": "회장" }],
   "isAdmin": false,
-  "publicContact": null, // string | null. 본인 동의 하에 공개되는 연락처 (임원용). §3 공개 금지의 유일한 예외
+  "publicContact": null, // 폐기 (결정 #19) — 아무도 쓰거나 읽지 않는다. 기존 문서·백업 디코드용으로만 남은 필드
   "project": null, // { "title": "string", "url": "string?" } | null — 개인 프로젝트 보드 내용
   "sourceRequestId": null, // string | null — 가입 승인 멱등(§1-6)의 실체. 이주 회원은 null
 }
@@ -350,7 +355,7 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용 — `$lib/doma
     { "from": "ULID", "to": "ULID", "at": "datetime", "byAdmin": false },
   ],
   "photos": ["s3Key"],
-  "status": "recruiting | ongoing | finished",
+  "status": "recruiting | ongoing | finished | cancelled",
   "sourceRequestId": "string | null",
 }
 ```
@@ -414,14 +419,16 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용 — `$lib/doma
 전부 `public` 가드, 상태 변경 없음.
 
 **공개 응답 제약**: `private-info` 전 필드, `isAdmin`, `pendingParticipantIds`·`pendingTransfer` 등
-운영 필드는 어떤 공개 로드에도 포함 금지. **유일한 예외: `members.publicContact`** — 본인 동의로
-설정된 공개 연락처 필드로, 임원 연락처 표시(PUB-01·05)에 사용한다. §10 스냅샷 테스트가 이 제약을 검증.
+운영 필드는 어떤 공개 로드에도 포함 금지. **유일한 예외: 현재 학기 회장·부회장의 `private-info.phone`**
+(운영자 결정 2026-09-01) — 본인이 `hidePublicPhone`으로 거부하면 나가지 않고(옵트아웃), 과거 학기·다른
+직책·다른 필드는 나가지 않는다(`getPublicExecutives`). 공개 연락처의 출처는 이것 하나다 —
+`members.publicContact`는 폐기됐다(결정 #19, audit LB16-3). §10 스냅샷 테스트가 이 제약을 검증.
 
 | 로드                                                                                       | 기능              | 데이터                                                                 | 렌더                                             |
 | ------------------------------------------------------------------------------------------ | ----------------- | ---------------------------------------------------------------------- | ------------------------------------------------ |
-| `GET /` (게스트 분기)                                                                      | PUB-01            | 정적 소개문 + 현 임원 (`members.roles` 최신 term + `publicContact`)    | SSR · no-store. 세션 있으면 §4-5 대시보드로 분기 |
+| `GET /` (게스트 분기)                                                                      | PUB-01            | 정적 소개문 + 현 임원 (`members.roles` 최신 term + 전화, §3 예외)      | SSR · no-store. 세션 있으면 §4-5 대시보드로 분기 |
 | `GET /about` 계열 (`charter`, `charter/history/[period]`, `elections`, `press`, `finance`) | PUB-02~~04·06~~08 | 레포 마크다운 + Storage 자산                                           | SSR · no-store (C-17 이전 prerender)             |
-| `GET /about/executives`                                                                    | PUB-05            | `roles` 파생 역대 직책 (임기 내림차순) + `publicContact`               | SSR · no-store                                   |
+| `GET /about/executives`                                                                    | PUB-05            | `roles` 파생 역대 직책 (임기 내림차순) + 현 회장단 전화(§3 예외)       | SSR · no-store                                   |
 | `GET /archive/seminars`, `/[id]`                                                           | PUB-09            | `seminars` 학기 그룹 / 단건 + 자료·사진 CDN URL                        | SSR · no-store                                   |
 | `GET /archive/studies`                                                                     | PUB-10            | `studies` 공개 필드만 (운영 필드 제외)                                 | SSR · no-store                                   |
 | `GET /archive/activities`                                                                  | PUB-11            | `activities` — attendeeIds 제외                                        | SSR · no-store                                   |
@@ -525,7 +532,7 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용 — `$lib/doma
   - `private-info` 해당 행 **완전 삭제** (이메일·전화·배경지식·mailPrefs)
   - `members` 행 — **유지**: `id`, `name`, `department`, `status`, `statusChangedAt`, `roles`(공개 임원 이력),
     `isAlumni`, `alumniRevoked`, `withdrawal`(파기 근거 기록으로 보존).
-    **null 처리**: `joinedAt`, `publicContact`, `project`, `sourceRequestId`
+    **null 처리**: `joinedAt`, `publicContact`(폐기 필드), `alumniRevocationReason`, `project`, `sourceRequestId`
   - 참여 기록(`activities.attendeeIds`, `seminars.presenterIds` 등)의 id 참조는 유지 —
     해석 결과가 이름·학과 수준으로만 나옴 (매핑된 구체 인적사항은 소거됨)
   - 감사 로그 기록 (`action: auto-anonymize`)
@@ -628,14 +635,14 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용 — `$lib/doma
 - 모든 액션은 주최자 가드가 먼저 돌고, 입력을 `domain/studies`의 스키마로 검증한다(§1-2 형식, 쓰기 전).
   숨은 id(`memberId`·`eventId`·`toMemberId`)도 `studyTargetIdSchema`로 거른다
 
-| 액션                                          | 기능          | 처리                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| --------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `?/acceptParticipant` / `?/removeParticipant` | STU-04        | pending→participants / 제거. 멱등                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `?/setStudyStatus`                            | STU 상태 전이 | `recruiting ↔ ongoing → finished`. finished 전이는 확인 요구. 알 수 없는 상태는 `VALIDATION_FAILED`                                                                                                                                                                                                                                                                                                                                                                    |
-| `?/createSession`                             | STU-06 수동   | 입력 `date`(KST `YYYY-MM-DDTHH:mm`, 실재하는 일시 — 폼은 제출 시각을 보낸다), `title?`. `flow_create_study_session` 한 트랜잭션: 저장된 스터디로 `status != finished` 검증 → ① `activities`(type 스터디) ② `events`(`studyId`, `sessionNo` = events 잠금 아래 max+1, `activityId` 연결, active). 앵커 `"<studyId>:<date>"` — 반복 클릭은 같은 회차를 돌려주고, **취소된 회차와 같은 일시는 `CONFLICT`**(DETAIL `session-slot-cancelled` → "다른 일시를 선택해 주세요") |
-| `?/updateSession` / `?/cancelSession`         | STU-06        | 제목·일시 정정 — 제목 필수. 이벤트와 활동이 한 트랜잭션에서 함께 옮겨 간다(`flow_update_study_session`; 앵커는 원래 일시를 유지 — 옛 자리는 소비된 채 남는다) / **`status: cancelled`** (expired와 구분 — 재활성화 불가)                                                                                                                                                                                                                                               |
-| `?/proposeTransfer`                           | STU-07        | 검증: 대상이 회원 ∧ **본인 아님**(`VALIDATION_FAILED`) ∧ 기존 제안 없음(`CONFLICT`)                                                                                                                                                                                                                                                                                                                                                                                    |
-| `?/cancelTransfer`                            | STU-07        | `pendingTransfer = null`                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 액션                                          | 기능          | 처리                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `?/acceptParticipant` / `?/removeParticipant` | STU-04        | pending→participants / 제거. 멱등                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `?/setStudyStatus`                            | STU 상태 전이 | `recruiting ↔ ongoing → finished`, `recruiting → cancelled`(한 번도 진행하지 않은 스터디) — `nextStudyStatuses`가 유일한 규칙, 그 밖의 전이는 `CONFLICT`. finished·cancelled는 종착이고 닫힌 스터디는 불변(회차 생성·정정·취소, 명단, 전달 모두 `CONFLICT` + "종료된/취소된 스터디는 수정할 수 없습니다." — 출석 정정과 관리자 기록 편집만 예외, #4/#20). 닫을 때 대기 중인 참여 신청과 전달 제안은 함께 지운다. 종료·취소는 확인 요구. 알 수 없는 상태는 `VALIDATION_FAILED`                                                 |
+| `?/createSession`                             | STU-06 수동   | 입력 `date`(KST `YYYY-MM-DDTHH:mm`, 실재하는 일시 — 폼은 제출 시각을 보낸다), `title?`. `flow_create_study_session` 한 트랜잭션: 저장된 스터디로 `status ∉ {finished, cancelled}` 검증(DETAIL `study-finished`/`study-cancelled`) → ① `activities`(type 스터디) ② `events`(`studyId`, `sessionNo` = events 잠금 아래 max+1, `activityId` 연결, active). 앵커 `"<studyId>:<date>"` — 반복 클릭은 같은 회차를 돌려주고, **취소된 회차와 같은 일시는 `CONFLICT`**(DETAIL `session-slot-cancelled` → "다른 일시를 선택해 주세요") |
+| `?/updateSession` / `?/cancelSession`         | STU-06        | 제목·일시 정정 — 제목 필수. 이벤트와 활동이 한 트랜잭션에서 함께 옮겨 간다(`flow_update_study_session`; 앵커는 원래 일시를 유지 — 옛 자리는 소비된 채 남는다) / **`status: cancelled`** (expired와 구분 — 재활성화 불가)                                                                                                                                                                                                                                                                                                      |
+| `?/proposeTransfer`                           | STU-07        | 검증: 대상이 회원 ∧ **본인 아님**(`VALIDATION_FAILED`) ∧ 기존 제안 없음(`CONFLICT`)                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `?/cancelTransfer`                            | STU-07        | `pendingTransfer = null`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 회차는 주최자가 직접 만든다 — 일정 기반 자동 생성(`?/registerSchedule`·크론 단계)은 2026-09-27에 제거됐다
 (FRONTEND-DECISIONS §3-2). 캐시: 회차 변경 시 자동 (`table_events` · `table_activities`).
@@ -704,13 +711,15 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용 — `$lib/doma
 입력은 `$lib/domain/members`의 스키마로 검증한다(§1-2 형식, 쓰기·감사 기록 전): 학기는 `Term` 형식(`YY-1|2`),
 직책은 한 줄에 하나(`parseRoleLines`), `isAdmin`은 `"true"|"false"`, 프로젝트 URL은 http(s)·200자 이하,
 이메일은 다듬은 뒤 형식 검사·200자 이하, 개인정보 수정에서 빈 이메일·전화는 저장된 값 유지(옛 행 대비).
-`publicContact`는 저장 형식이 문자열 하나(`"전화 · 이메일"`)이고, 검증 때만 둘로 나눠 **둘 다** 있어야 통과한다.
+가입일은 필수다 — 저장된 가입일이 없는 회원(규칙 전의 행)도 기록 폼이 뜨고, 가입일을 채워야 저장된다(결정 #3,
+audit LC11-3). 새 회원 행은 승인 흐름이 legacy 가입일 또는 승인일로 채우고, 날짜가 아니면 거부한다.
+`publicContact`는 폐기됐다 — 어떤 액션도 쓰지 않고 화면도 보여 주지 않는다(결정 #19).
 
 | 액션                      | 처리                                                                                                      | 감사 로그 |
 | ------------------------- | --------------------------------------------------------------------------------------------------------- | --------- |
-| `?/updateMember`          | name·department·joinedAt·project·**publicContact**                                                        | —         |
+| `?/updateMember`          | name·department·joinedAt(필수)·project                                                                    | —         |
 | `?/setStatus`             | associate↔regular. regular 승격 시 `isAlumni: true` — 단 **`alumniRevoked: true`면 자동 부여 안 함**      | ✅        |
-| `?/revokeAlumni`          | `isAlumni: false` + `alumniRevoked: true`. 사유 필수                                                      | ✅        |
+| `?/revokeAlumni`          | `isAlumni: false` + `alumniRevoked: true` + `alumniRevocationReason`. 사유 필수. 로그엔 `hasReason`만     | ✅        |
 | `?/setRoles`              | 직책 축 갱신                                                                                              | ✅        |
 | `?/setAdmin`              | 부여/회수. 본인 회수 불가                                                                                 | ✅        |
 | `?/updatePrivateInfo`     | phone·background·email                                                                                    | ✅        |
@@ -846,7 +855,7 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용 — `$lib/doma
 | (경과 조치)                          | 재분류 전까지 status 축은 접근 권한에 영향 없음 — 회원 판정은 레코드 존재 여부                                                                            |
 | `members.roles`                      | Notion `임원` multi_select 파싱 → `{term, title}`                                                                                                         |
 | `members.isAdmin`                    | 현행 하드코딩 명단 → `true`                                                                                                                               |
-| `members.publicContact`              | 현 임원 중 기존 공개 연락처 보유자만 이전 (동의 재확인 후), 그 외 `null`                                                                                  |
+| `members.publicContact`              | 전원 `null` — 필드는 폐기됐다(결정 #19). 공개 연락처는 §3 예외(현 회장단 전화)                                                                            |
 | `members.project`                    | `개인 프로젝트` checkbox → 임시 `{ title: "" }` 또는 null — 내용은 추후 입력                                                                              |
 | `private-info.mailPrefs`             | `{ announcements: true }`                                                                                                                                 |
 | `activities.type` / `events.type`    | `Seminar` → `세미나` 통일                                                                                                                                 |
@@ -868,7 +877,7 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용 — `$lib/doma
   엄격히 재디코드한다(모르는 키·기본값에 기댄 행 거부). 테스트는 PGlite 위에서 운영과 같은 마이그레이션으로 돈다
 - **입력 검증**: 폼 액션마다 도메인 스키마 실패 시 `VALIDATION_FAILED` + 필드별 `issues`, 쓰기 0
 - **메일**: Bcc 헤더 검증, `mailPrefs` 제외 확인, 공지 수신자 범위(이번 학기 등록 ∪ 동문, 탈퇴 유예 제외 — §5-7)
-- **공개 응답 감사**: §3 전 로드 — PII·운영 필드 부재 스냅샷. `publicContact` 외 연락처 부재.
+- **공개 응답 감사**: §3 전 로드 — PII·운영 필드 부재 스냅샷. 현 회장단 전화(§3 예외) 외 연락처 부재.
   `/members`에 `withdrawn` 부재. **`/` 세션 분기: 게스트 캐시에 회원 데이터 미혼입**
 - **감사 로그**: §1-5 대상 액션 전부 로그 생성 확인
 - **탈퇴 수명주기**: 삼중 확인 결여 시 거부 · 신청 즉시 접근 상실 · 보존 집행 시 삭제 중단 ·

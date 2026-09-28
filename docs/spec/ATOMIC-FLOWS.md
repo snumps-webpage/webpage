@@ -111,33 +111,55 @@ PGlite에는 Supabase의 `storage` 스키마가 없어서, 마이그레이션 �
 | `20260928000000_atomic_flows.sql`               | 헬퍼 + 흐름 19개(쓰기 18 + 백업 스냅숏) + 권한. 확장만 — 옛 코드는 부르지 않는다 |
 | `20260928000100_seminar_publication_status.sql` | `publicationStatus`가 없는 세미나 행에 `"published"`를 명시                      |
 | `20260928000200_assets_bucket_private.sql`      | `assets` 버킷을 비공개로(C-22). 흐름과 무관 — 배포 순서는 OPERATOR-TODO §2-2     |
+| `20260928000300_seminar_fields.sql`             | 세미나 행에 `kind`·`durationMinutes`·`prerequisites`·`announce`를 명시(아래)     |
 
 - 순서는 **흐름·보정 마이그레이션 적용 → 코드 배포**. 새 코드는 흐름 함수를 부르고, `SeminarSchema`에서
-  `publicationStatus` 기본값을 뺐으므로 보정 전 행이 있으면 세미나 표 읽기가 실패한다.
-- 세 파일 모두 재실행 안전하다(`create or replace`, 보정은 문자열 값이 없는 행이 있을 때만 쓴다).
-- 되돌리기: 코드만 되돌리면 된다(옛 코드는 함수를 부르지 않고, 명시된 `publicationStatus`는 옛 기본값과 같다).
+  `publicationStatus` 기본값을 뺐고 네 필드를 기본값 없이 필수로 두었으므로, 보정 전 행이 있으면 세미나 표
+  읽기가 실패한다.
+- `20260928000300`의 규칙(결정 #7·#12·#21): 원본 신청이 있는 행은 신청의 `kind`(regular/irregular일 때)와
+  `prerequisites`를, 없으면 `kind: null`·`prerequisites: ""`. `durationMinutes`는 `null` — 신청의 소요 시간은
+  자유 서술이라 숫자로 해석하지 않는다. `announce`는 `true` — 지금 모든 세미나가 공지 대상이고(공개됐고
+  `announcedAt`이 비었고 날짜가 앞이면 공지가 나간다), 기록 편집기로 만든 행은 디스크에서 이주분과 구분되지
+  않는다. 새 "기록 직접 생성"만 코드가 `false`로 쓴다. 이미 적힌 값(null 포함)은 그대로 둔다.
+- 파일 모두 재실행 안전하다(`create or replace`, 보정은 필요한 값이 없는 행이 있을 때만 쓴다).
+- 되돌리기: 코드만 되돌리면 된다(옛 코드는 함수를 부르지 않고, 명시된 `publicationStatus`는 옛 기본값과 같으며,
+  새 네 필드는 옛 스키마가 읽을 때 벗겨 낸다).
 - 축소(contract) 단계(예: `studies.schedule` 필드 제거)는 새 코드 배포 뒤 별도 마이그레이션으로.
 
 ## 7. 구현 현황
 
-| 흐름                     | 함수                               | TS 호출부 (`src/lib/server/services/`)                |
-| ------------------------ | ---------------------------------- | ----------------------------------------------------- |
-| 세미나 기록 삭제         | `flow_delete_seminar`              | `records-admin.deleteSeminar`                         |
-| 세미나 게시              | `flow_publish_seminar`             | `seminars.publishSeminar` (+ 커밋 뒤 공지)            |
-| 세미나 일정 변경         | `flow_update_seminar_schedule`     | `seminars.updateSeminarSchedule`                      |
-| 세미나 기록 수정         | `flow_update_seminar_record`       | `records-admin.updateSeminar` (제목·발표자 사본 동기) |
-| 세미나 취소              | `flow_cancel_seminar`              | `seminars.cancelSeminar`                              |
-| 체크인                   | `flow_check_in`                    | `events.checkIn`                                      |
-| 출석 승인·거절·삭제      | `flow_decide_attendance`           | `events.approve/reject/deleteAttendance…`             |
-| 발표자 출석 저장         | `flow_save_presenter_attendance`   | `events.savePresenterAttendance`                      |
-| 이벤트 삭제              | `flow_delete_event`                | `events.deleteEventChecked`                           |
-| 가입 승인                | `flow_approve_application`         | `membership.approveApplication`                       |
-| 세미나 신청 승인         | `flow_approve_seminar_request`     | `seminar-requests.approveSeminar`                     |
-| 스터디 신청 승인         | `flow_approve_study_request`       | `studies.approveStudy`                                |
-| 스터디 회차 생성·정정    | `flow_create/update_study_session` | `studies.createStudySession`, `updateSession`         |
-| 탈퇴 신청                | `flow_request_withdrawal`          | `withdrawal.requestWithdrawal`                        |
-| 탈퇴 취소·보류·보류 해제 | `flow_member_withdrawal`           | `withdrawal.cancelWithdrawal`, `members-admin.*Hold`  |
-| 활동·스터디 기록 삭제    | `flow_delete_activity/study`       | `records-admin.deleteActivity`, `deleteStudy`         |
+| 흐름                     | 함수                               | TS 호출부 (`src/lib/server/services/`)                 |
+| ------------------------ | ---------------------------------- | ------------------------------------------------------ |
+| 세미나 기록 삭제         | `flow_delete_seminar`              | `records-admin.deleteSeminar`                          |
+| 세미나 게시              | `flow_publish_seminar`             | `seminars.publishSeminar` (+ 커밋 뒤 공지)¹            |
+| 세미나 일정 변경         | `flow_update_seminar_schedule`     | `seminars.updateSeminarSchedule`²                      |
+| 세미나 기록 수정         | `flow_update_seminar_record`       | `records-admin.updateSeminar` (제목·발표자 사본 동기)³ |
+| 세미나 취소              | `flow_cancel_seminar`              | `seminars.cancelSeminar`                               |
+| 체크인                   | `flow_check_in`                    | `events.checkIn`                                       |
+| 출석 승인·거절·삭제      | `flow_decide_attendance`           | `events.approve/reject/deleteAttendance…`              |
+| 발표자 출석 저장         | `flow_save_presenter_attendance`   | `events.savePresenterAttendance`                       |
+| 이벤트 삭제              | `flow_delete_event`                | `events.deleteEventChecked`                            |
+| 가입 승인                | `flow_approve_application`         | `membership.approveApplication`                        |
+| 세미나 신청 승인         | `flow_approve_seminar_request`     | `seminar-requests.approveSeminar`                      |
+| 스터디 신청 승인         | `flow_approve_study_request`       | `studies.approveStudy`                                 |
+| 스터디 회차 생성·정정    | `flow_create/update_study_session` | `studies.createStudySession`, `updateSession`          |
+| 탈퇴 신청                | `flow_request_withdrawal`          | `withdrawal.requestWithdrawal`                         |
+| 탈퇴 취소·보류·보류 해제 | `flow_member_withdrawal`           | `withdrawal.cancelWithdrawal`, `members-admin.*Hold`   |
+| 활동·스터디 기록 삭제    | `flow_delete_activity/study`       | `records-admin.deleteActivity`, `deleteStudy`          |
+
+계약 보충 (2026-09-28):
+
+1. `announcedAt` 선점은 세미나가 공지 대상(`announce: true`)일 때만 한다(#21). "기록 직접 생성"한 세미나는
+   `announce: false`라 앞날의 일정을 받아도 공개 공지가 없고, `announcedAt`이 비어 있으므로 일정 변경·취소
+   안내도 나가지 않는다. 관리자 보드의 "공지 재발송"도 뜨지 않는다. 신청 승인(`flow_approve_seminar_request`)은
+   `announce: true`와 함께 신청의 `kind`·`prerequisites`를 옮긴다(#7) — `durationMinutes`는 `null`.
+2. 인자에 `now`가 추가됐다. 이미 `expired`인 출석 이벤트는 새 일정의 창(`app_event_open`과 같은 규칙:
+   종료 시각, 없으면 시작일 KST 자정)이 `now`에 아직 끝나지 않았으면 `active`로 다시 열린다(#22).
+   `cancelled`는 종결이라 그대로, 다른 상태도 그대로다.
+3. 발표자가 바뀌면 활동의 발표자 자동 출석 인정이 따라 옮겨진다(#14): 빠진 발표자는 다른 근거가 없으면
+   `attendeeIds`에서 빠지고(근거 = 그 활동의 어느 회차 큐든 승인된 체크인, 또는 회차의 발표자 — LA43-3의
+   `flow_decide_attendance`와 같은 규칙), 새 발표자는 추가된다. 그 밖의 출석 인정은 건드리지 않는다. 옛
+   발표자의 낡은 인정이 취소 뒤 `flow_delete_seminar`를 막던 경로가 사라졌다.
 
 이전으로 사라진 TS: `ensureCreated`(`data/idempotency.ts`), `deleteQueue`/`deleteQueueDoc`,
 `retireHiddenActivity`, 공개 도중 취소를 사후 수습하던 `cancelledDuringPublish` 경로.

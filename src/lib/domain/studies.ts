@@ -6,8 +6,31 @@ import {
 } from "$lib/domain/form-data";
 import { mergeManagedAttendance } from "$lib/domain/attendance";
 
-export const STUDY_STATUSES = ["recruiting", "ongoing", "finished"] as const;
+/** "cancelled": ended while still recruiting — a study that never ran (#4/#20). */
+export const STUDY_STATUSES = [
+  "recruiting",
+  "ongoing",
+  "finished",
+  "cancelled",
+] as const;
 export type StudyStatus = (typeof STUDY_STATUSES)[number];
+
+/** The one label per status every screen shows. */
+export const STUDY_STATUS_LABELS: Record<StudyStatus, string> = {
+  recruiting: "모집 중",
+  ongoing: "진행 중",
+  finished: "종료",
+  cancelled: "취소됨",
+};
+
+/**
+ * Finished and cancelled are terminal, and a closed study is immutable:
+ * only attendance on its existing sessions and the admin record editor may
+ * still change it (#4/#20, audit LB31-2).
+ */
+export function isStudyClosed(status: StudyStatus): boolean {
+  return status === "finished" || status === "cancelled";
+}
 
 export const STUDY_REQUEST_STATUSES = [
   "pending",
@@ -131,13 +154,19 @@ export const studyTransferInputSchema = z.object({
   toMemberId: studyTargetIdSchema,
 });
 
+/**
+ * API-SPEC §6-4: recruiting ↔ ongoing → finished, and recruiting → cancelled
+ * for a study that never started (#4/#20). The server enforces exactly this
+ * (setStudyStatus) and the manage screen builds its buttons from it.
+ */
 export function nextStudyStatuses(status: StudyStatus): StudyStatus[] {
   switch (status) {
     case "recruiting":
-      return ["ongoing"];
+      return ["ongoing", "cancelled"];
     case "ongoing":
       return ["recruiting", "finished"];
     case "finished":
+    case "cancelled":
       return [];
   }
 }

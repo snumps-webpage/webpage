@@ -309,7 +309,8 @@ end $$;
 -- Publish a scheduled seminar (admin): flip it to published (deriving its
 -- term from the schedule), create its activity and attendance event if they
 -- do not exist yet (anchored 'seminar:<id>', so a re-run converges), link the
--- activity, and claim the announcement (announcedAt) when none was sent. The
+-- activity, and claim the announcement (announcedAt) when none was sent, the
+-- date lies ahead and the seminar is an announcement target (announce). The
 -- caller sends the announcement after the commit only when `claimed`, and
 -- releases the claim if sending fails. Re-running on a published seminar
 -- fills in whatever is missing.
@@ -409,7 +410,12 @@ begin
   -- when one will: a seminar published with a past date is a record fix,
   -- announced by nobody. Stamping it anyway made a later move to a future
   -- date send "schedule changed" for a seminar never announced (audit LB30-1).
+  -- Nor for a seminar that is no announcement target (announce = false: made
+  -- by "기록 직접 생성", #21) — and since announcedAt then stays null, its
+  -- schedule changes and cancellation send nothing either. A row without the
+  -- key predates it and was a target (migration 20260928000300).
   if v_sem ->> 'announcedAt' is null
+     and coalesce((v_sem ->> 'announce')::boolean, true)
      and (v_sched ->> 'startsAt')::timestamptz > (p ->> 'now')::timestamptz then
     v_sem := v_sem || jsonb_build_object('announcedAt', p ->> 'now');
     v_claimed := true;
@@ -428,8 +434,11 @@ end $$;
 -- row holds it; after, the same dates also live on its activity and
 -- attendance event, and all three change together. A published seminar's
 -- term follows the new date unless pinned. Also the way to give a legacy
--- published row (schedule lost in migration) its schedule back.
---   p = { id, schedule }  → { seminar, changed }
+-- published row (schedule lost in migration) its schedule back. An event
+-- already swept to 'expired' reopens ('active') when its new window has not
+-- ended at `now` — moved to a later date, its check-in stayed shut (#22).
+-- 'cancelled' is terminal and every other status is left as it is.
+--   p = { id, schedule, now }  → { seminar, changed }   (now = KST ISO)
 create or replace function flow_update_seminar_schedule(p jsonb) returns jsonb
 language plpgsql set search_path = public as $$
 declare
@@ -443,7 +452,7 @@ declare
   v_date     jsonb;
   v_touched  text[] := array['seminars'];
 begin
-  perform app_require(p, array['id', 'schedule']);
+  perform app_require(p, array['id', 'schedule', 'now']);
   perform app_require(p -> 'schedule', array['startsAt', 'location']);
   perform app_lock(array['activities', 'events', 'seminars']);
   v_seminars := app_rows('seminars');
@@ -480,8 +489,13 @@ begin
         from jsonb_array_elements(app_rows('activities')) with ordinality as x(a, n)));
     perform app_put('events', (
       select coalesce(jsonb_agg(
-               case when app_is_seminar_event(e, v_sem)
-                    then e || jsonb_build_object('date', v_date) else e end
+               case when not app_is_seminar_event(e, v_sem) then e
+                    when e ->> 'status' = 'expired'
+                         and app_event_open(e || jsonb_build_object('date', v_date,
+                                                                    'status', 'active'),
+                                            (p ->> 'now')::timestamptz)
+                    then e || jsonb_build_object('date', v_date, 'status', 'active')
+                    else e || jsonb_build_object('date', v_date) end
                order by n), '[]'::jsonb)
         from jsonb_array_elements(app_rows('events')) with ordinality as x(e, n)));
     v_touched := v_touched || array['activities', 'events'];
@@ -497,10 +511,12 @@ end $$;
 -- onto the seminar's activity and attendance event, and the presenters onto
 -- the event — whose presenterIds decide who may record attendance — so an
 -- edit of either carries over to those copies in the same transaction
--- (audit LB28-1). Credit already on the activity is not moved. Changing the
--- term pins it against later derivation; resaving the same term does not.
--- The caller validates `patch` against the stored schema (flows have no zod
--- gate) and promotes a new poster first.
+-- (audit LB28-1). The presenters' automatic credit on the activity moves
+-- with them (#14): a removed presenter loses it unless something else
+-- justifies it, an added one gets it; any other credit is left alone.
+-- Changing the term pins it against later derivation; resaving the same term
+-- does not. The caller validates `patch` against the stored schema (flows
+-- have no zod gate) and promotes a new poster first.
 --   p = { id, patch, posterKey }  (posterKey: the promoted key, or null)
 --   → { seminar, replacedPoster }
 create or replace function flow_update_seminar_record(p jsonb) returns jsonb
@@ -513,6 +529,11 @@ declare
   v_sem      jsonb;
   v_old      jsonb;
   v_replaced text;
+  v_acts     jsonb;
+  v_act      jsonb;
+  v_events   jsonb;
+  v_sessions text[] := '{}';
+  v_credit   jsonb;
   v_touched  text[] := array['seminars'];
 begin
   perform app_require(p, array['id']);
@@ -556,6 +577,59 @@ begin
                order by n), '[]'::jsonb)
         from jsonb_array_elements(app_rows('events')) with ordinality as x(e, n)));
     v_touched := v_touched || array['events'];
+  end if;
+
+  -- Publication credits the presenters on the seminar's activity. Left in
+  -- place when they changed, a removed presenter kept credit for a seminar
+  -- they no longer gave, the new one had none, and the stale credit counted
+  -- as attendance evidence that blocked deleting the seminar once cancelled
+  -- (flow_delete_seminar) (#14). "Something else justifies it" is the rule of
+  -- flow_decide_attendance (LA43-3): an approved check-in in the queue of any
+  -- session of the activity, or presenting one of those sessions — read after
+  -- the event update above, so this seminar's own events no longer count.
+  if v_patch ? 'presenterIds' then
+    v_acts := app_rows('activities');
+    v_act := app_find(v_acts, v_sem ->> 'activityId');
+    if v_act is null then
+      select a into v_act from jsonb_array_elements(v_acts) a
+       where a ->> 'sourceRequestId' = 'seminar:' || v_id limit 1;
+    end if;
+  end if;
+  if v_act is not null then
+    v_events := app_rows('events');
+    select coalesce(array_agg(e ->> 'id'), '{}') into v_sessions
+      from jsonb_array_elements(v_events) e
+     where e ->> 'activityId' = v_act ->> 'id';
+    perform app_queue_lock(v_sessions);
+
+    -- keep everyone but a removed presenter with no other basis
+    select coalesce(jsonb_agg(to_jsonb(who) order by n), '[]'::jsonb) into v_credit
+      from jsonb_array_elements_text(v_act -> 'attendeeIds') with ordinality as x(who, n)
+     where not (
+       coalesce(v_old -> 'presenterIds', '[]'::jsonb) ? who
+       and not (v_sem -> 'presenterIds' ? who)
+       and not exists (
+         select 1 from unnest(v_sessions) as sid,
+                       jsonb_array_elements(app_queue_rows(sid)) q
+          where q ->> 'memberId' = who and q ->> 'status' = 'approved')
+       and not exists (
+         select 1 from jsonb_array_elements(v_events) e
+          where e ->> 'activityId' = v_act ->> 'id'
+            and coalesce(e -> 'presenterIds', '[]'::jsonb) ? who));
+    -- then each added presenter, once
+    select v_credit || coalesce(jsonb_agg(to_jsonb(who) order by n), '[]'::jsonb)
+      into v_credit
+      from (select who, min(n) as n
+              from jsonb_array_elements_text(v_sem -> 'presenterIds') with ordinality as x(who, n)
+             where not coalesce(v_old -> 'presenterIds', '[]'::jsonb) ? who
+               and not v_credit ? who
+             group by who) as added;
+
+    if v_credit is distinct from v_act -> 'attendeeIds' then
+      perform app_put('activities', app_replace(v_acts, v_act ->> 'id',
+        jsonb_set(v_act, '{attendeeIds}', v_credit)));
+      v_touched := v_touched || array['activities'];
+    end if;
   end if;
 
   return jsonb_build_object(
@@ -958,12 +1032,17 @@ begin
         'withdrawal', null,
         'isAlumni', false,
         'alumniRevoked', false,
+        'alumniRevocationReason', null,
         'roles', coalesce(v_lp_member -> 'roles', '[]'::jsonb),
         'isAdmin', v_admin,
-        'publicContact', null,
+        'publicContact', null, -- deprecated, written by nobody (#19)
         'project', coalesce(v_lp_member -> 'project', 'null'::jsonb),
         'legacyMemberId', coalesce(v_lp_info -> 'memberId', 'null'::jsonb),
         'sourceRequestId', v_id);
+      -- no new member without a join date (#3, audit LC11-3)
+      if coalesce(v_member ->> 'joinedAt', '') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
+        raise exception 'VALIDATION_FAILED' using detail = 'missing-joinedAt';
+      end if;
       perform app_put('members', v_members || jsonb_build_array(v_member));
       v_touched := v_touched || array['members'];
     end if;
@@ -1011,8 +1090,11 @@ end $$;
 -- schedule is agreed afterwards) and the request's flip to approved, together
 -- and on the request as it is now: a request withdrawn, rejected or edited
 -- since the admin's page load is judged by its current state. The request's
--- poster moves to the seminar. A seminar already anchored on the request (a
--- run cut short before this function existed) is reused.
+-- poster moves to the seminar, and so do its kind and prerequisites (#7);
+-- its duration is free text and is not parsed into durationMinutes, which
+-- stays null until an admin records it. A seminar from a request is an
+-- announcement target (announce, #21). A seminar already anchored on the
+-- request (a run cut short before this function existed) is reused.
 --   p = { id, seminarId, term }  → { request }  (as it was before the flip)
 create or replace function flow_approve_seminar_request(p jsonb) returns jsonb
 language plpgsql set search_path = public as $$
@@ -1046,6 +1128,11 @@ begin
       'photos', '[]'::jsonb,
       'posterKey', coalesce(v_req -> 'posterKey', '""'::jsonb),
       'preferredTiming', coalesce(v_req -> 'preferredTiming', '""'::jsonb),
+      'kind', case when v_req ->> 'kind' in ('regular', 'irregular')
+                   then v_req -> 'kind' else 'null'::jsonb end,
+      'durationMinutes', null,
+      'prerequisites', coalesce(v_req -> 'prerequisites', '""'::jsonb),
+      'announce', true,
       'publicationStatus', 'unscheduled',
       'schedule', null,
       'announcedAt', null,
@@ -1111,7 +1198,8 @@ end $$;
 -- anchored on '<studyId>:<date>' so a repeated click returns the same
 -- session. The session number is taken under the events lock, so two
 -- sessions created at once never share one. A cancelled session keeps its
--- slot forever (review M2): refused with DETAIL 'session-slot-cancelled'.
+-- slot forever (review M2): refused with DETAIL 'session-slot-cancelled'. A
+-- closed study is refused with DETAIL 'study-finished' / 'study-cancelled'.
 --   p = { studyId, date, title, autoGenerated,
 --         activityId, eventId, pathId, attendCode }  → { event }
 create or replace function flow_create_study_session(p jsonb) returns jsonb
@@ -1132,7 +1220,10 @@ begin
   perform app_lock(array['activities', 'events', 'studies']);
   v_study := app_find(app_rows('studies'), v_study_id);
   if v_study is null then raise exception 'NOT_FOUND'; end if;
-  if v_study ->> 'status' = 'finished' then raise exception 'CONFLICT'; end if;
+  -- a closed study is immutable (#4/#20, audit LB31-2)
+  if v_study ->> 'status' in ('finished', 'cancelled') then
+    raise exception 'CONFLICT' using detail = 'study-' || (v_study ->> 'status');
+  end if;
 
   v_events := app_rows('events');
   select e into v_event from jsonb_array_elements(v_events) e
@@ -1189,11 +1280,14 @@ end $$;
 -- and on its activity together — archives and term grouping key off the
 -- activity's date (review M5). The anchor keeps the ORIGINAL date on
 -- purpose: the old slot stays consumed. Empty title/date = keep. A cancelled
--- session is terminal: refused with DETAIL 'session-cancelled'.
+-- session is terminal: refused with DETAIL 'session-cancelled'. A closed
+-- study's sessions stay as they ran (#4/#20, audit LB31-2): refused with
+-- DETAIL 'study-finished' / 'study-cancelled', judged under the studies lock.
 --   p = { studyId, eventId, title, date }
 create or replace function flow_update_study_session(p jsonb) returns jsonb
 language plpgsql set search_path = public as $$
 declare
+  v_study  jsonb;
   v_events jsonb;
   v_event  jsonb;
   v_acts   jsonb;
@@ -1203,7 +1297,12 @@ declare
                          else jsonb_build_object('start', p ->> 'date', 'end', null) end;
 begin
   perform app_require(p, array['studyId', 'eventId']);
-  perform app_lock(array['activities', 'events']);
+  perform app_lock(array['activities', 'events', 'studies']);
+  v_study := app_find(app_rows('studies'), p ->> 'studyId');
+  if v_study is null then raise exception 'NOT_FOUND'; end if;
+  if v_study ->> 'status' in ('finished', 'cancelled') then
+    raise exception 'CONFLICT' using detail = 'study-' || (v_study ->> 'status');
+  end if;
   v_events := app_rows('events');
   select e into v_event from jsonb_array_elements(v_events) e
    where e ->> 'id' = p ->> 'eventId' and e ->> 'studyId' = p ->> 'studyId' limit 1;

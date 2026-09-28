@@ -67,6 +67,7 @@ async function seedFixture() {
       roles: [],
       isAdmin: true,
       publicContact: "snumps0@gmail.com",
+      alumniRevocationReason: null,
       project: { title: "정수론 시각화", url: "https://example.com" },
       legacyMemberId: null,
       sourceRequestId: "src-1",
@@ -89,6 +90,7 @@ async function seedFixture() {
       roles: [],
       isAdmin: false,
       publicContact: null,
+      alumniRevocationReason: null,
       project: { title: "탈퇴자의 프로젝트" },
       legacyMemberId: null,
       sourceRequestId: null,
@@ -117,6 +119,10 @@ async function seedFixture() {
       presenterIds: ["m1"],
       externalPresenters: "",
       publicationStatus: "published",
+      kind: "irregular",
+      durationMinutes: 90,
+      prerequisites: "선형대수",
+      announce: true,
       schedule: null,
       announcedAt: null,
       semesterPinned: false,
@@ -128,13 +134,13 @@ async function seedFixture() {
       sourceRequestId: "req1",
     },
   ]);
-  // ZR-6: the public load reads this operational table for exactly one field.
+  // ZR-6: an operational table — nothing of it may reach the public load.
   await mutate("seminar-requests", () => [
     {
       id: "req1",
       title: "위상수학",
       description: "운영용 설명 — 공개되면 안 된다",
-      prerequisites: "선형대수",
+      prerequisites: "신청서의 선수지식 — 세미나 기록이 아니다",
       duration: "90분",
       preferredTiming: "",
       presenterIds: ["m1"],
@@ -202,6 +208,7 @@ async function loadArchive() {
     archive: {
       seminars: {
         prerequisites: string;
+        durationMinutes: number | null;
         description: string | null;
         presenterNames: string[];
         files: { url: string }[];
@@ -241,12 +248,18 @@ describe("archive layout snapshot (BE-64, the rendered path)", () => {
     expect(JSON.stringify(archive.projects)).not.toContain("탈퇴자의 프로젝트");
   });
 
-  it("takes only prerequisites from the seminar-requests table (ZR-6)", async () => {
+  // #7 / #12: prerequisites and duration are the seminar's own record now
+  // (approval copies them) — the request table is not read at all (ZR-6).
+  it("takes prerequisites and duration from the seminar, nothing from its request", async () => {
     const { archive } = await loadArchive();
-    expect(archive.seminars[0].prerequisites).toBe("선형대수");
+    expect(archive.seminars[0]).toMatchObject({
+      prerequisites: "선형대수",
+      durationMinutes: 90,
+    });
     const json = JSON.stringify(archive);
     expect(json).not.toContain("운영용 설명");
     expect(json).not.toContain("internal.example");
+    expect(json).not.toContain("신청서의 선수지식");
   });
 
   // PUB-11: the calendar is the schedule only — the fixture's activity has an
@@ -273,6 +286,26 @@ describe("archive layout snapshot (BE-64, the rendered path)", () => {
       "/media/studies/st1/p.png",
       "/media/gallery/g1/d.png",
     ]);
+  });
+
+  // #4/#20, LB31-3: a cancelled study never ran. The public list shows no
+  // status, so it would read as a study that was held — it stays out.
+  it("keeps a cancelled study out of the public list and gallery", async () => {
+    await mutate("studies", (rows) => [
+      ...rows,
+      {
+        ...rows[0],
+        id: "st2",
+        title: "열리지 않은 스터디",
+        photos: ["studies/st2/p.png"],
+        status: "cancelled" as const,
+      },
+    ]);
+    const { archive } = (await loadArchive()) as unknown as {
+      archive: { studies: { title: string }[] };
+    };
+    expect(archive.studies.map((s) => s.title)).toEqual(["해석학"]);
+    expect(JSON.stringify(archive)).not.toContain("st2");
   });
 
   // W-8: with no CDN the payload must carry nothing usable — and nothing that
@@ -318,6 +351,7 @@ describe("presenters who re-joined", () => {
           roles: [],
           isAdmin: false,
           publicContact: null,
+          alumniRevocationReason: null,
           project: null,
           legacyMemberId: null,
           sourceRequestId: null,

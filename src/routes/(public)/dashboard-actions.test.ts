@@ -172,6 +172,10 @@ describe("dashboard actions — refusals leave no trace", () => {
         photos: [],
         activityId: event.activityId,
         publicationStatus: "cancelled",
+        kind: null,
+        durationMinutes: null,
+        prerequisites: "",
+        announce: true,
         sourceRequestId: null,
       } as never,
     ]);

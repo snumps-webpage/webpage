@@ -2,6 +2,7 @@
   import { enhance } from "$app/forms";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import { MANUSCRIPT } from "$lib/constants";
+  import { STUDY_STATUS_LABELS, type StudyStatus } from "$lib/domain/studies";
 
   let { data } = $props();
   const studies = $derived(data.studies);
@@ -11,11 +12,8 @@
   );
   let processingStudyId = $state<string | null>(null);
 
-  function statusLabel(status: string) {
-    return (
-      { recruiting: "모집 중", ongoing: "진행 중", finished: "종료" }[status] ??
-      status
-    );
+  function statusLabel(status: StudyStatus) {
+    return STUDY_STATUS_LABELS[status];
   }
 
   function relationshipLabel(

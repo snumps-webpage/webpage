@@ -5,6 +5,9 @@ export const SEMINAR_KINDS = ["regular", "irregular"] as const;
 
 export type SeminarKind = (typeof SEMINAR_KINDS)[number];
 
+/** 세미나 소요 시간(분)의 범위 — 저장 스키마와 기록 편집기가 같은 값을 쓴다. */
+export const SEMINAR_DURATION_MINUTES = { min: 10, max: 600 } as const;
+
 /**
  * 선호 세미나 시점 — 학기 중 활동 월을 초·중반·말로 쪼갠 텍스트 선택지 (날짜 아님).
  * 방학(1·2월 겨울, 7·8월 여름)은 세미나를 진행하지 않으므로 제외한다.

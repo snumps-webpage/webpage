@@ -53,6 +53,7 @@ const member: Member = {
   roles: [{ term: "26-1", title: "총무" }],
   isAdmin: false,
   publicContact: null,
+  alumniRevocationReason: null,
   project: null,
   legacyMemberId: null,
   sourceRequestId: null,
@@ -122,7 +123,6 @@ describe("updateMember", () => {
     joinedAt: "2024-03-02",
     projectTitle: " 문제 아카이브 ",
     projectUrl: "https://example.com/archive",
-    publicContact: "",
   };
 
   it("stores the parsed record, trimmed", async () => {
@@ -134,20 +134,39 @@ describe("updateMember", () => {
       department: "수학교육과",
       joinedAt: "2024-03-02",
       project: { title: "문제 아카이브", url: "https://example.com/archive" },
-      publicContact: null,
     });
   });
 
-  it("stores a granted public contact as the one 'phone · email' string", async () => {
+  // Decision #1/#19 (audit LB16-3, LC11-1): publicContact is written by
+  // nobody. A posted value is ignored, and a stored value in any shape —
+  // the seed's "github.com/dev-regular" used to block the name edit — stays
+  // as it was while the record saves.
+  it("ignores a posted publicContact and keeps the stored one untouched", async () => {
+    await mutate("members", () => [
+      { ...member, publicContact: "github.com/dev-regular" },
+    ]);
+
     const result = await post("updateMember", {
       ...valid,
       publicContact: "01012345678 · president@snumps.org",
     });
 
     expect(result).toMatchObject({ success: true });
-    expect((await storedMember()).publicContact).toBe(
-      "010-1234-5678 · president@snumps.org",
-    );
+    expect(await storedMember()).toMatchObject({
+      name: "홍길순",
+      publicContact: "github.com/dev-regular",
+    });
+  });
+
+  // Decision #3 (audit LC11-3): a member stored without a join date can
+  // have one filled in — the record form is the way to close the gap.
+  it("fills in a missing join date", async () => {
+    await mutate("members", () => [{ ...member, joinedAt: null }]);
+
+    const result = await post("updateMember", valid);
+
+    expect(result).toMatchObject({ success: true });
+    expect((await storedMember()).joinedAt).toBe("2024-03-02");
   });
 
   it("drops an empty project", async () => {
@@ -167,10 +186,6 @@ describe("updateMember", () => {
     ["projectUrl", { projectUrl: "not a url" }],
     ["projectUrl", { projectUrl: "javascript:alert(1)" }],
     ["projectUrl", { projectUrl: `https://example.com/${"a".repeat(200)}` }],
-    ["phone", { publicContact: "12 · president@snumps.org" }],
-    ["phone", { publicContact: " · president@snumps.org" }],
-    ["email", { publicContact: "010-1234-5678 · not-an-email" }],
-    ["email", { publicContact: "010-1234-5678 · " }],
   ])(
     "refuses a bad %s with a field issue and writes nothing",
     async (field, over) => {
@@ -188,15 +203,12 @@ describe("updateMember", () => {
       joinedAt: "x",
       projectTitle: "",
       projectUrl: "nope",
-      publicContact: "1 · 2",
     });
 
     await expectRefused(result, [
       "department",
-      "email",
       "joinedAt",
       "name",
-      "phone",
       "projectTitle",
       "projectUrl",
     ]);
@@ -228,7 +240,10 @@ describe("setStatus", () => {
 });
 
 describe("revokeAlumni", () => {
-  it("revokes with a trimmed reason and audits it", async () => {
+  // Decision #18 (audit LA30-1): the reason is free text about one member.
+  // It lives on the member row — erased with the member — and the
+  // append-only audit log records only that a reason was given.
+  it("stores the trimmed reason on the member and audits only that one was given", async () => {
     const result = await post("revokeAlumni", {
       reason: "  회칙상 유고 처리  ",
     });
@@ -237,12 +252,11 @@ describe("revokeAlumni", () => {
     expect(await storedMember()).toMatchObject({
       isAlumni: false,
       alumniRevoked: true,
+      alumniRevocationReason: "회칙상 유고 처리",
     });
     const [row] = await __auditRows();
-    expect(row).toMatchObject({
-      action: "member.revoke-alumni",
-      detail: { reason: "회칙상 유고 처리" },
-    });
+    expect(row).toMatchObject({ action: "member.revoke-alumni" });
+    expect(row.detail).toEqual({ hasReason: true });
   });
 
   it.each([

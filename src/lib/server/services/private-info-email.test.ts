@@ -42,6 +42,7 @@ beforeEach(async () => {
     roles: [],
     isAdmin,
     publicContact: null,
+    alumniRevocationReason: null,
     project: null,
     legacyMemberId: null,
     sourceRequestId: null,

@@ -97,6 +97,9 @@ describe("admin record validation", () => {
         term: "26-2",
         description: "",
         externalPresenters: "",
+        kind: "",
+        durationMinutes: "",
+        prerequisites: "",
       }).success,
     ).toBe(true);
     expect(

@@ -14,7 +14,12 @@ export const load: PageServerLoad = async ({ locals }) => {
   ]);
   const nameOf = new Map(members.map((m) => [m.id, m.name]));
 
-  const order = { recruiting: 0, ongoing: 1, finished: 2 } as const;
+  const order = {
+    recruiting: 0,
+    ongoing: 1,
+    finished: 2,
+    cancelled: 3,
+  } as const;
   return {
     studies: [...studies]
       .sort(

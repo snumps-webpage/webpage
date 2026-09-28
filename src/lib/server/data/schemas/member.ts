@@ -24,6 +24,11 @@ export const MemberSchema = z.object({
   id: Id,
   name: z.string().min(1),
   department: z.string(),
+  // Every new row carries one: approval (flow_approve_application, the one
+  // path that creates a member) stamps the legacy join date or today and
+  // refuses anything else, and the admin edit requires a date. null is still
+  // decoded so a row predating that rule — or a legacy-members row — reads;
+  // the admin record form lets an admin fill it (decision #3, audit LC11-3).
   joinedAt: DateOnly.nullable(),
   status: MemberStatus,
   statusChangedAt: DateTime,
@@ -31,9 +36,17 @@ export const MemberSchema = z.object({
   isAlumni: z.boolean(),
   // Sticky revocation flag: once true, promotion to regular must NOT restore isAlumni.
   alumniRevoked: z.boolean(),
+  // 유고 박탈 사유 — on the member row so it goes wherever the row goes
+  // (deletion, anonymization); the append-only audit log records only
+  // { hasReason: true } (decision #18, audit LA30-1). null: never revoked,
+  // or revoked before the field existed (that reason is in the audit log).
+  alumniRevocationReason: z.string().nullable(),
   roles: z.array(MemberRole),
   isAdmin: z.boolean(),
-  // The single sanctioned public-contact field (API-SPEC §3 exception).
+  // DEPRECATED — written by nobody, read by nobody (decision #19, audit
+  // LB16-3). The public executive contact is the private-info phone with
+  // the hidePublicPhone opt-out (operator decision 2026-09-01). Kept so
+  // stored rows and backups still decode; new rows carry null.
   publicContact: z.string().nullable(),
   project: z
     .object({ title: z.string(), url: z.string().optional() })

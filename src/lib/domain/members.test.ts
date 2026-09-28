@@ -6,7 +6,6 @@ import {
   memberStatusInputSchema,
   parseRolesJson,
   privateInfoInputSchema,
-  publicContactInputSchema,
 } from "./members";
 
 describe("member administration domain", () => {
@@ -27,23 +26,6 @@ describe("member administration domain", () => {
         { term: "26-2", title: "회장" },
         { term: "26-2", title: "회장" },
       ]).success,
-    ).toBe(false);
-  });
-
-  it("requires both phone and email when public contact is granted", () => {
-    expect(
-      publicContactInputSchema.safeParse({
-        status: "granted",
-        phone: "010-1234-5678",
-        email: "president@snumps.org",
-      }).success,
-    ).toBe(true);
-    expect(
-      publicContactInputSchema.safeParse({
-        status: "granted",
-        phone: "",
-        email: "president@snumps.org",
-      }).success,
     ).toBe(false);
   });
 

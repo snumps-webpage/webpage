@@ -73,6 +73,7 @@ async function seedFixture() {
       ],
       isAdmin: true,
       publicContact: "snumps0@gmail.com",
+      alumniRevocationReason: null,
       project: { title: "정수론 시각화", url: "https://example.com" },
       legacyMemberId: null,
       sourceRequestId: "src-1",
@@ -95,6 +96,7 @@ async function seedFixture() {
       roles: [],
       isAdmin: false,
       publicContact: null,
+      alumniRevocationReason: null,
       project: { title: "숨겨야 함" },
       legacyMemberId: null,
       sourceRequestId: null,
@@ -127,6 +129,10 @@ async function seedFixture() {
       posterKey: "",
       preferredTiming: "",
       publicationStatus: "published",
+      kind: "regular",
+      durationMinutes: 90,
+      prerequisites: "선형대수",
+      announce: true,
       schedule: null,
       announcedAt: null,
       semesterPinned: false,
@@ -256,6 +262,15 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
     expect(seminar!.materials[0]).toBe("/media/seminars/sem1/a.pdf");
   });
 
+  // #7 / #12 — the detail page borrowed these from the request (or had none).
+  it("carries the seminar's own prerequisites and duration", async () => {
+    const seminar = await getPublicSeminar("sem1");
+    expect(seminar).toMatchObject({
+      prerequisites: "선형대수",
+      durationMinutes: 90,
+    });
+  });
+
   // W-8: with no CDN the payload must carry nothing usable — and nothing that
   // looks usable either, or the consumer's `{#if url}` guard renders a broken
   // image instead of its placeholder. (직접 CDN 모드에서만 해당한다.)
@@ -295,6 +310,7 @@ describe("presenters who re-joined", () => {
           roles: [],
           isAdmin: false,
           publicContact: null,
+          alumniRevocationReason: null,
           project: null,
           legacyMemberId: null,
           sourceRequestId: null,

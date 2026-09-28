@@ -20,9 +20,70 @@ const base = {
   materials: [],
   photos: [],
   publicationStatus: "published" as const,
+  kind: null,
+  durationMinutes: null,
+  prerequisites: "",
+  announce: true,
   activityId: null,
   sourceRequestId: null,
 };
+
+/**
+ * 구분(정기/비정기)·소요 시간·선수지식은 세미나 자신의 기록이다 (결정 #7·#12).
+ * 관리자 편집기가 보내던 값을 액션이 버렸고, 화면은 신청서에서 빌려 오거나
+ * (`kind`를 sourceRequestId 유무로 추측) 지어냈다(소요 시간 60분). 공지 대상
+ * 여부(`announce`)는 기록을 직접 만든 경우와 신청 흐름을 가른다 (결정 #21).
+ * 이주 규칙은 마이그레이션 20260928000300이 한 번 적는다 — 기본값은 없다.
+ */
+describe("SeminarSchema — 기록 필드", () => {
+  it.each(["kind", "durationMinutes", "prerequisites", "announce"] as const)(
+    "%s가 없는 행은 거부한다 (기본값에 기대지 않는다)",
+    (key) => {
+      const row: Record<string, unknown> = { ...base };
+      delete row[key];
+
+      expect(SeminarSchema.safeParse(row).success).toBe(false);
+    },
+  );
+
+  it("구분·소요 시간·선수지식을 그대로 보관한다", () => {
+    const parsed = SeminarSchema.parse({
+      ...base,
+      kind: "irregular",
+      durationMinutes: 90,
+      prerequisites: "선형대수",
+      announce: false,
+    });
+
+    expect(parsed).toMatchObject({
+      kind: "irregular",
+      durationMinutes: 90,
+      prerequisites: "선형대수",
+      announce: false,
+    });
+  });
+
+  it("구분은 정기·비정기·미상(null)뿐이다", () => {
+    expect(SeminarSchema.safeParse({ ...base, kind: "regular" }).success).toBe(
+      true,
+    );
+    expect(SeminarSchema.safeParse({ ...base, kind: "weekly" }).success).toBe(
+      false,
+    );
+  });
+
+  it("소요 시간은 입력 폼과 같은 범위의 정수 분이다", () => {
+    const ok = (durationMinutes: unknown) =>
+      SeminarSchema.safeParse({ ...base, durationMinutes }).success;
+
+    expect(ok(10)).toBe(true);
+    expect(ok(600)).toBe(true);
+    expect(ok(9)).toBe(false);
+    expect(ok(601)).toBe(false);
+    expect(ok(60.5)).toBe(false);
+    expect(ok("60")).toBe(false);
+  });
+});
 
 describe("SeminarSchema — 공개 상태와 일정", () => {
   // 이주 규칙("필드가 없던 행은 공개된 세미나")은 마이그레이션

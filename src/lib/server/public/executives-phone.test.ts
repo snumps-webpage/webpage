@@ -37,6 +37,7 @@ const member = (over: Partial<Member>): Member => ({
   roles: [{ term: term(), title: "회장" }],
   isAdmin: false,
   publicContact: null,
+  alumniRevocationReason: null,
   project: null,
   legacyMemberId: null,
   sourceRequestId: null,

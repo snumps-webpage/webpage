@@ -71,7 +71,6 @@ export const load: LayoutServerLoad = async () => {
       getTable("activities"),
       getMemberDirectory(),
       getDirectoryIndex(),
-      getTable("seminar-requests"),
       getTable("events"),
     ]);
   } catch (e) {
@@ -89,13 +88,11 @@ export const load: LayoutServerLoad = async () => {
     activities,
     members,
     directoryIndex,
-    seminarRequests,
     events,
   ] = tables;
 
   const nameOf = new Map([...directoryIndex].map(([id, m]) => [id, m.name]));
   const activityStart = new Map(activities.map((a) => [a.id, a.date.start]));
-  const requestOf = new Map(seminarRequests.map((r) => [r.id, r]));
 
   // 공개는 명시적 행위다 — 승인·확정 단계의 세미나와 취소분은 게스트에게 없다.
   // 이 로드가 표를 직접 읽어 스냅샷을 만드므로 필터도 **여기서** 건다(ZR-8).
@@ -107,21 +104,23 @@ export const load: LayoutServerLoad = async () => {
   const publicActivities = activities.filter(
     (a) => !hiddenActivityIds.has(a.id),
   );
+  // A cancelled study never ran; the public list shows no status, so it
+  // would read as one that was held (#4/#20).
+  const publicStudies = studies.filter((s) => s.status !== "cancelled");
 
   const archive: PublicArchiveSnapshot = {
     seminars: [...publicSeminars]
       .sort((a, b) => compareSemesters(b.semester, a.semester))
       .map((s) => {
-        const request = s.sourceRequestId
-          ? requestOf.get(s.sourceRequestId)
-          : undefined;
         return {
           id: s.id,
           title: s.title,
           term: s.semester,
           description: s.description || s.note,
-          prerequisites: request?.prerequisites ?? "",
-          durationMinutes: null,
+          // the seminar's own record (#7, #12) — approval copies the
+          // request's prerequisites; the request table is not read here
+          prerequisites: s.prerequisites,
+          durationMinutes: s.durationMinutes,
           presenterNames: [
             ...s.presenterIds.map((id) => nameOf.get(id) ?? "Unknown"),
             ...(s.externalPresenters ? [s.externalPresenters] : []),
@@ -137,7 +136,7 @@ export const load: LayoutServerLoad = async () => {
           files: s.materials.map(fileReference),
         };
       }),
-    studies: [...studies]
+    studies: [...publicStudies]
       .sort((a, b) => compareSemesters(b.semester, a.semester))
       .map((s) => ({
         id: s.id,
@@ -170,7 +169,7 @@ export const load: LayoutServerLoad = async () => {
           alt: `${s.title} 활동 사진`,
         })),
       ),
-      ...studies.flatMap((s) =>
+      ...publicStudies.flatMap((s) =>
         s.photos.map((key, index) => ({
           id: `study-${s.id}-${index}`,
           title: s.title,

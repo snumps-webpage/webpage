@@ -2,7 +2,11 @@ import { z } from "zod/v4";
 import { RECORD_ACTIVITY_TYPES } from "$lib/constants";
 import { localDateTimeMs, localDateTimeSchema } from "$lib/domain/form-data";
 import type { PublicFileReference } from "$lib/domain/public-content";
-import type { SeminarKind } from "$lib/domain/seminars";
+import {
+  SEMINAR_DURATION_MINUTES,
+  SEMINAR_KINDS,
+  type SeminarKind,
+} from "$lib/domain/seminars";
 
 export interface AdminContentFile extends Omit<PublicFileReference, "url"> {
   url: string | null;
@@ -14,12 +18,14 @@ export interface AdminContentFile extends Omit<PublicFileReference, "url"> {
 export interface AdminSeminarRecord {
   id: string;
   sourceRequestId: string | null;
-  kind: SeminarKind;
+  /** null: not known (migrated rows, requests from before the form asked) */
+  kind: SeminarKind | null;
   title: string;
   term: string;
   description: string;
   prerequisites: string;
-  durationMinutes: number;
+  /** null: not recorded (the request's duration is free text) */
+  durationMinutes: number | null;
   /** 신청자 선호 세미나 시점 (빈 문자열이면 미선택) */
   preferredTiming: string;
   presenterIds: string[];
@@ -121,7 +127,14 @@ export const adminGalleryRecordSchema = z.object({
   activityId: pickedIdSchema,
 });
 
-/** Fields: title, term (posted as `semester`), description (posted as `note`). */
+const { min: MIN_MINUTES, max: MAX_MINUTES } = SEMINAR_DURATION_MINUTES;
+
+/**
+ * Fields: title, term (posted as `semester`), description (posted as `note`),
+ * externalPresenters, kind, durationMinutes, prerequisites. An empty kind or
+ * duration means "unknown" and parses to null — what migrated and approved
+ * seminars hold (#7, #12). Duration is whole minutes within the stored range.
+ */
 export const adminSeminarRecordSchema = z.object({
   title: z.string().trim().min(1, "세미나 제목을 입력해 주세요.").max(160),
   term: termSchema,
@@ -133,6 +146,27 @@ export const adminSeminarRecordSchema = z.object({
     .string()
     .trim()
     .max(500, "외부 발표자는 500자 이하로 입력해 주세요."),
+  kind: z
+    .string()
+    .refine(
+      (v) => v === "" || (SEMINAR_KINDS as readonly string[]).includes(v),
+      "정기 또는 비정기를 선택해 주세요.",
+    )
+    .transform((v) => (v === "" ? null : (v as SeminarKind))),
+  durationMinutes: z
+    .string()
+    .trim()
+    .refine(
+      (v) =>
+        v === "" || (/^\d+$/.test(v) && +v >= MIN_MINUTES && +v <= MAX_MINUTES),
+      `소요 시간은 ${MIN_MINUTES}~${MAX_MINUTES}분 사이의 분 단위 정수로 입력해 주세요.`,
+    )
+    .transform((v) => (v === "" ? null : Number(v))),
+  // the request form's bound — approval copies a request's text here
+  prerequisites: z
+    .string()
+    .trim()
+    .max(2_000, "선수지식은 2,000자 이하로 입력해 주세요."),
 });
 
 /** Fields: title, term (`semester`), description, material (`textbook`). */

@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { SEMINAR_PUBLICATION_STATUSES } from "$lib/domain/seminars";
+import {
+  SEMINAR_DURATION_MINUTES,
+  SEMINAR_KINDS,
+  SEMINAR_PUBLICATION_STATUSES,
+} from "$lib/domain/seminars";
 import { DateTime, Id, Semester, SourceRequestId } from "./common";
 
 // 공개 상태의 닫힌 집합은 도메인이 단일 원천 — 관리자 화면이 같은 목록으로
@@ -99,6 +103,33 @@ export const SeminarSchema = z.object({
    * 같은 규칙을 방어적으로 한 번 더 적용한다.
    */
   publicationStatus: SeminarPublicationStatus,
+  /**
+   * 정기/비정기 (결정 #7). 신청 승인이 신청서의 값을 옮기고, 기록 편집기가
+   * 고친다. `null`은 **모른다**는 뜻이다 — 이주분과 구분을 묻기 전의 신청.
+   * 예전 화면은 sourceRequestId 유무로 추측했다(신청 → 비정기).
+   */
+  kind: z.enum(SEMINAR_KINDS).nullable(),
+  /**
+   * 소요 시간(분, 결정 #12). 범위는 기록 편집기의 입력 규칙과 같다. 신청서의
+   * `duration`은 자유 서술("90분 정도")이라 승인이 숫자로 해석하지 않는다 —
+   * 그래서 승인분·이주분은 null(미상)이고, 관리자가 적을 때만 생긴다.
+   */
+  durationMinutes: z
+    .number()
+    .int()
+    .min(SEMINAR_DURATION_MINUTES.min)
+    .max(SEMINAR_DURATION_MINUTES.max)
+    .nullable(),
+  /** 선수지식. 승인이 신청서의 값을 옮긴다. 없으면 빈 문자열. */
+  prerequisites: z.string(),
+  /**
+   * 전 회원 공지(공개·일정 변경·취소)의 대상인가 (결정 #21). 신청 흐름으로
+   * 생긴 세미나는 true, "기록 직접 생성"은 false — 아카이브 기록이지 알릴
+   * 행사가 아니다. 공지 선점(flow_publish_seminar)이 이 값을 본다.
+   * 이 필드 이전의 행은 모두 true로 적는다(마이그레이션 20260928000300 —
+   * 지금 동작 그대로).
+   */
+  announce: z.boolean(),
   /** 확정 전에는 null. 공개 시 이 값으로 activity·event의 날짜를 만든다. */
   schedule: SeminarScheduleSchema.nullable().default(null),
   /**

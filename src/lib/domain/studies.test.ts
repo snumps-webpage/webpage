@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { v7 as uuidv7 } from "uuid";
 import {
+  isStudyClosed,
   localKstDateTimeToIso,
+  STUDY_STATUS_LABELS,
+  STUDY_STATUSES,
   mergeStudyAttendance,
   nextStudyStatuses,
   operationIdSchema,
@@ -10,10 +13,28 @@ import {
 } from "./studies";
 
 describe("study domain", () => {
+  // #4/#20, LB31-3: a study ended while still recruiting never ran — it is
+  // cancelled, not finished; both ends are terminal.
   it("only permits the documented forward and reversible status transitions", () => {
-    expect(nextStudyStatuses("recruiting")).toEqual(["ongoing"]);
+    expect(nextStudyStatuses("recruiting")).toEqual(["ongoing", "cancelled"]);
     expect(nextStudyStatuses("ongoing")).toEqual(["recruiting", "finished"]);
     expect(nextStudyStatuses("finished")).toEqual([]);
+    expect(nextStudyStatuses("cancelled")).toEqual([]);
+  });
+
+  // #4/#20, LB31-2: every screen labels a status from one map, and the two
+  // terminal states are the closed ones.
+  it("labels every status and closes exactly the terminal ones", () => {
+    expect(STUDY_STATUS_LABELS).toEqual({
+      recruiting: "모집 중",
+      ongoing: "진행 중",
+      finished: "종료",
+      cancelled: "취소됨",
+    });
+    expect(STUDY_STATUSES.filter(isStudyClosed)).toEqual([
+      "finished",
+      "cancelled",
+    ]);
   });
 
   it("accepts UUIDv7 operation IDs and rejects UUIDv4", () => {

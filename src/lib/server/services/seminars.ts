@@ -168,6 +168,14 @@ async function announce(id: string, seminar: Seminar): Promise<boolean> {
  *
  * 이주로 일정을 잃은 레거시 행(`published` + `schedule: null`)을 고치는 입구도
  * 여기다. 그 행들은 `scheduleSeminar`가 받지 않는다(이미 공개됐으므로).
+ *
+ * 이미 `expired`로 쓸린 출석 이벤트는 새 일정의 창이 아직 끝나지 않았으면 같은
+ * 트랜잭션에서 `active`로 다시 열린다(#22) — 날짜만 옮기면 새 날짜에 체크인이
+ * 닫혀 있었다. `cancelled`는 되살리지 않는다.
+ *
+ * 공지 대상이 아닌 세미나("기록 직접 생성", `announce: false`)는 첫 공지도
+ * 변경 공지도 받지 않는다(#21) — 공개 흐름이 `announcedAt`을 선점하지 않으므로
+ * 아래 두 갈래 모두 메일로 이어지지 않는다.
  */
 /** The schedule rules the stored schema holds, plus canonical instants. */
 function assertStorableSchedule(schedule: SeminarSchedule): void {
@@ -190,7 +198,7 @@ export async function updateSeminarSchedule(
   assertStorableSchedule(schedule);
   const out = await callFlow<
     FlowResult & { seminar: unknown; changed: boolean }
-  >("flow_update_seminar_schedule", { id, schedule });
+  >("flow_update_seminar_schedule", { id, schedule, now: nowKstIso() });
   const seminar = SeminarSchema.parse(out.seminar);
 
   // 공지는 **공개된 세미나의 일정이 바뀌었을 때만**. 같은 값을 다시 저장하는
