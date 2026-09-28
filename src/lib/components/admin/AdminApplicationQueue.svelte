@@ -5,7 +5,12 @@
 
   interface Props {
     applications: AdminMembershipApplicationItem[];
-    onResolved: (applicationId: string, approved: boolean) => void;
+    /** `mailFailed`: the verdict stands but its notice did not go out (#16). */
+    onResolved: (
+      applicationId: string,
+      approved: boolean,
+      mailFailed: boolean,
+    ) => void;
     onError: (message: string) => void;
   }
 
@@ -17,8 +22,10 @@
       processingId = applicationId;
       return async ({ result }) => {
         processingId = null;
-        if (result.type === "success") onResolved(applicationId, approved);
-        else onError("가입 신청을 처리하지 못했습니다.");
+        if (result.type === "success") {
+          const payload = result.data as { mailFailed?: boolean } | undefined;
+          onResolved(applicationId, approved, Boolean(payload?.mailFailed));
+        } else onError("가입 신청을 처리하지 못했습니다.");
       };
     };
   }

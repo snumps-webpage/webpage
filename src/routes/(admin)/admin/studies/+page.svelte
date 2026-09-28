@@ -57,16 +57,28 @@
       processingId = null;
       if (result.type === "success") {
         requests = requests.filter((item) => item.id !== request.id);
-        notice = approved
+        // #16 / LB14-1: the verdict stands even when its notice failed — say
+        // so instead of claiming a mail that never went out.
+        const mailFailed = Boolean(
+          (result.data as { mailFailed?: boolean } | undefined)?.mailFailed,
+        );
+        notice = mailFailed
           ? {
               tone: "success",
-              message: `‘${request.title}’을 모집 중 상태로 개설하고 신청자에게 승인 메일을 보냈습니다.`,
+              message: approved
+                ? `‘${request.title}’을 모집 중 상태로 개설했지만 알림 메일은 보내지 못했습니다. 신청자에게 직접 알려 주세요.`
+                : "스터디 신청을 반려했지만 알림 메일은 보내지 못했습니다. 신청자에게 직접 알려 주세요.",
             }
-          : {
-              tone: "success",
-              message:
-                "스터디 신청을 반려하고 신청자에게 결과 메일을 보냈습니다.",
-            };
+          : approved
+            ? {
+                tone: "success",
+                message: `‘${request.title}’을 모집 중 상태로 개설하고 신청자에게 승인 메일을 보냈습니다.`,
+              }
+            : {
+                tone: "success",
+                message:
+                  "스터디 신청을 반려하고 신청자에게 결과 메일을 보냈습니다.",
+              };
         // The approval creates the study on /admin — reload this page's records.
         await update({ reset: false });
         void refreshRequests();

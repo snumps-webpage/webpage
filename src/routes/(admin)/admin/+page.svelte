@@ -102,12 +102,29 @@
     notice = { tone: "error", message };
   }
 
-  function resolveApplication(applicationId: string, approved: boolean) {
+  function resolveApplication(
+    applicationId: string,
+    approved: boolean,
+    mailFailed: boolean,
+  ) {
+    const email = dashboard.applications.find(
+      (item) => item.id === applicationId,
+    )?.email;
     dashboard.applications = dashboard.applications.filter(
       (item) => item.id !== applicationId,
     );
+    const verdict = approved ? "승인했지만" : "반려했지만";
+    // #16 / LB14-1: the verdict stands, the notice did not. A rejection has
+    // already deleted the row, so this message is the last place the address
+    // appears — name it for a manual follow-up.
     showSuccess(
-      approved ? "가입 신청을 승인했습니다." : "가입 신청을 반려했습니다.",
+      mailFailed
+        ? `가입 신청을 ${verdict} 알림 메일은 보내지 못했습니다.${
+            email ? ` 신청자(${email})에게 직접 알려 주세요.` : ""
+          }`
+        : approved
+          ? "가입 신청을 승인했습니다."
+          : "가입 신청을 반려했습니다.",
     );
     void refreshReviewQueues();
   }

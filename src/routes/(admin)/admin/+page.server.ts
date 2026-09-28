@@ -173,23 +173,29 @@ export const load: PageServerLoad = async (event) => {
   };
 };
 
-/** One notifier for both request kinds — the right letter each time (review C2). */
+/**
+ * One notifier for both request kinds — the right letter each time (review C2).
+ * Answers `mailFailed` for the action result (#16, LB14-1): true only when the
+ * mail layer reported a failed send. No member or no address means nothing
+ * was attempted, which is not a send failure.
+ */
 async function notifyMember(
   memberId: string | undefined,
   kind: "seminar" | "study",
   title: string,
   status: "approved" | "rejected",
-) {
-  if (!memberId) return;
+): Promise<{ mailFailed: boolean }> {
+  const sent = { mailFailed: false };
+  if (!memberId) return sent;
   const member = await getMemberById(memberId);
-  if (!member) return;
+  if (!member) return sent;
   const info = await getPrivateInfoOf(member.id);
-  if (!info?.email) return;
+  if (!info?.email) return sent;
   const send =
     kind === "seminar"
       ? sendSeminarStatusNotification
       : sendStudyStatusNotification;
-  await send(info.email, member.name, title, status);
+  return { mailFailed: !(await send(info.email, member.name, title, status)) };
 }
 
 type Ctx = { request: Request; locals: App.Locals };
@@ -220,8 +226,9 @@ export const actions = {
       const { ids, failure } = readIds(data, "id");
       if (failure) return failure;
       const { name, email } = await approveApplication(ids.id);
-      await sendWelcomeEmail(email, name);
-      return {};
+      // The approval stands either way; the screen warns on a failed welcome
+      // (#16, LB14-1).
+      return { mailFailed: !(await sendWelcomeEmail(email, name)) };
     });
   },
 
@@ -231,10 +238,10 @@ export const actions = {
       const { ids, failure } = readIds(data, "id");
       if (failure) return failure;
       // The removed row is the only copy of the address — mail with the return
-      // value or never (review M4).
+      // value or never (review M4). A failed send is unrecoverable here, so the
+      // admin must hear of it (#16, LB14-1).
       const { email, name } = await rejectApplication(ids.id);
-      await sendApplicationRejectedEmail(email, name);
-      return {};
+      return { mailFailed: !(await sendApplicationRejectedEmail(email, name)) };
     });
   },
 
@@ -378,8 +385,12 @@ export const actions = {
       if (failure) return failure;
       // 승인은 이제 일정 미정 세미나만 만든다 — 전 회원 공지는 공개 시점이다.
       const req = await approveSeminar(ids.id);
-      await notifyMember(req.presenterIds[0], "seminar", req.title, "approved");
-      return {};
+      return notifyMember(
+        req.presenterIds[0],
+        "seminar",
+        req.title,
+        "approved",
+      );
     });
   },
 
@@ -389,8 +400,12 @@ export const actions = {
       const { ids, failure } = readIds(data, "id");
       if (failure) return failure;
       const req = await rejectSeminar(ids.id);
-      await notifyMember(req.presenterIds[0], "seminar", req.title, "rejected");
-      return {};
+      return notifyMember(
+        req.presenterIds[0],
+        "seminar",
+        req.title,
+        "rejected",
+      );
     });
   },
 
@@ -401,8 +416,7 @@ export const actions = {
       const { ids, failure } = readIds(data, "id");
       if (failure) return failure;
       const req = await approveStudy(ids.id);
-      await notifyMember(req.requesterId, "study", req.title, "approved");
-      return {};
+      return notifyMember(req.requesterId, "study", req.title, "approved");
     });
   },
 
@@ -412,8 +426,7 @@ export const actions = {
       const { ids, failure } = readIds(data, "id");
       if (failure) return failure;
       const req = await rejectStudy(ids.id);
-      await notifyMember(req.requesterId, "study", req.title, "rejected");
-      return {};
+      return notifyMember(req.requesterId, "study", req.title, "rejected");
     });
   },
 };

@@ -95,10 +95,20 @@
   function handleTransition(
     operation: "approved" | "rejected",
     requestId: string,
-    _mailFailed: boolean,
+    mailFailed: boolean,
   ) {
     requests = requests.filter((item) => item.id !== requestId);
-    if (operation === "approved") {
+    // #16 / LB14-1: the verdict's notice to the presenter can fail; the
+    // verdict itself stands.
+    if (mailFailed) {
+      notice = {
+        tone: "success",
+        message:
+          operation === "approved"
+            ? "세미나를 승인했지만 알림 메일은 보내지 못했습니다. 발표자에게 직접 알려 주세요."
+            : "세미나 신청을 반려했지만 알림 메일은 보내지 못했습니다. 발표자에게 직접 알려 주세요.",
+      };
+    } else if (operation === "approved") {
       notice = {
         tone: "success",
         message:
