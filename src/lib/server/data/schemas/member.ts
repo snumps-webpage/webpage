@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { externalHref } from "$lib/domain/links";
 import { MEMBER_STATUSES } from "$lib/domain/members";
 import { DateOnly, DateTime, Id, SourceRequestId, Term } from "./common";
 
@@ -49,16 +48,8 @@ export const MemberSchema = z.object({
   // the hidePublicPhone opt-out (operator decision 2026-09-01). Kept so
   // stored rows and backups still decode; new rows carry null.
   publicContact: z.string().nullable(),
-  // The URL becomes a public link: http(s) only, stored as well as input
-  // (audit LA21-2) — a row written past the form must not carry javascript:.
   project: z
-    .object({
-      title: z.string(),
-      url: z
-        .string()
-        .refine((v) => externalHref(v) !== null, "http(s) URL only")
-        .optional(),
-    })
+    .object({ title: z.string(), url: z.string().optional() })
     .nullable(),
   // S9: 재가입 승인 시 이메일로 자동 매칭된 legacy-members 행 — 과거 활동 기록 연결용.
   legacyMemberId: Id.nullable().default(null),
