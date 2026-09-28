@@ -5,6 +5,7 @@ import { audit } from "$lib/server/data/audit";
 import { promoteSeminarPoster } from "$lib/server/services/uploads";
 import { forgetUnreferencedAssets } from "./asset-cleanup";
 import { assertOrganizerCandidates, handOver } from "./studies";
+import { isStudyClosed } from "$lib/domain/studies";
 import { callFlow, type FlowResult } from "$lib/server/data/flows";
 import { SeminarSchema } from "$lib/server/data/schemas";
 import type {
@@ -287,7 +288,13 @@ export async function updateStudy(
   await mutate("studies", (rows) => {
     const idx = rows.findIndex((s) => s.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
-    rows[idx] = { ...rows[idx], ...definedOnly(patch) };
+    const next = { ...rows[idx], ...definedOnly(patch) };
+    // Closing here (the admin exception to #4/#20) clears what no one could
+    // answer on a closed study, as the organizer's close does.
+    rows[idx] =
+      isStudyClosed(next.status) && !isStudyClosed(rows[idx].status)
+        ? { ...next, pendingParticipantIds: [], pendingTransfer: null }
+        : next;
     return rows;
   });
 }

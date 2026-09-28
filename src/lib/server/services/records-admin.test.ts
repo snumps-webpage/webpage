@@ -42,6 +42,7 @@ import {
   setSeminarFiles,
   setStudyPhotos,
   updateActivity,
+  updateStudy,
   updateSeminar,
 } from "./records-admin";
 import { hiddenActivityIds } from "./visibility";
@@ -982,4 +983,49 @@ describe("updateActivity leaves paired dates and titles to their owners", () => 
       date: { start: "2026-10-16T19:00:00+09:00" },
     });
   });
+});
+
+// The admin record editor may close a study (the #4/#20 exception), but it
+// left pending join requests and an in-flight handover behind — offers no
+// one can act on once the study is closed. Closing clears them, as the
+// organizer's close does.
+describe("updateStudy closing a study", () => {
+  it.each(["finished", "cancelled"] as const)(
+    "clears pending requests and handover when set to %s",
+    async (status) => {
+      await seedMember("m-org");
+      const s = await createStudy({
+        title: "해석학",
+        semester: "26-2",
+        textbook: "",
+        description: "",
+        note: "",
+        organizerIds: ["m-org"],
+      });
+      await mutate("studies", (rows) =>
+        rows.map((r) =>
+          r.id === s.id
+            ? {
+                ...r,
+                status: status === "cancelled" ? "recruiting" : "ongoing",
+                pendingParticipantIds: ["m-wait"],
+                pendingTransfer: {
+                  toMemberId: "m-x",
+                  requestedAt: nowKstIso(),
+                },
+              }
+            : r,
+        ),
+      );
+
+      await updateStudy(s.id, { status });
+
+      const row = (await getTable("studies")).find((r) => r.id === s.id);
+      expect(row).toMatchObject({
+        status,
+        pendingParticipantIds: [],
+        pendingTransfer: null,
+      });
+    },
+  );
 });
