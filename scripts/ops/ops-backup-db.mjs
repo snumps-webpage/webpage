@@ -17,7 +17,7 @@
  * 복원은 `--restore <파일>`이 아니다. 이 스크립트는 **읽기만** 한다 — 복원은
  * 무엇을 어디까지 되돌릴지 사람이 정한 뒤에 할 일이다.
  */
-import { mkdirSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { loadDotenv, REPO_ROOT, requireSupabase } from "./lib-env.mjs";
 
@@ -30,8 +30,13 @@ const outArg = process.argv.indexOf("--out");
 const outDir =
   outArg !== -1 ? process.argv[outArg + 1] : path.join(REPO_ROOT, "backups");
 
-/** 받을 테이블. 없는 테이블은 건너뛰되 보고한다. */
+/** 받을 테이블과 정렬 키(쪽 사이에 행이 밀리거나 겹치지 않게). 하나라도 못 받으면 저장하지 않는다. */
 const TABLES = ["app_tables", "app_queues", "audit_log"];
+const ORDER_BY = {
+  app_tables: "name",
+  app_queues: "event_id",
+  audit_log: "id",
+};
 
 const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 const snapshot = {
@@ -41,10 +46,36 @@ const snapshot = {
 };
 const report = [];
 
+/**
+ * 한 테이블 전부 — 쪽 단위로. PostgREST는 한 응답을 Max rows(기본 1000)에서 오류 없이
+ * 자르므로 한 번의 select("*")로는 audit_log가 조용히 잘린다. 정확한 행 수(count)와
+ * 맞지 않으면 실패로 친다.
+ */
+const PAGE = 1000;
+async function fetchAll(table) {
+  const rows = [];
+  let total = null;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error, count } = await sb
+      .from(table)
+      .select("*", { count: "exact" })
+      .order(ORDER_BY[table])
+      .range(from, from + PAGE - 1);
+    if (error) return { error };
+    if (total === null) total = count;
+    rows.push(...data);
+    if (data.length < PAGE) break;
+  }
+  if (total !== null && rows.length !== total) {
+    return { error: { code: `행 수 불일치 ${rows.length}/${total}` } };
+  }
+  return { data: rows };
+}
+
 for (const table of TABLES) {
-  const { data, error } = await sb.from(table).select("*");
+  const { data, error } = await fetchAll(table);
   if (error) {
-    report.push({ 테이블: table, 행: "-", 비고: `건너뜀: ${error.code}` });
+    report.push({ 테이블: table, 행: "-", 비고: `실패: ${error.code}` });
     continue;
   }
   snapshot.tables[table] = data;
@@ -57,8 +88,10 @@ for (const table of TABLES) {
 
 console.table(report);
 
-if (Object.keys(snapshot.tables).length === 0) {
-  console.error("\n받은 테이블이 하나도 없다 — 저장하지 않는다.");
+// 롤백 사본은 셋이 다 있어야 쓸모가 있다 — 하나라도 빠지면 저장하지 않는다.
+const missing = TABLES.filter((t) => !(t in snapshot.tables));
+if (missing.length) {
+  console.error(`\n받지 못한 테이블: ${missing.join(", ")} — 저장하지 않는다.`);
   process.exit(1);
 }
 
@@ -73,7 +106,7 @@ writeFileSync(file, body);
 
 // 쓴 것을 다시 읽어 행 수가 맞는지 본다 — "받았다고 생각했는데 비어 있는" 사본을
 // 배포 직전에 발견하지 않도록.
-const readBack = JSON.parse(body);
+const readBack = JSON.parse(readFileSync(file, "utf8")); // 디스크의 파일을 — 메모리의 문자열이 아니라
 const mismatch = Object.entries(snapshot.tables).filter(
   ([name, rows]) => (readBack.tables[name] ?? []).length !== rows.length,
 );

@@ -145,9 +145,18 @@ DB에 없으면 그 기능이 전부 500이 된다. 또 세미나 스키마가 `
    select has_function_privilege('anon', 'flow_publish_seminar(jsonb)', 'execute'); -- false
    select public from storage.buckets where id = 'assets';             -- false
    ```
-3. ⬜ **prod** — 배포 직전에 `bash scripts/ops/ops-push-prod.sh` (`.env.proddbpass` 필요, 스크립트가
-   끝나면 링크를 dev로 되돌린다). 2의 확인 쿼리를 prod에서 다시 실행.
-4. ⬜ 그다음 코드 배포. 되돌릴 때는 코드만 되돌리면 된다(옛 코드는 함수를 부르지 않는다).
+3. ⬜ **prod — 적용·배포·보정·확인을 한 번에**: tmux 안에서 `bash scripts/ops/release-prod.sh`
+   (단계마다 확인, 중단되면 `--from N`, 절차만 훑으려면 `DRY_RUN=1`). 12단계: 사전 점검 → 로컬 검증 →
+   프리뷰 확인 3건 → **prod 백업** → 적용 대기 목록이 정확히 5개인지·조회 판독 시험 → db push →
+   `main` 빨리감기 push(배포) → Ready 커밋 대조 → **백필 재실행**과 확인 쿼리 → 10분 뒤 한 번 더 →
+   공개 스모크 → §3-0 복구 미리보기. `.env.prod-secrets`가 필요하고, `.env.proddbpass`는 없어도 된다
+   (로그인 역할). 스크립트가 prod 링크를 어떻게 끝나든 dev로 되돌린다.
+   - **왜 배포 뒤에 백필을 다시 돌리나**: 옛 코드(main)는 모르는 키를 쓰기 때 벗겨 낸다. push부터 옛
+     배포가 물러날 때까지 회원·세미나 표에 쓰기가 한 번이라도 있으면 새 필수 필드가 사라지고, 새 코드는
+     그 표를 읽지 못한다(회원 표면 사이트 전체 500). 백필은 재실행 안전하므로 배포 직후·10분 뒤 두 번.
+   - `ops-push-prod.sh`는 push만 한다 — 단독으로 쓰면 배포 직후 `release-prod.sh --from 9`.
+4. ⬜ 되돌릴 때는 코드만 되돌리면 된다(옛 코드는 함수를 부르지 않는다). 단 옛 코드는 새 필드를
+   다시 벗겨 내므로, 되돌린 뒤 새 코드를 다시 올릴 때도 `release-prod.sh --from 9`를 돌린다.
 
 **배포 전 확인 3건 (프리뷰 배포에서)**
 
