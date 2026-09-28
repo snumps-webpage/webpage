@@ -78,123 +78,123 @@
 ## 다음 (이 문서를 닫는 조건)
 
 - ~~🔴 5건은 결함 기준으로 이번 세션에서 고친다~~ — 처리됨(아래 표).
-- ~~🟠 중 이 브랜치의 변경이 만든 것도 함께 고친다~~ — 처리됨. 🔴·🟠 110건 모두 처리했다(결정 대기였던 것은 2026-09-28 사용자 결정대로).
+- ~~🟠 중 이 브랜치의 변경이 만든 것도 함께 고친다~~ — 처리됨. 🔴·🟠 110건 중 109건 처리, LA21-2는 입력·렌더 쪽만(저장 스키마 규칙은 표 읽기를 깨뜨려 되돌림). 결정 대기였던 것은 2026-09-28 사용자 결정대로 처리했다.
 - 🟡 291건은 손대지 않았다 — [PRIORITY.md](./PRIORITY.md)의 W-작업으로 옮길 후보다.
 
 ## 처리 현황 (2026-09-28, `6ab4f33..HEAD`)
 
-🔴·🟠 110건 중 **110건 처리**. 커밋 메시지가 ID를 인용하지 않은 처리(중복·함의)는 수작업으로 대조해 넣었다.
+🔴·🟠 110건 중 **109건 처리**. 커밋 메시지가 ID를 인용하지 않은 처리(중복·함의)는 수작업으로 대조해 넣었다.
 결정 대기였던 9건은 2026-09-28 사용자 결정대로 처리했다(`2f84aee`·`73d44f3`·`cc30746` — LA01-3은 결정대로 문서만).
 
-| ID     | 등급 | 문서                                                 | 처리 커밋            | 상태 |
-| ------ | ---- | ---------------------------------------------------- | -------------------- | ---- |
-| LD01-1 | 🟠   | `src/hooks.server.md`                                | `2ad2f5a`            | 처리 |
-| LC01-1 | 🟠   | `src/lib/domain/account.md`                          | `7a38677`            | 처리 |
-| LC01-3 | 🟠   | `src/lib/domain/account.md`                          | `70aa027`            | 처리 |
-| LC02-1 | 🟠   | `src/lib/domain/admin-dashboard.md`                  | `c1d863e`            | 처리 |
-| LC02-2 | 🟠   | `src/lib/domain/admin-dashboard.md`                  | `c1d863e`            | 처리 |
-| LC03-1 | 🟠   | `src/lib/domain/admin-records.md`                    | `c1d863e`            | 처리 |
-| LC04-1 | 🔴   | `src/lib/domain/admin-seminars.md`                   | `d124b96`            | 처리 |
-| LC04-2 | 🟠   | `src/lib/domain/admin-seminars.md`                   | `6f1eaa0`            | 처리 |
-| LC07-1 | 🟠   | `src/lib/domain/dashboard.md`                        | `70aa027`            | 처리 |
-| LC07-5 | 🟠   | `src/lib/domain/dashboard.md`                        | `70aa027`            | 처리 |
-| LC08-1 | 🟠   | `src/lib/domain/executive-roster.md`                 | `e734279`            | 처리 |
-| LC09-3 | 🟠   | `src/lib/domain/form-data.md`                        | `449ea27`            | 처리 |
-| LC11-1 | 🟠   | `src/lib/domain/members.md`                          | `2f84aee`            | 처리 |
-| LC11-2 | 🟠   | `src/lib/domain/members.md`                          | `2f84aee`            | 처리 |
-| LC11-3 | 🟠   | `src/lib/domain/members.md`                          | `2f84aee`            | 처리 |
-| LC11-4 | 🟠   | `src/lib/domain/members.md`                          | `70aa027`            | 처리 |
-| LC10-1 | 🟠   | `src/lib/domain/membership-applications.md`          | `70aa027`            | 처리 |
-| LC13-1 | 🟠   | `src/lib/domain/public-content.md`                   | `1812d39`            | 처리 |
-| LC15-1 | 🟠   | `src/lib/domain/seminars.md`                         | `5112ccf`            | 처리 |
-| LB02-1 | 🟠   | `src/lib/server/auth-guards.md`                      | `8d9e3ef`            | 처리 |
-| LB02-2 | 🟠   | `src/lib/server/auth-guards.md`                      | `8d9e3ef`            | 처리 |
-| LB02-6 | 🟠   | `src/lib/server/auth-guards.md`                      | `fdd06e3`            | 처리 |
-| LB03-1 | 🟠   | `src/lib/server/cache.md`                            | `70e359e`            | 처리 |
-| LB03-2 | 🟠   | `src/lib/server/cache.md`                            | `70e359e`            | 처리 |
-| LB03-3 | 🟠   | `src/lib/server/cache.md`                            | `70e359e`            | 처리 |
-| LB03-4 | 🟠   | `src/lib/server/cache.md`                            | `70e359e`            | 처리 |
-| LB03-5 | 🟠   | `src/lib/server/cache.md`                            | `70e359e`            | 처리 |
-| LA01-3 | 🟠   | `src/lib/server/core/admin-bootstrap.md`             | `cc30746`            | 처리 |
-| LA02-1 | 🟠   | `src/lib/server/core/capabilities.md`                | `3e6b3ab`            | 처리 |
-| LA09-1 | 🔴   | `src/lib/server/core/time.md`                        | `d124b96`            | 처리 |
-| LA09-5 | 🔴   | `src/lib/server/core/time.md`                        | `d124b96`            | 처리 |
-| LA29-1 | 🟠   | `src/lib/server/data/admin-queue-views.md`           | `449ea27`            | 처리 |
-| LA29-2 | 🟠   | `src/lib/server/data/admin-queue-views.md`           | `03c4374`            | 처리 |
-| LA30-1 | 🟠   | `src/lib/server/data/audit.md`                       | `2f84aee`            | 처리 |
-| LA32-1 | 🟠   | `src/lib/server/data/flows.md`                       | `849d33b`            | 처리 |
-| LA32-2 | 🟠   | `src/lib/server/data/flows.md`                       | `849d33b`            | 처리 |
-| LA21-1 | 🟠   | `src/lib/server/data/schemas/member.md`              | `70aa027`            | 처리 |
-| LA21-2 | 🟠   | `src/lib/server/data/schemas/member.md`              | `03925bb`, `1812d39` | 처리 |
-| LA22-3 | 🟠   | `src/lib/server/data/schemas/private-info.md`        | `6c9a334`            | 처리 |
-| LA26-1 | 🟠   | `src/lib/server/data/schemas/seminar.md`             | `52c2bbc`            | 처리 |
-| LA26-2 | 🔴   | `src/lib/server/data/schemas/seminar.md`             | `d124b96`            | 처리 |
-| LA38-1 | 🟠   | `src/lib/server/data/storage.md`                     | `8bbf956`            | 처리 |
-| LA38-2 | 🟠   | `src/lib/server/data/storage.md`                     | `8bbf956`            | 처리 |
-| LA40-1 | 🟠   | `src/lib/server/data/store.md`                       | `565e461`            | 처리 |
-| LA40-2 | 🟠   | `src/lib/server/data/store.md`                       | `54b0881`            | 처리 |
-| LA35-1 | 🟠   | `src/lib/server/data/supabase.md`                    | `565e461`            | 처리 |
-| LA41-1 | 🟠   | `src/lib/server/data/tables.md`                      | `849d33b`            | 처리 |
-| LA41-2 | 🟠   | `src/lib/server/data/tables.md`                      | `849d33b`            | 처리 |
-| LA41-3 | 🟠   | `src/lib/server/data/tables.md`                      | `849d33b`            | 처리 |
-| LA36-1 | 🟠   | `src/lib/server/data/views.md`                       | `23692a4`            | 처리 |
-| LB05-1 | 🟠   | `src/lib/server/guards/resolve-member.md`            | `3e6b3ab`            | 처리 |
-| LB06-1 | 🟠   | `src/lib/server/guards/zone.md`                      | `8b34553`            | 처리 |
-| LB06-5 | 🟠   | `src/lib/server/guards/zone.md`                      | `8b34553`            | 처리 |
-| LB10-1 | 🟠   | `src/lib/server/mail/client.md`                      | `496126c`            | 처리 |
-| LB11-1 | 🟠   | `src/lib/server/mail/dispatch.md`                    | `529665f`            | 처리 |
-| LB11-2 | 🟠   | `src/lib/server/mail/dispatch.md`                    | `26f3bdf`            | 처리 |
-| LB11-3 | 🟠   | `src/lib/server/mail/dispatch.md`                    | `710e3d0`            | 처리 |
-| LB12-1 | 🟠   | `src/lib/server/mail/events.md`                      | `336d036`            | 처리 |
-| LB13-1 | 🟠   | `src/lib/server/mail/template-store.md`              | `26f3bdf`            | 처리 |
-| LB14-1 | 🟠   | `src/lib/server/mail/templates.md`                   | `73d44f3`            | 처리 |
-| LB16-1 | 🔴   | `src/lib/server/public/archive.md`                   | `a1f3949`            | 처리 |
-| LB16-2 | 🟠   | `src/lib/server/public/archive.md`                   | `a1f3949`            | 처리 |
-| LB16-3 | 🟠   | `src/lib/server/public/archive.md`                   | `2f84aee`            | 처리 |
-| LB16-4 | 🟠   | `src/lib/server/public/archive.md`                   | `e734279`            | 처리 |
-| LB16-5 | 🟠   | `src/lib/server/public/archive.md`                   | `64c4d5d`            | 처리 |
-| LB17-1 | 🟠   | `src/lib/server/services/asset-access.md`            | `ddd5e35`            | 처리 |
-| LB18-1 | 🟠   | `src/lib/server/services/asset-cleanup.md`           | `849d33b`            | 처리 |
-| LB19-1 | 🟠   | `src/lib/server/services/cron-status.md`             | `91fbdd8`            | 처리 |
-| LB20-1 | 🟠   | `src/lib/server/services/events.md`                  | `c1d863e`            | 처리 |
-| LB20-2 | 🟠   | `src/lib/server/services/events.md`                  | `6f1eaa0`            | 처리 |
-| LB20-3 | 🟠   | `src/lib/server/services/events.md`                  | `6f1eaa0`            | 처리 |
-| LB22-1 | 🟠   | `src/lib/server/services/executives-admin.md`        | `fa2a051`            | 처리 |
-| LB22-2 | 🟠   | `src/lib/server/services/executives-admin.md`        | `449ea27`            | 처리 |
-| LB22-3 | 🟠   | `src/lib/server/services/executives-admin.md`        | `70aa027`            | 처리 |
-| LB23-1 | 🔴   | `src/lib/server/services/mail-admin.md`              | `e46e535`            | 처리 |
-| LB23-2 | 🟠   | `src/lib/server/services/mail-admin.md`              | `b1d1246`            | 처리 |
-| LB23-3 | 🟠   | `src/lib/server/services/mail-admin.md`              | `b1d1246`            | 처리 |
-| LB23-4 | 🟠   | `src/lib/server/services/mail-admin.md`              | `496126c`            | 처리 |
-| LB23-5 | 🟠   | `src/lib/server/services/mail-admin.md`              | `b1d1246`            | 처리 |
-| LB23-6 | 🟠   | `src/lib/server/services/mail-admin.md`              | `496126c`            | 처리 |
-| LB23-7 | 🟠   | `src/lib/server/services/mail-admin.md`              | `b1d1246`            | 처리 |
-| LB24-1 | 🟠   | `src/lib/server/services/maintenance.md`             | `45183cb`            | 처리 |
-| LB24-2 | 🟠   | `src/lib/server/services/maintenance.md`             | `cf96bbd`            | 처리 |
-| LB24-3 | 🟠   | `src/lib/server/services/maintenance.md`             | `cf96bbd`, `45183cb` | 처리 |
-| LB24-4 | 🟠   | `src/lib/server/services/maintenance.md`             | `45183cb`            | 처리 |
-| LB25-1 | 🔴   | `src/lib/server/services/members-admin.md`           | `6c9a334`            | 처리 |
-| LB25-2 | 🟠   | `src/lib/server/services/members-admin.md`           | `c16f7c4`            | 처리 |
-| LB28-1 | 🟠   | `src/lib/server/services/records-admin.md`           | `7b082f7`            | 처리 |
-| LB28-2 | 🟠   | `src/lib/server/services/records-admin.md`           | `c1d863e`            | 처리 |
-| LB28-3 | 🟠   | `src/lib/server/services/records-admin.md`           | `529665f`, `2f84aee` | 처리 |
-| LB28-4 | 🟠   | `src/lib/server/services/records-admin.md`           | `0258c28`            | 처리 |
-| LB30-1 | 🟠   | `src/lib/server/services/seminars.md`                | `529665f`            | 처리 |
-| LB30-5 | 🟠   | `src/lib/server/services/seminars.md`                | `ce27719`            | 처리 |
-| LB31-1 | 🟠   | `src/lib/server/services/studies.md`                 | `fc7a90e`, `d678f75` | 처리 |
-| LB31-2 | 🟠   | `src/lib/server/services/studies.md`                 | `2f84aee`            | 처리 |
-| LB31-3 | 🟠   | `src/lib/server/services/studies.md`                 | `2f84aee`            | 처리 |
-| LB31-4 | 🟠   | `src/lib/server/services/studies.md`                 | `fc7a90e`            | 처리 |
-| LB31-5 | 🟠   | `src/lib/server/services/studies.md`                 | `fc7a90e`            | 처리 |
-| LB32-1 | 🟠   | `src/lib/server/services/uploads.md`                 | `496126c`            | 처리 |
-| LB32-2 | 🟠   | `src/lib/server/services/uploads.md`                 | `ac30f91`            | 처리 |
-| LB32-3 | 🟠   | `src/lib/server/services/uploads.md`                 | `0376223`            | 처리 |
-| LB32-4 | 🟠   | `src/lib/server/services/uploads.md`                 | `0376223`            | 처리 |
-| LB21-1 | 🟠   | `src/lib/server/services/visibility.md`              | `d678f75`            | 처리 |
-| LB21-2 | 🟠   | `src/lib/server/services/visibility.md`              | `0ebc2f2`            | 처리 |
-| LB27-1 | 🟠   | `src/lib/server/services/withdrawal.md`              | `7a38677`            | 처리 |
-| LA42-1 | 🟠   | `supabase/migrations/20260901000000_documents.md`    | `06b7627`            | 처리 |
-| LA43-1 | 🔴   | `supabase/migrations/20260928000000_atomic_flows.md` | `ce27719`            | 처리 |
-| LA43-2 | 🟠   | `supabase/migrations/20260928000000_atomic_flows.md` | `ce27719`            | 처리 |
-| LA43-3 | 🟠   | `supabase/migrations/20260928000000_atomic_flows.md` | `2f84aee`, `ce27719` | 처리 |
-| LA43-4 | 🟠   | `supabase/migrations/20260928000000_atomic_flows.md` | `ce27719`            | 처리 |
+| ID     | 등급 | 문서                                                 | 처리 커밋                       | 상태                                                                                             |
+| ------ | ---- | ---------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------ |
+| LD01-1 | 🟠   | `src/hooks.server.md`                                | `2ad2f5a`                       | 처리                                                                                             |
+| LC01-1 | 🟠   | `src/lib/domain/account.md`                          | `7a38677`                       | 처리                                                                                             |
+| LC01-3 | 🟠   | `src/lib/domain/account.md`                          | `70aa027`                       | 처리                                                                                             |
+| LC02-1 | 🟠   | `src/lib/domain/admin-dashboard.md`                  | `c1d863e`                       | 처리                                                                                             |
+| LC02-2 | 🟠   | `src/lib/domain/admin-dashboard.md`                  | `c1d863e`                       | 처리                                                                                             |
+| LC03-1 | 🟠   | `src/lib/domain/admin-records.md`                    | `c1d863e`                       | 처리                                                                                             |
+| LC04-1 | 🔴   | `src/lib/domain/admin-seminars.md`                   | `d124b96`                       | 처리                                                                                             |
+| LC04-2 | 🟠   | `src/lib/domain/admin-seminars.md`                   | `6f1eaa0`                       | 처리                                                                                             |
+| LC07-1 | 🟠   | `src/lib/domain/dashboard.md`                        | `70aa027`                       | 처리                                                                                             |
+| LC07-5 | 🟠   | `src/lib/domain/dashboard.md`                        | `70aa027`                       | 처리                                                                                             |
+| LC08-1 | 🟠   | `src/lib/domain/executive-roster.md`                 | `e734279`                       | 처리                                                                                             |
+| LC09-3 | 🟠   | `src/lib/domain/form-data.md`                        | `449ea27`                       | 처리                                                                                             |
+| LC11-1 | 🟠   | `src/lib/domain/members.md`                          | `2f84aee`                       | 처리                                                                                             |
+| LC11-2 | 🟠   | `src/lib/domain/members.md`                          | `2f84aee`                       | 처리                                                                                             |
+| LC11-3 | 🟠   | `src/lib/domain/members.md`                          | `2f84aee`                       | 처리                                                                                             |
+| LC11-4 | 🟠   | `src/lib/domain/members.md`                          | `70aa027`                       | 처리                                                                                             |
+| LC10-1 | 🟠   | `src/lib/domain/membership-applications.md`          | `70aa027`                       | 처리                                                                                             |
+| LC13-1 | 🟠   | `src/lib/domain/public-content.md`                   | `1812d39`                       | 처리                                                                                             |
+| LC15-1 | 🟠   | `src/lib/domain/seminars.md`                         | `5112ccf`                       | 처리                                                                                             |
+| LB02-1 | 🟠   | `src/lib/server/auth-guards.md`                      | `8d9e3ef`                       | 처리                                                                                             |
+| LB02-2 | 🟠   | `src/lib/server/auth-guards.md`                      | `8d9e3ef`                       | 처리                                                                                             |
+| LB02-6 | 🟠   | `src/lib/server/auth-guards.md`                      | `fdd06e3`                       | 처리                                                                                             |
+| LB03-1 | 🟠   | `src/lib/server/cache.md`                            | `70e359e`                       | 처리                                                                                             |
+| LB03-2 | 🟠   | `src/lib/server/cache.md`                            | `70e359e`                       | 처리                                                                                             |
+| LB03-3 | 🟠   | `src/lib/server/cache.md`                            | `70e359e`                       | 처리                                                                                             |
+| LB03-4 | 🟠   | `src/lib/server/cache.md`                            | `70e359e`                       | 처리                                                                                             |
+| LB03-5 | 🟠   | `src/lib/server/cache.md`                            | `70e359e`                       | 처리                                                                                             |
+| LA01-3 | 🟠   | `src/lib/server/core/admin-bootstrap.md`             | `754ac80`, `cc30746`            | 처리                                                                                             |
+| LA02-1 | 🟠   | `src/lib/server/core/capabilities.md`                | `3e6b3ab`                       | 처리                                                                                             |
+| LA09-1 | 🔴   | `src/lib/server/core/time.md`                        | `d124b96`                       | 처리                                                                                             |
+| LA09-5 | 🔴   | `src/lib/server/core/time.md`                        | `d124b96`                       | 처리                                                                                             |
+| LA29-1 | 🟠   | `src/lib/server/data/admin-queue-views.md`           | `449ea27`                       | 처리                                                                                             |
+| LA29-2 | 🟠   | `src/lib/server/data/admin-queue-views.md`           | `03c4374`                       | 처리                                                                                             |
+| LA30-1 | 🟠   | `src/lib/server/data/audit.md`                       | `2f84aee`                       | 처리                                                                                             |
+| LA32-1 | 🟠   | `src/lib/server/data/flows.md`                       | `849d33b`                       | 처리                                                                                             |
+| LA32-2 | 🟠   | `src/lib/server/data/flows.md`                       | `849d33b`                       | 처리                                                                                             |
+| LA21-1 | 🟠   | `src/lib/server/data/schemas/member.md`              | `70aa027`                       | 처리                                                                                             |
+| LA21-2 | 🟠   | `src/lib/server/data/schemas/member.md`              | `00059ac`, `03925bb`, `1812d39` | 부분 — 입력·렌더에서 처리(`1812d39`). 저장 스키마 규칙은 표 전체 읽기를 깨뜨려 되돌림(`00059ac`) |
+| LA22-3 | 🟠   | `src/lib/server/data/schemas/private-info.md`        | `6c9a334`                       | 처리                                                                                             |
+| LA26-1 | 🟠   | `src/lib/server/data/schemas/seminar.md`             | `52c2bbc`                       | 처리                                                                                             |
+| LA26-2 | 🔴   | `src/lib/server/data/schemas/seminar.md`             | `d124b96`                       | 처리                                                                                             |
+| LA38-1 | 🟠   | `src/lib/server/data/storage.md`                     | `8bbf956`                       | 처리                                                                                             |
+| LA38-2 | 🟠   | `src/lib/server/data/storage.md`                     | `8bbf956`                       | 처리                                                                                             |
+| LA40-1 | 🟠   | `src/lib/server/data/store.md`                       | `565e461`                       | 처리                                                                                             |
+| LA40-2 | 🟠   | `src/lib/server/data/store.md`                       | `54b0881`                       | 처리                                                                                             |
+| LA35-1 | 🟠   | `src/lib/server/data/supabase.md`                    | `565e461`                       | 처리                                                                                             |
+| LA41-1 | 🟠   | `src/lib/server/data/tables.md`                      | `849d33b`                       | 처리                                                                                             |
+| LA41-2 | 🟠   | `src/lib/server/data/tables.md`                      | `849d33b`                       | 처리                                                                                             |
+| LA41-3 | 🟠   | `src/lib/server/data/tables.md`                      | `849d33b`                       | 처리                                                                                             |
+| LA36-1 | 🟠   | `src/lib/server/data/views.md`                       | `23692a4`                       | 처리                                                                                             |
+| LB05-1 | 🟠   | `src/lib/server/guards/resolve-member.md`            | `3e6b3ab`                       | 처리                                                                                             |
+| LB06-1 | 🟠   | `src/lib/server/guards/zone.md`                      | `8b34553`                       | 처리                                                                                             |
+| LB06-5 | 🟠   | `src/lib/server/guards/zone.md`                      | `8b34553`                       | 처리                                                                                             |
+| LB10-1 | 🟠   | `src/lib/server/mail/client.md`                      | `496126c`                       | 처리                                                                                             |
+| LB11-1 | 🟠   | `src/lib/server/mail/dispatch.md`                    | `529665f`                       | 처리                                                                                             |
+| LB11-2 | 🟠   | `src/lib/server/mail/dispatch.md`                    | `26f3bdf`                       | 처리                                                                                             |
+| LB11-3 | 🟠   | `src/lib/server/mail/dispatch.md`                    | `710e3d0`                       | 처리                                                                                             |
+| LB12-1 | 🟠   | `src/lib/server/mail/events.md`                      | `336d036`                       | 처리                                                                                             |
+| LB13-1 | 🟠   | `src/lib/server/mail/template-store.md`              | `26f3bdf`                       | 처리                                                                                             |
+| LB14-1 | 🟠   | `src/lib/server/mail/templates.md`                   | `73d44f3`                       | 처리                                                                                             |
+| LB16-1 | 🔴   | `src/lib/server/public/archive.md`                   | `a1f3949`                       | 처리                                                                                             |
+| LB16-2 | 🟠   | `src/lib/server/public/archive.md`                   | `a1f3949`                       | 처리                                                                                             |
+| LB16-3 | 🟠   | `src/lib/server/public/archive.md`                   | `2f84aee`                       | 처리                                                                                             |
+| LB16-4 | 🟠   | `src/lib/server/public/archive.md`                   | `e734279`                       | 처리                                                                                             |
+| LB16-5 | 🟠   | `src/lib/server/public/archive.md`                   | `64c4d5d`                       | 처리                                                                                             |
+| LB17-1 | 🟠   | `src/lib/server/services/asset-access.md`            | `ddd5e35`                       | 처리                                                                                             |
+| LB18-1 | 🟠   | `src/lib/server/services/asset-cleanup.md`           | `849d33b`                       | 처리                                                                                             |
+| LB19-1 | 🟠   | `src/lib/server/services/cron-status.md`             | `91fbdd8`                       | 처리                                                                                             |
+| LB20-1 | 🟠   | `src/lib/server/services/events.md`                  | `c1d863e`                       | 처리                                                                                             |
+| LB20-2 | 🟠   | `src/lib/server/services/events.md`                  | `6f1eaa0`                       | 처리                                                                                             |
+| LB20-3 | 🟠   | `src/lib/server/services/events.md`                  | `6f1eaa0`                       | 처리                                                                                             |
+| LB22-1 | 🟠   | `src/lib/server/services/executives-admin.md`        | `fa2a051`                       | 처리                                                                                             |
+| LB22-2 | 🟠   | `src/lib/server/services/executives-admin.md`        | `449ea27`                       | 처리                                                                                             |
+| LB22-3 | 🟠   | `src/lib/server/services/executives-admin.md`        | `70aa027`                       | 처리                                                                                             |
+| LB23-1 | 🔴   | `src/lib/server/services/mail-admin.md`              | `e46e535`                       | 처리                                                                                             |
+| LB23-2 | 🟠   | `src/lib/server/services/mail-admin.md`              | `b1d1246`                       | 처리                                                                                             |
+| LB23-3 | 🟠   | `src/lib/server/services/mail-admin.md`              | `b1d1246`                       | 처리                                                                                             |
+| LB23-4 | 🟠   | `src/lib/server/services/mail-admin.md`              | `496126c`                       | 처리                                                                                             |
+| LB23-5 | 🟠   | `src/lib/server/services/mail-admin.md`              | `b1d1246`                       | 처리                                                                                             |
+| LB23-6 | 🟠   | `src/lib/server/services/mail-admin.md`              | `496126c`                       | 처리                                                                                             |
+| LB23-7 | 🟠   | `src/lib/server/services/mail-admin.md`              | `b1d1246`                       | 처리                                                                                             |
+| LB24-1 | 🟠   | `src/lib/server/services/maintenance.md`             | `45183cb`                       | 처리                                                                                             |
+| LB24-2 | 🟠   | `src/lib/server/services/maintenance.md`             | `cf96bbd`                       | 처리                                                                                             |
+| LB24-3 | 🟠   | `src/lib/server/services/maintenance.md`             | `cf96bbd`, `45183cb`            | 처리                                                                                             |
+| LB24-4 | 🟠   | `src/lib/server/services/maintenance.md`             | `45183cb`                       | 처리                                                                                             |
+| LB25-1 | 🔴   | `src/lib/server/services/members-admin.md`           | `6c9a334`                       | 처리                                                                                             |
+| LB25-2 | 🟠   | `src/lib/server/services/members-admin.md`           | `c16f7c4`                       | 처리                                                                                             |
+| LB28-1 | 🟠   | `src/lib/server/services/records-admin.md`           | `7b082f7`                       | 처리                                                                                             |
+| LB28-2 | 🟠   | `src/lib/server/services/records-admin.md`           | `c1d863e`                       | 처리                                                                                             |
+| LB28-3 | 🟠   | `src/lib/server/services/records-admin.md`           | `529665f`, `2f84aee`            | 처리                                                                                             |
+| LB28-4 | 🟠   | `src/lib/server/services/records-admin.md`           | `0258c28`                       | 처리                                                                                             |
+| LB30-1 | 🟠   | `src/lib/server/services/seminars.md`                | `529665f`                       | 처리                                                                                             |
+| LB30-5 | 🟠   | `src/lib/server/services/seminars.md`                | `ce27719`                       | 처리                                                                                             |
+| LB31-1 | 🟠   | `src/lib/server/services/studies.md`                 | `fc7a90e`, `d678f75`            | 처리                                                                                             |
+| LB31-2 | 🟠   | `src/lib/server/services/studies.md`                 | `2f84aee`                       | 처리                                                                                             |
+| LB31-3 | 🟠   | `src/lib/server/services/studies.md`                 | `2f84aee`                       | 처리                                                                                             |
+| LB31-4 | 🟠   | `src/lib/server/services/studies.md`                 | `fc7a90e`                       | 처리                                                                                             |
+| LB31-5 | 🟠   | `src/lib/server/services/studies.md`                 | `fc7a90e`                       | 처리                                                                                             |
+| LB32-1 | 🟠   | `src/lib/server/services/uploads.md`                 | `496126c`                       | 처리                                                                                             |
+| LB32-2 | 🟠   | `src/lib/server/services/uploads.md`                 | `ac30f91`                       | 처리                                                                                             |
+| LB32-3 | 🟠   | `src/lib/server/services/uploads.md`                 | `0376223`                       | 처리                                                                                             |
+| LB32-4 | 🟠   | `src/lib/server/services/uploads.md`                 | `0376223`                       | 처리                                                                                             |
+| LB21-1 | 🟠   | `src/lib/server/services/visibility.md`              | `d678f75`                       | 처리                                                                                             |
+| LB21-2 | 🟠   | `src/lib/server/services/visibility.md`              | `0ebc2f2`                       | 처리                                                                                             |
+| LB27-1 | 🟠   | `src/lib/server/services/withdrawal.md`              | `7a38677`                       | 처리                                                                                             |
+| LA42-1 | 🟠   | `supabase/migrations/20260901000000_documents.md`    | `06b7627`                       | 처리                                                                                             |
+| LA43-1 | 🔴   | `supabase/migrations/20260928000000_atomic_flows.md` | `ce27719`                       | 처리                                                                                             |
+| LA43-2 | 🟠   | `supabase/migrations/20260928000000_atomic_flows.md` | `ce27719`                       | 처리                                                                                             |
+| LA43-3 | 🟠   | `supabase/migrations/20260928000000_atomic_flows.md` | `2f84aee`, `ce27719`            | 처리                                                                                             |
+| LA43-4 | 🟠   | `supabase/migrations/20260928000000_atomic_flows.md` | `ce27719`                       | 처리                                                                                             |

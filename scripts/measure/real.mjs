@@ -49,6 +49,13 @@ for (const t of snap.app_tables) {
     return out;
   });
 }
+// 20260928000400: the alumni revocation reason lives on the member row (#18).
+for (const t of snap.app_tables) {
+  if (t.name !== "members" && t.name !== "legacy-members") continue;
+  t.doc.rows = t.doc.rows.map((m) =>
+    "alumniRevocationReason" in m ? m : { ...m, alumniRevocationReason: null },
+  );
+}
 await setClock(null);
 await probeSeed({
   op: "reset",
