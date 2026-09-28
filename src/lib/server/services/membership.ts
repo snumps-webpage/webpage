@@ -95,8 +95,10 @@ export async function withdrawOwnApplication(email: string): Promise<void> {
  * 승인이 낡은 캐시로 출발하면, 그 사이 반려된 신청자에게 회원 행을 만든 뒤
  * 마지막 단계에서야 CONFLICT로 멈췄다 — 반려된 사람이 회원으로 남았다.
  *
- * 부트스트랩 관리자 스탬프: env 명단은 승인 전환 시 회원 레코드에 새겨지고
- * 그 후로는 레코드가 유일 진실이다 (해제는 회원 관리에서 — 하향은 안 한다).
+ * 부트스트랩 관리자 스탬프: env 명단은 승인 때마다(재등록 포함) 회원 레코드에
+ * isAdmin=true로 새겨진다 — 하향은 안 한다. 명단에 남은 관리자는 화면에서
+ * 해제해도 다음 재등록 때 되살아나므로, 회수는 ADMINS_EMAILS에서도 빼야
+ * 한다 (결정 #17, audit LA01-3 — core/admin-bootstrap.ts).
  *
  * DEFER(signup-target-term): 대상 학기를 currentTerm()으로 고정한다. 관리자가
  * 가입 대상 학기를 명시 선택하는 기능은 보류 (FUNCTIONAL-SPEC "보류" 절).

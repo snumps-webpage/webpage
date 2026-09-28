@@ -78,7 +78,11 @@ throw한 오류는 Kit의 치명 오류 경로로 나가 cacheShield를 건너�
 | 미등록 + 비동문 | 없음 — 재가입 신청 필요                            |
 
 - 관리자 권한의 유일한 원천은 `members.isAdmin` (결정 D4). `ADMINS_EMAILS`는 회원 행이 생기기 전
-  부트스트랩과 운영 알림 수신에만 쓴다.
+  부트스트랩, 승인 때의 `isAdmin` 스탬프, 운영 알림 수신에 쓴다.
+- **스탬프는 재등록마다 다시 찍힌다** — `flow_approve_application`은 기존 회원의 학기 재등록 승인에서도
+  명단에 있는 사람의 `isAdmin`을 `true`로 쓴다(내리지는 않는다). 그래서 env에 남은 관리자를 회원 관리
+  화면에서 해제하면 다음 재등록 승인 때 되살아난다. **관리자를 회수하려면 화면에서 해제하고
+  `ADMINS_EMAILS`에서도 그 주소를 뺀다** (결정 #17, audit LA01-3 — 문서로 정한 계약, 코드는 그대로).
 - Notion 이주분은 `legacy-members`·`legacy-private-info`(읽기 전용)에 있고 로그인에 쓰지 않는다.
   재가입 회원은 `legacyMemberId`로 과거 기록과 이어진다 (`data/directory.ts`).
 

@@ -5,7 +5,9 @@
 관리자 권한의 단일 원천은 Supabase `members.isAdmin`이다. 세션 이메일은 `private-info.email`로 회원을 찾는 데만
 사용한다. 유일한 예외는 부트스트랩이다(`core/admin-bootstrap.ts`): 빈 운영 DB에서 첫 승인을 할 사람을 위해,
 **회원 행이 아직 없는** `ADMINS_EMAILS` 명단의 사람은 관리자로 본다. 그 사람의 가입이 승인되면 명단 여부가 회원
-행의 `isAdmin`에 스탬프되고, 그 뒤로 명단은 권한 판정에 쓰이지 않는다. 승인 흐름(SQL)에는 주소가 아니라
+행의 `isAdmin`에 스탬프되고, 그 뒤로 세션의 권한 판정은 회원 행만 본다. 단 스탬프는 **매 학기 재등록 승인 때마다
+다시 찍힌다**(`true`로만 쓰고 내리지 않는다) — 명단에 남은 관리자를 회원 관리 화면에서 해제해도 다음 재등록 때
+되살아나므로, **회수하려면 `ADMINS_EMAILS`에서도 그 주소를 뺀다** (결정 #17, audit LA01-3). 승인 흐름(SQL)에는 주소가 아니라
 sha256 해시(`bootstrapAdminEmailHashes`)로 넘겨 주소가 RPC 인자·구문 로그에 남지 않게 한다.
 
 로그인 자체는 SNU Workspace 계정만 허용한다(`core/sign-in.ts`): `@snu.ac.kr` 주소, `email_verified`가 참,
