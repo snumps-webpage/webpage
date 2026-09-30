@@ -6,8 +6,12 @@
 #   DRY_RUN=1 bash scripts/ops/release-prod.sh    # 절차만 훑는다 — 바꾸는 명령은 출력만, 질문은 건너뜀
 #   SKIP_PREVIEW=1 bash scripts/ops/release-prod.sh   # 프리뷰 배포 없이 (3단계를 로컬 점검으로 대신)
 #   FORCE=1 bash scripts/ops/release-prod.sh     # 이 커밋으로 이미 끝낸 단계도 전부 다시
-#   DEPLOY_VIA=prebuilt bash scripts/ops/release-prod.sh
-#                                                 # git 연동 배포에 더해 로컬 prebuilt도 올린다 (7단계)
+#   PUSH_MAIN=0 bash scripts/ops/release-prod.sh  # 배포 뒤 origin/main을 맞추는 push를 하지 않는다
+#
+# Vercel 배포는 이 스크립트가 한다(vercel CLI, `vercel login` 필요) — git 연동 자동 배포를 가정하지
+# 않는다. 5단계에서 이 커밋을 깨끗이 내보낸 것(git archive, 추적 파일만)으로 운영 빌드를 도메인
+# 연결 없이 만들어 Ready를 확인하고, DB 적용(6) 뒤 7단계에서 그 빌드로 도메인을 옮긴다(promote).
+# 빌드가 실패하면 DB는 그대로이고, 옛 코드+새 DB 구간은 승격에 걸리는 몇 초로 줄어든다.
 #
 # 다시 돌려도 된다: 끝낸 단계는 .git/release-prod.state에 기록되고 다시 돌리면 건너뛴다.
 #   - 2 검증·3 프리뷰: 배포 내용(트리에서 docs/·scripts/·루트 *.md를 뺀 것)이 같으면 — 문서나 이
@@ -23,10 +27,10 @@
 #   2 로컬 검증            테스트·타입·린트·포맷·빌드, 서버 번들에 PGlite 없음 → 검증한 커밋을 기록
 #   3 프리뷰 확인 (수동)   pnpm 설치, SNU 계정 실로그인, 세미나 흐름 스모크 (SKIP_PREVIEW=1이면 생략)
 #   4 prod 백업            세 테이블 전부를 SQL 한 문장(한 스냅숏)으로 backups/에 (롤백의 유일한 수단)
-#   5 사전 검사            적용될 파일이 정확히 예상한 5개인지, dry-run, 조회 결과 판독 시험
-#   6 적용                 백업·쓰기 동결 확인 → db push (여기서부터 9단계까지 서두른다)
-#   7 배포                 전제 재확인 → origin/main을 이 커밋으로 빨리감기 push (강제 push 없음)
-#   8 배포 확인            Vercel에서 Ready인 Production 배포의 커밋을 입력받아 대조
+#   5 사전 검사·운영 빌드  적용될 파일이 정확히 5개인지·dry-run·판독 시험 → Vercel 운영 빌드(도메인 연결 없이)
+#   6 적용                 백업·쓰기 동결 확인 → db push (곧바로 7단계)
+#   7 배포                 전제 재확인 → 5단계의 빌드로 운영 도메인 승격(vercel promote) → main push
+#   8 배포 확인            운영 도메인이 그 빌드를 가리키는지 vercel inspect로 대조, 첫 화면 200
 #   9 사후 보정            백필 3개 재실행 (6~8 사이 옛 코드가 지운 키를 되살린다)
 #  10 확인 쿼리            흐름 19개·백필 누락 0·권한·버킷 비공개 — 통과 후 10분 뒤 9·10을 한 번 더
 #  11 공개 스모크          공개 페이지 200, 버킷 상태 (읽기 전용)
@@ -51,7 +55,9 @@
 #   - prod 대상 명령(push·목록·조회)은 prod에 링크하고 링크 파일을 확인한 뒤에만 돌린다. 링크는
 #     어떻게 끝나든 dev로 되돌리고, 되돌리지 못하면 링크 파일을 지워 아무 곳도 가리키지 않게 한다.
 #   - 되돌릴 수 없는 단계(6·7·9)는 prod 프로젝트 ref를 입력해야 진행한다.
-#   - 7단계는 --from으로 바로 와도 브랜치·검증한 커밋·prod 적용 완료를 다시 확인한다.
+#   - 7단계는 --from으로 바로 와도 브랜치·검증한 커밋·prod 적용 완료·이 커밋의 Ready 빌드를 다시 확인한다.
+#   - Vercel에는 추적 파일만 올라간다(git archive) — .env*·backups/ 같은 추적 안 되는 파일은 가지 않고,
+#     운영 env는 Vercel이 빌드 때 넣으므로 비밀값을 내려받지 않는다.
 #   - 모든 판독은 실패하면 멈춘다 — 모르면 성공으로 치지 않는다.
 set -Eeuo pipefail
 shopt -s inherit_errexit # $(…) 안에서도 실패하면 멈춘다
@@ -88,7 +94,7 @@ readonly BACKUP_MAX_AGE_SECONDS=$((6 * 3600))
 readonly RECHECK_DELAY_SECONDS=600
 
 DRY_RUN="${DRY_RUN:-0}"
-DEPLOY_VIA="${DEPLOY_VIA:-git}"
+PUSH_MAIN="${PUSH_MAIN:-1}"
 SKIP_PREVIEW="${SKIP_PREVIEW:-0}"
 FORCE="${FORCE:-0}"
 HEAD_SHA=""
@@ -480,6 +486,68 @@ SQL
   say "백업: $file ($(wc -c < "$file") bytes) — 개인정보 포함, 레포 밖으로 옮기지 말 것."
 }
 
+# Vercel CLI: stdin 없이, 비대화로.
+vc() { vercel --non-interactive "$@" < /dev/null; }
+
+# vercel inspect <배포 URL|도메인> [--wait …] → "<배포 id> <상태>" (예: dpl_abc READY). 모르면 실패.
+deployment_info() {
+  local target="$1" out
+  shift
+  out="$(vc inspect "$target" --format=json "$@" 2> "$TMP/inspect.log")" || {
+    tail -n 5 "$TMP/inspect.log" >&2
+    return 1
+  }
+  printf '%s' "$out" | node -e '
+    let s = "";
+    process.stdin.on("data", (d) => (s += d)).on("end", () => {
+      const i = s.indexOf("{"), j = s.lastIndexOf("}");
+      if (i < 0) { console.error("inspect 출력에 JSON이 없다"); process.exit(2); }
+      const root = JSON.parse(s.slice(i, j + 1));
+      const find = (v, keys) => {
+        if (v && typeof v === "object") {
+          for (const k of keys) if (typeof v[k] === "string") return v[k];
+          for (const x of Object.values(v)) { const r = find(x, keys); if (r) return r; }
+        }
+        return null;
+      };
+      const id = find(root, ["id", "uid"]);
+      const state = find(root, ["readyState", "state", "status"]);
+      if (!id || !/^dpl_/.test(id) || !state) { console.error("배포 id·상태를 읽지 못했다"); process.exit(2); }
+      console.log(id + " " + state.toUpperCase());
+    });
+  '
+}
+
+# 5단계: 이 커밋의 운영 빌드를 도메인 연결 없이 만들고 Ready를 기다린다. 이미 있으면 다시 쓴다.
+build_production() {
+  local dir="$TMP/export" out url info
+  if done_for_head prod_build_sha; then
+    url="$(state_get prod_build_url)"
+    if [ -n "$url" ] && info="$(deployment_info "$url")" && [ "${info#* }" = READY ]; then
+      say "이 커밋의 운영 빌드가 이미 Ready다: $url"
+      return 0
+    fi
+  fi
+  rm -rf "$dir"
+  mkdir -p "$dir/.vercel"
+  # 추적 파일만 — .env*·backups/ 같은 추적 안 되는 파일은 올라가지 않는다.
+  git archive --format=tar "$HEAD_SHA" | tar -x -C "$dir"
+  cp .vercel/project.json "$dir/.vercel/project.json"
+  say "Vercel에서 운영 빌드를 만든다 (도메인 연결 없이 — 사이트는 아직 옛 배포를 보여 준다)…"
+  out="$(vc deploy --cwd "$dir" --prod --skip-domain --yes --archive=tgz -m "gitCommitSha=$HEAD_SHA" 2> "$TMP/deploy.log")" || {
+    tail -n 40 "$TMP/deploy.log" >&2
+    die "Vercel 운영 빌드 실패 — DB는 아직 바뀌지 않았다. 원인을 고쳐 커밋한 뒤 --from 2."
+  }
+  url="$(printf '%s\n' "$out" | { grep -Eo 'https://[A-Za-z0-9.-]+[.]vercel[.]app' || true; } | tail -n 1)"
+  [ -n "$url" ] || die "배포 URL을 읽지 못했다 (vercel deploy 출력)."
+  info="$(deployment_info "$url" --wait --timeout 15m)" || die "배포 상태를 읽지 못했다: $url"
+  [ "${info#* }" = READY ] || die "운영 빌드가 Ready가 아니다 ($info) — DB는 아직 바뀌지 않았다."
+  state_set prod_build_sha "$HEAD_SHA"
+  state_set prod_build_url "$url"
+  state_set prod_build_id "${info%% *}"
+  say "운영 빌드 Ready: $url (${info%% *})"
+}
+
 # 9·10단계: 백필 재실행 → 확인 쿼리. 통과하지 않으면 멈춘다.
 repair_and_check() {
   local f out rows
@@ -535,9 +603,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 [[ "$FROM" =~ ^([1-9]|1[0-2])$ ]] || die "--from은 1~12여야 한다: $FROM"
-case "$DEPLOY_VIA" in
-  git | prebuilt) ;;
-  *) die "DEPLOY_VIA는 git 또는 prebuilt: $DEPLOY_VIA" ;;
+case "$PUSH_MAIN" in
+  0 | 1) ;;
+  *) die "PUSH_MAIN은 0 또는 1: $PUSH_MAIN" ;;
 esac
 case "$DRY_RUN" in
   0 | 1) ;;
@@ -565,7 +633,7 @@ CURRENT_STEP="$FROM"
 
 run_step() { [ "$1" -ge "$FROM" ]; }
 
-say "release-prod: 대상 prod=$PROD_REF, 배포=$DEPLOY_VIA, 프리뷰 생략=$SKIP_PREVIEW, DRY_RUN=$DRY_RUN, 시작 단계=$FROM"
+say "release-prod: 대상 prod=$PROD_REF, main push=$PUSH_MAIN, 프리뷰 생략=$SKIP_PREVIEW, DRY_RUN=$DRY_RUN, 시작 단계=$FROM"
 
 # ---------------------------------------------------------------------------
 # 1 사전 점검
@@ -576,9 +644,9 @@ if run_step 1; then
   for tool in git node pnpm supabase curl; do
     command -v "$tool" > /dev/null || die "$tool 이 없다."
   done
-  if [ "$DEPLOY_VIA" = prebuilt ]; then
-    command -v vercel > /dev/null || die "vercel CLI가 없다 (DEPLOY_VIA=prebuilt)."
-  fi
+  command -v vercel > /dev/null || die "vercel CLI가 없다 — 배포에 필요하다."
+  [ -f .vercel/project.json ] || die ".vercel/project.json 이 없다 — vercel link 로 이 폴더를 프로젝트에 연결할 것."
+  vc whoami > /dev/null 2>&1 || die "vercel 로그인 필요: vercel login"
   node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 22 ? 0 : 1)' ||
     die "Node 22 이상이 필요하다."
   [ "$(git rev-parse --abbrev-ref HEAD)" = "$RELEASE_BRANCH" ] ||
@@ -660,8 +728,7 @@ if run_step 3; then
     say "(1) 설치 도구: 잠금 파일이 pnpm-lock.yaml 하나뿐 — Vercel이 pnpm으로 설치한다."
     say "(2) SNU 계정 실로그인은 운영 배포 뒤 바로 확인할 것 — 막히면 코드만 되돌리면 된다(§2-2 4)."
     say "(3) 세미나·출석 흐름은 로컬 실측(scripts/measure)과 dev DB 적용 확인으로 갈음한다."
-    say "    운영 빌드가 Vercel에서 실패하면 옛 배포가 그대로 남고, prod는 '옛 코드 + 새 DB' 상태가"
-    say "    이어진다(이미지 깨짐·새 필드 벗겨짐). 그때는 빌드를 고쳐 다시 push한 뒤 --from 8."
+    say "    Vercel 운영 빌드는 5단계에서 DB를 바꾸기 전에 만들어 본다 — 빌드가 실패하면 DB는 그대로다."
     confirm_prod "프리뷰 확인 없이 운영에 반영한다"
     state_set preview_skipped_key "$APP_KEY"
   else
@@ -711,6 +778,13 @@ if run_step 5; then
     probe_query
   fi
   restore_dev_link
+  if [ "$DRY_RUN" = 1 ]; then
+    say "(DRY_RUN) vercel deploy --prod --skip-domain (git archive로 내보낸 이 커밋) — Ready까지 기다린다."
+  else
+    [ "$(state_get validated_key)" = "$APP_KEY" ] ||
+      die "이 배포 내용은 2단계 검증을 거치지 않았다 — --from 2 로 다시."
+    build_production
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -740,7 +814,7 @@ if run_step 6; then
       say "5개 모두 이미 적용돼 있다 — 적용을 건너뛴다."
       ;;
     pending | partial)
-      say "적용 직후부터 배포(8단계)가 끝날 때까지:"
+      say "적용 직후부터 7단계 승격까지(빌드는 이미 Ready라 몇 초 — 바로 이어서 진행한다):"
       say "  - assets 버킷이 비공개가 되어 옛 코드의 이미지·자료 링크가 깨진다"
       say "  - 옛 코드의 회원·세미나 쓰기가 새 필드를 지운다 (9·10단계가 복구)"
       confirm "관리자·임원에게 알렸고, 지금 세미나 관리·가입 승인 등 쓰기를 하는 사람이 없다"
@@ -764,7 +838,7 @@ fi
 # ---------------------------------------------------------------------------
 CURRENT_STEP=7
 if run_step 7; then
-  step 7 "배포 ($DEPLOY_VIA)"
+  step 7 "배포 — 운영 도메인을 새 빌드로 승격"
   # --from 7로 바로 와도 전제를 다시 본다: 브랜치, 검증한 그 커밋, prod 적용 완료.
   [ "$(git rev-parse --abbrev-ref HEAD)" = "$RELEASE_BRANCH" ] || die "브랜치가 $RELEASE_BRANCH 가 아니다."
   [ -z "$(git status --porcelain)" ] || die "작업 트리가 깨끗하지 않다."
@@ -780,30 +854,38 @@ if run_step 7; then
       die "prod에 마이그레이션이 다 적용되지 않았다 — 새 코드는 적용 전 DB에서 500이 난다. --from 5 로."
     restore_dev_link
   fi
+  if [ "$DRY_RUN" = 1 ]; then
+    say "(DRY_RUN) vercel promote <5단계 빌드 URL>"
+  else
+    build_url="$(state_get prod_build_url)"
+    build_id="$(state_get prod_build_id)"
+    if [ "$(state_get prod_build_sha)" != "$HEAD_SHA" ] || [ -z "$build_url" ] || [ -z "$build_id" ]; then
+      die "이 커밋의 운영 빌드 기록이 없다 — --from 5 로 (빌드를 만든다)."
+    fi
+    current="$(deployment_info "$SITE")" || die "지금 운영 중인 배포를 읽지 못했다 ($SITE)."
+    if [ "${current%% *}" = "$build_id" ]; then
+      say "운영 도메인이 이미 이 빌드($build_id)를 가리킨다 — 승격할 것이 없다."
+    else
+      confirm_prod "운영 도메인을 새 빌드($build_url)로 옮긴다"
+      vc promote "$build_url" --yes --timeout 5m
+      current="$(deployment_info "$SITE")" || die "승격 뒤 운영 배포를 읽지 못했다."
+      [ "${current%% *}" = "$build_id" ] ||
+        die "승격했는데 운영 도메인이 새 빌드가 아니다 (지금 ${current%% *}) — Vercel 대시보드를 볼 것. --from 7"
+      say "운영 도메인 → $build_id"
+    fi
+  fi
+  # 저장소를 운영과 맞춘다: origin/main = 운영 중인 커밋. (git 연동이 켜져 있으면 이 push가 같은 커밋을
+  # 한 번 더 빌드한다 — 결과는 같다.)
   git fetch --quiet origin "$PROD_BRANCH"
-  git merge-base --is-ancestor "origin/$PROD_BRANCH" HEAD ||
-    die "origin/$PROD_BRANCH 가 그새 움직였다 — 빨리감기 불가. main을 이 브랜치에 합치고 커밋한 뒤 --from 2 로 다시 (적용된 마이그레이션은 건너뛴다). 그동안 prod는 옛 코드+새 DB이므로 서두를 것."
-  if [ "$(git rev-parse "origin/$PROD_BRANCH")" = "$HEAD_SHA" ]; then
+  if [ "$PUSH_MAIN" != 1 ]; then
+    say "PUSH_MAIN=0 — origin/$PROD_BRANCH 는 그대로 둔다 (운영과 저장소가 어긋난다는 것을 기억할 것)."
+  elif ! git merge-base --is-ancestor "origin/$PROD_BRANCH" HEAD; then
+    warn "origin/$PROD_BRANCH 가 그새 움직여 빨리감기할 수 없다 — 운영은 이미 새 빌드다. main은 사람이 합칠 것."
+  elif [ "$(git rev-parse "origin/$PROD_BRANCH")" = "$HEAD_SHA" ]; then
     say "origin/$PROD_BRANCH 가 이미 ${HEAD_SHA:0:7} 이다 — push할 것이 없다."
   else
-    confirm_prod "origin/$PROD_BRANCH 를 ${HEAD_SHA:0:7} 로 빨리감기 push 한다 (강제 push 아님)"
-    # main이 곧 운영 코드다. prebuilt로도 올리는 경우에도 main을 맞춰 둬야 다음 git 배포가 옛 코드로 되돌리지 않는다.
+    confirm "origin/$PROD_BRANCH 를 ${HEAD_SHA:0:7} 로 빨리감기 push 한다 (강제 push 아님)"
     mutate git push origin "HEAD:refs/heads/$PROD_BRANCH"
-  fi
-  if [ "$DEPLOY_VIA" = prebuilt ] && done_for_head prebuilt_sha; then
-    skip_note "prebuilt 배포를 올렸다"
-  elif [ "$DEPLOY_VIA" = prebuilt ]; then
-    # 위 push가 git 연동 배포도 만든다(같은 커밋이라 어느 쪽이 먼저 끝나도 결과는 같다).
-    # 깨끗한 트리에서 빌드한 산출물(.vercel/output)만 올라간다. vercel pull이 받는 운영 env 파일은
-    # 소유자 전용으로 만들고, 배포 뒤 지운다.
-    (
-      umask 077
-      mutate vercel pull --yes --environment=production
-      mutate vercel build --prod
-      mutate vercel deploy --prebuilt --prod
-    )
-    mutate rm -f .vercel/.env.production.local .vercel/.env.preview.local .vercel/.env.development.local
-    state_set prebuilt_sha "$HEAD_SHA"
   fi
 fi
 
@@ -812,20 +894,21 @@ fi
 # ---------------------------------------------------------------------------
 CURRENT_STEP=8
 if run_step 8; then
-  step 8 "배포가 Ready 될 때까지"
-  if done_for_head deploy_confirmed_sha; then
-    skip_note "Production 배포의 커밋을 확인했다"
+  step 8 "운영 도메인이 새 빌드를 가리키는지"
+  if [ "$DRY_RUN" = 1 ]; then
+    say "(DRY_RUN) vercel inspect $SITE 의 배포 id를 5단계 빌드와 대조한다."
   else
-    say "Vercel 대시보드 → webpage → Deployments 에서 Production 배포가 Ready가 되면, 그 배포의 커밋 SHA를 복사해 넣을 것."
-    ask "Ready인 Production 배포의 커밋 SHA(앞 7자리 이상):"
-    if [ "$DRY_RUN" != 1 ]; then
-      input="$(printf '%s' "$REPLY_TEXT" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
-      [[ "$input" =~ ^[0-9a-f]{7,40}$ ]] || die "SHA 형식이 아니다. 배포를 확인한 뒤 --from 8"
-      [[ "$(git rev-parse HEAD)" == "$input"* ]] ||
-        die "Vercel의 커밋이 이 커밋($(git rev-parse --short HEAD))이 아니다. 배포를 확인한 뒤 --from 8"
-      say "배포 커밋 일치."
-      state_set deploy_confirmed_sha "$HEAD_SHA"
-    fi
+    build_id="$(state_get prod_build_id)"
+    [ "$(state_get prod_build_sha)" = "$HEAD_SHA" ] && [ -n "$build_id" ] ||
+      die "이 커밋의 운영 빌드 기록이 없다 — --from 5."
+    current="$(deployment_info "$SITE")" || die "운영 배포를 읽지 못했다 ($SITE)."
+    [ "${current%% *}" = "$build_id" ] ||
+      die "운영 도메인이 새 빌드가 아니다 (지금 ${current%% *}, 기대 $build_id) — --from 7"
+    [ "${current#* }" = READY ] || die "운영 배포 상태가 READY가 아니다: $current"
+    code="$(curl -sL -o /dev/null -w '%{http_code}' --max-time 20 "$SITE/" || true)"
+    [ "$code" = 200 ] || die "운영 첫 화면이 $code 다 — Vercel 로그를 볼 것."
+    say "운영 = $build_id (커밋 ${HEAD_SHA:0:7}), 첫 화면 200."
+    state_set deploy_confirmed_sha "$HEAD_SHA"
   fi
 fi
 
