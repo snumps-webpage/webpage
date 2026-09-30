@@ -168,3 +168,37 @@ describe("requestWithdrawal action", () => {
     expect(await statusOf()).toBe("regular");
   });
 });
+
+// 역대 회장단의 자리는 탈퇴해도 남는다. 무엇이 남는지는 여기서 고른다 —
+// 체크한 항목(keep.<field>)의 지금 값이 적힌다.
+describe("requestWithdrawal — what a past executive's seat keeps", () => {
+  beforeEach(async () => {
+    await invalidateCache("table_executive-profiles");
+    await mutate("members", () => [
+      { ...member, roles: [{ term: "25-1", title: "회장" }] },
+    ]);
+  });
+
+  it("records the kept fields with the withdrawal", async () => {
+    await expect(
+      actions.requestWithdrawal(
+        post({ ...valid, "keep.name": "on", "keep.department": "on" }),
+      ),
+    ).rejects.toMatchObject({ status: 303 });
+
+    expect(await statusOf()).toBe("withdrawn");
+    const [row] = await getTable("executive-profiles");
+    expect(row.afterWithdrawal).toMatchObject({
+      name: { source: "custom", value: NAME },
+      department: { source: "custom", value: "수리과학부" },
+      email: { source: "hidden" },
+    });
+  });
+
+  it("records nothing when the confirmation is refused", async () => {
+    await actions.requestWithdrawal(
+      post({ ...valid, confirmName: "김철수", "keep.name": "on" }),
+    );
+    expect(await getTable("executive-profiles")).toEqual([]);
+  });
+});

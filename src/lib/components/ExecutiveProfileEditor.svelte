@@ -4,21 +4,29 @@
   import {
     cohortLabel,
     LINKABLE_FIELDS,
-    PROFILE_FIELD_LABELS,
     PROFILE_FIELDS,
+    WITHDRAWN_FIELD_LABELS,
+    WITHDRAWN_FIELDS,
+    WITHDRAWN_NAME,
     type ExecutiveProfileFormFailure,
-    type ExecutiveProfileSettings,
-    type ProfileFieldKey,
+    type WithdrawnFieldKey,
   } from "$lib/domain/executive-profile";
 
   /**
-   * 역대 회장단 공개 프로필 편집기 — 본인 설정과 관리자 대리 편집이 같이 쓴다.
-   * 필드마다 비공개 / 회원 정보 사용(연동) / 직접 입력. 부모는 대상이나 저장된
-   * 설정이 바뀌면 {#key}로 다시 만든다; 검증 실패 때는 입력한 값이 그대로 남는다.
+   * 역대 회장단 프로필 편집기 — 본인 설정과 관리자 대리 편집이 같이 쓴다.
+   *
+   * - `public`: 공개 설정. 필드마다 비공개 / 회원 정보 사용(연동) / 직접 입력.
+   * - `withdrawn`: 탈퇴한 사람의 자리에 남을 것(관리자 전용). 이름을 포함하고,
+   *   연동은 없다 — 탈퇴 때의 스냅숏을 고쳐 적는다.
+   *
+   * 부모는 대상이나 저장된 설정이 바뀌면 {#key}로 다시 만든다; 검증 실패
+   * 때는 입력한 값이 그대로 남는다.
    */
+  type Setting = { source: string; value?: string };
   interface Props {
-    settings: ExecutiveProfileSettings;
-    linked: {
+    mode?: "public" | "withdrawn";
+    settings: Partial<Record<WithdrawnFieldKey, Setting>>;
+    linked?: {
       department: string | null;
       cohort: string | null;
       email: string | null;
@@ -27,20 +35,34 @@
     memberId?: string | null;
     failure?: ExecutiveProfileFormFailure | null;
   }
-  let { settings, linked, memberId = null, failure = null }: Props = $props();
+  let {
+    mode = "public",
+    settings,
+    linked = { department: null, cohort: null, email: null },
+    memberId = null,
+    failure = null,
+  }: Props = $props();
 
-  type Draft = Record<ProfileFieldKey, { source: string; value: string }>;
+  const withdrawn = untrack(() => mode === "withdrawn");
+  const fields: readonly WithdrawnFieldKey[] = withdrawn
+    ? WITHDRAWN_FIELDS
+    : PROFILE_FIELDS;
+  const linkable = (field: WithdrawnFieldKey) =>
+    !withdrawn && field !== "name" && LINKABLE_FIELDS[field];
+
+  // Only this mode's fields are filled; the others are never read.
+  type Draft = Record<WithdrawnFieldKey, { source: string; value: string }>;
   let draft = $state<Draft>(
     untrack(
       () =>
         Object.fromEntries(
-          PROFILE_FIELDS.map((field) => {
-            const s = settings[field];
+          fields.map((field) => {
+            const s = settings[field] ?? { source: "hidden" };
             return [
               field,
               {
                 source: s.source,
-                value: s.source === "custom" ? s.value : "",
+                value: s.source === "custom" ? (s.value ?? "") : "",
               },
             ];
           }),
@@ -49,7 +71,7 @@
   );
   let saving = $state(false);
 
-  function linkedText(field: ProfileFieldKey): string | null {
+  function linkedText(field: WithdrawnFieldKey): string | null {
     switch (field) {
       case "department":
         return linked.department;
@@ -58,35 +80,46 @@
       case "email":
         return linked.email;
       default:
-        return null; // 근황은 연동 원천이 없다
+        return null; // 이름·근황은 연동 원천이 없다
     }
   }
 
-  /** 지금 고른 대로면 공개 카드에 무엇이 나가는지. */
-  function shown(field: ProfileFieldKey): string | null {
-    const { source, value } = draft[field];
-    if (source === "member") return linkedText(field);
-    if (source !== "custom" || !value.trim()) return null;
-    return field === "cohort" ? cohortLabel(value.trim()) : value.trim();
+  /** 지금 고른 대로면 카드에 무엇이 나가는지. */
+  function shown(field: WithdrawnFieldKey): string | null {
+    const entry = draft[field];
+    if (!entry) return null;
+    if (entry.source === "member") return linkedText(field);
+    const value = entry.value.trim();
+    if (entry.source !== "custom" || !value) return null;
+    return field === "cohort" ? cohortLabel(value) : value;
   }
   const preview = $derived({
+    name: withdrawn ? (shown("name") ?? WITHDRAWN_NAME) : null,
     line: [shown("department"), shown("cohort")].filter(Boolean).join(" · "),
     email: shown("email"),
     bio: shown("bio"),
   });
 
-  const INPUT_HINT: Record<ProfileFieldKey, string> = {
+  const INPUT_HINT: Record<WithdrawnFieldKey, string> = {
+    name: "자리에 적을 이름",
     department: "예: 수리과학부",
     cohort: "입학년도 두 자리 (예: 18)",
     email: "공개할 이메일",
     bio: "근황 (200자 이내)",
+  };
+  const MAX_LENGTH: Record<WithdrawnFieldKey, number> = {
+    name: 40,
+    department: 40,
+    cohort: 2,
+    email: 100,
+    bio: 200,
   };
 </script>
 
 <form
   class="profile-editor"
   method="POST"
-  action="?/save"
+  action={withdrawn ? "?/saveWithdrawn" : "?/save"}
   use:enhance={() => {
     saving = true;
     return async ({ update }) => {
@@ -97,10 +130,10 @@
 >
   {#if memberId}<input type="hidden" name="memberId" value={memberId} />{/if}
 
-  {#each PROFILE_FIELDS as field (field)}
+  {#each fields as field (field)}
     {@const issue = failure?.issues[field]}
     <fieldset class="profile-field" class:invalid={!!issue}>
-      <legend>{PROFILE_FIELD_LABELS[field]}</legend>
+      <legend>{WITHDRAWN_FIELD_LABELS[field]}</legend>
       <div class="source-options">
         <label>
           <input
@@ -109,9 +142,9 @@
             value="hidden"
             bind:group={draft[field].source}
           />
-          비공개
+          {field === "name" ? "숨김 (탈퇴 회원)" : "비공개"}
         </label>
-        {#if LINKABLE_FIELDS[field]}
+        {#if linkable(field)}
           <label>
             <input
               type="radio"
@@ -132,7 +165,7 @@
             value="custom"
             bind:group={draft[field].source}
           />
-          직접 입력
+          {withdrawn ? "표시" : "직접 입력"}
         </label>
       </div>
 
@@ -141,19 +174,19 @@
           <textarea
             name="bio.value"
             rows="3"
-            maxlength="200"
+            maxlength={MAX_LENGTH.bio}
             placeholder={INPUT_HINT.bio}
             aria-label="근황"
-            bind:value={draft.bio.value}></textarea>
-          <span class="counter">{draft.bio.value.length}/200</span>
+            bind:value={draft[field].value}></textarea>
+          <span class="counter">{draft.bio.value.length}/{MAX_LENGTH.bio}</span>
         {:else}
           <input
             name={`${field}.value`}
             type={field === "email" ? "email" : "text"}
             inputmode={field === "cohort" ? "numeric" : undefined}
-            maxlength={field === "cohort" ? 2 : field === "email" ? 100 : 40}
+            maxlength={MAX_LENGTH[field]}
             placeholder={INPUT_HINT[field]}
-            aria-label={PROFILE_FIELD_LABELS[field]}
+            aria-label={WITHDRAWN_FIELD_LABELS[field]}
             bind:value={draft[field].value}
           />
         {/if}
@@ -164,12 +197,17 @@
 
   <section class="preview" aria-label="공개 미리보기">
     <p class="preview-label">공개 미리보기</p>
+    {#if preview.name}<p class="name">{preview.name}</p>{/if}
     {#if preview.line || preview.email || preview.bio}
       {#if preview.line}<p>{preview.line}</p>{/if}
       {#if preview.email}<p class="mono">{preview.email}</p>{/if}
       {#if preview.bio}<p class="bio">{preview.bio}</p>{/if}
     {:else}
-      <p class="muted">이름과 직위만 공개됩니다.</p>
+      <p class="muted">
+        {withdrawn
+          ? "직위와 이름 자리만 남습니다."
+          : "이름과 직위만 공개됩니다."}
+      </p>
     {/if}
   </section>
 
@@ -259,6 +297,10 @@
     color: var(--latex-muted);
     font: 700 0.58rem/1 var(--font-mono);
     letter-spacing: 0.08em;
+  }
+  .preview .name {
+    font-size: 0.95rem;
+    font-weight: 570;
   }
   .preview .mono {
     font-family: var(--font-mono);

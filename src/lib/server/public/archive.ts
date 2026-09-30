@@ -7,7 +7,7 @@ import { getTable } from "$lib/server/data/tables";
 import { currentTerm } from "$lib/server/core/semester";
 import { formatPhoneForDisplay } from "$lib/utils";
 import { PUBLIC_EXECUTIVE_TITLES } from "$lib/domain/executive-profile";
-import { publicProfileResolver } from "$lib/server/services/executive-profiles";
+import { publicExecutiveResolver } from "$lib/server/services/executive-profiles";
 
 /**
  * Public-zone reads (API-SPEC §3 / BE-60·61). EVERYTHING here is guest-facing:
@@ -87,7 +87,8 @@ export async function getPublicMembers() {
 const PUBLIC_EXECUTIVE_ORDER = PUBLIC_EXECUTIVE_TITLES;
 
 export async function getPublicExecutives() {
-  return (await executiveHolders()).map(({ term, holders }) => ({
+  const { terms } = await executiveHolders();
+  return terms.map(({ term, holders }) => ({
     term,
     holders: holders.map(({ holder }) => holder),
   }));
@@ -99,26 +100,28 @@ export async function getPublicExecutives() {
  * getPublicExecutives()를 부르므로, 프로필은 여기서만 싣는다.
  */
 export async function getPublicExecutiveHistory() {
-  const [terms, profileFor] = await Promise.all([
-    executiveHolders(),
-    publicProfileResolver(),
-  ]);
+  const { terms, resolve } = await executiveHolders();
   return terms.map(({ term, holders }) => ({
     term,
     holders: holders.map(({ holder, member }) => ({
       ...holder,
-      profile: profileFor(member),
+      profile: resolve.profile(member),
     })),
   }));
 }
 
-/** 학기별 회장·부회장 — 공개 필드(holder)와, 해석용 명부 행(member)을 함께. */
+/**
+ * 학기별 회장·부회장 — 공개 필드(holder)와, 해석용 명부 행(member)을 함께.
+ * 탈퇴한 회장단도 자리는 남는다; 이름은 탈퇴하면서 남기기로 한 경우에만
+ * 적힌다(publicExecutiveResolver).
+ */
 async function executiveHolders() {
   const term = currentTerm();
-  const [members, infos, legacyInfos] = await Promise.all([
+  const [members, infos, legacyInfos, resolve] = await Promise.all([
     getMemberDirectory(),
     getTable("private-info"),
     getTable("legacy-private-info"),
+    publicExecutiveResolver(),
   ]);
   // 현 회장단 전화 조회 전용. 운영 행이 우선이고, 운영 행에 번호가 없을 때만
   // legacy(재가입 전 아카이브)로 내려간다. **공개 거부는 사람 단위다** — 운영
@@ -162,7 +165,7 @@ async function executiveHolders() {
         holder: {
           term: r.term,
           title: r.title,
-          name: m.name,
+          name: resolve.name(m),
           // 현재 학기 회장/부회장만 전화 자동 공개 — 그 외는 null
           contact: r.term === term ? contactFor(m) : null,
         },
@@ -173,7 +176,7 @@ async function executiveHolders() {
   }
   const rank = (title: string) =>
     PUBLIC_EXECUTIVE_ORDER.indexOf(title as "회장");
-  return [...byTerm.entries()]
+  const terms = [...byTerm.entries()]
     .sort(([a], [b]) => b.localeCompare(a))
     .map(([t, holders]) => ({
       term: t,
@@ -181,6 +184,7 @@ async function executiveHolders() {
         (x, y) => rank(x.holder.title) - rank(y.holder.title),
       ),
     }));
+  return { terms, resolve };
 }
 
 /**

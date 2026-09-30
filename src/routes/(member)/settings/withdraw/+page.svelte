@@ -3,6 +3,10 @@
   import AccountSettingsNav from "$lib/components/account/AccountSettingsNav.svelte";
   import { MANUSCRIPT } from "$lib/constants";
   import type { WithdrawalFormFailure } from "$lib/domain/account";
+  import {
+    cohortLabel,
+    WITHDRAWN_FIELD_LABELS,
+  } from "$lib/domain/executive-profile";
 
   let { data, form } = $props();
   let step = $state(1);
@@ -105,6 +109,34 @@
       {#if actionForm?.issues?.ackDataPolicy}<p class="field-error">
           {actionForm.issues.ackDataPolicy}
         </p>{/if}
+      {#if data.executiveChoices}
+        <fieldset class="seat-choices">
+          <legend>역대 회장단 기록</legend>
+          <p>
+            회장단 이력은 탈퇴 후에도 <a href="/about/executives">역대 회장단</a
+            >에 자리로 남습니다. 그 자리에 남길 항목을 고르세요 — 지금 값 그대로
+            적히며, 이름을 빼면 직위와 "탈퇴 회원"만 남습니다. 탈퇴 뒤의 변경은
+            관리자에게 요청해 주세요.
+          </p>
+          {#each data.executiveChoices as choice (choice.field)}
+            <label class="check-row">
+              <input
+                type="checkbox"
+                name={`keep.${choice.field}`}
+                checked={choice.checked}
+              />
+              <span>
+                <strong>{WITHDRAWN_FIELD_LABELS[choice.field]}</strong>
+                <span class="seat-value"
+                  >{choice.field === "cohort"
+                    ? cohortLabel(choice.value)
+                    : choice.value}</span
+                >
+              </span>
+            </label>
+          {/each}
+        </fieldset>
+      {/if}
       <div class="actions">
         <button type="button" class="paper-btn" onclick={() => (step = 1)}
           >이전</button
@@ -233,6 +265,38 @@
     height: 1rem;
     margin: 0.08rem 0 0;
     accent-color: var(--latex-text);
+  }
+  .seat-choices {
+    display: grid;
+    gap: 0.4rem;
+    margin: 1rem 0 0;
+    padding: 0.8rem;
+    border: 1px dashed var(--latex-rule);
+  }
+  .seat-choices legend {
+    padding: 0 0.3rem;
+    color: var(--latex-accent);
+    font: 700 0.62rem/1 var(--font-mono);
+    letter-spacing: 0.08em;
+  }
+  .seat-choices p {
+    margin: 0 0 0.2rem;
+    color: var(--latex-muted);
+    font-size: 0.74rem;
+    line-height: 1.65;
+  }
+  .seat-choices a {
+    color: var(--latex-text);
+  }
+  .seat-choices .check-row {
+    padding: 0.5rem 0.65rem;
+  }
+  .seat-value {
+    margin-left: 0.4rem;
+    color: var(--latex-muted);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    overflow-wrap: anywhere;
   }
   .name-field {
     display: grid;

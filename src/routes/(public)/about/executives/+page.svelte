@@ -177,7 +177,8 @@
   .executive-card h3 {
     margin: 0;
   }
-  .executive-card p {
+  /* the title label only — profile paragraphs sit inside .profile-block */
+  .executive-card > p {
     color: var(--latex-muted);
     font-family: var(--font-mono);
     font-size: 0.58rem;

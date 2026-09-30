@@ -1,6 +1,11 @@
 import { fail, redirect } from "@sveltejs/kit";
 import { isStudyClosed } from "$lib/domain/studies";
 import { validateWithdrawalRequestForm } from "$lib/domain/account";
+import { parseWithdrawalKeepForm } from "$lib/domain/executive-profile";
+import {
+  getWithdrawalChoices,
+  recordWithdrawalChoice,
+} from "$lib/server/services/executive-profiles";
 import { handleUserAction } from "$lib/server/auth-guards";
 import { requestWithdrawal } from "$lib/server/services/withdrawal";
 import { getTable } from "$lib/server/data/tables";
@@ -24,7 +29,12 @@ export const load: PageServerLoad = async ({ locals }) => {
         s.organizerIds.some((id) => ids.has(id)) && !isStudyClosed(s.status),
     )
     .map((s) => s.title);
-  return { memberName: locals.member!.name, organizedStudies };
+  return {
+    memberName: locals.member!.name,
+    organizedStudies,
+    // null: no 회장·부회장 history — the form has no seat section
+    executiveChoices: await getWithdrawalChoices(memberId),
+  };
 };
 
 export const actions = {
@@ -43,6 +53,10 @@ export const actions = {
       // all three atomically — client steps are UX.
       const parsed = validateWithdrawalRequestForm(data, locals.member!.name);
       if (!parsed.success) return fail(400, parsed.failure);
+      // A past 회장·부회장 keeps a seat on the executive history; what it shows
+      // is what they tick here, recorded before the status flips. It is read
+      // only while withdrawn, so a refused request below leaves it inert.
+      await recordWithdrawalChoice(memberId, parseWithdrawalKeepForm(data));
       // A member who still organizes a study gets CONFLICT from the service.
       await requestWithdrawal(memberId, parsed.data);
 

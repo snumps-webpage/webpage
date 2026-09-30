@@ -1,10 +1,15 @@
 import {
   cohortFromStudentId,
   HIDDEN_PROFILE,
+  HIDDEN_WITHDRAWN_PROFILE,
   PROFILE_FIELDS,
   PUBLIC_EXECUTIVE_TITLES,
+  WITHDRAWN_FIELDS,
+  WITHDRAWN_NAME,
   type ExecutiveProfileSettings,
   type PublicExecutiveProfile,
+  type WithdrawnFieldKey,
+  type WithdrawnProfile,
 } from "$lib/domain/executive-profile";
 import { compareSemesters } from "$lib/domain/semester-order";
 import { AppError } from "$lib/server/core/errors";
@@ -148,31 +153,61 @@ function linkedResolver(s: Sources): (member: Member) => LinkedValues {
 }
 
 /**
- * 공개 프로필 해석기 — 역대 회장단 페이지 로드가 명부 행마다 부른다.
- * 행이 없거나, 탈퇴했거나, 공개할 값이 하나도 없으면 null.
+ * 공개 해석기 — 회장단 명단을 만드는 로드가 명부 행마다 부른다.
+ *
+ * - `name`: 자리에 적을 이름. 탈퇴 회원은 탈퇴하면서 이름을 남기기로 했을
+ *   때만 그 이름이고, 아니면 WITHDRAWN_NAME이다 — 자리 자체는 언제나 남는다.
+ *   고른 기록이 없는 탈퇴(이 기능 전)는 종전처럼 이름을 적는다.
+ * - `profile`: 운영 회원은 공개 설정대로(연동은 지금 읽는다), 탈퇴 회원은
+ *   탈퇴 때 고른 스냅숏대로. 공개할 값이 하나도 없으면 null.
  */
-export async function publicProfileResolver(): Promise<
-  (member: Member) => PublicExecutiveProfile | null
-> {
+export async function publicExecutiveResolver(): Promise<{
+  name: (member: Member) => string;
+  profile: (member: Member) => PublicExecutiveProfile | null;
+}> {
   const s = await loadSources();
   const linked = linkedResolver(s);
-  return (member) => {
-    if (member.status === "withdrawn") return null;
-    const row = profileRowFor(member, s.profiles);
-    if (!row) return null;
-    const source = linked(member);
-    const pick = (field: "department" | "cohort" | "email") => {
-      const setting = row[field];
-      if (setting.source === "custom") return setting.value;
-      return setting.source === "member" ? source[field] : null;
-    };
-    const profile: PublicExecutiveProfile = {
-      department: pick("department"),
-      cohort: pick("cohort"),
-      publicEmail: pick("email"),
-      bio: row.bio.source === "custom" ? row.bio.value : null,
-    };
-    return Object.values(profile).some((v) => v !== null) ? profile : null;
+  const withdrawnView = (member: Member) =>
+    member.status === "withdrawn"
+      ? (profileRowFor(member, s.profiles)?.afterWithdrawal ?? null)
+      : undefined;
+  const custom = (setting: { source: string; value?: string }) =>
+    setting.source === "custom" ? (setting.value ?? null) : null;
+  const orNull = (profile: PublicExecutiveProfile) =>
+    Object.values(profile).some((v) => v !== null) ? profile : null;
+
+  return {
+    name(member) {
+      const kept = withdrawnView(member);
+      if (!kept) return member.name; // 운영 회원, 또는 고른 적 없는 탈퇴
+      return custom(kept.name) ?? WITHDRAWN_NAME;
+    },
+    profile(member) {
+      const kept = withdrawnView(member);
+      if (kept === null) return null;
+      if (kept) {
+        return orNull({
+          department: custom(kept.department),
+          cohort: custom(kept.cohort),
+          publicEmail: custom(kept.email),
+          bio: custom(kept.bio),
+        });
+      }
+      const row = profileRowFor(member, s.profiles);
+      if (!row) return null;
+      const source = linked(member);
+      const pick = (field: "department" | "cohort" | "email") => {
+        const setting = row[field];
+        if (setting.source === "custom") return setting.value;
+        return setting.source === "member" ? source[field] : null;
+      };
+      return orNull({
+        department: pick("department"),
+        cohort: pick("cohort"),
+        publicEmail: pick("email"),
+        bio: custom(row.bio),
+      });
+    },
   };
 }
 
@@ -187,7 +222,10 @@ export interface ProfileEditor {
   name: string;
   roles: MemberRole[];
   legacyOnly: boolean;
+  /** 탈퇴 상태 — 공개되는 것은 settings가 아니라 afterWithdrawal이다. */
+  withdrawn: boolean;
   settings: ExecutiveProfileSettings;
+  afterWithdrawal: WithdrawnProfile;
   linked: LinkedValues;
 }
 
@@ -195,27 +233,37 @@ export interface ProfileEditor {
 export async function getProfileEditor(id: string): Promise<ProfileEditor> {
   const s = await loadSources();
   const person = requireEligible(id, s);
+  const row = profileRowFor(person.member, s.profiles);
   return {
     memberId: person.member.id,
     name: person.member.name,
     roles: executiveRoles(person),
     legacyOnly: person.legacyOnly,
-    settings: settingsOf(profileRowFor(person.member, s.profiles)),
+    withdrawn: person.member.status === "withdrawn",
+    settings: settingsOf(row),
+    afterWithdrawal: structuredClone(
+      row?.afterWithdrawal ?? HIDDEN_WITHDRAWN_PROFILE,
+    ) as WithdrawnProfile,
     linked: linkedResolver(s)(person.member),
   };
 }
 
 /**
- * 저장 — 사람당 한 행. legacy id로 적힌 행이 있으면 그 행을 운영 id로 옮겨
- * 적는다. 감사 기록에는 필드별 출처만 남기고 값은 남기지 않는다(audit.ts).
+ * 사람당 한 행으로 고쳐 쓴다. legacy id로 적힌 행이 있으면 그 행을 운영 id로
+ * 옮겨 적는다. `change`는 지금 행(없으면 undefined)을 받아 바꿀 부분을 준다.
  */
-export async function saveExecutiveProfile(
-  id: string,
-  settings: ExecutiveProfileSettings,
-  actor: { actorId: string; byAdmin: boolean },
+async function upsertProfile(
+  member: Member,
+  actorId: string,
+  change: (
+    existing: ExecutiveProfile | undefined,
+  ) => Partial<
+    Pick<
+      ExecutiveProfile,
+      "department" | "cohort" | "email" | "bio" | "afterWithdrawal"
+    >
+  >,
 ): Promise<void> {
-  const person = requireEligible(id, await loadSources());
-  const member = person.member;
   const ids = new Set(
     [member.id, member.legacyMemberId].filter((v): v is string => !!v),
   );
@@ -224,12 +272,34 @@ export async function saveExecutiveProfile(
     const next: ExecutiveProfile = {
       id: existing?.id ?? newId(),
       memberId: member.id,
-      ...structuredClone(settings),
+      ...structuredClone(settingsOf(existing)),
+      afterWithdrawal: structuredClone(existing?.afterWithdrawal ?? null),
+      ...structuredClone(change(existing)),
       updatedAt: nowKstIso(),
-      updatedBy: actor.actorId,
+      updatedBy: actorId,
     };
     return [...rows.filter((r) => !ids.has(r.memberId)), next];
   });
+}
+
+/**
+ * 공개 설정 저장. 감사 기록에는 필드별 출처만 남기고 값은 남기지 않는다
+ * (audit.ts). 탈퇴한 뒤에는 본인이 고칠 수 없다 — 자리에 무엇이 남는지는
+ * 탈퇴하면서 정했고, 그 뒤의 변경은 관리자가 한다(saveWithdrawnProfile).
+ */
+export async function saveExecutiveProfile(
+  id: string,
+  settings: ExecutiveProfileSettings,
+  actor: { actorId: string; byAdmin: boolean },
+): Promise<void> {
+  const { member } = requireEligible(id, await loadSources());
+  if (member.status === "withdrawn" && !actor.byAdmin) {
+    throw new AppError("CONFLICT", {
+      userMessage:
+        "탈퇴 처리 중에는 공개 프로필을 고칠 수 없습니다. 변경이 필요하면 관리자에게 요청해 주세요.",
+    });
+  }
+  await upsertProfile(member, actor.actorId, () => settings);
   await audit({
     actorMemberId: actor.actorId,
     action: "executive-profile.update",
@@ -244,12 +314,116 @@ export async function saveExecutiveProfile(
   });
 }
 
+export interface WithdrawalChoice {
+  field: WithdrawnFieldKey;
+  /** 남기면 적힐 값 — 학번은 입학년도 두 자리. */
+  value: string;
+  /** 기본값: 지금 공개 중인가. 이름은 지금 언제나 공개 중이다. */
+  checked: boolean;
+}
+
+/**
+ * 탈퇴 폼이 보여 줄 항목 — 값이 있는 것만. 값은 지금 공개 중인 모습 그대로
+ * (직접 입력이면 그 값, 아니면 회원 기록의 값)이고, 체크 기본값은 지금 공개
+ * 중인지다.
+ */
+function withdrawalChoices(person: Person, s: Sources): WithdrawalChoice[] {
+  const settings = settingsOf(profileRowFor(person.member, s.profiles));
+  const linked = linkedResolver(s)(person.member);
+  const choices: WithdrawalChoice[] = [
+    { field: "name", value: person.member.name, checked: true },
+  ];
+  for (const field of ["department", "cohort", "email"] as const) {
+    const setting = settings[field];
+    const value = setting.source === "custom" ? setting.value : linked[field];
+    if (value) {
+      choices.push({ field, value, checked: setting.source !== "hidden" });
+    }
+  }
+  if (settings.bio.source === "custom") {
+    choices.push({ field: "bio", value: settings.bio.value, checked: true });
+  }
+  return choices;
+}
+
+/** 탈퇴 폼용. 회장·부회장 이력이 없으면 null — 폼에 이 단계가 없다. */
+export async function getWithdrawalChoices(
+  id: string,
+): Promise<WithdrawalChoice[] | null> {
+  const s = await loadSources();
+  const person = resolvePerson(id, s);
+  if (!person || executiveRoles(person).length === 0) return null;
+  return withdrawalChoices(person, s);
+}
+
+/**
+ * 탈퇴 신청과 함께 — 체크한 항목을 **지금 값으로** 적어 둔다. 값은 폼이 아니라
+ * 서버가 다시 읽는다. 회장·부회장 이력이 없으면 아무것도 하지 않는다. 탈퇴
+ * 상태가 되기 전에는 공개에 쓰이지 않으므로, 신청이 실패해도 해가 없다.
+ */
+export async function recordWithdrawalChoice(
+  id: string,
+  keep: readonly WithdrawnFieldKey[],
+): Promise<void> {
+  const s = await loadSources();
+  const person = resolvePerson(id, s);
+  if (!person || executiveRoles(person).length === 0) return;
+  const kept = withdrawalChoices(person, s).filter((c) =>
+    keep.includes(c.field),
+  );
+  const afterWithdrawal = structuredClone(
+    HIDDEN_WITHDRAWN_PROFILE,
+  ) as WithdrawnProfile;
+  for (const c of kept) {
+    afterWithdrawal[c.field] = { source: "custom", value: c.value };
+  }
+  await upsertProfile(person.member, person.member.id, () => ({
+    afterWithdrawal,
+  }));
+  await audit({
+    actorMemberId: person.member.id,
+    action: "executive-profile.update",
+    targetTable: "executive-profiles",
+    targetId: person.member.id,
+    detail: { withdrawal: true, kept: kept.map((c) => c.field) },
+  });
+}
+
+/** 관리자: 탈퇴한 회장단의 자리에 무엇을 적을지 고친다. */
+export async function saveWithdrawnProfile(
+  id: string,
+  profile: WithdrawnProfile,
+  actorId: string,
+): Promise<void> {
+  const { member } = requireEligible(id, await loadSources());
+  if (member.status !== "withdrawn") {
+    throw new AppError("CONFLICT", {
+      userMessage: "탈퇴하지 않은 회원입니다 — 공개 설정을 고쳐 주세요.",
+    });
+  }
+  await upsertProfile(member, actorId, () => ({ afterWithdrawal: profile }));
+  await audit({
+    actorMemberId: actorId,
+    action: "executive-profile.update",
+    targetTable: "executive-profiles",
+    targetId: member.id,
+    detail: {
+      byAdmin: true,
+      withdrawn: true,
+      sources: Object.fromEntries(
+        WITHDRAWN_FIELDS.map((f) => [f, profile[f].source]),
+      ),
+    },
+  });
+}
+
 export interface ProfileCandidate {
   id: string;
   name: string;
   roles: MemberRole[];
   hasProfile: boolean;
   legacyOnly: boolean;
+  withdrawn: boolean;
 }
 
 /** 관리자 목록 — 역대 회장·부회장 전원, 최근 학기 먼저. */
@@ -271,6 +445,7 @@ export async function listExecutiveProfileCandidates(): Promise<
       roles: executiveRoles(p),
       hasProfile: !!profileRowFor(p.member, s.profiles),
       legacyOnly: p.legacyOnly,
+      withdrawn: p.member.status === "withdrawn",
     }))
     .filter((c) => c.roles.length > 0)
     .sort(

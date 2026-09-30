@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   cohortFromStudentId,
   parseExecutiveProfileForm,
+  parseWithdrawalKeepForm,
+  parseWithdrawnProfileForm,
 } from "./executive-profile";
 
 function form(fields: Record<string, string>) {
@@ -121,5 +123,64 @@ describe("cohortFromStudentId", () => {
     ["abcd", null],
   ])("%j → %j", (studentId, cohort) => {
     expect(cohortFromStudentId(studentId)).toBe(cohort);
+  });
+});
+
+// 탈퇴 후 표시분 — 탈퇴 시점 값의 스냅숏이라 연동(member)이 없고, 이름도 고른다.
+describe("parseWithdrawnProfileForm", () => {
+  const hiddenAll = {
+    "name.source": "hidden",
+    "department.source": "hidden",
+    "cohort.source": "hidden",
+    "email.source": "hidden",
+    "bio.source": "hidden",
+  };
+
+  it("reads the name alongside the four fields", () => {
+    const result = parseWithdrawnProfileForm(
+      form({ ...hiddenAll, "name.source": "custom", "name.value": " 김회장 " }),
+    );
+    expect(result).toEqual({
+      success: true,
+      data: {
+        name: { source: "custom", value: "김회장" },
+        department: { source: "hidden" },
+        cohort: { source: "hidden" },
+        email: { source: "hidden" },
+        bio: { source: "hidden" },
+      },
+    });
+  });
+
+  it("refuses a linked source — nothing is read from the record after withdrawal", () => {
+    const result = parseWithdrawnProfileForm(
+      form({ ...hiddenAll, "email.source": "member" }),
+    );
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(Object.keys(result.failure.issues)).toEqual(["email"]);
+  });
+
+  it("refuses an empty or over-long custom name", () => {
+    for (const value of ["  ", "가".repeat(41)]) {
+      const result = parseWithdrawnProfileForm(
+        form({ ...hiddenAll, "name.source": "custom", "name.value": value }),
+      );
+      expect(result.success).toBe(false);
+    }
+  });
+});
+
+describe("parseWithdrawalKeepForm", () => {
+  it("returns the fields whose keep box is checked, in field order", () => {
+    expect(
+      parseWithdrawalKeepForm(
+        form({ "keep.email": "on", "keep.name": "on", "keep.bogus": "on" }),
+      ),
+    ).toEqual(["name", "email"]);
+  });
+
+  it("returns nothing when no box is checked", () => {
+    expect(parseWithdrawalKeepForm(form({ confirmName: "x" }))).toEqual([]);
   });
 });

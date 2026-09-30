@@ -1,11 +1,15 @@
 import { fail } from "@sveltejs/kit";
-import { parseExecutiveProfileForm } from "$lib/domain/executive-profile";
+import {
+  parseExecutiveProfileForm,
+  parseWithdrawnProfileForm,
+} from "$lib/domain/executive-profile";
 import { ensureAdmin, handleAdminAction } from "$lib/server/auth-guards";
 import { AppError } from "$lib/server/core/errors";
 import {
   getProfileEditor,
   listExecutiveProfileCandidates,
   saveExecutiveProfile,
+  saveWithdrawnProfile,
 } from "$lib/server/services/executive-profiles";
 import type { PageServerLoad } from "./$types";
 
@@ -47,6 +51,28 @@ export const actions = {
         actorId: locals.member!.memberId,
         byAdmin: true,
       });
+      return { operation: "saved" };
+    });
+  },
+
+  /** 탈퇴한 회장단의 자리에 남을 것 — 탈퇴 뒤의 변경은 관리자만 한다. */
+  saveWithdrawn: async ({
+    request,
+    locals,
+  }: {
+    request: Request;
+    locals: App.Locals;
+  }) => {
+    const data = await request.formData();
+    return handleAdminAction(locals, async () => {
+      const parsed = parseWithdrawnProfileForm(data);
+      if (!parsed.success) return fail(400, parsed.failure);
+      const memberId = ((data.get("memberId") as string) ?? "").trim();
+      await saveWithdrawnProfile(
+        memberId,
+        parsed.data,
+        locals.member!.memberId,
+      );
       return { operation: "saved" };
     });
   },

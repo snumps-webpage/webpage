@@ -15,6 +15,8 @@ const Custom = z.object({
   value: z.string().min(1),
 });
 
+const HiddenOrCustom = z.discriminatedUnion("source", [Hidden, Custom]);
+
 export const ProfileField = z.discriminatedUnion("source", [
   Hidden,
   z.object({ source: z.literal("member") }),
@@ -28,7 +30,20 @@ export const ExecutiveProfileSchema = z.object({
   cohort: ProfileField,
   email: ProfileField,
   // 근황은 회원 DB에 원천이 없다 — 연동이 없다.
-  bio: z.discriminatedUnion("source", [Hidden, Custom]),
+  bio: HiddenOrCustom,
+  // 탈퇴 후 표시분 — 탈퇴하면서 고른 항목의 그 시점 값(스냅숏, 이름 포함).
+  // 탈퇴 상태일 때만 쓰이고, 탈퇴를 철회하면 위의 설정이 다시 쓰인다.
+  // null: 고른 적이 없다(이 기능 전의 탈퇴) — 이름만 남고 프로필은 없다.
+  afterWithdrawal: z
+    .object({
+      name: HiddenOrCustom,
+      department: HiddenOrCustom,
+      cohort: HiddenOrCustom,
+      email: HiddenOrCustom,
+      bio: HiddenOrCustom,
+    })
+    .nullable()
+    .default(null),
   updatedAt: DateTime,
   updatedBy: Id,
 });

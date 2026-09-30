@@ -31,10 +31,14 @@ function localsFor(isAdmin: boolean) {
   } as unknown as App.Locals;
 }
 
-function post(isAdmin: boolean, fields: Record<string, string>) {
+function post(
+  isAdmin: boolean,
+  fields: Record<string, string>,
+  action: keyof typeof actions = "save",
+) {
   const body = new FormData();
   for (const [k, v] of Object.entries(fields)) body.set(k, v);
-  return actions.save({
+  return actions[action]({
     request: new Request("http://localhost/admin/executives/profiles", {
       method: "POST",
       body,
@@ -104,6 +108,57 @@ describe("admin/executives/profiles ?/save", () => {
 
   it("answers the field issues on a bad form", async () => {
     const result = await post(true, { ...FORM, "email.source": "public" });
+    expect(result).toMatchObject({
+      status: 400,
+      data: { issues: { email: expect.any(String) } },
+    });
+  });
+});
+
+// 탈퇴 뒤에는 자리에 남은 것을 관리자만 고친다 — 연동 없이 이름 포함.
+describe("admin/executives/profiles ?/saveWithdrawn", () => {
+  const WITHDRAWN_FORM = {
+    memberId: "L1",
+    "name.source": "hidden",
+    "department.source": "custom",
+    "department.value": "물리학과",
+    "cohort.source": "hidden",
+    "email.source": "hidden",
+    "bio.source": "hidden",
+  };
+
+  async function markWithdrawn() {
+    const [row] = await getTable("legacy-members");
+    await invalidateCache("table_legacy-members");
+    await __putRawDoc("table", "legacy-members", {
+      schemaVersion: 1,
+      rows: [{ ...row, status: "withdrawn" }],
+    });
+  }
+
+  it("rewrites what a withdrawn executive's seat shows", async () => {
+    await markWithdrawn();
+    const result = await post(true, WITHDRAWN_FORM, "saveWithdrawn");
+    expect(result).toMatchObject({ success: true });
+    const [row] = await getTable("executive-profiles");
+    expect(row.afterWithdrawal).toMatchObject({
+      name: { source: "hidden" },
+      department: { source: "custom", value: "물리학과" },
+    });
+  });
+
+  it("answers CONFLICT for someone who has not withdrawn", async () => {
+    const result = await post(true, WITHDRAWN_FORM, "saveWithdrawn");
+    expect(result).toMatchObject({ status: 409 });
+  });
+
+  it("refuses a linked source", async () => {
+    await markWithdrawn();
+    const result = await post(
+      true,
+      { ...WITHDRAWN_FORM, "email.source": "member" },
+      "saveWithdrawn",
+    );
     expect(result).toMatchObject({
       status: 400,
       data: { issues: { email: expect.any(String) } },

@@ -44,6 +44,7 @@
           <span class="name">
             {c.name}
             {#if c.legacyOnly}<small class="tag">이주 기록</small>{/if}
+            {#if c.withdrawn}<small class="tag">탈퇴</small>{/if}
           </span>
           <span class="roles">{roleText(c.roles)}</span>
           <span class="state" class:set={c.hasProfile}>
@@ -66,14 +67,30 @@
             {form.message ?? "저장하지 못했습니다."}
           </p>
         {/if}
-        {#key `${editor.memberId}:${JSON.stringify(editor.settings)}`}
-          <ExecutiveProfileEditor
-            settings={editor.settings}
-            linked={editor.linked}
-            memberId={editor.memberId}
-            {failure}
-          />
-        {/key}
+        {#if editor.withdrawn}
+          <p class="withdrawn-note">
+            <strong>탈퇴한 회원입니다.</strong> 역대 회장단의 자리에는 탈퇴하면서
+            남기기로 한 값이 적혀 있습니다(탈퇴 시점 스냅숏). 여기서 고치면 그 자리에
+            바로 반영됩니다.
+          </p>
+          {#key `${editor.memberId}:${JSON.stringify(editor.afterWithdrawal)}`}
+            <ExecutiveProfileEditor
+              mode="withdrawn"
+              settings={editor.afterWithdrawal}
+              memberId={editor.memberId}
+              {failure}
+            />
+          {/key}
+        {:else}
+          {#key `${editor.memberId}:${JSON.stringify(editor.settings)}`}
+            <ExecutiveProfileEditor
+              settings={editor.settings}
+              linked={editor.linked}
+              memberId={editor.memberId}
+              {failure}
+            />
+          {/key}
+        {/if}
       {:else if data.selected}
         <p class="empty">
           목록에 없는 회원입니다 — 회장·부회장 이력이 있는 사람만 공개 프로필을
@@ -158,6 +175,14 @@
   }
   .editor-pane > .roles {
     margin: 0.2rem 0 0.8rem;
+  }
+  .withdrawn-note {
+    margin: 0 0 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--latex-accent);
+    border-left-width: 4px;
+    font-size: 0.76rem;
+    line-height: 1.6;
   }
   .notice,
   .error {

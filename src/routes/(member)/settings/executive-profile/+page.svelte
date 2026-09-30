@@ -48,13 +48,21 @@
     </p>
   {/if}
 
-  {#key `${editor.memberId}:${JSON.stringify(editor.settings)}`}
-    <ExecutiveProfileEditor
-      settings={editor.settings}
-      linked={editor.linked}
-      {failure}
-    />
-  {/key}
+  {#if editor.withdrawn}
+    <p class="result-note" role="note">
+      탈퇴 처리 중입니다. 역대 회장단의 자리에는 탈퇴하면서 남기기로 한 항목이
+      표시되며, 변경이 필요하면 관리자에게 요청해 주세요. 탈퇴를 철회하면 이
+      화면의 설정이 다시 적용됩니다.
+    </p>
+  {:else}
+    {#key `${editor.memberId}:${JSON.stringify(editor.settings)}`}
+      <ExecutiveProfileEditor
+        settings={editor.settings}
+        linked={editor.linked}
+        {failure}
+      />
+    {/key}
+  {/if}
 </article>
 
 <style>

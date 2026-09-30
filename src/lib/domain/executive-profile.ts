@@ -78,7 +78,39 @@ export const cohortLabel = (cohort: string) => `${cohort}학번`;
 const INVISIBLES = /[\u00AD\u200B-\u200D\uFEFF\u2060]/g;
 const clean = (text: string) => text.replace(INVISIBLES, "").trim();
 
-const CUSTOM_VALUE: Record<ProfileFieldKey, z.ZodType<string>> = {
+/**
+ * 탈퇴 후 표시분 — 탈퇴하면서 고른 항목을 **그 시점 값 그대로** 적어 둔다.
+ * 연동이 없는 까닭은 탈퇴 뒤 회원 기록이 익명화될 수 있어서다: 역대 회장단의
+ * 자리는 남아야 하고, 무엇이 남는지는 탈퇴한 본인이 정한 대로여야 한다.
+ * 이름도 고른다 — 숨기면 자리에는 직위와 WITHDRAWN_NAME만 남는다.
+ */
+export const WITHDRAWN_FIELDS = ["name", ...PROFILE_FIELDS] as const;
+export type WithdrawnFieldKey = (typeof WITHDRAWN_FIELDS)[number];
+export type WithdrawnFieldSetting =
+  { source: "hidden" } | { source: "custom"; value: string };
+export type WithdrawnProfile = Record<WithdrawnFieldKey, WithdrawnFieldSetting>;
+
+export const WITHDRAWN_NAME = "탈퇴 회원";
+
+export const HIDDEN_WITHDRAWN_PROFILE: Readonly<WithdrawnProfile> =
+  Object.freeze<WithdrawnProfile>({
+    name: { source: "hidden" },
+    department: { source: "hidden" },
+    cohort: { source: "hidden" },
+    email: { source: "hidden" },
+    bio: { source: "hidden" },
+  });
+
+export const WITHDRAWN_FIELD_LABELS: Record<WithdrawnFieldKey, string> = {
+  name: "이름",
+  ...PROFILE_FIELD_LABELS,
+};
+
+const CUSTOM_VALUE: Record<WithdrawnFieldKey, z.ZodType<string>> = {
+  name: z
+    .string()
+    .min(1, "이름을 입력해 주세요.")
+    .max(40, "이름은 40자 이내로 입력해 주세요."),
   department: z
     .string()
     .min(1, "학과를 입력해 주세요.")
@@ -97,47 +129,45 @@ const CUSTOM_VALUE: Record<ProfileFieldKey, z.ZodType<string>> = {
     .max(200, "근황은 200자 이내로 입력해 주세요."),
 };
 
-type SubmittedValues = Record<
-  ProfileFieldKey,
-  { source: string; value: string }
+type SubmittedValues = Partial<
+  Record<WithdrawnFieldKey, { source: string; value: string }>
 >;
 
 // A type, not an interface: `fail()` data must be assignable to
 // Record<string, unknown>, which an interface (no index signature) is not.
 export type ExecutiveProfileFormFailure = {
   error: "VALIDATION_FAILED";
-  issues: Partial<Record<ProfileFieldKey, string>>;
+  issues: Partial<Record<WithdrawnFieldKey, string>>;
   values: SubmittedValues;
 };
 
 /**
- * 폼 규칙의 단일 원천 — 본인 설정과 관리자 대리 편집이 같이 쓴다. 필드는
- * `<field>.source`와 `<field>.value`로 온다. 직접 입력이 비면 거부한다:
- * 숨기려면 비공개를 고르면 되고, 빈 칸을 공개할 이유는 없다.
+ * 필드마다 `<field>.source`와 `<field>.value`를 읽는다. 직접 입력이 비면
+ * 거부한다: 숨기려면 비공개를 고르면 되고, 빈 칸을 공개할 이유는 없다.
  */
-export function parseExecutiveProfileForm(
+function parseFields<F extends WithdrawnFieldKey, S>(
   formData: FormData,
+  fields: readonly F[],
+  linkable: (field: F) => boolean,
 ):
-  | { success: true; data: ExecutiveProfileSettings }
+  | { success: true; data: Record<F, S> }
   | { success: false; failure: ExecutiveProfileFormFailure } {
-  const values = Object.fromEntries(
-    PROFILE_FIELDS.map((field) => [
-      field,
-      {
-        source: formText(formData, `${field}.source`),
-        value: clean(formText(formData, `${field}.value`)),
-      },
-    ]),
-  ) as SubmittedValues;
+  const values: SubmittedValues = {};
+  for (const field of fields) {
+    values[field] = {
+      source: formText(formData, `${field}.source`),
+      value: clean(formText(formData, `${field}.value`)),
+    };
+  }
 
   const issues: ExecutiveProfileFormFailure["issues"] = {};
-  const data: Partial<Record<ProfileFieldKey, ProfileFieldSetting>> = {};
-  for (const field of PROFILE_FIELDS) {
-    const { source, value } = values[field];
+  const data: Partial<Record<F, unknown>> = {};
+  for (const field of fields) {
+    const { source, value } = values[field]!;
     const allowed =
       source === "hidden" ||
       source === "custom" ||
-      (source === "member" && LINKABLE_FIELDS[field]);
+      (source === "member" && linkable(field));
     if (!allowed) {
       issues[field] = "공개 방식을 골라 주세요.";
       continue;
@@ -157,5 +187,41 @@ export function parseExecutiveProfileForm(
       failure: { error: "VALIDATION_FAILED", issues, values },
     };
   }
-  return { success: true, data: data as ExecutiveProfileSettings };
+  return { success: true, data: data as Record<F, S> };
+}
+
+/** 공개 프로필 폼 — 본인 설정과 관리자 대리 편집이 같이 쓴다. */
+export function parseExecutiveProfileForm(
+  formData: FormData,
+):
+  | { success: true; data: ExecutiveProfileSettings }
+  | { success: false; failure: ExecutiveProfileFormFailure } {
+  return parseFields<
+    ProfileFieldKey,
+    ExecutiveProfileSettings[ProfileFieldKey]
+  >(formData, PROFILE_FIELDS, (field) => LINKABLE_FIELDS[field]) as
+    | { success: true; data: ExecutiveProfileSettings }
+    | { success: false; failure: ExecutiveProfileFormFailure };
+}
+
+/** 탈퇴 후 표시분 폼 — 관리자만 쓴다. 연동은 없다(스냅숏). */
+export function parseWithdrawnProfileForm(
+  formData: FormData,
+):
+  | { success: true; data: WithdrawnProfile }
+  | { success: false; failure: ExecutiveProfileFormFailure } {
+  return parseFields<WithdrawnFieldKey, WithdrawnFieldSetting>(
+    formData,
+    WITHDRAWN_FIELDS,
+    () => false,
+  );
+}
+
+/** 탈퇴 폼의 "역대 회장단에 남길 항목" 체크박스(`keep.<field>`) — 필드 순서로. */
+export function parseWithdrawalKeepForm(
+  formData: FormData,
+): WithdrawnFieldKey[] {
+  return WITHDRAWN_FIELDS.filter(
+    (field) => formData.get(`keep.${field}`) === "on",
+  );
 }
