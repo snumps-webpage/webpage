@@ -784,6 +784,10 @@ if run_step 5; then
     [ "$(state_get validated_key)" = "$APP_KEY" ] ||
       die "이 배포 내용은 2단계 검증을 거치지 않았다 — --from 2 로 다시."
     build_production
+    # 7·8단계가 쓰는 판독(운영 도메인 → 배포 id)을 DB를 바꾸기 전에 시험한다 — 형식이 달라 멈춘다면
+    # 여기서 멈춰야지, db push 뒤(옛 코드+새 DB 구간)에 멈추면 안 된다.
+    current="$(deployment_info "$SITE")" || die "운영 도메인($SITE)의 배포를 읽지 못했다 — DB는 아직 그대로다."
+    say "지금 운영 중: ${current%% *} (${current#* }) — 7단계에서 새 빌드로 옮긴다."
   fi
 fi
 
