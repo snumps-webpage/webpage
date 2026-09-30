@@ -45,18 +45,22 @@ export function formatAnnouncedSchedule(schedule: AnnouncedSchedule): string {
     month: "long",
     day: "numeric",
     weekday: "short",
-    ...(timeKnown
-      ? { hour: "2-digit" as const, minute: "2-digit" as const }
-      : {}),
   }).format(new Date(schedule.startsAt));
-  if (!schedule.endsAt || !timeKnown) return date;
+  if (!timeKnown) return date;
+  const start = `${date} ${kstClockKo(schedule.startsAt)}`;
+  return schedule.endsAt ? `${start} – ${kstClockKo(schedule.endsAt)}` : start;
+}
 
-  const end = new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(schedule.endsAt));
-  return `${date} – ${end}`;
+/**
+ * "오후 07:00" — 시각을 KST로 직접 적는다. Intl의 오전/오후(dayPeriod)는 실행 환경의 ICU 데이터에
+ * 따라 달라서 Node 22는 "PM 07:00"을 냈다(CI 실패). 날짜 부분은 두 환경 모두 한국어로 나온다.
+ */
+export function kstClockKo(iso: string): string {
+  const kst = new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000);
+  const hours = kst.getUTCHours();
+  const minutes = kst.getUTCMinutes();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${hours < 12 ? "오전" : "오후"} ${pad(hours % 12 || 12)}:${pad(minutes)}`;
 }
 
 /** 일정이 없는(이주로 잃은) 행도 공지는 나가야 한다 — 자리만 비운다. */

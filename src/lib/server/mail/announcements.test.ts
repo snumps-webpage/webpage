@@ -29,6 +29,7 @@ import { currentTerm } from "$lib/server/core/semester";
 import { nowKstIso } from "$lib/server/core/time";
 import {
   chunk,
+  kstClockKo,
   sendSeminarAnnouncement,
   sendSeminarCancellation,
   sendSeminarScheduleChange,
@@ -267,5 +268,21 @@ describe("취소 공지", () => {
     expect(sent[0].body).toContain("정수론");
     expect(sent[0].body).toContain("취소");
     expect(sent[0].body).not.toContain("사유");
+  });
+});
+
+// The mail's 오전/오후 came from the runtime's locale data (Intl dayPeriod):
+// Node 24 printed "오후 07:00", CI's Node 22 printed "PM 07:00" and the
+// announcement test failed on main. The clock part is now built from the KST
+// hour itself, the same on every runtime.
+describe("kstClockKo", () => {
+  it.each([
+    ["2026-10-15T19:00:00+09:00", "오후 07:00"],
+    ["2026-10-15T09:05:00+09:00", "오전 09:05"],
+    ["2026-10-15T12:00:00+09:00", "오후 12:00"],
+    ["2026-10-15T00:30:00+09:00", "오전 12:30"],
+    ["2026-10-15T10:00:00Z", "오후 07:00"], // any offset, read in KST
+  ])("%s → %s", (iso, text) => {
+    expect(kstClockKo(iso)).toBe(text);
   });
 });
