@@ -5,9 +5,16 @@
 #   bash scripts/ops/release-prod.sh --from 9     # 9단계부터 재개 (중단된 뒤)
 #   DRY_RUN=1 bash scripts/ops/release-prod.sh    # 절차만 훑는다 — 바꾸는 명령은 출력만, 질문은 건너뜀
 #   SKIP_PREVIEW=1 bash scripts/ops/release-prod.sh   # 프리뷰 배포 없이 (3단계를 로컬 점검으로 대신)
+#   FORCE=1 bash scripts/ops/release-prod.sh     # 이 커밋으로 이미 끝낸 단계도 전부 다시
 #   DEPLOY_VIA=prebuilt bash scripts/ops/release-prod.sh
 #                                                 # git 연동 배포에 더해 로컬 prebuilt도 올린다 (7단계)
 #
+# 다시 돌려도 된다: 끝낸 단계는 .git/release-prod.state에 기록되고 다시 돌리면 건너뛴다.
+#   - 2 검증·3 프리뷰: 배포 내용(트리에서 docs/·scripts/·루트 *.md를 뺀 것)이 같으면 — 문서나 이
+#     스크립트만 고친 커밋은 테스트를 다시 돌리지 않는다.
+#   - 7 push·8 배포 확인·9 보정·10 재확인: 같은 커밋(HEAD)이면.
+# 백업은 6시간 안의 것을 다시 쓴다. prod를 보는 단계(1·5·6·11·12)는 매번 실제 상태를 다시 읽는다 —
+# 6단계는 이미 적용된 마이그레이션을 건너뛴다.
 # tmux·screen 안에서 돌릴 것 — 6단계(db push) 도중 SSH가 끊기면 적용이 중간에서 멈출 수 있다.
 # DRY_RUN은 파싱을 한 번도 거치지 않는다(prod를 읽지 않으므로) — 실제 판정은 실제 실행에서만 한다.
 #
@@ -83,6 +90,9 @@ readonly RECHECK_DELAY_SECONDS=600
 DRY_RUN="${DRY_RUN:-0}"
 DEPLOY_VIA="${DEPLOY_VIA:-git}"
 SKIP_PREVIEW="${SKIP_PREVIEW:-0}"
+FORCE="${FORCE:-0}"
+HEAD_SHA=""
+APP_KEY=""
 FROM=1
 CURRENT_STEP=1
 LINKED_PROD=0
@@ -168,6 +178,16 @@ state_set() {
   [ "$DRY_RUN" = 1 ] && return 0
   printf '%s=%s\n' "$1" "$2" >> "$STATE"
 }
+
+# 이 커밋(HEAD)으로 이미 끝낸 단계인가. 커밋이 바뀌면 기록은 무효, FORCE=1이면 전부 다시.
+# 배포 내용(APP_KEY)이 같으면 끝낸 것으로 치는 단계(2·3)용.
+done_for_app() {
+  [ "$FORCE" != 1 ] && [ -n "$APP_KEY" ] && [ "$(state_get "$1")" = "$APP_KEY" ]
+}
+done_for_head() {
+  [ "$FORCE" != 1 ] && [ -n "$HEAD_SHA" ] && [ "$(state_get "$1")" = "$HEAD_SHA" ]
+}
+skip_note() { say "이미 끝냄 — 커밋 ${HEAD_SHA:0:7}에서 $1. 건너뛴다 (다시 하려면 FORCE=1)."; }
 
 # ---------------------------------------------------------------------------
 # prod 비밀값 (셸 코드로 실행하지 않는다)
@@ -527,11 +547,19 @@ case "$SKIP_PREVIEW" in
   0 | 1) ;;
   *) die "SKIP_PREVIEW는 0 또는 1: $SKIP_PREVIEW" ;;
 esac
+case "$FORCE" in
+  0 | 1) ;;
+  *) die "FORCE는 0 또는 1: $FORCE" ;;
+esac
 
 cd "$(dirname "$0")/../.."
 [ -f package.json ] && [ -d supabase/migrations ] || die "레포 루트를 찾지 못했다."
 REPO="$(pwd -P)"
 STATE="$(git rev-parse --absolute-git-dir)/release-prod.state"
+HEAD_SHA="$(git rev-parse HEAD)"
+# 배포되는 내용의 지문: 커밋의 트리에서 문서·운영 스크립트·루트 *.md를 뺀 것. 그것만 바뀐 커밋은
+# 빌드·테스트 대상이 같으므로 2·3단계 기록을 그대로 쓴다.
+APP_KEY="$(git ls-tree -r HEAD | grep -vE $'\t(docs/|scripts/|[^/]+\\.md$)' | git hash-object --stdin)"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/release-prod.XXXXXX")"
 CURRENT_STEP="$FROM"
 
@@ -594,20 +622,24 @@ fi
 CURRENT_STEP=2
 if run_step 2; then
   step 2 "로컬 검증 (CI와 같은 검사 + 운영 빌드)"
-  pnpm install --frozen-lockfile
-  ./node_modules/.bin/svelte-kit sync
-  ./node_modules/.bin/vitest run
-  ./node_modules/.bin/svelte-check --tsconfig ./tsconfig.json --threshold error
-  ./node_modules/.bin/eslint .
-  ./node_modules/.bin/prettier --check --ignore-unknown .
-  ./node_modules/.bin/vite build
-  [ -d .svelte-kit/output/server ] || die "빌드 산출물(.svelte-kit/output/server)이 없다."
-  if grep -rlq "pglite" .svelte-kit/output/server; then
-    die "서버 번들에 PGlite가 들어 있다 — 운영에 메모리 백엔드가 실린다."
+  if done_for_app validated_key; then
+    skip_note "테스트·타입·린트·포맷·운영 빌드가 통과했다 (배포 내용이 같다)"
+  else
+    pnpm install --frozen-lockfile
+    ./node_modules/.bin/svelte-kit sync
+    ./node_modules/.bin/vitest run
+    ./node_modules/.bin/svelte-check --tsconfig ./tsconfig.json --threshold error
+    ./node_modules/.bin/eslint .
+    ./node_modules/.bin/prettier --check --ignore-unknown .
+    ./node_modules/.bin/vite build
+    [ -d .svelte-kit/output/server ] || die "빌드 산출물(.svelte-kit/output/server)이 없다."
+    if grep -rlq "pglite" .svelte-kit/output/server; then
+      die "서버 번들에 PGlite가 들어 있다 — 운영에 메모리 백엔드가 실린다."
+    fi
+    [ -z "$(git status --porcelain)" ] || die "검사가 추적 파일을 바꿨다 — 확인 후 커밋할 것."
+    state_set validated_key "$APP_KEY"
+    say "검증한 커밋: ${HEAD_SHA:0:7}"
   fi
-  [ -z "$(git status --porcelain)" ] || die "검사가 추적 파일을 바꿨다 — 확인 후 커밋할 것."
-  state_set validated_sha "$(git rev-parse HEAD)"
-  say "검증한 커밋: $(git rev-parse --short HEAD)"
 fi
 
 # ---------------------------------------------------------------------------
@@ -615,7 +647,10 @@ fi
 # ---------------------------------------------------------------------------
 CURRENT_STEP=3
 if run_step 3; then
-  if [ "$SKIP_PREVIEW" = 1 ]; then
+  if done_for_app preview_key || done_for_app preview_skipped_key; then
+    step 3 "프리뷰 확인"
+    skip_note "프리뷰 확인(또는 생략)을 기록했다"
+  elif [ "$SKIP_PREVIEW" = 1 ]; then
     step 3 "프리뷰 확인 생략 (SKIP_PREVIEW=1)"
     # (1) 설치 도구: Vercel은 잠금 파일로 패키지 매니저를 고른다 — pnpm 것만 있으면 pnpm이다.
     [ -f pnpm-lock.yaml ] || die "pnpm-lock.yaml 이 없다."
@@ -628,7 +663,7 @@ if run_step 3; then
     say "    운영 빌드가 Vercel에서 실패하면 옛 배포가 그대로 남고, prod는 '옛 코드 + 새 DB' 상태가"
     say "    이어진다(이미지 깨짐·새 필드 벗겨짐). 그때는 빌드를 고쳐 다시 push한 뒤 --from 8."
     confirm_prod "프리뷰 확인 없이 운영에 반영한다"
-    state_set preview_skipped_sha "$(git rev-parse HEAD)"
+    state_set preview_skipped_key "$APP_KEY"
   else
     step 3 "프리뷰 배포에서 확인 (OPERATOR-TODO §2-2 '배포 전 확인 3건')"
     say "프리뷰는 dev DB를 본다. 커밋 $(git rev-parse --short HEAD)의 Vercel 프리뷰 배포에서:"
@@ -636,7 +671,7 @@ if run_step 3; then
     confirm "(1) 빌드 로그에서 pnpm으로 설치됐다 (npm이면 Install Command를 'pnpm install --frozen-lockfile'로)"
     confirm "(2) 실제 SNU Google 계정으로 로그인이 통과했다 (hd=snu.ac.kr 검사)"
     confirm "(3) 세미나 신청→승인→일정→게시→취소, 체크인→출석 승인을 한 번씩 해 봤고 500이 없었다"
-    state_set preview_sha "$(git rev-parse HEAD)"
+    state_set preview_key "$APP_KEY"
   fi
 fi
 
@@ -646,8 +681,13 @@ fi
 CURRENT_STEP=4
 if run_step 4; then
   step 4 "prod 백업 (세 테이블 전부 → backups/)"
+  last_backup="$(state_get backup_file)"
+  last_backup_at="$(state_get backup_at)"
   if [ "$DRY_RUN" = 1 ]; then
     say "(DRY_RUN) prod 스냅숏 SQL을 돌려 backups/supabase-<시각>.json 으로 저장한다."
+  elif [ "$FORCE" != 1 ] && [ -n "$last_backup_at" ] && [ -s "$last_backup" ] &&
+    [ $(($(date +%s) - last_backup_at)) -le "$BACKUP_MAX_AGE_SECONDS" ]; then
+    say "6시간 안의 백업을 다시 쓴다: $last_backup (새로 받으려면 FORCE=1)."
   else
     backup_via_cli
   fi
@@ -729,11 +769,10 @@ if run_step 7; then
   [ "$(git rev-parse --abbrev-ref HEAD)" = "$RELEASE_BRANCH" ] || die "브랜치가 $RELEASE_BRANCH 가 아니다."
   [ -z "$(git status --porcelain)" ] || die "작업 트리가 깨끗하지 않다."
   if [ "$DRY_RUN" != 1 ]; then
-    [ "$(state_get validated_sha)" = "$(git rev-parse HEAD)" ] ||
-      die "이 커밋은 2단계 검증을 거치지 않았다 — --from 2 로 다시 (이미 적용된 마이그레이션은 5·6단계가 건너뛴다)."
-    head_sha="$(git rev-parse HEAD)"
-    if [ "$(state_get preview_sha)" != "$head_sha" ] && [ "$(state_get preview_skipped_sha)" != "$head_sha" ]; then
-      warn "3단계 프리뷰 확인이 이 커밋으로 기록돼 있지 않다."
+    [ "$(state_get validated_key)" = "$APP_KEY" ] ||
+      die "이 배포 내용은 2단계 검증을 거치지 않았다 — --from 2 로 다시 (이미 적용된 마이그레이션은 5·6단계가 건너뛴다)."
+    if [ "$(state_get preview_key)" != "$APP_KEY" ] && [ "$(state_get preview_skipped_key)" != "$APP_KEY" ]; then
+      warn "3단계 프리뷰 확인이 이 배포 내용으로 기록돼 있지 않다."
       confirm "커밋 $(git rev-parse --short HEAD)의 프리뷰를 확인했다"
     fi
     link_prod
@@ -744,10 +783,16 @@ if run_step 7; then
   git fetch --quiet origin "$PROD_BRANCH"
   git merge-base --is-ancestor "origin/$PROD_BRANCH" HEAD ||
     die "origin/$PROD_BRANCH 가 그새 움직였다 — 빨리감기 불가. main을 이 브랜치에 합치고 커밋한 뒤 --from 2 로 다시 (적용된 마이그레이션은 건너뛴다). 그동안 prod는 옛 코드+새 DB이므로 서두를 것."
-  confirm_prod "origin/$PROD_BRANCH 를 $(git rev-parse --short HEAD) 로 빨리감기 push 한다 (강제 push 아님)"
-  # main이 곧 운영 코드다. prebuilt로도 올리는 경우에도 main을 맞춰 둬야 다음 git 배포가 옛 코드로 되돌리지 않는다.
-  mutate git push origin "HEAD:refs/heads/$PROD_BRANCH"
-  if [ "$DEPLOY_VIA" = prebuilt ]; then
+  if [ "$(git rev-parse "origin/$PROD_BRANCH")" = "$HEAD_SHA" ]; then
+    say "origin/$PROD_BRANCH 가 이미 ${HEAD_SHA:0:7} 이다 — push할 것이 없다."
+  else
+    confirm_prod "origin/$PROD_BRANCH 를 ${HEAD_SHA:0:7} 로 빨리감기 push 한다 (강제 push 아님)"
+    # main이 곧 운영 코드다. prebuilt로도 올리는 경우에도 main을 맞춰 둬야 다음 git 배포가 옛 코드로 되돌리지 않는다.
+    mutate git push origin "HEAD:refs/heads/$PROD_BRANCH"
+  fi
+  if [ "$DEPLOY_VIA" = prebuilt ] && done_for_head prebuilt_sha; then
+    skip_note "prebuilt 배포를 올렸다"
+  elif [ "$DEPLOY_VIA" = prebuilt ]; then
     # 위 push가 git 연동 배포도 만든다(같은 커밋이라 어느 쪽이 먼저 끝나도 결과는 같다).
     # 깨끗한 트리에서 빌드한 산출물(.vercel/output)만 올라간다. vercel pull이 받는 운영 env 파일은
     # 소유자 전용으로 만들고, 배포 뒤 지운다.
@@ -758,6 +803,7 @@ if run_step 7; then
       mutate vercel deploy --prebuilt --prod
     )
     mutate rm -f .vercel/.env.production.local .vercel/.env.preview.local .vercel/.env.development.local
+    state_set prebuilt_sha "$HEAD_SHA"
   fi
 fi
 
@@ -767,14 +813,19 @@ fi
 CURRENT_STEP=8
 if run_step 8; then
   step 8 "배포가 Ready 될 때까지"
-  say "Vercel 대시보드 → webpage → Deployments 에서 Production 배포가 Ready가 되면, 그 배포의 커밋 SHA를 복사해 넣을 것."
-  ask "Ready인 Production 배포의 커밋 SHA(앞 7자리 이상):"
-  if [ "$DRY_RUN" != 1 ]; then
-    input="$(printf '%s' "$REPLY_TEXT" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
-    [[ "$input" =~ ^[0-9a-f]{7,40}$ ]] || die "SHA 형식이 아니다. 배포를 확인한 뒤 --from 8"
-    [[ "$(git rev-parse HEAD)" == "$input"* ]] ||
-      die "Vercel의 커밋이 이 커밋($(git rev-parse --short HEAD))이 아니다. 배포를 확인한 뒤 --from 8"
-    say "배포 커밋 일치."
+  if done_for_head deploy_confirmed_sha; then
+    skip_note "Production 배포의 커밋을 확인했다"
+  else
+    say "Vercel 대시보드 → webpage → Deployments 에서 Production 배포가 Ready가 되면, 그 배포의 커밋 SHA를 복사해 넣을 것."
+    ask "Ready인 Production 배포의 커밋 SHA(앞 7자리 이상):"
+    if [ "$DRY_RUN" != 1 ]; then
+      input="$(printf '%s' "$REPLY_TEXT" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+      [[ "$input" =~ ^[0-9a-f]{7,40}$ ]] || die "SHA 형식이 아니다. 배포를 확인한 뒤 --from 8"
+      [[ "$(git rev-parse HEAD)" == "$input"* ]] ||
+        die "Vercel의 커밋이 이 커밋($(git rev-parse --short HEAD))이 아니다. 배포를 확인한 뒤 --from 8"
+      say "배포 커밋 일치."
+      state_set deploy_confirmed_sha "$HEAD_SHA"
+    fi
   fi
 fi
 
@@ -784,22 +835,32 @@ fi
 CURRENT_STEP=9
 if run_step 9; then
   step 9 "백필 재실행 + 확인 (6~8 사이 옛 코드의 쓰기가 지운 키를 되살린다)"
-  confirm_prod "prod에서 재실행 안전한 백필 3개를 다시 돌리고 확인한다 (없는 키만 채운다)"
-  repair_and_check
+  if done_for_head repaired_sha; then
+    skip_note "백필과 확인 쿼리를 통과했다"
+  else
+    confirm_prod "prod에서 재실행 안전한 백필 3개를 다시 돌리고 확인한다 (없는 키만 채운다)"
+    repair_and_check
+    state_set repaired_sha "$HEAD_SHA"
+  fi
 fi
 
 CURRENT_STEP=10
 if run_step 10; then
   step 10 "10분 뒤 한 번 더 (물러나던 옛 배포의 늦은 쓰기까지)"
-  say "옛 Production 배포 URL(*.vercel.app)이 아직 prod DB로 요청을 받는다 — Vercel에서 옛 배포를"
-  say "보호(Deployment Protection)하거나 지우면 이 위험이 끝난다."
-  if [ "$DRY_RUN" = 1 ]; then
-    say "(DRY_RUN) ${RECHECK_DELAY_SECONDS}초 기다린 뒤 9단계를 한 번 더."
+  if done_for_head rechecked_sha; then
+    skip_note "10분 뒤 재보정·확인을 마쳤다 (옛 배포가 다시 썼을 수 있으면 FORCE=1 --from 9)"
   else
-    say "${RECHECK_DELAY_SECONDS}초 기다린다 (Ctrl-C로 끊으면 나중에 --from 9 로 직접)."
-    sleep "$RECHECK_DELAY_SECONDS"
+    say "옛 Production 배포 URL(*.vercel.app)이 아직 prod DB로 요청을 받는다 — Vercel에서 옛 배포를"
+    say "보호(Deployment Protection)하거나 지우면 이 위험이 끝난다."
+    if [ "$DRY_RUN" = 1 ]; then
+      say "(DRY_RUN) ${RECHECK_DELAY_SECONDS}초 기다린 뒤 9단계를 한 번 더."
+    else
+      say "${RECHECK_DELAY_SECONDS}초 기다린다 (Ctrl-C로 끊으면 나중에 --from 9 로 직접)."
+      sleep "$RECHECK_DELAY_SECONDS"
+    fi
+    repair_and_check
+    state_set rechecked_sha "$HEAD_SHA"
   fi
-  repair_and_check
 fi
 
 # ---------------------------------------------------------------------------
