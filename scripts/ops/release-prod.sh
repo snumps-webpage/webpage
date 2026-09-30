@@ -14,7 +14,7 @@
 #   1 사전 점검            도구·로그인·링크 상태·브랜치·깨끗한 트리·main 빨리감기·보호 규칙
 #   2 로컬 검증            테스트·타입·린트·포맷·빌드, 서버 번들에 PGlite 없음 → 검증한 커밋을 기록
 #   3 프리뷰 확인 (수동)   pnpm 설치, SNU 계정 실로그인, 세미나 흐름 스모크
-#   4 prod 백업            세 테이블 전부의 스냅숏을 backups/에 (롤백의 유일한 수단) → 기록
+#   4 prod 백업            세 테이블 전부를 SQL 한 문장(한 스냅숏)으로 backups/에 (롤백의 유일한 수단)
 #   5 사전 검사            적용될 파일이 정확히 예상한 5개인지, dry-run, 조회 결과 판독 시험
 #   6 적용                 백업·쓰기 동결 확인 → db push (여기서부터 9단계까지 서두른다)
 #   7 배포                 전제 재확인 → origin/main을 이 커밋으로 빨리감기 push (강제 push 없음)
@@ -34,7 +34,8 @@
 # 배포 직후 돌리고, 10분 뒤 한 번 더 돌린다.
 #
 # 안전장치
-#   - 비밀값은 출력하지 않는다. .env.prod-secrets는 셸 코드로 source하지 않고 KEY=VALUE로만 읽는다
+#   - prod 비밀 키 파일 없이 `supabase login` 세션만으로 된다(결정 2026-09-30). .env.prod-secrets가
+#     있으면 11·12단계의 보조 헬퍼만 그것을 쓰고, 셸 코드로 source하지 않고 KEY=VALUE로만 읽는다
 #     (허용 목록의 키만). DB 비밀번호 파일이 있으면 argv가 아니라 SUPABASE_DB_PASSWORD로, 없으면
 #     로그인 역할로 접속한다(2026-09-28 dev push가 그렇게 됐다). set -x로 돌리면 거부한다.
 #   - Supabase CLI는 stdin 없이(</dev/null) 돌린다 — 숨은 프롬프트에서 멈추지 않고 바로 실패한다.
@@ -386,6 +387,77 @@ select
 SQL
 }
 
+# 4단계: 세 테이블 전부를 SQL 한 문장(= 한 스냅숏)으로 받아 backups/에 쓴다. CLI 로그인만으로
+# 된다(prod 비밀 키 파일 불필요). 출력에는 개인정보가 있어 화면에 찍지 않고 TMP(소유자 전용)를
+# 거쳐 권한 600 파일로만 남긴다. 받은 행 수가 같은 문장의 count(*)와 다르면 실패로 친다.
+backup_via_cli() {
+  local stamp file log rc=0
+  cat > "$TMP/backup.sql" << 'SQL'
+select json_build_object(
+  'takenAt', now(),
+  'source', 'release-prod.sh (supabase db query)',
+  'counts', json_build_object(
+    'app_tables', (select count(*) from app_tables),
+    'app_queues', (select count(*) from app_queues),
+    'audit_log', (select count(*) from audit_log)),
+  'tables', json_build_object(
+    'app_tables', (select coalesce(json_agg(t order by t.name), '[]'::json) from app_tables t),
+    'app_queues', (select coalesce(json_agg(q order by q.event_id), '[]'::json) from app_queues q),
+    'audit_log', (select coalesce(json_agg(a order by a.id), '[]'::json) from audit_log a))
+) as snapshot;
+SQL
+  link_prod
+  [ "$(linked_ref)" = "$PROD_REF" ] || die "링크가 prod가 아니다 — 백업 중단."
+  log="$TMP/backup.out"
+  supabase --workdir "$REPO" db query --linked --output-format json -f "$TMP/backup.sql" \
+    < /dev/null > "$log" 2>&1 || rc=$?
+  restore_dev_link
+  if [ "$rc" -ne 0 ]; then
+    grep -iE 'error|login|link' "$log" | head -n 3 >&2 || true
+    die "prod 스냅숏 조회 실패."
+  fi
+  mkdir -p backups
+  stamp="$(date -u +%Y-%m-%dT%H-%M-%S)"
+  file="backups/supabase-${stamp}.json"
+  [ ! -e "$file" ] || die "이미 있는 파일이다: $file"
+  (
+    umask 077
+    node -e '
+      const fs = require("fs");
+      const [log, file, url] = process.argv.slice(1);
+      const s = fs.readFileSync(log, "utf8");
+      const start = Math.min(...[s.indexOf("{"), s.indexOf("[")].filter((i) => i >= 0));
+      const end = Math.max(s.lastIndexOf("}"), s.lastIndexOf("]"));
+      const root = JSON.parse(s.slice(start, end + 1));
+      const find = (v) => {
+        if (v && typeof v === "object") {
+          if ("snapshot" in v) return v.snapshot;
+          for (const x of Object.values(v)) { const r = find(x); if (r !== undefined) return r; }
+        }
+        return undefined;
+      };
+      let snap = find(root);
+      if (typeof snap === "string") snap = JSON.parse(snap);
+      if (!snap || !snap.tables || !snap.counts) { console.error("스냅숏 형식을 읽지 못했다"); process.exit(2); }
+      for (const t of ["app_tables", "app_queues", "audit_log"]) {
+        const got = (snap.tables[t] ?? []).length, want = Number(snap.counts[t]);
+        if (got !== want) { console.error(t + ": 받은 행 " + got + " ≠ " + want); process.exit(3); }
+      }
+      snap.project = url;
+      fs.writeFileSync(file, JSON.stringify(snap, null, 2), { mode: 0o600, flag: "wx" });
+      const back = JSON.parse(fs.readFileSync(file, "utf8"));
+      for (const t of ["app_tables", "app_queues", "audit_log"]) {
+        if (back.tables[t].length !== Number(snap.counts[t])) { console.error("저장본 행 수 불일치: " + t); process.exit(3); }
+      }
+      console.log("행 수 — app_tables " + snap.counts.app_tables + " · app_queues " + snap.counts.app_queues + " · audit_log " + snap.counts.audit_log);
+    ' "$log" "$file" "$PROD_URL"
+  ) || die "백업을 저장하지 못했다 (불완전한 파일이 남았다면 지울 것: $file)."
+  rm -f "$log"
+  state_set backup_file "$file"
+  state_set backup_at "$(date +%s)"
+  say "백업: $file ($(wc -c < "$file") bytes) — 개인정보 포함, 레포 밖으로 옮기지 말 것."
+}
+
 # 9·10단계: 백필 재실행 → 확인 쿼리. 통과하지 않으면 멈춘다.
 repair_and_check() {
   local f out rows
@@ -507,7 +579,7 @@ if run_step 1; then
   else
     confirm "GitHub에서 $PROD_BRANCH 브랜치 보호 규칙이 이 계정의 직접 push를 막지 않는다 (gh가 없어 확인 못 함)"
   fi
-  [ -f .env.prod-secrets ] || die ".env.prod-secrets 없음 (4·11·12단계가 쓴다)."
+  [ -f .env.prod-secrets ] || say "(참고) .env.prod-secrets 없음 — 11·12단계의 비밀 키 헬퍼는 건너뛴다(필수 아님)."
 fi
 
 # ---------------------------------------------------------------------------
@@ -552,22 +624,9 @@ CURRENT_STEP=4
 if run_step 4; then
   step 4 "prod 백업 (세 테이블 전부 → backups/)"
   if [ "$DRY_RUN" = 1 ]; then
-    say "(DRY_RUN) node scripts/ops/ops-backup-db.mjs --out backups   (prod 값으로)"
+    say "(DRY_RUN) prod 스냅숏 SQL을 돌려 backups/supabase-<시각>.json 으로 저장한다."
   else
-    mkdir -p backups
-    find backups -maxdepth 1 -name 'supabase-*.json' -print | sort > "$TMP/backups-before"
-    # 개인정보가 든 파일 — 이 명령에서만 소유자 전용 권한으로 만든다.
-    (
-      umask 077
-      with_prod_env node scripts/ops/ops-backup-db.mjs --out backups
-    )
-    find backups -maxdepth 1 -name 'supabase-*.json' -print | sort > "$TMP/backups-after"
-    newest="$(comm -13 "$TMP/backups-before" "$TMP/backups-after" | tail -n 1)"
-    [ -n "$newest" ] || die "새 백업 파일이 생기지 않았다."
-    [ -s "$newest" ] || die "백업 파일이 비어 있다: $newest"
-    state_set backup_file "$newest"
-    state_set backup_at "$(date +%s)"
-    say "백업: $newest ($(wc -c < "$newest") bytes) — 개인정보 포함, 레포 밖으로 옮기지 말 것."
+    backup_via_cli
   fi
 fi
 
@@ -738,7 +797,13 @@ if run_step 11; then
       die "공개 페이지 중 200이 아닌 것이 있다 — Vercel 로그를 볼 것. 되돌리기는 코드만 되돌리면 된다(§2-2)."
     fi
   fi
-  with_prod_env node scripts/ops/ops-assets-private.mjs
+  # 버킷 비공개는 10단계 확인 쿼리(assets_public=false)가 이미 봤다. 서명 URL까지 보는 헬퍼는
+  # prod 비밀 키가 있을 때만(.env.prod-secrets) 돌린다.
+  if [ -f .env.prod-secrets ]; then
+    with_prod_env node scripts/ops/ops-assets-private.mjs
+  else
+    say "버킷: 10단계에서 비공개 확인됨 (서명 URL 점검은 .env.prod-secrets가 있을 때만)."
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -747,11 +812,17 @@ fi
 CURRENT_STEP=12
 if run_step 12; then
   step 12 "배포 전 쓰기로 사라진 세미나 복구값 (미리보기만 — 아무것도 쓰지 않는다)"
-  with_prod_env node scripts/ops/ops-repair-seminar-schedules.mjs
-  # 설명(description) 복구는 Notion 값이 필요하다 — 없으면 미리보기를 건너뛴다고 알린다.
-  with_prod_env node scripts/ops/ops-notion-backfill-seminars.mjs ||
-    warn "Notion 복구 미리보기를 돌리지 못했다 (.env에 Notion 값이 없을 수 있다) — OPERATOR-TODO §3-0을 직접."
-  with_prod_env node scripts/ops/ops-migration-audit.mjs --skip-notion
+  # 이 미리보기 헬퍼들은 supabase-js로 읽으므로 prod 비밀 키가 필요하다 — 없으면 건너뛰고 알린다.
+  if [ -f .env.prod-secrets ]; then
+    with_prod_env node scripts/ops/ops-repair-seminar-schedules.mjs
+    # 설명(description) 복구는 Notion 값이 필요하다 — 없으면 미리보기를 건너뛴다고 알린다.
+    with_prod_env node scripts/ops/ops-notion-backfill-seminars.mjs ||
+      warn "Notion 복구 미리보기를 돌리지 못했다 (.env에 Notion 값이 없을 수 있다) — OPERATOR-TODO §3-0을 직접."
+    with_prod_env node scripts/ops/ops-migration-audit.mjs --skip-notion
+  else
+    warn "prod 비밀 키 파일(.env.prod-secrets)이 없어 복구 미리보기를 건너뛴다."
+    warn "배포 전(6~8단계)에 세미나 관리 화면에서 쓰기가 있었다면 OPERATOR-TODO §3-0을 따로 볼 것."
+  fi
 fi
 
 CURRENT_STEP="finished"
