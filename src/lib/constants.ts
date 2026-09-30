@@ -44,6 +44,7 @@ export const MANUSCRIPT = {
     ADMIN_MEMBER_DETAIL: "Figure A-5 · Member Authority Record",
     ADMIN_ACTIVITIES: "Table A-6 · Activity Record Editor",
     ADMIN_GALLERY: "Figure A-7 · Gallery Record Editor",
+    ADMIN_EXECUTIVE_PROFILES: "Figure A-8 · Executive Profile Ledger",
     PUBLIC_MEMBERS: "Table P-1 · Public Member Register",
     PUBLIC_EXECUTIVES: "Figure P-2 · Executive History",
     ABOUT_INDEX: "Figure P-3 · Public Document Directory",
@@ -72,5 +73,6 @@ export const MANUSCRIPT = {
     NOTIFICATIONS: "Figure M-6 · Announcement Preference",
     WITHDRAWAL: "Figure M-7 · Membership Withdrawal Protocol",
     WITHDRAWAL_PENDING: "Figure M-8 · Withdrawal Grace Period",
+    EXECUTIVE_PROFILE: "Figure M-9 · Executive Public Profile",
   },
 };

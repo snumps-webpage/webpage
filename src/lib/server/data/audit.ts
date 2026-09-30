@@ -17,6 +17,7 @@ export type AuditAction =
   | "member.set-admin"
   | "member.revoke-alumni"
   | "study.set-organizer"
+  | "executive-profile.update"
   | "withdrawal.request"
   | "withdrawal.cancel"
   | "withdrawal.hold"

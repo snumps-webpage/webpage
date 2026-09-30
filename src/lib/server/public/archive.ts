@@ -6,6 +6,8 @@ import {
 import { getTable } from "$lib/server/data/tables";
 import { currentTerm } from "$lib/server/core/semester";
 import { formatPhoneForDisplay } from "$lib/utils";
+import { PUBLIC_EXECUTIVE_TITLES } from "$lib/domain/executive-profile";
+import { publicProfileResolver } from "$lib/server/services/executive-profiles";
 
 /**
  * Public-zone reads (API-SPEC §3 / BE-60·61). EVERYTHING here is guest-facing:
@@ -82,9 +84,36 @@ export async function getPublicMembers() {
  * 회장단의 전화번호는 이 예외로 노출한다 — 대상은 현재 학기 회장/부회장, 필드는
  * 전화번호로 한정. 과거 학기·다른 직책·다른 필드는 절대 노출하지 않는다.
  */
-const PUBLIC_EXECUTIVE_ORDER = ["회장", "부회장"] as const;
+const PUBLIC_EXECUTIVE_ORDER = PUBLIC_EXECUTIVE_TITLES;
 
 export async function getPublicExecutives() {
+  return (await executiveHolders()).map(({ term, holders }) => ({
+    term,
+    holders: holders.map(({ holder }) => holder),
+  }));
+}
+
+/**
+ * 역대 회장단 페이지 전용 — holder마다 본인이 고른 공개 프로필을 붙인다
+ * (services/executive-profiles). 루트 레이아웃은 모든 페이지에서
+ * getPublicExecutives()를 부르므로, 프로필은 여기서만 싣는다.
+ */
+export async function getPublicExecutiveHistory() {
+  const [terms, profileFor] = await Promise.all([
+    executiveHolders(),
+    publicProfileResolver(),
+  ]);
+  return terms.map(({ term, holders }) => ({
+    term,
+    holders: holders.map(({ holder, member }) => ({
+      ...holder,
+      profile: profileFor(member),
+    })),
+  }));
+}
+
+/** 학기별 회장·부회장 — 공개 필드(holder)와, 해석용 명부 행(member)을 함께. */
+async function executiveHolders() {
   const term = currentTerm();
   const [members, infos, legacyInfos] = await Promise.all([
     getMemberDirectory(),
@@ -114,7 +143,15 @@ export async function getPublicExecutives() {
 
   const byTerm = new Map<
     string,
-    { term: string; title: string; name: string; contact: string | null }[]
+    {
+      holder: {
+        term: string;
+        title: string;
+        name: string;
+        contact: string | null;
+      };
+      member: (typeof members)[number];
+    }[]
   >();
   for (const m of members) {
     for (const r of m.roles) {
@@ -122,11 +159,14 @@ export async function getPublicExecutives() {
         continue;
       const list = byTerm.get(r.term) ?? [];
       list.push({
-        term: r.term,
-        title: r.title,
-        name: m.name,
-        // 현재 학기 회장/부회장만 전화 자동 공개 — 그 외는 null
-        contact: r.term === term ? contactFor(m) : null,
+        holder: {
+          term: r.term,
+          title: r.title,
+          name: m.name,
+          // 현재 학기 회장/부회장만 전화 자동 공개 — 그 외는 null
+          contact: r.term === term ? contactFor(m) : null,
+        },
+        member: m,
       });
       byTerm.set(r.term, list);
     }
@@ -137,7 +177,9 @@ export async function getPublicExecutives() {
     .sort(([a], [b]) => b.localeCompare(a))
     .map(([t, holders]) => ({
       term: t,
-      holders: holders.sort((x, y) => rank(x.title) - rank(y.title)),
+      holders: holders.sort(
+        (x, y) => rank(x.holder.title) - rank(y.holder.title),
+      ),
     }));
 }
 

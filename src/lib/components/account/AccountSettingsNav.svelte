@@ -1,5 +1,13 @@
 <script lang="ts">
-  let { current }: { current: "notifications" | "withdraw" } = $props();
+  import { page } from "$app/state";
+
+  let {
+    current,
+  }: { current: "notifications" | "executive-profile" | "withdraw" } = $props();
+  // settings/+layout.server.ts — 회장·부회장 이력이 있을 때만
+  const showExecutiveProfile = $derived(
+    page.data.showExecutiveProfile === true,
+  );
 </script>
 
 <nav class="settings-nav" aria-label="회원 설정">
@@ -9,6 +17,14 @@
   >
     공지 수신
   </a>
+  {#if showExecutiveProfile}
+    <a
+      href="/settings/executive-profile"
+      aria-current={current === "executive-profile" ? "page" : undefined}
+    >
+      공개 프로필
+    </a>
+  {/if}
   <a
     href="/settings/withdraw"
     aria-current={current === "withdraw" ? "page" : undefined}

@@ -2,6 +2,7 @@
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import PublicDirectoryNav from "$lib/components/public/PublicDirectoryNav.svelte";
   import { MANUSCRIPT } from "$lib/constants";
+  import { cohortLabel } from "$lib/domain/executive-profile";
   import { ABOUT_NAV } from "$lib/public-navigation";
 
   let { data } = $props();
@@ -36,8 +37,8 @@
 
   <div class="intro-row">
     <p>
-      학기별 직책 기록에서 회장·부회장만 파생합니다. 공개 동의된 연락처는 현
-      회장단에만 표시됩니다.
+      학기별 직책 기록에서 회장·부회장만 파생합니다. 학과·학번·이메일·근황은
+      각자 공개하기로 고른 항목만 보이며, 전화번호는 현 회장단에만 표시됩니다.
     </p>
     <a class="paper-btn" href="/members">전체 회원 명단</a>
   </div>
@@ -58,6 +59,26 @@
               <article class="executive-card">
                 <p>{executive.title}</p>
                 <h3>{executive.name}</h3>
+                {#if executive.profile}
+                  {@const profile = executive.profile}
+                  {@const line = [
+                    profile.department,
+                    profile.cohort && cohortLabel(profile.cohort),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  <div class="profile-block">
+                    {#if line}<p class="profile-line">{line}</p>{/if}
+                    {#if profile.publicEmail}
+                      <a href={`mailto:${profile.publicEmail}`}
+                        >{profile.publicEmail}</a
+                      >
+                    {/if}
+                    {#if profile.bio}<p class="profile-bio">
+                        {profile.bio}
+                      </p>{/if}
+                  </div>
+                {/if}
                 {#if executive.contact}
                   <div class="contact-block">
                     {#if executive.contact.includes("@")}
@@ -167,6 +188,33 @@
     margin-top: 0.25rem;
     font-size: 1.1rem;
     font-weight: 570;
+  }
+  .profile-block {
+    display: grid;
+    gap: 0.22rem;
+    margin-top: 0.45rem;
+  }
+  .profile-block p {
+    margin: 0;
+  }
+  .profile-line {
+    color: var(--latex-muted);
+    font-size: 0.78rem;
+  }
+  .profile-block a {
+    width: fit-content;
+    max-width: 100%;
+    color: var(--latex-text);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    overflow-wrap: anywhere;
+    text-underline-offset: 0.16em;
+  }
+  .profile-bio {
+    font-size: 0.78rem;
+    line-height: 1.6;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
   }
   .contact-block {
     display: grid;

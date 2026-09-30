@@ -14,6 +14,7 @@ import { newId } from "$lib/server/core/id";
 import { nowKstIso } from "$lib/server/core/time";
 import { currentTerm } from "$lib/server/core/semester";
 import {
+  getPublicExecutiveHistory,
   getPublicExecutives,
   getPublicMembers,
   getPublicSeminar,
@@ -32,6 +33,7 @@ import {
 const FORBIDDEN_KEYS = [
   "email",
   "phone",
+  "studentId",
   "background",
   "mailPrefs",
   "isAdmin",
@@ -200,6 +202,7 @@ describe("public payloads carry no PII or operational fields (BE-64)", () => {
     const payloads: Record<string, unknown> = {
       members: await getPublicMembers(),
       executives: await getPublicExecutives(),
+      executiveHistory: await getPublicExecutiveHistory(),
       seminar: await getPublicSeminar("sem1"),
     };
     for (const [name, payload] of Object.entries(payloads)) {

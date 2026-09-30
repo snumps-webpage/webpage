@@ -75,7 +75,10 @@
   <p class="scope-note">
     학기와 직위를 고른 뒤 회원 옆의 <strong>배정</strong>을 누르세요. 배정은
     회원 기록의 직책 이력(roles)에 저장되고 감사 로그에 남습니다. 임원 축은 정규
-    학기(YY-1/YY-2) 단위입니다.
+    학기(YY-1/YY-2) 단위입니다. 역대 회장·부회장이 공개할
+    학과·학번·이메일·근황은
+    <a href="/admin/executives/profiles">공개 프로필</a>에서 대신 입력할 수
+    있습니다.
   </p>
 
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}

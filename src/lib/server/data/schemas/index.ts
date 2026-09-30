@@ -15,6 +15,7 @@ import { MailRuleSchema } from "./mail-rule";
 import { MailVariableSchema } from "./mail-variable";
 import { MailRuleHistorySchema } from "./mail-rule-history";
 import { RoleTitleSchema } from "./role-title";
+import { ExecutiveProfileSchema } from "./executive-profile";
 
 /**
  * The table registry — the single source of truth for what lives in S3
@@ -47,6 +48,8 @@ export const TABLES = {
   "mail-rule-history": MailRuleHistorySchema,
   // 임원 직위 옵션 (커스텀 추가분 — 기본 직위는 코드)
   "role-titles": RoleTitleSchema,
+  // 역대 회장단 공개 프로필 (본인·관리자가 필드별 공개 방식을 고른다)
+  "executive-profiles": ExecutiveProfileSchema,
 } as const;
 
 export type TableName = keyof typeof TABLES;
@@ -78,3 +81,4 @@ export * from "./mail-rule";
 export * from "./mail-variable";
 export * from "./mail-rule-history";
 export * from "./role-title";
+export * from "./executive-profile";

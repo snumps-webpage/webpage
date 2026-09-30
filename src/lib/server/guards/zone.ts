@@ -80,6 +80,8 @@ export const MEMBER_WRITE_CAPABILITY: Readonly<Record<string, Capability>> = {
   "/(member)/events/manage": CAPABILITIES.PARTICIPATE,
   "/(member)/settings/notifications": CAPABILITIES.MANAGE_SELF,
   "/(member)/settings/withdraw": CAPABILITIES.MANAGE_SELF,
+  // 역대 회장단은 대개 동문이다 — 본인 프로필이므로 등록 여부와 무관하게 쓴다.
+  "/(member)/settings/executive-profile": CAPABILITIES.MANAGE_SELF,
   "/(member)/withdraw/pending": CAPABILITIES.MANAGE_SELF,
 };
 
