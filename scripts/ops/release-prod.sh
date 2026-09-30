@@ -4,6 +4,7 @@
 #   bash scripts/ops/release-prod.sh              # 1단계부터, 단계마다 확인을 받는다
 #   bash scripts/ops/release-prod.sh --from 9     # 9단계부터 재개 (중단된 뒤)
 #   DRY_RUN=1 bash scripts/ops/release-prod.sh    # 절차만 훑는다 — 바꾸는 명령은 출력만, 질문은 건너뜀
+#   SKIP_PREVIEW=1 bash scripts/ops/release-prod.sh   # 프리뷰 배포 없이 (3단계를 로컬 점검으로 대신)
 #   DEPLOY_VIA=prebuilt bash scripts/ops/release-prod.sh
 #                                                 # git 연동 배포에 더해 로컬 prebuilt도 올린다 (7단계)
 #
@@ -13,7 +14,7 @@
 # 단계
 #   1 사전 점검            도구·로그인·링크 상태·브랜치·깨끗한 트리·main 빨리감기·보호 규칙
 #   2 로컬 검증            테스트·타입·린트·포맷·빌드, 서버 번들에 PGlite 없음 → 검증한 커밋을 기록
-#   3 프리뷰 확인 (수동)   pnpm 설치, SNU 계정 실로그인, 세미나 흐름 스모크
+#   3 프리뷰 확인 (수동)   pnpm 설치, SNU 계정 실로그인, 세미나 흐름 스모크 (SKIP_PREVIEW=1이면 생략)
 #   4 prod 백업            세 테이블 전부를 SQL 한 문장(한 스냅숏)으로 backups/에 (롤백의 유일한 수단)
 #   5 사전 검사            적용될 파일이 정확히 예상한 5개인지, dry-run, 조회 결과 판독 시험
 #   6 적용                 백업·쓰기 동결 확인 → db push (여기서부터 9단계까지 서두른다)
@@ -81,6 +82,7 @@ readonly RECHECK_DELAY_SECONDS=600
 
 DRY_RUN="${DRY_RUN:-0}"
 DEPLOY_VIA="${DEPLOY_VIA:-git}"
+SKIP_PREVIEW="${SKIP_PREVIEW:-0}"
 FROM=1
 CURRENT_STEP=1
 LINKED_PROD=0
@@ -521,6 +523,10 @@ case "$DRY_RUN" in
   0 | 1) ;;
   *) die "DRY_RUN은 0 또는 1: $DRY_RUN" ;;
 esac
+case "$SKIP_PREVIEW" in
+  0 | 1) ;;
+  *) die "SKIP_PREVIEW는 0 또는 1: $SKIP_PREVIEW" ;;
+esac
 
 cd "$(dirname "$0")/../.."
 [ -f package.json ] && [ -d supabase/migrations ] || die "레포 루트를 찾지 못했다."
@@ -531,7 +537,7 @@ CURRENT_STEP="$FROM"
 
 run_step() { [ "$1" -ge "$FROM" ]; }
 
-say "release-prod: 대상 prod=$PROD_REF, 배포=$DEPLOY_VIA, DRY_RUN=$DRY_RUN, 시작 단계=$FROM"
+say "release-prod: 대상 prod=$PROD_REF, 배포=$DEPLOY_VIA, 프리뷰 생략=$SKIP_PREVIEW, DRY_RUN=$DRY_RUN, 시작 단계=$FROM"
 
 # ---------------------------------------------------------------------------
 # 1 사전 점검
@@ -609,12 +615,29 @@ fi
 # ---------------------------------------------------------------------------
 CURRENT_STEP=3
 if run_step 3; then
-  step 3 "프리뷰 배포에서 확인 (OPERATOR-TODO §2-2 '배포 전 확인 3건')"
-  say "프리뷰는 dev DB를 본다. 커밋 $(git rev-parse --short HEAD)의 Vercel 프리뷰 배포에서:"
-  confirm "(1) 빌드 로그에서 pnpm으로 설치됐다 (npm이면 Install Command를 'pnpm install --frozen-lockfile'로)"
-  confirm "(2) 실제 SNU Google 계정으로 로그인이 통과했다 (hd=snu.ac.kr 검사)"
-  confirm "(3) 세미나 신청→승인→일정→게시→취소, 체크인→출석 승인을 한 번씩 해 봤고 500이 없었다"
-  state_set preview_sha "$(git rev-parse HEAD)"
+  if [ "$SKIP_PREVIEW" = 1 ]; then
+    step 3 "프리뷰 확인 생략 (SKIP_PREVIEW=1)"
+    # (1) 설치 도구: Vercel은 잠금 파일로 패키지 매니저를 고른다 — pnpm 것만 있으면 pnpm이다.
+    [ -f pnpm-lock.yaml ] || die "pnpm-lock.yaml 이 없다."
+    for lock in package-lock.json yarn.lock bun.lockb; do
+      [ ! -e "$lock" ] || die "$lock 가 있다 — Vercel이 pnpm 대신 다른 도구로 설치할 수 있다."
+    done
+    say "(1) 설치 도구: 잠금 파일이 pnpm-lock.yaml 하나뿐 — Vercel이 pnpm으로 설치한다."
+    say "(2) SNU 계정 실로그인은 운영 배포 뒤 바로 확인할 것 — 막히면 코드만 되돌리면 된다(§2-2 4)."
+    say "(3) 세미나·출석 흐름은 로컬 실측(scripts/measure)과 dev DB 적용 확인으로 갈음한다."
+    say "    운영 빌드가 Vercel에서 실패하면 옛 배포가 그대로 남고, prod는 '옛 코드 + 새 DB' 상태가"
+    say "    이어진다(이미지 깨짐·새 필드 벗겨짐). 그때는 빌드를 고쳐 다시 push한 뒤 --from 8."
+    confirm_prod "프리뷰 확인 없이 운영에 반영한다"
+    state_set preview_skipped_sha "$(git rev-parse HEAD)"
+  else
+    step 3 "프리뷰 배포에서 확인 (OPERATOR-TODO §2-2 '배포 전 확인 3건')"
+    say "프리뷰는 dev DB를 본다. 커밋 $(git rev-parse --short HEAD)의 Vercel 프리뷰 배포에서:"
+    say "(프리뷰 없이 가려면 중단하고 SKIP_PREVIEW=1 로 다시)"
+    confirm "(1) 빌드 로그에서 pnpm으로 설치됐다 (npm이면 Install Command를 'pnpm install --frozen-lockfile'로)"
+    confirm "(2) 실제 SNU Google 계정으로 로그인이 통과했다 (hd=snu.ac.kr 검사)"
+    confirm "(3) 세미나 신청→승인→일정→게시→취소, 체크인→출석 승인을 한 번씩 해 봤고 500이 없었다"
+    state_set preview_sha "$(git rev-parse HEAD)"
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -708,7 +731,8 @@ if run_step 7; then
   if [ "$DRY_RUN" != 1 ]; then
     [ "$(state_get validated_sha)" = "$(git rev-parse HEAD)" ] ||
       die "이 커밋은 2단계 검증을 거치지 않았다 — --from 2 로 다시 (이미 적용된 마이그레이션은 5·6단계가 건너뛴다)."
-    if [ "$(state_get preview_sha)" != "$(git rev-parse HEAD)" ]; then
+    head_sha="$(git rev-parse HEAD)"
+    if [ "$(state_get preview_sha)" != "$head_sha" ] && [ "$(state_get preview_skipped_sha)" != "$head_sha" ]; then
       warn "3단계 프리뷰 확인이 이 커밋으로 기록돼 있지 않다."
       confirm "커밋 $(git rev-parse --short HEAD)의 프리뷰를 확인했다"
     fi

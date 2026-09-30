@@ -146,7 +146,8 @@ DB에 없으면 그 기능이 전부 500이 된다. 또 세미나 스키마가 `
    select public from storage.buckets where id = 'assets';             -- false
    ```
 3. ⬜ **prod — 적용·배포·보정·확인을 한 번에**: tmux 안에서 `bash scripts/ops/release-prod.sh`
-   (단계마다 확인, 중단되면 `--from N`, 절차만 훑으려면 `DRY_RUN=1`). 12단계: 사전 점검 → 로컬 검증 →
+   (단계마다 확인, 중단되면 `--from N`, 절차만 훑으려면 `DRY_RUN=1`, 프리뷰 배포 없이 가려면
+   `SKIP_PREVIEW=1` — 3단계를 잠금 파일 점검으로 대신하고, SNU 실로그인은 배포 직후 확인). 12단계: 사전 점검 → 로컬 검증 →
    프리뷰 확인 3건 → **prod 백업** → 적용 대기 목록이 정확히 5개인지·조회 판독 시험 → db push →
    `main` 빨리감기 push(배포) → Ready 커밋 대조 → **백필 재실행**과 확인 쿼리 → 10분 뒤 한 번 더 →
    공개 스모크 → §3-0 복구 미리보기. **`supabase login` 세션만 있으면 된다** — prod 비밀 키 파일
