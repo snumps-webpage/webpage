@@ -1,9 +1,15 @@
-import { fail } from "@sveltejs/kit";
+import { fail, isActionFailure, type ActionFailure } from "@sveltejs/kit";
 import { handleUserAction } from "$lib/server/auth-guards";
 import { currentTerm } from "$lib/server/core/semester";
-import { validateStudyRequestForm } from "$lib/domain/studies";
+import {
+  studyRequestValuesFromFormData,
+  studyTargetIdSchema,
+  validateStudyRequestForm,
+} from "$lib/domain/studies";
+import { formText } from "$lib/domain/form-data";
 import { getTable } from "$lib/server/data/tables";
 import { studyRequestView } from "$lib/server/data/views";
+import { CAPABILITIES, hasCapability } from "$lib/server/core/capabilities";
 import {
   submitStudyRequest,
   withdrawStudyRequest,
@@ -17,6 +23,10 @@ export const load: PageServerLoad = async ({ locals }) => {
   const requests = await getTable("study-requests");
   return {
     defaultSemester: currentTerm(),
+    canSubmit: hasCapability(
+      locals.member?.capabilities,
+      CAPABILITIES.PARTICIPATE,
+    ),
     myRequests: requests
       .filter((r) => r.requesterId === memberId)
       .map(studyRequestView)
@@ -25,7 +35,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions = {
-  default: async ({
+  // Kit rejects a default action alongside a named withdrawal action.
+  submit: async ({
     request,
     locals,
   }: {
@@ -33,22 +44,32 @@ export const actions = {
     locals: App.Locals;
   }) => {
     const data = await request.formData();
-    return handleUserAction(locals, async () => {
+    const result = await handleUserAction(locals, async () => {
       const parsed = validateStudyRequestForm(data);
       if (!parsed.success) return fail(400, parsed.failure);
       const { title, textbook, description, semester } = parsed.data;
-
-      await submitStudyRequest({
+      const row = await submitStudyRequest({
         title,
         textbook,
         description,
         semester,
         requesterId: locals.member!.memberId,
       });
-
       await sendStudyApplicationNotification(locals.member!.name, title);
-      return {};
+      return { operation: "requestSubmitted" as const, requestId: row.id };
     });
+    if (isActionFailure(result as unknown)) {
+      const failure = result as unknown as ActionFailure<
+        Record<string, unknown>
+      >;
+      return fail(failure.status, {
+        ...failure.data,
+        operation: "requestSubmitted" as const,
+        // Preserve native POST drafts for validation and service failures.
+        values: studyRequestValuesFromFormData(data),
+      });
+    }
+    return result;
   },
 
   withdraw: async ({
@@ -58,10 +79,27 @@ export const actions = {
     request: Request;
     locals: App.Locals;
   }) => {
-    const id = (await request.formData()).get("id") as string;
-    return handleUserAction(locals, async () => {
-      await withdrawStudyRequest(id, locals.member!.memberId);
-      return {};
+    const id = formText(await request.formData(), "id");
+    const result = await handleUserAction(locals, async () => {
+      const parsed = studyTargetIdSchema.safeParse(id);
+      if (!parsed.success)
+        return fail(400, {
+          error: "VALIDATION_FAILED",
+          issues: { _form: "철회할 신청을 선택해 주세요." },
+        });
+      await withdrawStudyRequest(parsed.data, locals.member!.memberId);
+      return { operation: "requestWithdrawn" as const, requestId: parsed.data };
     });
+    if (isActionFailure(result as unknown)) {
+      const failure = result as unknown as ActionFailure<
+        Record<string, unknown>
+      >;
+      return fail(failure.status, {
+        ...failure.data,
+        operation: "requestWithdrawn" as const,
+        requestId: id,
+      });
+    }
+    return result;
   },
 };

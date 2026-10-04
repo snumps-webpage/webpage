@@ -7,7 +7,7 @@
     href="/settings/notifications"
     aria-current={current === "notifications" ? "page" : undefined}
   >
-    공지 수신
+    공지·연락처
   </a>
   <a
     href="/settings/withdraw"

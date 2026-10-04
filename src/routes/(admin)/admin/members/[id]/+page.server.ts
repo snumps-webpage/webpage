@@ -1,4 +1,4 @@
-import { error, fail } from "@sveltejs/kit";
+import { error, fail, isActionFailure } from "@sveltejs/kit";
 import { ensureAdmin, handleAdminAction } from "$lib/server/auth-guards";
 import { getTable } from "$lib/server/data/tables";
 import { getPrivateInfoOf } from "$lib/server/data/repos";
@@ -25,6 +25,7 @@ import {
   parseRoleLines,
   privateInfoUpdateSchema,
 } from "$lib/domain/members";
+import type { AdminMemberOperation } from "$lib/domain/admin-member-editor";
 import type { PageServerLoad } from "./$types";
 
 /** ADM-07·12: member detail. Reading this page reads PII — that read is audited. */
@@ -47,6 +48,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   const { publicContact: _deprecated, ...record } = member;
 
   return {
+    isSelf: member.id === locals.member!.memberId,
     member: {
       ...record,
       privateInfo: privateInfo
@@ -81,7 +83,7 @@ function invalid(
   return fail(400, { error: "VALIDATION_FAILED", issues, values });
 }
 
-export const actions = {
+const memberActions = {
   updateMember: async ({ request, locals, params }: Ctx) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {
@@ -193,4 +195,73 @@ export const actions = {
       return {};
     });
   },
+};
+
+/** Result metadata scopes native and enhanced feedback to this member/section.
+ * Only posted field values are echoed; authorization and all writes stay above. */
+function withMemberResult(
+  operation: AdminMemberOperation,
+  fields: string[],
+  action: (ctx: Ctx) => Promise<unknown>,
+) {
+  return async (ctx: Ctx) => {
+    const data = await ctx.request.clone().formData();
+    const values = Object.fromEntries(
+      fields.map((field) => [field, formText(data, field)]),
+    );
+    const result = await action(ctx);
+    if (isActionFailure(result)) {
+      const failure = result.data as unknown as Record<string, unknown>;
+      return fail(result.status, {
+        ...failure,
+        operation,
+        memberId: ctx.params.id,
+        values: failure.values ?? values,
+      });
+    }
+    return {
+      ...(result as Record<string, unknown>),
+      operation,
+      memberId: ctx.params.id,
+    };
+  };
+}
+
+export const actions = {
+  updateMember: withMemberResult(
+    "memberUpdated",
+    ["name", "department", "joinedAt", "projectTitle", "projectUrl"],
+    memberActions.updateMember,
+  ),
+  setStatus: withMemberResult(
+    "statusUpdated",
+    ["status"],
+    memberActions.setStatus,
+  ),
+  revokeAlumni: withMemberResult(
+    "alumniRevoked",
+    ["reason"],
+    memberActions.revokeAlumni,
+  ),
+  setRoles: withMemberResult("rolesUpdated", ["roles"], memberActions.setRoles),
+  setAdmin: withMemberResult(
+    "adminUpdated",
+    ["isAdmin"],
+    memberActions.setAdmin,
+  ),
+  updatePrivateInfo: withMemberResult(
+    "privateInfoUpdated",
+    ["email", "phone", "background"],
+    memberActions.updatePrivateInfo,
+  ),
+  holdWithdrawal: withMemberResult(
+    "withdrawalHoldUpdated",
+    [],
+    memberActions.holdWithdrawal,
+  ),
+  releaseWithdrawalHold: withMemberResult(
+    "withdrawalHoldUpdated",
+    [],
+    memberActions.releaseWithdrawalHold,
+  ),
 };

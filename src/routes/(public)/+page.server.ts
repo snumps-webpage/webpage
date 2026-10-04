@@ -17,7 +17,8 @@ import {
   isOpenForApplication,
   isSeminarType,
 } from "$lib/server/services/events";
-import { seminarRequestView } from "$lib/server/data/views";
+import { ownSeminarRequests } from "$lib/server/data/dashboard-seminars";
+import type { OwnSeminarRequestItem } from "$lib/domain/seminar-progress";
 import { currentTerm, termRange } from "$lib/server/core/semester";
 import { AppError } from "$lib/server/core/errors";
 import { formatPhoneForDisplay } from "$lib/utils";
@@ -30,12 +31,7 @@ import {
   type DashboardProfile,
 } from "$lib/domain/dashboard";
 import { formText } from "$lib/domain/form-data";
-import type {
-  Activity,
-  Event,
-  RequestStatus,
-  StudyStatus,
-} from "$lib/server/data/schemas";
+import type { Activity, Event, StudyStatus } from "$lib/server/data/schemas";
 import type { PageServerLoad } from "./$types";
 import { acceptTransfer, declineTransfer } from "$lib/server/services/studies";
 
@@ -43,12 +39,7 @@ import { acceptTransfer, declineTransfer } from "$lib/server/services/studies";
 export type DashboardData = {
   /** The ledger's rows, in the shape the apply/cancel answer carries (audit LC07-1). */
   activities: DashboardActivityItem[];
-  seminarRequests: {
-    id: string;
-    title: string;
-    status: RequestStatus | "cancelled";
-    submittedAt: string;
-  }[];
+  seminarRequests: OwnSeminarRequestItem[];
   myStudies: {
     id: string;
     title: string;
@@ -217,6 +208,10 @@ function buildDevDashboardPreview(semesterKey: string): DashboardData {
       {
         id: "preview-req-1",
         status: "pending",
+        publicationStatus: null,
+        schedule: null,
+        publicPath: null,
+        editPath: null,
         title: "대수적 위상수학 입문",
         submittedAt: new Date(
           today.getTime() - 6 * 24 * 60 * 60 * 1000,
@@ -320,29 +315,13 @@ export const load: PageServerLoad = async (event) => {
         allMembers.find((m) => m.id === member.memberId) ?? null;
       const now = new Date();
 
-      // 취소는 세미나 행만 뒤집는다 — 신청 행은 "승인됨"인 채로 남는다. 발표자
-      // 화면에는 "취소됨"으로 보여 준다(결정 2026-09-27, 예전의 "숨김"을 뒤집음).
-      // 세미나가 취소 상태이거나, 그 세미나가 삭제되며 신청에 closedAs를 남긴 경우.
-      const cancelledRequestIds = new Set(
-        allSeminars
-          .filter(
-            (s) => s.publicationStatus === "cancelled" && s.sourceRequestId,
-          )
-          .map((s) => s.sourceRequestId),
+      const requests = ownSeminarRequests(
+        allRequests,
+        allSeminars,
+        myIds,
+        member.memberId,
+        hasCapability(member.capabilities, CAPABILITIES.PARTICIPATE),
       );
-      const requests = allRequests
-        .filter(
-          (r) =>
-            r.presenterIds.some((id) => myIds.has(id)) ||
-            myIds.has(r.requesterId),
-        )
-        .map((r) => ({
-          ...seminarRequestView(r),
-          status:
-            r.closedAs || cancelledRequestIds.has(r.id)
-              ? ("cancelled" as const)
-              : r.status,
-        }));
 
       const currentActivities = currentRaw.map((a) => {
         const event = eventByActivityId.get(a.id);
@@ -384,7 +363,7 @@ export const load: PageServerLoad = async (event) => {
         myStudies: allStudies
           .filter(
             (s) =>
-              s.organizerIds.includes(member.memberId) ||
+              s.organizerIds.some((id) => myIds.has(id)) ||
               s.participantIds.includes(member.memberId) ||
               s.pendingParticipantIds.includes(member.memberId),
           )

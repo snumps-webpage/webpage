@@ -1,14 +1,15 @@
 <script lang="ts">
   let {
-    title = "Submission",
-    phone = "",
-    studentId = "",
-    background = "",
+    title = "학번과 연락 정보",
+    phone = $bindable(""),
+    studentId = $bindable(""),
+    background = $bindable(""),
     issues = {},
   } = $props();
 </script>
 
 <li class="paper-section">
+  <p class="section-index">02 · 신청 정보</p>
   <h2 class="paper-section-title">{title}</h2>
   <div class="paper-field">
     <label for="studentId" class="paper-label"
@@ -18,10 +19,11 @@
       type="text"
       id="studentId"
       name="studentId"
-      value={studentId}
+      bind:value={studentId}
       required
       placeholder="2024-12345"
-      pattern="[0-9][0-9][0-9][0-9]-?[0-9]+"
+      pattern={"[0-9]{4}-?[0-9]{4,6}"}
+      maxlength="24"
       title="학번을 2024-12345 형식으로 입력해주세요."
       inputmode="numeric"
       aria-invalid={Boolean(issues.studentId)}
@@ -39,11 +41,11 @@
       type="tel"
       id="phone"
       name="phone"
-      value={phone}
+      bind:value={phone}
       required
       placeholder="010-0000-0000"
-      pattern="[0-9][0-9][0-9]-?[0-9][0-9][0-9][0-9]-?[0-9][0-9][0-9][0-9]"
-      title="11자리 숫자 또는 XXX-XXXX-XXXX 형식으로 입력해주세요."
+      maxlength="32"
+      title="010-XXXX-XXXX 형식으로 입력해 주세요. 공백이나 하이픈 없이 입력해도 됩니다."
       inputmode="tel"
       autocomplete="tel"
       aria-invalid={Boolean(issues.phone)}
@@ -58,12 +60,13 @@
     <textarea
       id="background"
       name="background"
-      rows="4"
+      rows="5"
+      bind:value={background}
+      maxlength="2000"
       placeholder="관심 분야나 관련 경험을 적어주세요."
       aria-invalid={Boolean(issues.background)}
       aria-describedby={issues.background ? "background-error" : undefined}
-      >{background}</textarea
-    >
+    ></textarea>
     {#if issues.background}<small id="background-error" class="field-error"
         >{issues.background}</small
       >{/if}
@@ -71,6 +74,16 @@
 </li>
 
 <style>
+  .section-index {
+    margin: 0 0 0.25rem;
+    color: var(--latex-muted);
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+  }
+  input,
+  textarea {
+    border-color: var(--latex-muted);
+  }
   .req {
     color: var(--latex-accent);
   }

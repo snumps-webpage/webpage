@@ -7,6 +7,38 @@ export interface MailPreferenceFormFailure {
   values: { type: string; enabled: string };
 }
 
+export interface PhonePreferenceFormFailure {
+  error: "VALIDATION_FAILED";
+  issues: Partial<Record<"hide", string>>;
+  values: { hide: string };
+}
+
+/** Only an explicit boolean choice may change the public phone setting. */
+export function validatePhonePreferenceForm(formData: FormData) {
+  const values = { hide: formText(formData, "hide") };
+  const result = z
+    .object({
+      hide: z.enum(["true", "false"], {
+        error: "전화번호 공개 여부를 확인해 주세요.",
+      }),
+    })
+    .safeParse(values);
+  if (result.success) {
+    return {
+      success: true as const,
+      data: { hide: result.data.hide === "true" },
+    };
+  }
+  return {
+    success: false as const,
+    failure: {
+      error: "VALIDATION_FAILED" as const,
+      issues: fieldIssues(result.error, ["hide"] as const),
+      values,
+    } satisfies PhonePreferenceFormFailure,
+  };
+}
+
 export interface WithdrawalFormValues {
   ackInfo: boolean;
   ackDataPolicy: boolean;

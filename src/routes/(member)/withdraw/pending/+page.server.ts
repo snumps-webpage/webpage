@@ -1,4 +1,9 @@
-import { redirect } from "@sveltejs/kit";
+import {
+  redirect,
+  fail,
+  isActionFailure,
+  type ActionFailure,
+} from "@sveltejs/kit";
 import { handleUserAction } from "$lib/server/auth-guards";
 import {
   cancelWithdrawal,
@@ -15,9 +20,19 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions = {
   cancelWithdrawal: async ({ locals }: { locals: App.Locals }) => {
-    return handleUserAction(locals, async () => {
+    const result = await handleUserAction(locals, async () => {
       await cancelWithdrawal(locals.member!.memberId);
       throw redirect(303, "/");
     });
+    if (isActionFailure(result as unknown)) {
+      const failure = result as unknown as ActionFailure<
+        Record<string, unknown>
+      >;
+      return fail(failure.status, {
+        ...failure.data,
+        operation: "withdrawalCancelled" as const,
+      });
+    }
+    return result;
   },
 };

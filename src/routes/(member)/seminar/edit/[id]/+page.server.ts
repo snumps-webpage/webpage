@@ -1,4 +1,9 @@
-import { fail, redirect } from "@sveltejs/kit";
+import {
+  fail,
+  redirect,
+  isActionFailure,
+  type ActionFailure,
+} from "@sveltejs/kit";
 import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
 import { getTable } from "$lib/server/data/tables";
 import { memberPickers } from "$lib/server/data/repos";
@@ -12,9 +17,11 @@ import { parseGoogleName } from "$lib/utils";
 import { proposalTerm } from "$lib/domain/term";
 import { formText } from "$lib/domain/form-data";
 import {
+  seminarRequestValuesFromFormData,
   seminarTimingOptions,
   validateSeminarRequestForm,
 } from "$lib/domain/seminars";
+import { CAPABILITIES, hasCapability } from "$lib/server/core/capabilities";
 import type { PageServerLoad, Actions } from "./$types";
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
@@ -48,6 +55,10 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     .filter((m) => !!m);
 
   return {
+    canSubmit: hasCapability(
+      locals.member?.capabilities,
+      CAPABILITIES.PARTICIPATE,
+    ),
     user: session.user,
     actualName: locals.member?.name || parseGoogleName(session.user.name).name,
     members: searchableMembers,
@@ -65,11 +76,11 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 
 export const actions: Actions = {
   update: async ({ request, locals, params }) => {
-    return handleUserAction(locals, async () => {
+    const data = await request.formData();
+    const result = await handleUserAction(locals, async () => {
       const member = locals.member;
       if (!member) throw new AppError("FORBIDDEN");
 
-      const data = await request.formData();
       const parsed = validateSeminarRequestForm(data);
       if (!parsed.success) return fail(400, parsed.failure);
       const { title, description, prerequisites, duration } = parsed.data;
@@ -91,16 +102,40 @@ export const actions: Actions = {
         },
         formText(data, "posterPendingKey"),
       );
+      return { operation: "requestUpdated" as const, requestId: params.id };
     });
+    if (isActionFailure(result as unknown)) {
+      const failure = result as unknown as ActionFailure<
+        Record<string, unknown>
+      >;
+      return fail(failure.status, {
+        ...failure.data,
+        operation: "requestUpdated" as const,
+        requestId: params.id,
+        values: seminarRequestValuesFromFormData(data),
+      });
+    }
+    return result;
   },
 
   /** §5-2 ?/withdraw — the requester retracts a pending proposal. */
   withdraw: async ({ locals, params }) => {
-    return handleUserAction(locals, async () => {
+    const result = await handleUserAction(locals, async () => {
       const member = locals.member;
       if (!member) throw new AppError("FORBIDDEN");
       await withdrawSeminarRequest(params.id, member.memberId);
       throw redirect(303, "/");
     });
+    if (isActionFailure(result as unknown)) {
+      const failure = result as unknown as ActionFailure<
+        Record<string, unknown>
+      >;
+      return fail(failure.status, {
+        ...failure.data,
+        operation: "requestWithdrawn" as const,
+        requestId: params.id,
+      });
+    }
+    return result;
   },
 };

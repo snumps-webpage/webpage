@@ -1,17 +1,14 @@
 <script lang="ts">
   import type { AdminStudyRecord } from "$lib/domain/admin-records";
   import AdminDirectUploadForm from "$lib/components/admin/AdminDirectUploadForm.svelte";
+  import {
+    recordFieldValue,
+    recordFailureMessage,
+    type AdminRecordActionState,
+  } from "$lib/domain/admin-record-editor";
   import { uploadLimitMb } from "$lib/domain/uploads";
 
-  export interface StudyRecordFormState {
-    success?: boolean;
-    operation?: string;
-    scope?: string;
-    id?: string;
-    error?: string;
-    issues?: Record<string, string>;
-    values?: Record<string, string>;
-  }
+  export type StudyRecordFormState = AdminRecordActionState;
 
   interface MemberOption {
     id: string;
@@ -36,6 +33,7 @@
     const normalized = query.trim().toLocaleLowerCase("ko-KR");
     return records.filter(
       (record) =>
+        (record.id === form?.id && !!form?.error) ||
         !normalized ||
         [record.title, record.term, ...record.organizerNames].some((value) =>
           value.toLocaleLowerCase("ko-KR").includes(normalized),
@@ -47,6 +45,12 @@
       ? (form.issues ?? {})
       : {};
   const createIssues = $derived(issuesFor("record-create"));
+  const failureMessage = $derived(recordFailureMessage(form));
+  const valueFor = (
+    record: AdminStudyRecord,
+    field: string,
+    fallback: string | number,
+  ) => recordFieldValue(form, "record-update", record.id, field, fallback);
   const messages: Record<string, string> = {
     studyRecordCreated: "스터디 레코드를 생성했습니다.",
     studyRecordUpdated: "스터디 기본 정보를 수정했습니다.",
@@ -71,11 +75,9 @@
       {messages[form.operation]}
     </p>
   {/if}
-  {#if form?.error === "CONFLICT"}
-    <p class="paper-status-note error" role="alert">
-      출석 회차가 있는 스터디는 삭제할 수 없습니다.
-    </p>
-  {/if}
+  {#if failureMessage}<p class="paper-status-note error" role="alert">
+      {failureMessage}
+    </p>{/if}
 
   <details class="create-record" open={form?.scope === "record-create"}>
     <summary>새 스터디 레코드 생성</summary>
@@ -163,7 +165,10 @@
     {#each filtered as record (record.id)}
       {@const updateIssues = issuesFor("record-update", record.id)}
       {@const fileIssues = issuesFor("record-file", record.id)}
-      <details class="record-card">
+      <details
+        class="record-card"
+        open={form?.id === record.id && !!form?.error}
+      >
         <summary>
           <div>
             <span>{record.term} · 회차 {record.sessionCount}개</span><strong
@@ -182,7 +187,7 @@
               <label class="title-field"
                 ><span class="paper-label">제목</span><input
                   name="title"
-                  value={record.title}
+                  value={valueFor(record, "title", record.title)}
                   aria-invalid={!!updateIssues.title}
                 />{#if updateIssues.title}<small>{updateIssues.title}</small
                   >{/if}</label
@@ -190,7 +195,7 @@
               <label
                 ><span class="paper-label">학기</span><input
                   name="semester"
-                  value={record.term}
+                  value={valueFor(record, "term", record.term)}
                   aria-invalid={!!updateIssues.term}
                 />{#if updateIssues.term}<small>{updateIssues.term}</small
                   >{/if}</label
@@ -200,7 +205,11 @@
                   name="description"
                   rows="3"
                   aria-invalid={!!updateIssues.description}
-                  >{record.description}</textarea
+                  >{valueFor(
+                    record,
+                    "description",
+                    record.description,
+                  )}</textarea
                 >{#if updateIssues.description}<small
                     >{updateIssues.description}</small
                   >{/if}</label
@@ -208,7 +217,7 @@
               <label class="wide"
                 ><span class="paper-label">교재·자료</span><input
                   name="textbook"
-                  value={record.material}
+                  value={valueFor(record, "material", record.material)}
                   aria-invalid={!!updateIssues.material}
                 />{#if updateIssues.material}<small
                     >{updateIssues.material}</small
@@ -238,7 +247,11 @@
               <select name="organizerId" aria-label="새 주최자">
                 {#each members as member (member.id)}<option
                     value={member.id}
-                    selected={record.organizerIds.includes(member.id)}
+                    selected={form?.scope === "record-organizer" &&
+                    form.id === record.id &&
+                    form.values
+                      ? form.values.organizerId === member.id
+                      : record.organizerIds.includes(member.id)}
                     >{member.name} · {member.department}</option
                   >{/each}
               </select>

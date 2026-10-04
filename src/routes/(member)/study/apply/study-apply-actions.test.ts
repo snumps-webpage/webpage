@@ -9,11 +9,11 @@ const mail = vi.hoisted(() => ({
 }));
 vi.mock("$lib/server/mail", () => mail);
 
-import { __reset } from "$lib/server/data/store-memory";
+import { __reset, __setWritesFail } from "$lib/server/data/store-memory";
 import { _resetDataLayerForTests, getTable } from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { submitStudyRequest } from "$lib/server/services/studies";
-import { actions } from "./+page.server";
+import { actions, load } from "./+page.server";
 
 /**
  * StudyRequestForm already renders per-field issues (title, textbook,
@@ -69,9 +69,13 @@ beforeEach(async () => {
 
 describe("study/apply", () => {
   it("stores a valid request, trimmed, and notifies the admins", async () => {
-    const result = await actions.default(post(valid));
+    const result = await actions.submit(post(valid));
 
-    expect(result).toMatchObject({ success: true });
+    expect(result).toMatchObject({
+      success: true,
+      operation: "requestSubmitted",
+      requestId: expect.any(String),
+    });
     const [row] = await getTable("study-requests");
     expect(row).toMatchObject({
       title: "범주론 읽기 모임",
@@ -99,11 +103,12 @@ describe("study/apply", () => {
   ])(
     "refuses a bad %s with a field issue, writes nothing and sends no mail",
     async (field, over) => {
-      const result = await actions.default(post({ ...valid, ...over }));
+      const result = await actions.submit(post({ ...valid, ...over }));
 
       expect(result).toMatchObject({
         status: 400,
         data: {
+          operation: "requestSubmitted",
           error: "VALIDATION_FAILED",
           issues: { [field]: expect.any(String) },
           values: { semester: expect.any(String) },
@@ -115,7 +120,7 @@ describe("study/apply", () => {
   );
 
   it("echoes the submitted values", async () => {
-    const result = (await actions.default(
+    const result = (await actions.submit(
       post({ ...valid, semester: "x" }),
     )) as unknown as Failure;
 
@@ -123,7 +128,7 @@ describe("study/apply", () => {
   });
 
   it("reports every bad field at once, not the first one", async () => {
-    const result = (await actions.default(
+    const result = (await actions.submit(
       post({ title: "", textbook: "", description: "", semester: "" }),
     )) as unknown as Failure;
 
@@ -150,5 +155,90 @@ describe("study/apply ?/withdraw", () => {
     const result = await actions.withdraw(post({ id: row.id }));
 
     expect(result).toMatchObject({ status: 409, data: { error: "CONFLICT" } });
+  });
+});
+
+describe("study proposal response identity and guarded history", () => {
+  it("never mixes default and named actions", () => {
+    expect(Object.keys(actions).sort()).toEqual(["submit", "withdraw"]);
+  });
+  it("keeps the submitted draft and operation when the store cannot write", async () => {
+    __setWritesFail(true);
+    try {
+      expect(await actions.submit(post(valid))).toMatchObject({
+        status: 503,
+        data: {
+          error: "SERVICE_UNAVAILABLE",
+          operation: "requestSubmitted",
+          values: valid,
+        },
+      });
+      expect(mail.sendStudyApplicationNotification).not.toHaveBeenCalled();
+    } finally {
+      __setWritesFail(false);
+    }
+  });
+  it("identifies successful and repeated withdrawal responses", async () => {
+    const row = await submitStudyRequest({
+      title: "예시 스터디",
+      textbook: "",
+      description: "",
+      semester: "26-2",
+      requesterId: MEMBER_ID,
+    });
+    expect(await actions.withdraw(post({ id: row.id }))).toEqual({
+      success: true,
+      operation: "requestWithdrawn",
+      requestId: row.id,
+    });
+    expect(await actions.withdraw(post({ id: row.id }))).toMatchObject({
+      status: 409,
+      data: {
+        operation: "requestWithdrawn",
+        requestId: row.id,
+        error: "CONFLICT",
+      },
+    });
+  });
+  it("rejects empty targets without writing and keeps missing target status404", async () => {
+    expect(await actions.withdraw(post({ id: "" }))).toMatchObject({
+      status: 400,
+      data: {
+        operation: "requestWithdrawn",
+        issues: { _form: expect.any(String) },
+      },
+    });
+    expect(await actions.withdraw(post({ id: "missing" }))).toMatchObject({
+      status: 404,
+      data: { operation: "requestWithdrawn", requestId: "missing" },
+    });
+  });
+  it("does not let another requester withdraw or see someone else's proposal", async () => {
+    const own = await submitStudyRequest({
+      title: "내 신청",
+      textbook: "",
+      description: "",
+      semester: "26-2",
+      requesterId: MEMBER_ID,
+    });
+    const other = await submitStudyRequest({
+      title: "다른 신청",
+      textbook: "",
+      description: "",
+      semester: "26-2",
+      requesterId: "other",
+    });
+    expect(await actions.withdraw(post({ id: other.id }))).toMatchObject({
+      status: 403,
+      data: { error: "FORBIDDEN" },
+    });
+    const data = await load({ locals } as unknown as Parameters<
+      typeof load
+    >[0]);
+    expect(
+      data?.myRequests.map((request: { id: string }) => request.id),
+    ).toEqual([own.id]);
+    expect(data?.canSubmit).toBe(false);
+    expect(JSON.stringify(data)).not.toContain('"requesterId"');
   });
 });

@@ -7,13 +7,14 @@ import {
   setAttendees,
   updateActivity,
 } from "$lib/server/services/records-admin";
-import { fail } from "@sveltejs/kit";
+import { fail, isActionFailure, type ActionFailure } from "@sveltejs/kit";
 import { kstInputToIso, nowKstIso } from "$lib/server/core/time";
 import { ACTIVITY_TYPES } from "$lib/server/data/schemas";
 import { formText, fieldIssues } from "$lib/domain/form-data";
 import {
   adminActivityRecordSchema,
   adminActivityRecordUpdateSchema,
+  type AdminRecordActionScope,
 } from "$lib/domain/admin-records";
 import type { PageServerLoad } from "./$types";
 
@@ -47,67 +48,97 @@ function activityValues(data: FormData) {
     type: formText(data, "type"),
     start: formText(data, "start"),
     end: formText(data, "end"),
+    date: formText(data, "date"),
+  };
+}
+
+/** Preserve the shared auth/error classification and add only editor values. */
+async function recordAction<T extends Record<string, unknown>>(
+  locals: App.Locals,
+  scope: AdminRecordActionScope,
+  id: string,
+  values: Record<string, string>,
+  logic: () => Promise<T | ActionFailure<Record<string, unknown>>>,
+  arrays: Record<string, string[]> = {},
+) {
+  const result = await handleAdminAction(locals, logic);
+  if (isActionFailure(result as unknown)) {
+    const failure = result as ActionFailure<Record<string, unknown>>;
+    return fail(failure.status, {
+      ...failure.data,
+      scope,
+      id,
+      values,
+      ...arrays,
+    });
+  }
+  const successful = result as T & { success: true };
+  return {
+    ...successful,
+    scope,
+    id: typeof successful.id === "string" ? successful.id : id,
   };
 }
 
 export const actions = {
   create: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
-    return handleAdminAction(locals, async () => {
-      const values = activityValues(data);
+    const values = activityValues(data);
+    return recordAction(locals, "record-create", "", values, async () => {
       const parsed = adminActivityRecordSchema.safeParse(values);
       if (!parsed.success) {
         return fail(400, {
           error: "VALIDATION_FAILED",
           issues: fieldIssues(parsed.error),
-          values,
         });
       }
-      const { title, type, start, end } = parsed.data;
-      await createActivity({
+      const { title, type, start, end, date } = parsed.data;
+      const created = await createActivity({
         title,
         date: {
-          start: kstInputToIso(start),
+          start: kstInputToIso(start || `${date}T00:00`),
           end: end ? kstInputToIso(end) : null,
         },
         type,
       });
-      return { operation: "activityCreated" };
+      return { operation: "activityCreated", id: created.id };
     });
   },
 
   update: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
-    return handleAdminAction(locals, async () => {
-      const id = data.get("id") as string;
-      const values = activityValues(data);
+    const id = formText(data, "id");
+    const values = activityValues(data);
+    return recordAction(locals, "record-update", id, values, async () => {
       const parsed = adminActivityRecordUpdateSchema.safeParse(values);
       if (!parsed.success) {
         return fail(400, {
           error: "VALIDATION_FAILED",
-          id,
           issues: fieldIssues(parsed.error),
-          values,
         });
       }
-      const { title, type, start, end } = parsed.data;
-      await updateActivity(id, {
-        title,
-        type,
-        date: start
-          ? {
-              start: kstInputToIso(start),
-              end: end ? kstInputToIso(end) : null,
-            }
-          : undefined,
-      });
+      const { title, type, start, end, date } = parsed.data;
+      await updateActivity(
+        id,
+        {
+          title,
+          type,
+          date: start
+            ? {
+                start: kstInputToIso(start),
+                end: end ? kstInputToIso(end) : null,
+              }
+            : undefined,
+        },
+        !start && date ? date : undefined,
+      );
       return { operation: "activityUpdated" };
     });
   },
 
   delete: async ({ request, locals }: Ctx) => {
-    const id = (await request.formData()).get("id") as string;
-    return handleAdminAction(locals, async () => {
+    const id = formText(await request.formData(), "id");
+    return recordAction(locals, "record-delete", id, {}, async () => {
       await deleteActivity(id);
       return { operation: "activityDeleted" };
     });
@@ -116,13 +147,23 @@ export const actions = {
   /** §7-4: the one sanctioned wholesale overwrite — UI shows a confirm dialog. */
   setAttendees: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
-    return handleAdminAction(locals, async () => {
-      const id = data.get("id") as string;
-      const attendeeIds = (data.getAll("attendeeIds") as string[]).filter(
-        Boolean,
-      );
-      await setAttendees(id, attendeeIds);
-      return { operation: "attendeesReplaced" };
-    });
+    const id = formText(data, "id");
+    const attendeeIds = (data.getAll("attendeeIds") as string[]).filter(
+      Boolean,
+    );
+    const submittedIds = attendeeIds.filter(
+      (value) => typeof value === "string",
+    );
+    return recordAction(
+      locals,
+      "record-attendees",
+      id,
+      {},
+      async () => {
+        await setAttendees(id, attendeeIds);
+        return { operation: "attendeesReplaced" };
+      },
+      { attendeeIds: submittedIds },
+    );
   },
 };

@@ -19,9 +19,13 @@
   const sessions = $derived(data.sessions);
   // §6-4 / #4/#20: finished and cancelled are terminal — every organizer
   // mutation locks with them (the server refuses too); attendance stays open.
-  const canMutate = $derived(!isStudyClosed(study.status));
+  const canMutate = $derived(
+    !isStudyClosed(study.status) && data.canParticipate,
+  );
   // The one transition rule — the server enforces the same function.
-  const nextStatuses = $derived(nextStudyStatuses(study.status));
+  const nextStatuses = $derived(
+    data.canParticipate ? nextStudyStatuses(study.status) : [],
+  );
   const transferCandidates = $derived(
     data.members.filter((member) => !study.organizerIds.includes(member.id)),
   );
@@ -86,6 +90,10 @@
       update: () => Promise<void>;
     }) => {
       statusProcessing = false;
+      if (result.type === "redirect") {
+        await update();
+        return;
+      }
       if (result.type === "success") {
         await update();
         showNotice(
@@ -173,8 +181,12 @@
         </form>
       {:else}
         <p>
-          {study.status === "cancelled" ? "취소된" : "종료된"} 스터디입니다. 회차와
-          참여자 변경이 잠겼고, 출석부 정정만 할 수 있습니다.
+          {#if !data.canParticipate}이번 학기 등록 전에는 주최자 화면을 열람할
+            수 있습니다. 회차·참여자·출석 기록 변경은 등록 후 이용하세요.{:else}{study.status ===
+            "cancelled"
+              ? "취소된"
+              : "종료된"} 스터디입니다. 회차와 참여자 변경이 잠겼고, 출석부 정정만
+            할 수 있습니다.{/if}
         </p>
       {/each}
     </div>

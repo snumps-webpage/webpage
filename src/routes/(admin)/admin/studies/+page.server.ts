@@ -9,11 +9,12 @@ import {
   updateStudy,
 } from "$lib/server/services/records-admin";
 import { promotePendingUpload } from "$lib/server/services/uploads";
-import { fail } from "@sveltejs/kit";
+import { fail, isActionFailure, type ActionFailure } from "@sveltejs/kit";
 import { formText, fieldIssues } from "$lib/domain/form-data";
 import {
   adminStudyRecordCreateSchema,
   adminStudyRecordSchema,
+  type AdminRecordActionScope,
 } from "$lib/domain/admin-records";
 import { currentTerm } from "$lib/server/core/semester";
 import { nowKstIso } from "$lib/server/core/time";
@@ -86,35 +87,44 @@ function studyValues(data: FormData) {
   };
 }
 
-function invalid(
-  scope: "record-create" | "record-update",
-  error: Parameters<typeof fieldIssues>[0],
+/** Preserve the shared auth/error classification and add only editor values. */
+async function recordAction<T extends Record<string, unknown>>(
+  locals: App.Locals,
+  scope: AdminRecordActionScope,
+  id: string,
   values: Record<string, string>,
-  id?: string,
+  logic: () => Promise<T | ActionFailure<Record<string, unknown>>>,
 ) {
-  return fail(400, {
-    error: "VALIDATION_FAILED",
+  const result = await handleAdminAction(locals, logic);
+  if (isActionFailure(result as unknown)) {
+    const failure = result as ActionFailure<Record<string, unknown>>;
+    return fail(failure.status, { ...failure.data, scope, id, values });
+  }
+  const successful = result as T & { success: true };
+  return {
+    ...successful,
     scope,
-    id,
-    issues: fieldIssues(error),
-    values,
-  });
+    id: typeof successful.id === "string" ? successful.id : id,
+  };
 }
 
 export const actions = {
   create: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
-    return handleAdminAction(locals, async () => {
-      const values = {
-        ...studyValues(data),
-        organizerId: formText(data, "organizerId"),
-      };
+    const values = {
+      ...studyValues(data),
+      organizerId: formText(data, "organizerId"),
+    };
+    return recordAction(locals, "record-create", "", values, async () => {
       const parsed = adminStudyRecordCreateSchema.safeParse(values);
       if (!parsed.success)
-        return invalid("record-create", parsed.error, values);
+        return fail(400, {
+          error: "VALIDATION_FAILED",
+          issues: fieldIssues(parsed.error),
+        });
       const { title, term, material, description, note, organizerId } =
         parsed.data;
-      await createStudy({
+      const created = await createStudy({
         title,
         semester: term,
         textbook: material,
@@ -122,18 +132,24 @@ export const actions = {
         note,
         organizerIds: [organizerId],
       });
-      return { operation: "studyRecordCreated" };
+      return { operation: "studyRecordCreated", id: created.id };
     });
   },
 
   update: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
-    return handleAdminAction(locals, async () => {
-      const id = data.get("id") as string;
-      const values = studyValues(data);
+    const id = formText(data, "id");
+    const values = {
+      ...studyValues(data),
+      ...(data.has("status") ? { status: formText(data, "status") } : {}),
+    };
+    return recordAction(locals, "record-update", id, values, async () => {
       const parsed = adminStudyRecordSchema.safeParse(values);
       if (!parsed.success)
-        return invalid("record-update", parsed.error, values, id);
+        return fail(400, {
+          error: "VALIDATION_FAILED",
+          issues: fieldIssues(parsed.error),
+        });
       const { title, term, material, description, note } = parsed.data;
       const statusRaw = formText(data, "status");
       const status = statusRaw ? StudyStatus.safeParse(statusRaw) : null;
@@ -153,8 +169,8 @@ export const actions = {
   },
 
   delete: async ({ request, locals }: Ctx) => {
-    const id = (await request.formData()).get("id") as string;
-    return handleAdminAction(locals, async () => {
+    const id = formText(await request.formData(), "id");
+    return recordAction(locals, "record-delete", id, {}, async () => {
       await deleteStudy(id);
       return { operation: "studyRecordDeleted" };
     });
@@ -163,9 +179,11 @@ export const actions = {
   /** Admin plenary transfer — clears any pending two-phase proposal, audited. */
   setOrganizer: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
-    return handleAdminAction(locals, async () => {
+    const id = formText(data, "id");
+    const values = { organizerId: formText(data, "organizerId") };
+    return recordAction(locals, "record-organizer", id, values, async () => {
       await setOrganizer(
-        data.get("id") as string,
+        id,
         data.get("organizerId") as string,
         locals.member!.memberId,
       );
@@ -175,8 +193,9 @@ export const actions = {
 
   addFile: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
-    return handleAdminAction(locals, async () => {
-      const id = data.get("id") as string;
+    const id = formText(data, "id");
+    const values = { pendingKey: formText(data, "pendingKey") };
+    return recordAction(locals, "record-file", id, values, async () => {
       const finalKey = await promotePendingUpload(
         data.get("pendingKey") as string,
         "study-photo",
@@ -189,8 +208,10 @@ export const actions = {
 
   removeFile: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
-    return handleAdminAction(locals, async () => {
-      await setStudyPhotos(data.get("id") as string, {
+    const id = formText(data, "id");
+    const values = { s3Key: formText(data, "s3Key") };
+    return recordAction(locals, "record-file", id, values, async () => {
+      await setStudyPhotos(id, {
         remove: data.get("s3Key") as string,
       });
       return { operation: "studyFileRemoved" };

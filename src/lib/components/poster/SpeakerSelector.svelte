@@ -1,236 +1,267 @@
 <script lang="ts">
-  import type { MemberPickerItem } from "$lib/domain/seminars";
-
+  import {
+    SEMINAR_MAX_PRESENTERS,
+    type MemberPickerItem,
+  } from "$lib/domain/seminars";
   let {
     selectedSpeakers = $bindable([]),
     members = [],
     memberDirectoryUnavailable = false,
     showSearch = $bindable(false),
     error,
+    onChange = () => {},
   }: {
     selectedSpeakers: MemberPickerItem[];
     members: MemberPickerItem[];
     memberDirectoryUnavailable: boolean;
     showSearch: boolean;
     error?: string;
+    onChange?: () => void;
   } = $props();
-
   let searchQuery = $state("");
-  let selectedSpeakerIds = $derived(new Set(selectedSpeakers.map((s) => s.id)));
-
-  let searchResults = $derived(
-    searchQuery.trim() === ""
-      ? []
-      : members
-          .filter(
-            (m: MemberPickerItem) =>
-              !selectedSpeakerIds.has(m.id) &&
-              (m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                m.department.toLowerCase().includes(searchQuery.toLowerCase())),
-          )
-          .slice(0, 5),
+  let searchInput = $state<HTMLInputElement>();
+  const selectedIds = $derived(
+    new Set(selectedSpeakers.map((speaker) => speaker.id)),
   );
-
-  function addSpeaker(member: MemberPickerItem) {
-    selectedSpeakers = [...selectedSpeakers, member];
-    searchQuery = "";
-    showSearch = false;
-  }
-
-  function removeSpeaker(id: string) {
-    selectedSpeakers = selectedSpeakers.filter((s) => s.id !== id);
+  const displayedSpeakers = $derived(
+    selectedSpeakers.map(
+      (speaker) =>
+        members.find((member) => member.id === speaker.id) ?? speaker,
+    ),
+  );
+  const memberIds = $derived(new Set(members.map((member) => member.id)));
+  const options = $derived([
+    ...selectedSpeakers.filter((speaker) => !memberIds.has(speaker.id)),
+    ...members,
+  ]);
+  const query = $derived(searchQuery.trim().toLocaleLowerCase());
+  const visible = $derived(
+    options.filter(
+      (member) =>
+        !query ||
+        `${member.name} ${member.department}`
+          .toLocaleLowerCase()
+          .includes(query),
+    ),
+  );
+  function select(member: MemberPickerItem, checked: boolean) {
+    if (checked) {
+      if (
+        selectedIds.has(member.id) ||
+        selectedSpeakers.length >= SEMINAR_MAX_PRESENTERS
+      )
+        return;
+      selectedSpeakers = [...selectedSpeakers, member];
+    } else
+      selectedSpeakers = selectedSpeakers.filter(
+        (speaker) => speaker.id !== member.id,
+      );
+    onChange();
   }
 </script>
 
 <div class="speaker-selector">
-  <div class="label-row">
-    <span class="paper-label">발표자 (Speakers)</span>
-    {#if !memberDirectoryUnavailable}
-      <button
-        type="button"
-        class="paper-btn small add-speaker-btn"
-        class:invalid={!!error}
-        aria-describedby={error ? "presenter-error" : undefined}
-        onclick={() => (showSearch = !showSearch)}
-      >
-        {showSearch ? "검색 닫기" : "추가 (Add)"}
-      </button>
-    {/if}
-  </div>
-
-  <div
-    class="selected-speakers"
-    class:invalid={!!error}
-    aria-invalid={!!error}
-    aria-describedby={error ? "presenter-error" : undefined}
-  >
-    {#each selectedSpeakers as speaker (speaker.id)}
-      <div class="speaker-tag">
-        <span class="s-name">{speaker.name}</span>
-        <span class="s-dept">{speaker.department}</span>
-        <button
-          type="button"
-          class="remove-btn"
-          onclick={() => removeSpeaker(speaker.id)}
-          aria-label={`${speaker.name} 발표자 제거`}>×</button
-        >
-      </div>
-    {:else}
-      <p class="paper-hint">
-        발표자를 추가해 주세요. 본인을 선택할 수도 있습니다.
-      </p>
-    {/each}
-  </div>
-
-  {#if showSearch}
-    <div class="search-area">
+  <p class="presenter-count">
+    {selectedSpeakers.length}명 선택 · 최소 1명, 최대 {SEMINAR_MAX_PRESENTERS}명
+  </p>
+  {#if selectedSpeakers.length > 0}<ul
+      class="selected-speakers"
+      aria-label="현재 선택한 발표자"
+    >
+      {#each displayedSpeakers as speaker (speaker.id)}<li>
+          <span>{speaker.name}</span><small>{speaker.department}</small>
+        </li>{/each}
+    </ul>{:else}<p class="paper-hint">
+      발표자를 한 명 이상 선택해 주세요. 신청자도 선택하거나 해제할 수 있습니다.
+    </p>{/if}
+  <details class="presenter-picker" bind:open={showSearch}>
+    <summary>발표자 선택·변경</summary>
+    <div class="presenter-search">
+      <label for="presenter-search">이름 또는 학과 검색</label>
       <input
-        type="text"
-        class="search-input"
-        placeholder="이름 또는 학과로 검색..."
-        aria-label="발표자 검색"
+        id="presenter-search"
+        bind:this={searchInput}
+        type="search"
         bind:value={searchQuery}
+        onkeydown={(event) => {
+          if (event.key === "Enter") event.preventDefault();
+        }}
       />
-      {#if searchResults.length > 0}
-        <div class="search-results">
-          {#each searchResults as member (member.id)}
-            <button
-              type="button"
-              class="result-item"
-              onclick={() => addSpeaker(member)}
-            >
-              <div class="main-info">
-                <span class="r-name">{member.name}</span>
-                <span class="r-dept">{member.department}</span>
-              </div>
-            </button>
-          {/each}
-        </div>
-      {/if}
+      {#if query}<button
+          type="button"
+          class="clear-presenter-search"
+          onclick={() => {
+            searchQuery = "";
+            searchInput?.focus();
+          }}>검색 지우기</button
+        >{/if}
+      <p class="paper-hint" aria-live="polite">
+        검색 결과 {visible.length}명 · 검색은 선택한 발표자를 해제하지 않습니다.
+      </p>
     </div>
-  {/if}
-
-  {#if error}
-    <p class="field-error" id="presenter-error" role="alert">{error}</p>
-  {/if}
+    <fieldset
+      class="presenter-options"
+      aria-describedby={error ? "presenter-error" : "presenter-hint"}
+      disabled={memberDirectoryUnavailable}
+    >
+      <legend class="sr-only">발표자 선택</legend>
+      {#each options as member (member.id)}
+        <label
+          class="presenter-option"
+          hidden={!!query &&
+            !`${member.name} ${member.department}`
+              .toLocaleLowerCase()
+              .includes(query)}
+        >
+          <input
+            type="checkbox"
+            name="speakerIds"
+            value={member.id}
+            checked={selectedIds.has(member.id)}
+            disabled={!selectedIds.has(member.id) &&
+              selectedSpeakers.length >= SEMINAR_MAX_PRESENTERS}
+            aria-invalid={!!error}
+            onchange={(event) => select(member, event.currentTarget.checked)}
+          />
+          <span
+            ><strong>{member.name}</strong><small>{member.department}</small
+            ></span
+          >
+        </label>
+      {/each}
+    </fieldset>
+    {#if query && visible.length === 0}<p class="paper-hint">
+        검색에 맞는 회원이 없습니다. 이름이나 학과의 일부로 다시 검색해 주세요.
+      </p>{/if}
+    <p class="paper-hint" id="presenter-hint">
+      체크한 회원을 발표자로 제출합니다. 검색을 닫아도 선택은 유지됩니다.
+    </p>
+  </details>
+  <noscript
+    ><p class="paper-hint">
+      발표자 선택·변경을 펼쳐 체크를 바꾸면 JavaScript 없이도 제출할 수
+      있습니다. 검색은 JavaScript가 필요합니다.
+    </p></noscript
+  >
+  {#if error}<p class="field-error" id="presenter-error" role="alert">
+      {error}
+    </p>{/if}
 </div>
 
 <style>
   .speaker-selector {
     display: grid;
-    gap: 0.65rem;
+    gap: 0.7rem;
   }
-
-  .label-row {
+  .presenter-count {
+    margin: 0;
+    color: var(--latex-muted);
+    font-family: var(--font-ui);
+    font-size: 0.8rem;
+  }
+  .selected-speakers {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .selected-speakers li {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-  }
-
-  .selected-speakers {
-    display: flex;
     flex-wrap: wrap;
-    gap: 0.45rem;
-    min-height: 2.2rem;
-    padding: 0.45rem;
-    border: 1px dashed var(--latex-rule);
-  }
-
-  .selected-speakers.invalid {
-    border-left: 4px solid var(--latex-accent);
-  }
-
-  .speaker-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.2rem 0.5rem;
-    background: var(--latex-text);
-    color: var(--latex-bg);
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-  }
-
-  .s-dept {
-    opacity: 0.85;
-    font-size: 0.64rem;
-  }
-
-  .remove-btn {
-    background: transparent;
-    border: 0;
-    color: inherit;
-    cursor: pointer;
-    padding: 0 0.1rem;
-    font-size: 1rem;
-    line-height: 1;
-  }
-
-  .search-area {
-    position: relative;
-    margin-top: 0.35rem;
-  }
-
-  .search-input {
-    width: 100%;
-    padding: 0.65rem 0.75rem;
-    border: 1px solid var(--latex-rule);
-    background: var(--latex-bg);
-    color: var(--latex-text);
-    font-family: var(--font-body);
-  }
-
-  .search-results {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    border: 1px solid var(--latex-rule);
-    background: var(--latex-bg);
-    z-index: 20;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-
-  .result-item {
-    width: 100%;
-    text-align: left;
-    border: 0;
+    gap: 0.2rem 1rem;
+    padding: 0.5rem 0;
     border-bottom: 1px solid var(--latex-rule);
-    background: transparent;
-    color: inherit;
-    padding: 0.72rem 0.8rem;
+    font-size: 0.9rem;
+  }
+  small {
+    color: var(--latex-muted);
+    font-family: var(--font-ui);
+    font-size: 0.75rem;
+  }
+  summary {
+    min-height: 2.75rem;
+    padding: 0.6rem 0;
     cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    gap: 0.18rem;
+    user-select: none;
+    font-family: var(--font-ui);
+    font-size: 0.82rem;
   }
-
-  .result-item:hover {
-    background: var(--latex-text);
-    color: var(--latex-bg);
+  summary:focus-visible {
+    outline: 2px solid var(--latex-accent);
+    outline-offset: 2px;
   }
-
-  .main-info {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
+  .presenter-search {
+    display: grid;
+    gap: 0.4rem;
+    padding: 0.75rem 0;
   }
-
-  .r-name {
-    font-family: var(--font-display);
-    font-weight: 540;
+  .presenter-search label {
+    font-family: var(--font-ui);
+    font-size: 0.8rem;
   }
-
-  .r-dept {
-    font-size: 0.66rem;
-    text-transform: uppercase;
-    opacity: 0.8;
+  .presenter-search input {
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.65rem;
+    border-color: var(--latex-muted);
   }
-
+  .clear-presenter-search {
+    justify-self: start;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--latex-muted);
+    background: transparent;
+    color: var(--latex-text);
+    cursor: pointer;
+    font-size: 0.75rem;
+  }
+  .presenter-options {
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+    border: 0;
+    max-height: 20rem;
+    overflow-y: auto;
+    border-top: 1px solid var(--latex-rule);
+  }
+  .presenter-option {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.7rem;
+    align-items: start;
+    padding: 0.7rem;
+    min-height: 2.75rem;
+    border-bottom: 1px solid var(--latex-rule);
+    cursor: pointer;
+  }
+  .presenter-option[hidden] {
+    display: none;
+  }
+  .presenter-option input {
+    width: 1.1rem;
+    height: 1.1rem;
+    margin: 0.25rem 0 0;
+    accent-color: var(--latex-text);
+  }
+  .presenter-option span {
+    display: grid;
+    gap: 0.1rem;
+  }
+  .presenter-option strong {
+    font-weight: 500;
+    font-size: 0.9rem;
+  }
   .field-error {
     margin: 0;
     color: var(--latex-accent);
+    font-family: var(--font-ui);
     font-size: 0.8rem;
-    font-weight: 600;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
 </style>

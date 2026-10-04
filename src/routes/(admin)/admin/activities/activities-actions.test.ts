@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock(
   "$lib/server/data/store",
@@ -12,6 +12,8 @@ import {
   mutate,
 } from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
+import { AppError } from "$lib/server/core/errors";
+import * as recordsAdmin from "$lib/server/services/records-admin";
 import { actions } from "./+page.server";
 
 /**
@@ -35,9 +37,13 @@ const admin = {
   auth: async () => ({ user: { email: "admin@snu.ac.kr", name: "관리자" } }),
 } as unknown as App.Locals;
 
-function post(fields: Record<string, string>) {
+function post(fields: Record<string, string>, attendeeIds?: string[]) {
   const body = new FormData();
   for (const [k, v] of Object.entries(fields)) body.set(k, v);
+  if (attendeeIds !== undefined) {
+    body.delete("attendeeIds");
+    for (const id of attendeeIds) body.append("attendeeIds", id);
+  }
   return {
     request: new Request("http://localhost/admin/activities", {
       method: "POST",
@@ -65,6 +71,10 @@ beforeEach(async () => {
     await invalidateCache(`table_${t}`);
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe("?/create", () => {
   it("stores a valid activity, trimmed", async () => {
     const result = await actions.create(post(valid));
@@ -76,7 +86,44 @@ describe("?/create", () => {
       type: "회의",
       date: { start: "2026-09-01T19:00:00+09:00", end: null },
     });
+    expect(result).toMatchObject({
+      operation: "activityCreated",
+      scope: "record-create",
+      id: row.id,
+    });
   });
+
+  it("stores the native date-only form as KST midnight", async () => {
+    const result = await actions.create(
+      post({ title: "회의", type: "회의", date: "2026-09-02" }),
+    );
+    const [row] = await getTable("activities");
+    expect(row.date).toEqual({ start: "2026-09-02T00:00:00+09:00", end: null });
+    expect(result).toMatchObject({
+      success: true,
+      scope: "record-create",
+      id: row.id,
+    });
+  });
+
+  it.each(["2026-02-30", "2026-09-31", "invalid"])(
+    "refuses the raw invalid native date %s",
+    async (date) => {
+      const result = await actions.create(
+        post({ title: "회의", type: "회의", date }),
+      );
+      expect(result).toMatchObject({
+        status: 400,
+        data: {
+          scope: "record-create",
+          id: "",
+          issues: { date: expect.any(String) },
+          values: { date },
+        },
+      });
+      expect(await getTable("activities")).toEqual([]);
+    },
+  );
 
   it.each([
     ["title", { title: "   " }],
@@ -125,6 +172,136 @@ describe("?/update", () => {
   });
   const id = async () => (await getTable("activities"))[0].id;
 
+  it("allows a title/type save with an unchanged historical native date", async () => {
+    const activityId = await id();
+    const stored = {
+      start: "1999-10-02T19:15:30+09:00",
+      end: "1999-10-02T21:30:45+09:00",
+    };
+    await mutate("activities", (rows) =>
+      rows.map((row) => ({ ...row, date: stored })),
+    );
+    const result = await actions.update(
+      post({
+        id: activityId,
+        title: "수정한 회의",
+        type: "기타",
+        date: "1999-10-02",
+      }),
+    );
+    expect(result).toMatchObject({
+      success: true,
+      operation: "activityUpdated",
+      scope: "record-update",
+      id: activityId,
+    });
+    expect((await getTable("activities"))[0]).toMatchObject({
+      title: "수정한 회의",
+      type: "기타",
+      date: stored,
+    });
+  });
+
+  it("still refuses an attempted date change into 1999", async () => {
+    const activityId = await id();
+    const result = await actions.update(
+      post({
+        id: activityId,
+        title: "정기 회의",
+        type: "회의",
+        date: "1999-10-02",
+      }),
+    );
+    expect(result).toMatchObject({
+      status: 400,
+      data: {
+        error: "VALIDATION_FAILED",
+        scope: "record-update",
+        id: activityId,
+        values: { date: "1999-10-02" },
+      },
+    });
+    expect((await getTable("activities"))[0].date.start).toBe(
+      "2026-09-01T19:00:00+09:00",
+    );
+  });
+
+  it("preserves the actual stored range for the same KST calendar date", async () => {
+    const activityId = await id();
+    const stored = {
+      start: "2026-09-01T15:30:25Z",
+      end: "2026-09-02T02:20:35+09:00",
+    };
+    await mutate("activities", (rows) =>
+      rows.map((row) => ({ ...row, date: stored })),
+    );
+    const result = await actions.update(
+      post({
+        id: activityId,
+        title: "정기 회의",
+        type: "기타",
+        date: "2026-09-02",
+        oldDate: "1999-01-01",
+      }),
+    );
+    expect(result).toMatchObject({
+      success: true,
+      operation: "activityUpdated",
+      scope: "record-update",
+      id: activityId,
+    });
+    expect((await getTable("activities"))[0].date).toEqual(stored);
+  });
+
+  it("honors a changed native date regardless of the client oldDate", async () => {
+    const activityId = await id();
+    await actions.update(
+      post({
+        id: activityId,
+        title: "정기 회의",
+        type: "회의",
+        date: "2026-09-03",
+        oldDate: "2026-09-03",
+      }),
+    );
+    expect((await getTable("activities"))[0].date).toEqual({
+      start: "2026-09-03T00:00:00+09:00",
+      end: null,
+    });
+  });
+
+  it("retains the existing start/end datetime API when date is also sent", async () => {
+    const activityId = await id();
+    await actions.update(
+      post({
+        id: activityId,
+        ...valid,
+        start: "2026-09-04T10:30",
+        end: "2026-09-04T11:00",
+        date: "2026-09-03",
+      }),
+    );
+    expect((await getTable("activities"))[0].date).toEqual({
+      start: "2026-09-04T10:30:00+09:00",
+      end: "2026-09-04T11:00:00+09:00",
+    });
+  });
+
+  it("rejects an invalid date even alongside a valid datetime", async () => {
+    const activityId = await id();
+    const result = await actions.update(
+      post({ id: activityId, ...valid, date: "2026-02-30" }),
+    );
+    expect(result).toMatchObject({
+      status: 400,
+      data: {
+        issues: { date: expect.any(String) },
+        scope: "record-update",
+        id: activityId,
+      },
+    });
+  });
+
   it("updates title and type and keeps the date when none is sent", async () => {
     const result = await actions.update(
       post({ id: await id(), title: "임시 회의", type: "기타" }),
@@ -169,7 +346,19 @@ describe("?/update", () => {
 
     expect(result).toMatchObject({
       status: 409,
-      data: { error: "CONFLICT", message: expect.stringContaining("스터디") },
+      data: {
+        error: "CONFLICT",
+        message: expect.stringContaining("스터디"),
+        scope: "record-update",
+        id: activityId,
+        values: {
+          title: "새 제목",
+          type: "회의",
+          date: "",
+          start: "",
+          end: "",
+        },
+      },
     });
     expect((await getTable("activities"))[0].title).toBe("정기 회의");
   });
@@ -207,5 +396,90 @@ describe("?/update", () => {
     ]);
     const [row] = await getTable("activities");
     expect(row).toMatchObject({ title: "정기 회의", type: "회의" });
+  });
+});
+
+describe("scoped record failures and completion", () => {
+  it("returns whitelisted raw values for an unavailable create", async () => {
+    vi.spyOn(recordsAdmin, "createActivity").mockRejectedValueOnce(
+      new AppError("SERVICE_UNAVAILABLE"),
+    );
+    const result = await actions.create(
+      post({ ...valid, unrelated: "private" }),
+    );
+    expect(result).toMatchObject({
+      status: 503,
+      data: {
+        error: "SERVICE_UNAVAILABLE",
+        scope: "record-create",
+        id: "",
+        values: {
+          title: valid.title,
+          type: valid.type,
+          start: valid.start,
+          end: "",
+          date: "",
+        },
+      },
+    });
+    expect(
+      (result as unknown as { data: { values: object } }).data.values,
+    ).not.toHaveProperty("unrelated");
+  });
+
+  it("scopes delete failures without echoing unrelated fields", async () => {
+    const result = await actions.delete(
+      post({ id: "missing", title: "unrelated", private: "secret" }),
+    );
+    expect(result).toMatchObject({
+      status: 404,
+      data: {
+        error: "NOT_FOUND",
+        scope: "record-delete",
+        id: "missing",
+        values: {},
+      },
+    });
+    expect(
+      (result as unknown as { data: { values: object } }).data.values,
+    ).toEqual({});
+  });
+
+  it("scopes attendee failures and preserves the submitted array separately", async () => {
+    const result = await actions.setAttendees(
+      post({ id: "missing", unrelated: "private" }, ["", "legacy-1", "m2"]),
+    );
+    expect(result).toMatchObject({
+      status: 404,
+      data: {
+        error: "NOT_FOUND",
+        scope: "record-attendees",
+        id: "missing",
+        values: {},
+        attendeeIds: ["legacy-1", "m2"],
+      },
+    });
+    expect(
+      (result as unknown as { data: { values: object } }).data.values,
+    ).toEqual({});
+  });
+
+  it("returns target metadata on attendee and delete success", async () => {
+    await actions.create(post(valid));
+    const [row] = await getTable("activities");
+    expect(
+      await actions.setAttendees(post({ id: row.id }, ["m1"])),
+    ).toMatchObject({
+      success: true,
+      operation: "attendeesReplaced",
+      scope: "record-attendees",
+      id: row.id,
+    });
+    expect(await actions.delete(post({ id: row.id }))).toMatchObject({
+      success: true,
+      operation: "activityDeleted",
+      scope: "record-delete",
+      id: row.id,
+    });
   });
 });

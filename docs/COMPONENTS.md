@@ -29,7 +29,7 @@
   세미나 수명주기: `SeminarReviewCard`, `SeminarScheduleDialog`, `SeminarPublicationCard`. 탐색: `AdminSectionNav`.
 - **poster/** — `SeminarPoster`(포스터 렌더), `SeminarPosterSection`, `SeminarPosterDownloadPanel`(`html-to-image`로 PNG, 지연 로드),
   `PosterUploadField`(presign 업로드), `SpeakerSelector`(`$bindable` 발표자 선택).
-- **seminar/** `SeminarRequestForm` · **study/** `StudyRequestForm`, `StudyRosterPanel`, `StudySessionTimeline`,
+- **seminar/** `SeminarRequestForm` · **study/** `StudyRequestForm`, `StudyProposalHistory`, `StudyRosterPanel`, `StudySessionTimeline`,
   `StudySessionCorrectionDialog`, `StudyTransferPanel` · **signup/** 연락처·메타데이터·동의 필드 ·
   **public/** `PublicDirectoryGrid`, `PublicDirectoryNav`, `PublicIndexList`, `SourcePendingNotice` ·
   **account/** `AccountSettingsNav`.
@@ -104,3 +104,39 @@ if (!parsed.success) return fail(400, parsed.failure);
   참여 권한 없음, 기타).
 - `src/lib/client/api.ts` — `requestJson`(에러 봉투 검증), `fetchAdminQueue`, `uploadAdminFile`(presign → PUT, 5xx 재시도).
 - `src/lib/client/admin-queue-poller.ts` — 탭이 보이고 온라인일 때만 도는 폴러.
+
+### 스터디 개설 제안
+
+`StudyRequestForm`은 `?/submit`으로 제출하고 `StudyProposalActionState`의 제출 결과만 읽는다. 실패한 native POST의 입력을 복원하며, 철회 결과가 작성 중인 원고를 초기화하지 않는다. `StudyProposalHistory`는 본인 신청을 검토 중 우선으로 표시하고 제출 원문과 상태 설명을 제공한다. 철회는 `details` 안의 확인 문구와 `?/withdraw` 폼으로 실행한다. `canSubmit`은 화면 제어이며 서버 권한 게이트를 대체하지 않는다.
+
+### 세미나 제안 원고
+
+`SeminarRequestForm`은 처리 중에도 원고와 선택 자료 컴포넌트를 유지하며 필드를 비활성화한다. create/update/withdraw 응답을 구분하고 native 실패 입력을 복원한다. `SpeakerSelector`는 네이티브 다중 체크박스, 기존 검색 범위(이름·학과), 선택 유지, 최대20명 안내를 제공한다. 빈 제출 선택은 신청자 기본값으로 덮어쓰지 않으며, 이름을 확인할 수 없는 기존 선택의 ID를 조용히 제거하지 않는다. 포스터 upload/storage 계약은 바꾸지 않는다.
+
+### 회원 가입 원고
+
+`MembershipApplicationForm`은 가입/수정 화면의 연락 정보를 공유하고 처리 중에도 원고를 유지한다. `SignupMetadataFields`는 계정 정보의 읽기 전용 정의 목록이다. `SignupContactFields`와 `SignupConsentField`는 상위 폼 상태에 바인딩되어 실패한 입력과 명시적 동의 선택을 복원한다. 학번의 HTML pattern은 문자열 표현으로 전달한다. 전화번호의 공백/하이픈 허용과 최종 검증은 기존 서버 스키마가 담당한다. `/wait`는 저장된 신청 원문·검토 상태·편집 경로·철회 안내를 제공하며 날짜는 KST로 표시한다.
+
+### 공지·연락처 설정
+
+`AccountSettingsNav`는 공지·연락처와 탈퇴 경로를 구분한다. 설정 화면은 단일 문서 제목과 두 설정 섹션, 공개 전 `details` 확인, 액션별 처리 중 상태와 결과 초점을 제공한다. `account-preferences.ts`의 `PreferenceActionState`·`preferenceFeedback`은 메일/전화 결과를 구분하고 필드 검증·안전한 서버 설명·운영 오류 안내 순서로 읽는다. `validatePhonePreferenceForm`은 `hide`의 명시적 boolean 문자열만 허용한다.
+
+### 발표자 출석부
+
+`presenter-attendance.ts`는 native 실패 선택 복원, 현재 명부에 대한 변경 병합, 요청 상태와 액션 결과 안내를 담당한다. 표시 체크박스는 포커스 가능한 네이티브 입력이다. `createAttendanceSubmissionGate`의 URL 범위와 세대를 확인해 다른 세미나/새 요청의 상태를 오래된 응답이 덮어쓰지 않게 한다. 발표자 페이지의 GET 선택 폼·POST action은 event query를 유지한다. 출석 저장과 취소는 별도 결과로 읽으며 취소의 `mailFailed`는 성공 상태와 함께 표시한다. 명부 밖 출석 병합과 실제 권한 검증은 기존 서비스와 존 가드가 맡는다.
+
+### 회원 탈퇴 확인과 처리 중 화면
+
+`member-withdrawal.ts`는 명시적인 실패 확인 선택의 초기 복원과 작업별 안전한 오류 안내·KST 표시를 제공한다. 탈퇴 페이지는 세 항목을 숨기지 않는 native 폼이며 SSR부터 제출한 checked/unchecked 선택과 원문 이름을 복원한다. `aria-invalid`·오류 대상과 enhanced 결과 초점을 연결한다. 처리 중 화면은 기존 서비스의 익명화 보류/기한 없는 본인 철회를 설명하며 취소와 로그아웃 busy 상태를 서로 잠근다. 실제 철회·접근 가드·메일은 기존 서버/서비스가 담당한다.
+
+### MemberRecordSections 제출 계약
+
+`member`, 대상/동작별 `actionState`, 공유 `busy`, `submit`을 받는다. 최초 SSR에서도 실패 입력을 복구하며 성공한 영역만 새 조회값으로 다시 채운다. 같은 회원의 다른 영역 초안은 유지되고 회원 이동 시 keyed 인스턴스를 새로 만든다. 탈퇴 유예 표시는 `withdrawalGraceEndsAt`의 KST 달력/말일 보정 규칙을 사용한다.
+
+### 관리자 기록 실패 상태
+
+`AdminSeminarRecordEditor`, `AdminStudyRecordEditor`, 활동/갤러리 페이지는 `admin-record-editor`의 scope/id 표시 헬퍼를 사용한다. 원문 값은 제출한 영역에만 적용하고, 빈 텍스트와 빈 발표자 배열은 저장 값으로 대체하지 않는다. 실패한 레코드를 검색 결과에 남기고 펼치며 서비스 오류와 업무 거절을 보이는 결과로 표시한다. 세미나 편집기는 `description`/`note` 입력과 native 반복 `presenterIds` checkbox를 가진다. 기존 이주 발표자도 저장된 선택의 일부로 표시한다.
+
+### 관리 유틸리티 제출/초안 상태
+
+`admin-utility-state`는 native 임원진 action URL과 대상/학기 피드백을 구성한다. viewTerm은 조회 문맥이며 targetTerm은 실제 배정/해제 입력의 학기다. `admin-mail-editor`는 템플릿·변수·규칙·생성·테스트 초안을 대상별로 분리하고 자신의 결과만 적용한다. 데이터 재조회는 새 키/삭제된 키를 맞추되 다른 열린 초안은 보존한다. constructor 같은 정상 변수 이름을 프로토타입 값으로 오인하지 않는다. 메일 편집 페이지의 native details는 JavaScript 없이도 form을 노출하며 pending 상태는 조회 완료까지 유지한다.

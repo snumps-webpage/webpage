@@ -35,3 +35,36 @@ describe("managed attendance merge", () => {
     ).toEqual({ success: true, attendeeIds: ["applicant-1"] });
   });
 });
+
+import {
+  attendanceActionError,
+  attendanceDateLabel,
+  attendanceSessionLabel,
+} from "./attendance";
+describe("attendance action presentation", () => {
+  it.each([
+    "UNAUTHORIZED",
+    "FORBIDDEN",
+    "NOT_FOUND",
+    "CONFLICT",
+    "WRITE_CONFLICT",
+    "EVENT_NOT_OPEN",
+    "VALIDATION_FAILED",
+    "SERVICE_UNAVAILABLE",
+    undefined,
+  ])("%s provides distinct Korean feedback", (code) => {
+    expect(attendanceActionError(code, "request")).not.toBe("");
+    expect(attendanceActionError(code, "sheet")).not.toBe("");
+  });
+  it("duplicate response does not assert approved attendance", () => {
+    expect(attendanceActionError("CONFLICT", "request")).toContain(
+      "승인 여부를 알 수는 없으니",
+    );
+  });
+  it("expired label preserves correction possibility", () => {
+    expect(attendanceSessionLabel("expired")).toContain("기록 정정 가능");
+  });
+  it("date display is explicitly KST", () => {
+    expect(attendanceDateLabel("2026-10-02T00:30:00Z")).toContain("오전 09:30");
+  });
+});

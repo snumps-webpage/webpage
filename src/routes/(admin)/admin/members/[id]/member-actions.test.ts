@@ -439,3 +439,47 @@ describe("updatePrivateInfo", () => {
     await expectRefused(result, ["background", "email", "phone"]);
   });
 });
+
+describe("native result scope", () => {
+  it("tags successful and failed role submissions with target and operation", async () => {
+    expect(await post("setRoles", { roles: "26-2 회장" })).toMatchObject({
+      success: true,
+      operation: "rolesUpdated",
+      memberId: ID,
+    });
+    const failed = await post("setRoles", { roles: "  26-W raw draft  " });
+    expect(failed).toMatchObject({
+      status: 400,
+      data: {
+        operation: "rolesUpdated",
+        memberId: ID,
+        values: { roles: "  26-W raw draft  " },
+      },
+    });
+  });
+  it("retains raw authority fields on business refusals", async () => {
+    await mutate("members", () => [{ ...member, isAdmin: true }]);
+    expect(await post("setAdmin", { isAdmin: "false" })).toMatchObject({
+      status: 409,
+      data: {
+        operation: "adminUpdated",
+        memberId: ID,
+        values: { isAdmin: "false" },
+        error: "CONFLICT",
+      },
+    });
+  });
+  it("never expands echoed fields to unrelated posted personal data", async () => {
+    const result = await post("setRoles", {
+      roles: "26-W malformed",
+      email: "do-not-echo@snu.ac.kr",
+      memberId: "other",
+    });
+    expect(result).toMatchObject({
+      data: { values: { roles: "26-W malformed" }, memberId: ID },
+    });
+    expect((result as { data: { values: unknown } }).data.values).toEqual({
+      roles: "26-W malformed",
+    });
+  });
+});

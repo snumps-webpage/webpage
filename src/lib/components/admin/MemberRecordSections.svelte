@@ -1,115 +1,62 @@
-<script lang="ts" module>
-  /** Sections report which record the backend action just changed. */
-  export type MemberSectionOperation =
-    | "memberUpdated"
-    | "statusUpdated"
-    | "alumniRevoked"
-    | "privateInfoUpdated"
-    | "withdrawalHoldUpdated";
-</script>
-
 <script lang="ts">
   import { enhance } from "$app/forms";
+  import type { SubmitFunction } from "@sveltejs/kit";
   import { untrack } from "svelte";
-  import type {
-    ActiveMemberStatus,
-    AdminMemberDetail,
-  } from "$lib/domain/members";
+  import type { AdminMemberDetail } from "$lib/domain/members";
+  import {
+    applyMemberSectionResult,
+    memberRecordDraft,
+    scopedMemberAction,
+    type AdminMemberActionState,
+    type AdminMemberOperation,
+  } from "$lib/domain/admin-member-editor";
+  import { withdrawalGraceEndsAt } from "$lib/domain/account";
+  import { withdrawalTimeLabel } from "$lib/domain/member-withdrawal";
 
   let {
     member,
-    onresult,
+    actionState,
+    busy,
+    submit,
   }: {
     member: AdminMemberDetail;
-    onresult: (operation: MemberSectionOperation) => void;
+    actionState: AdminMemberActionState | null;
+    busy: boolean;
+    submit: (operation: AdminMemberOperation) => SubmitFunction;
   } = $props();
-
-  const initialMember = untrack(() => ({
-    name: member.name,
-    department: member.department,
-    joinedAt: member.joinedAt,
-    projectTitle: member.project?.title ?? "",
-    projectUrl: member.project?.url ?? "",
-    status: member.status,
-    privateEmail: member.privateInfo?.email ?? "",
-    privatePhone: member.privateInfo?.phone ?? "",
-    privateBackground: member.privateInfo?.background ?? "",
-  }));
-  let name = $state(initialMember.name);
-  let department = $state(initialMember.department);
-  let joinedAt = $state(initialMember.joinedAt ?? "");
-  let projectTitle = $state(initialMember.projectTitle);
-  let projectUrl = $state(initialMember.projectUrl);
-  let selectedStatus = $state<ActiveMemberStatus>(
-    initialMember.status === "regular" ? "regular" : "associate",
+  const initial = untrack(() =>
+    applyMemberSectionResult(memberRecordDraft(member), member, actionState),
   );
-  let alumniReason = $state("");
-  let privateEmail = $state(initialMember.privateEmail);
-  let privatePhone = $state(initialMember.privatePhone);
-  let privateBackground = $state(initialMember.privateBackground);
-  let processing = $state<string | null>(null);
-  let recordIssues = $state<Record<string, string>>({});
-  let statusIssues = $state<Record<string, string>>({});
-  let privateIssues = $state<Record<string, string>>({});
-
-  type SectionKind = "record" | "status" | "alumni" | "private" | "withdrawal";
-
-  function failureData(result: import("@sveltejs/kit").ActionResult) {
-    return result.type === "failure"
-      ? (result.data as {
-          error?: string;
-          message?: string;
-          issues?: Record<string, string>;
-        })
-      : null;
-  }
-
-  const OPERATION_BY_KIND: Record<SectionKind, MemberSectionOperation> = {
-    record: "memberUpdated",
-    status: "statusUpdated",
-    alumni: "alumniRevoked",
-    private: "privateInfoUpdated",
-    withdrawal: "withdrawalHoldUpdated",
-  };
-
-  function actionEnhancer(kind: SectionKind) {
-    processing = kind;
-    if (kind === "record") recordIssues = {};
-    if (kind === "status" || kind === "alumni" || kind === "withdrawal") {
-      statusIssues = {};
-    }
-    if (kind === "private") privateIssues = {};
-
-    return async ({
-      result,
-      update,
-    }: {
-      result: import("@sveltejs/kit").ActionResult;
-      update: (options?: {
-        reset?: boolean;
-        invalidateAll?: boolean;
-      }) => Promise<void>;
-    }) => {
-      processing = null;
-      if (result.type === "success") {
-        // The action returns no record — re-run the load, the data authority.
-        await update({ reset: false });
-        onresult(OPERATION_BY_KIND[kind]);
-        if (kind === "alumni") alumniReason = "";
-        return;
+  let draft = $state(initial);
+  let seen = untrack(() => actionState);
+  $effect(() => {
+    const state = actionState;
+    const current = member;
+    untrack(() => {
+      if (state !== seen) {
+        draft = applyMemberSectionResult(draft, current, state);
+        seen = state;
       }
-      const failure = failureData(result);
-      const issues = failure?.issues ?? {
-        _form:
-          failure?.message ??
-          failure?.error ??
-          "변경 사항을 저장하지 못했습니다.",
-      };
-      if (kind === "record") recordIssues = issues;
-      else if (kind === "private") privateIssues = issues;
-      else statusIssues = issues;
-    };
-  }
+    });
+  });
+  const currentAction = $derived(scopedMemberAction(actionState, member.id));
+  const recordIssues = $derived(
+    currentAction?.operation === "memberUpdated"
+      ? (currentAction.issues ?? {})
+      : {},
+  );
+  const statusIssues = $derived(
+    ["statusUpdated", "alumniRevoked", "withdrawalHoldUpdated"].includes(
+      currentAction?.operation ?? "",
+    )
+      ? (currentAction?.issues ?? {})
+      : {},
+  );
+  const privateIssues = $derived(
+    currentAction?.operation === "privateInfoUpdated"
+      ? (currentAction.issues ?? {})
+      : {},
+  );
 
   function statusLabel(status: AdminMemberDetail["status"]) {
     return {
@@ -118,20 +65,10 @@
       withdrawn: "탈퇴 처리 중",
     }[status];
   }
-
   function alumniLabel() {
     if (member.isAlumni) return "동문 지위 보유";
     if (member.alumniRevoked) return "동문 지위 박탈됨";
     return "동문 지위 미취득";
-  }
-
-  function graceEndDate(requestedAt: string) {
-    const date = new Date(requestedAt);
-    return new Date(
-      date.getFullYear(),
-      date.getMonth() + 1,
-      date.getDate(),
-    ).toLocaleDateString("ko-KR");
   }
 </script>
 
@@ -147,42 +84,55 @@
          form too, asking for the date (decision #3, audit LC11-3). -->
     <form
       method="POST"
+      aria-busy={busy}
       action="?/updateMember"
-      use:enhance={() => actionEnhancer("record")}
+      use:enhance={submit("memberUpdated")}
     >
       <label class="paper-field">
         <span class="paper-label">이름</span>
         <input
+          disabled={busy}
           name="name"
-          bind:value={name}
+          bind:value={draft.name}
           aria-invalid={!!recordIssues.name}
+          aria-describedby={recordIssues.name ? "member-name-error" : undefined}
         />
-        {#if recordIssues.name}<span class="field-error"
+        {#if recordIssues.name}<span id="member-name-error" class="field-error"
             >{recordIssues.name}</span
           >{/if}
       </label>
       <label class="paper-field">
         <span class="paper-label">학과</span>
         <input
+          disabled={busy}
           name="department"
-          bind:value={department}
+          bind:value={draft.department}
           aria-invalid={!!recordIssues.department}
+          aria-describedby={recordIssues.department
+            ? "member-department-error"
+            : undefined}
         />
-        {#if recordIssues.department}<span class="field-error"
-            >{recordIssues.department}</span
+        {#if recordIssues.department}<span
+            id="member-department-error"
+            class="field-error">{recordIssues.department}</span
           >{/if}
       </label>
       <label class="paper-field">
         <span class="paper-label">가입일</span>
         <input
+          disabled={busy}
           type="date"
           name="joinedAt"
-          bind:value={joinedAt}
+          bind:value={draft.joinedAt}
           required
           aria-invalid={!!recordIssues.joinedAt}
+          aria-describedby={recordIssues.joinedAt
+            ? "member-joinedAt-error"
+            : undefined}
         />
-        {#if recordIssues.joinedAt}<span class="field-error"
-            >{recordIssues.joinedAt}</span
+        {#if recordIssues.joinedAt}<span
+            id="member-joinedAt-error"
+            class="field-error">{recordIssues.joinedAt}</span
           >{:else if !member.joinedAt}<span class="field-note"
             >가입일 기록이 없습니다. 가입일을 입력해야 기본정보를 저장할 수
             있습니다.</span
@@ -192,26 +142,36 @@
         <label class="paper-field">
           <span class="paper-label">개인 프로젝트 제목</span>
           <input
+            disabled={busy}
             name="projectTitle"
-            bind:value={projectTitle}
+            bind:value={draft.projectTitle}
             aria-invalid={!!recordIssues.projectTitle}
+            aria-describedby={recordIssues.projectTitle
+              ? "member-projectTitle-error"
+              : undefined}
             placeholder="선택 입력"
           />
-          {#if recordIssues.projectTitle}<span class="field-error"
-              >{recordIssues.projectTitle}</span
+          {#if recordIssues.projectTitle}<span
+              id="member-projectTitle-error"
+              class="field-error">{recordIssues.projectTitle}</span
             >{/if}
         </label>
         <label class="paper-field">
           <span class="paper-label">프로젝트 URL</span>
           <input
+            disabled={busy}
             type="url"
             name="projectUrl"
-            bind:value={projectUrl}
+            bind:value={draft.projectUrl}
             aria-invalid={!!recordIssues.projectUrl}
+            aria-describedby={recordIssues.projectUrl
+              ? "member-projectUrl-error"
+              : undefined}
             placeholder="https://"
           />
-          {#if recordIssues.projectUrl}<span class="field-error"
-              >{recordIssues.projectUrl}</span
+          {#if recordIssues.projectUrl}<span
+              id="member-projectUrl-error"
+              class="field-error">{recordIssues.projectUrl}</span
             >{/if}
         </label>
       </div>
@@ -220,7 +180,7 @@
         </p>{/if}
       <footer>
         <p>공개 회원 명단과 프로젝트 아카이브의 원본 데이터입니다.</p>
-        <button class="paper-btn primary" disabled={processing === "record"}>
+        <button class="paper-btn primary" disabled={busy}>
           기본정보 저장
         </button>
       </footer>
@@ -241,9 +201,7 @@
       <div><span>동문</span><strong>{alumniLabel()}</strong></div>
       <div>
         <span>최근 지위 변경</span>
-        <strong
-          >{new Date(member.statusChangedAt).toLocaleString("ko-KR")}</strong
-        >
+        <strong>{withdrawalTimeLabel(member.statusChangedAt)}</strong>
       </div>
     </div>
 
@@ -251,12 +209,24 @@
       <form
         class="status-form"
         method="POST"
+        aria-busy={busy}
         action="?/setStatus"
-        use:enhance={() => actionEnhancer("status")}
+        use:enhance={submit("statusUpdated")}
       >
         <label class="paper-field">
           <span class="paper-label">지위 변경</span>
-          <select name="status" bind:value={selectedStatus}>
+          <select
+            name="status"
+            bind:value={draft.status}
+            disabled={busy}
+            aria-invalid={!!statusIssues.status}
+            aria-describedby={statusIssues.status
+              ? "member-status-error"
+              : undefined}
+          >
+            {#if !["regular", "associate"].includes(draft.status)}<option
+                value={draft.status}>입력값 확인 필요</option
+              >{/if}
             <option value="associate">준회원</option>
             <option value="regular">정회원</option>
           </select>
@@ -265,16 +235,19 @@
           정회원 승격 시 동문 지위를 함께 취득합니다. 이후 준회원으로 변경해도
           동문 지위는 유지됩니다.
         </p>
-        {#if statusIssues.status}<p class="field-error">
+        {#if statusIssues.status}<p
+            id="member-status-error"
+            class="field-error"
+          >
             {statusIssues.status}
           </p>{/if}
         <button
           class="paper-btn primary"
-          disabled={processing === "status" || selectedStatus === member.status}
+          disabled={busy || draft.status === member.status}
           onclick={(event) => {
             if (
               member.status === "regular" &&
-              selectedStatus === "associate" &&
+              draft.status === "associate" &&
               !confirm(
                 "준회원으로 변경해도 동문 지위는 유지됩니다. 계속하시겠습니까?",
               )
@@ -286,22 +259,23 @@
     {:else if member.withdrawal}
       <div class="withdrawal-panel">
         <p>
-          {new Date(member.withdrawal.requestedAt).toLocaleString("ko-KR")} 신청 ·
+          {withdrawalTimeLabel(member.withdrawal.requestedAt)} 신청 ·
           {member.withdrawal.holdBy
             ? "관리자 보존 필요 표시"
-            : `${graceEndDate(member.withdrawal.requestedAt)} 유예 종료 · 이후 처리 정책 보류`}
+            : `${withdrawalTimeLabel(withdrawalGraceEndsAt(member.withdrawal.requestedAt))} 1개월 유예 기준 · 이후 처리 정책 보류`}
         </p>
         <form
           method="POST"
+          aria-busy={busy}
           action={member.withdrawal.holdBy
             ? "?/releaseWithdrawalHold"
             : "?/holdWithdrawal"}
-          use:enhance={() => actionEnhancer("withdrawal")}
+          use:enhance={submit("withdrawalHoldUpdated")}
         >
           <button
             class="paper-btn"
             class:danger={!!member.withdrawal.holdBy}
-            disabled={processing === "withdrawal"}
+            disabled={busy}
             onclick={(event) => {
               const message = member.withdrawal?.holdBy
                 ? "보존 필요 표시를 해제하면 오늘부터 1개월 유예를 다시 계산합니다. 계속하시겠습니까?"
@@ -320,24 +294,30 @@
       <form
         class="alumni-form"
         method="POST"
+        aria-busy={busy}
         action="?/revokeAlumni"
-        use:enhance={() => actionEnhancer("alumni")}
+        use:enhance={submit("alumniRevoked")}
       >
         <label class="paper-field">
           <span class="paper-label">동문 지위 박탈 사유</span>
           <textarea
+            disabled={busy}
             name="reason"
             rows="2"
-            bind:value={alumniReason}
+            bind:value={draft.reason}
             aria-invalid={!!statusIssues.reason}
+            aria-describedby={statusIssues.reason
+              ? "member-reason-error"
+              : undefined}
             placeholder="회원 기록에 남길 구체적인 사유"></textarea>
-          {#if statusIssues.reason}<span class="field-error"
-              >{statusIssues.reason}</span
+          {#if statusIssues.reason}<span
+              id="member-reason-error"
+              class="field-error">{statusIssues.reason}</span
             >{/if}
         </label>
         <button
           class="paper-btn danger"
-          disabled={processing === "alumni"}
+          disabled={busy}
           onclick={(event) => {
             if (
               !confirm(
@@ -373,42 +353,58 @@
     {#if member.privateInfo}
       <form
         method="POST"
+        aria-busy={busy}
         action="?/updatePrivateInfo"
-        use:enhance={() => actionEnhancer("private")}
+        use:enhance={submit("privateInfoUpdated")}
       >
         <label class="paper-field">
           <span class="paper-label">로그인 이메일</span>
           <input
+            disabled={busy}
             type="email"
             name="email"
-            bind:value={privateEmail}
+            bind:value={draft.email}
             aria-invalid={!!privateIssues.email}
+            aria-describedby={privateIssues.email
+              ? "member-email-error"
+              : undefined}
           />
-          {#if privateIssues.email}<span class="field-error"
-              >{privateIssues.email}</span
+          {#if privateIssues.email}<span
+              id="member-email-error"
+              class="field-error">{privateIssues.email}</span
             >{/if}
         </label>
         <label class="paper-field">
           <span class="paper-label">전화번호</span>
           <input
+            disabled={busy}
             name="phone"
-            bind:value={privatePhone}
+            bind:value={draft.phone}
             aria-invalid={!!privateIssues.phone}
+            aria-describedby={privateIssues.phone
+              ? "member-phone-error"
+              : undefined}
             placeholder="010-1234-5678"
           />
-          {#if privateIssues.phone}<span class="field-error"
-              >{privateIssues.phone}</span
+          {#if privateIssues.phone}<span
+              id="member-phone-error"
+              class="field-error">{privateIssues.phone}</span
             >{/if}
         </label>
         <label class="paper-field background-field">
           <span class="paper-label">배경지식</span>
           <textarea
+            disabled={busy}
             name="background"
             rows="3"
-            bind:value={privateBackground}
-            aria-invalid={!!privateIssues.background}></textarea>
-          {#if privateIssues.background}<span class="field-error"
-              >{privateIssues.background}</span
+            bind:value={draft.background}
+            aria-invalid={!!privateIssues.background}
+            aria-describedby={privateIssues.background
+              ? "member-background-error"
+              : undefined}></textarea>
+          {#if privateIssues.background}<span
+              id="member-background-error"
+              class="field-error">{privateIssues.background}</span
             >{/if}
         </label>
         {#if privateIssues._form}<p class="field-error">
@@ -416,7 +412,7 @@
           </p>{/if}
         <footer>
           <p>열람과 변경은 감사 기록 대상이며 공개 DTO에 포함되지 않습니다.</p>
-          <button class="paper-btn primary" disabled={processing === "private"}>
+          <button class="paper-btn primary" disabled={busy}>
             비공개 정보 저장
           </button>
         </footer>

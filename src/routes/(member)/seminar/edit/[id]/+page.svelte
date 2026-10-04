@@ -1,15 +1,20 @@
 <script lang="ts">
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import SeminarRequestForm from "$lib/components/seminar/SeminarRequestForm.svelte";
+  import { actionErrorText } from "$lib/domain/api";
+  import { enhance } from "$app/forms";
   import { MANUSCRIPT } from "$lib/constants";
 
   let { data, form } = $props();
+  let withdrawing = $state(false);
 </script>
+
+<svelte:head><title>세미나 신청 수정 · SNUMPS</title></svelte:head>
 
 <article class="paper-document seminar-request-paper">
   <ManuscriptHeader
     title="세미나 신청 수정"
-    subtitle="Seminar Proposal Revision · Pending Only"
+    subtitle="Seminar Proposal Revision"
     figure={MANUSCRIPT.FIGURES.SEMINAR_EDIT}
   />
 
@@ -34,6 +39,7 @@
       kind: data.request.kind ?? "",
     }}
     initialPresenters={data.request.initialSpeakers}
+    canSubmit={data.canSubmit}
     {form}
   />
 
@@ -47,22 +53,71 @@
           제거됩니다.</span
         >
       </div>
-      <form method="POST" action="?/withdraw">
-        <button
-          class="paper-btn danger"
-          onclick={(event) => {
-            if (!confirm("이 세미나 신청을 철회하시겠습니까?"))
-              event.preventDefault();
-          }}>신청 철회</button
+      <details class="withdraw-confirm">
+        <summary>철회 안내와 실행</summary>
+        <p>
+          철회하면 이 신청의 운영진 검토가 중단됩니다. 다시 제안하려면 새
+          신청서를 제출해야 합니다.
+        </p>
+        {#if form?.operation === "requestWithdrawn" && form?.error}<p
+            role="alert"
+          >
+            {actionErrorText(
+              form,
+              "신청을 철회하지 못했습니다. 최신 상태를 확인해 주세요.",
+            )}
+          </p>{/if}
+        <form
+          method="POST"
+          action="?/withdraw"
+          use:enhance={({ cancel }) => {
+            if (withdrawing || !data.canSubmit) {
+              cancel();
+              return;
+            }
+            withdrawing = true;
+            return async ({ update }) => {
+              try {
+                await update({ reset: false });
+              } finally {
+                withdrawing = false;
+              }
+            };
+          }}
         >
-      </form>
+          <button
+            type="submit"
+            class="paper-btn"
+            disabled={withdrawing || !data.canSubmit}
+            >{withdrawing ? "철회 처리 중…" : "이 신청 철회"}</button
+          >
+        </form>
+        <p>철회하지 않으려면 안내를 다시 눌러 닫으세요.</p>
+      </details>
     </section>
   {/if}
 </article>
 
 <style>
   .seminar-request-paper {
-    position: relative;
+    width: min(100%, 60rem);
+  }
+  .withdraw-confirm {
+    min-width: 0;
+  }
+  .withdraw-confirm summary {
+    min-height: 2.75rem;
+    padding: 0.6rem 0;
+    cursor: pointer;
+    user-select: none;
+  }
+  .withdraw-confirm summary:focus-visible {
+    outline: 2px solid var(--latex-accent);
+    outline-offset: 2px;
+  }
+  .withdraw-confirm p {
+    font-size: 0.82rem;
+    color: var(--latex-muted);
   }
 
   .proposal-intro {

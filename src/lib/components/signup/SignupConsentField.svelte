@@ -1,13 +1,15 @@
 <script lang="ts">
-  let { error = "" } = $props();
+  let { error = "", accepted = $bindable(false) } = $props();
 </script>
 
 <li class="paper-section">
-  <h2 class="paper-section-title">Consent</h2>
+  <p class="section-index">03 · 개인정보 동의</p>
+  <h2 class="paper-section-title">개인정보 수집·이용 동의</h2>
   <label class="consent-line">
     <input
       type="checkbox"
       name="agreement"
+      bind:checked={accepted}
       required
       aria-invalid={Boolean(error)}
       aria-describedby={error ? "agreement-error" : undefined}
@@ -22,6 +24,12 @@
 </li>
 
 <style>
+  .section-index {
+    margin: 0 0 0.25rem;
+    color: var(--latex-muted);
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+  }
   .consent-line {
     display: grid;
     grid-template-columns: auto 1fr;

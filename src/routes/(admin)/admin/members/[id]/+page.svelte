@@ -1,124 +1,118 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
-  import MemberRecordSections, {
-    type MemberSectionOperation,
-  } from "$lib/components/admin/MemberRecordSections.svelte";
+  import type { SubmitFunction } from "@sveltejs/kit";
+  import { tick, untrack } from "svelte";
+  import MemberRecordSections from "$lib/components/admin/MemberRecordSections.svelte";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
-  import type { MemberRoleAssignment } from "$lib/domain/members";
+  import {
+    memberAdminNotice,
+    memberRolesText,
+    scopedMemberAction,
+    type AdminMemberActionState,
+    type AdminMemberOperation,
+  } from "$lib/domain/admin-member-editor";
   import { MANUSCRIPT } from "$lib/constants";
 
-  let { data } = $props();
-  // The load is the record authority; successful actions re-run it (update()),
-  // so the page state is derived and the editable drafts resync afterwards.
+  let { data, form } = $props();
   const member = $derived(data.member);
-  // $state, not a writable $derived: the rows are edited in place through
-  // bind:value, which needs the deep-reactive proxy only $state gives.
-  // eslint-disable-next-line svelte/prefer-writable-derived
-  let roles = $state<MemberRoleAssignment[]>([]);
+  const actionState = $derived(
+    scopedMemberAction(form as AdminMemberActionState | null, member.id),
+  );
+  const initial = untrack(() => ({
+    id: member.id,
+    state: actionState,
+    roles:
+      actionState?.operation === "rolesUpdated" && actionState.values
+        ? (actionState.values.roles ?? "")
+        : memberRolesText(member),
+  }));
+  let roles = $state(initial.roles);
+  let scope = initial.id;
+  let seen = initial.state;
+  let pending = $state<{
+    token: symbol;
+    memberId: string;
+    operation: AdminMemberOperation;
+  } | null>(null);
+  let transient = $state<{ tone: "error"; message: string } | null>(null);
+  const busy = $derived(pending !== null);
+  const notice = $derived(transient ?? memberAdminNotice(actionState, member));
+  const roleIssue = $derived(
+    actionState?.operation === "rolesUpdated"
+      ? actionState.issues?.roles
+      : null,
+  );
+
   $effect(() => {
-    roles = structuredClone($state.snapshot(data.member.roles));
-  });
-  let roleIssue = $state<string | null>(null);
-  let processing = $state<string | null>(null);
-  let notice = $state<{ tone: "success" | "error"; message: string } | null>(
-    null,
-  );
-
-  function addRole() {
-    roles = [...roles, { term: "26-2", title: "" }];
-    roleIssue = null;
-  }
-
-  function removeRole(index: number) {
-    roles = roles.filter((_, itemIndex) => itemIndex !== index);
-    roleIssue = null;
-  }
-
-  /** One `26-2 회장` line per role — the ?/setRoles action's wire format. */
-  const rolesAsLines = $derived(
-    roles.map((role) => `${role.term} ${role.title}`.trim()).join("\n"),
-  );
-
-  function handleSection(operation: MemberSectionOperation) {
-    if (operation === "memberUpdated") {
-      notice = { tone: "success", message: "회원 기본정보를 저장했습니다." };
-    }
-    if (operation === "statusUpdated") {
-      notice = {
-        tone: "success",
-        message: `회원 지위를 ${member.status === "regular" ? "정회원" : "준회원"}으로 변경했습니다.`,
-      };
-    }
-    if (operation === "alumniRevoked") {
-      notice = {
-        tone: "success",
-        message: "동문 지위를 박탈하고 감사 기록을 남겼습니다.",
-      };
-    }
-    if (operation === "privateInfoUpdated") {
-      notice = {
-        tone: "success",
-        message: "비공개 회원 정보를 저장하고 감사 기록을 남겼습니다.",
-      };
-    }
-    if (operation === "withdrawalHoldUpdated") {
-      notice = {
-        tone: "success",
-        message: member.withdrawal?.holdBy
-          ? "탈퇴 정보를 보존 필요 상태로 표시했습니다."
-          : "보존 필요 표시를 해제했습니다. 오늘부터 1개월 유예를 다시 계산합니다.",
-      };
-    }
-  }
-
-  function actionEnhancer(kind: "roles" | "admin") {
-    processing = kind;
-    notice = null;
-    if (kind === "roles") roleIssue = null;
-    return async ({
-      result,
-      update,
-    }: {
-      result: import("@sveltejs/kit").ActionResult;
-      update: (options?: {
-        reset?: boolean;
-        invalidateAll?: boolean;
-      }) => Promise<void>;
-    }) => {
-      processing = null;
-      if (result.type === "success") {
-        await update({ reset: false });
-        if (kind === "roles") {
-          notice = {
-            tone: "success",
-            message: "학기별 직책을 저장하고 감사 기록을 남겼습니다.",
-          };
-        } else {
-          notice = {
-            tone: "success",
-            message: `관리자 권한을 ${member.isAdmin ? "부여" : "회수"}했습니다.`,
-          };
+    const current = member;
+    const state = actionState;
+    untrack(() => {
+      if (current.id !== scope) {
+        scope = current.id;
+        roles = memberRolesText(current);
+        pending = null;
+        transient = null;
+      }
+      if (state !== seen) {
+        if (state?.operation === "rolesUpdated") {
+          roles = state.success
+            ? memberRolesText(current)
+            : (state.values?.roles ?? roles);
         }
+        seen = state;
+      }
+    });
+  });
+
+  function submit(operation: AdminMemberOperation): SubmitFunction {
+    return ({ cancel, formElement }) => {
+      if (pending) {
+        cancel();
         return;
       }
-      const failure =
-        result.type === "failure"
-          ? (result.data as {
-              error?: string;
-              message?: string;
-              issues?: Record<string, string>;
-            })
-          : null;
-      const detail = failure?.message ?? failure?.error;
-      const issues = failure?.issues;
-      if (kind === "roles")
-        roleIssue = issues?.roles ?? detail ?? "직책을 저장하지 못했습니다.";
-      else
-        notice = {
-          tone: "error",
-          message:
-            issues?.isAdmin ?? detail ?? "관리자 권한을 변경하지 못했습니다.",
-        };
+      const request = { token: Symbol(), memberId: member.id, operation };
+      pending = request;
+      transient = null;
+      return async ({ result, update }) => {
+        try {
+          if (
+            member.id !== request.memberId ||
+            pending?.token !== request.token
+          )
+            return;
+          if (result.type === "success") await update({ reset: false });
+          else if (result.type === "failure")
+            await update({ reset: false, invalidateAll: false });
+          else if (result.type === "redirect") {
+            await update();
+            return;
+          } else
+            transient = {
+              tone: "error",
+              message:
+                "저장 결과를 확인하지 못했습니다. 새로고침해 현재 상태를 확인해 주세요.",
+            };
+        } catch {
+          if (member.id === request.memberId)
+            transient = {
+              tone: "error",
+              message:
+                "저장 후 상태를 확인하지 못했습니다. 새로고침해 확인해 주세요.",
+            };
+        } finally {
+          if (pending?.token === request.token) pending = null;
+        }
+        await tick();
+        if (member.id === request.memberId && !pending) {
+          const invalid = formElement.querySelector<HTMLElement>(
+            '[aria-invalid="true"]',
+          );
+          (
+            invalid ??
+            document.querySelector<HTMLElement>("[data-member-result]")
+          )?.focus();
+        }
+      };
     };
   }
 </script>
@@ -155,13 +149,23 @@
   </div>
 
   {#if notice}
-    <div class="notice" data-tone={notice.tone} role="status">
+    <div
+      class="notice"
+      data-tone={notice.tone}
+      data-member-result
+      tabindex="-1"
+      role={notice.tone === "error" ? "alert" : "status"}
+    >
       <p>{notice.message}</p>
-      <button aria-label="알림 닫기" onclick={() => (notice = null)}>×</button>
     </div>
   {/if}
 
-  <MemberRecordSections {member} onresult={handleSection} />
+  {#key member.id}<MemberRecordSections
+      {member}
+      {actionState}
+      {busy}
+      {submit}
+    />{/key}
 
   <div class="authority-grid">
     <section class="authority-section roles-section">
@@ -170,58 +174,38 @@
           <p>04 · Term Roles</p>
           <h2>학기별 직책</h2>
         </div>
-        <button class="paper-btn small" type="button" onclick={addRole}
-          >직책 추가</button
-        >
       </header>
       <form
         method="POST"
         action="?/setRoles"
-        use:enhance={() => actionEnhancer("roles")}
+        use:enhance={submit("rolesUpdated")}
+        aria-busy={busy}
       >
-        <input type="hidden" name="roles" value={rolesAsLines} />
-        <div class="role-editor">
-          {#each roles as role, index (index)}
-            <div class="role-row">
-              <label>
-                <span>학기</span>
-                <input
-                  aria-label={`${index + 1}번째 직책 학기`}
-                  bind:value={role.term}
-                  placeholder="26-2"
-                />
-              </label>
-              <label>
-                <span>직책</span>
-                <input
-                  aria-label={`${index + 1}번째 직책 이름`}
-                  bind:value={role.title}
-                  list="role-titles"
-                  placeholder="회장"
-                />
-              </label>
-              <button
-                class="remove-role"
-                type="button"
-                aria-label={`${index + 1}번째 직책 삭제`}
-                onclick={() => removeRole(index)}>×</button
-              >
-            </div>
-          {:else}
-            <p class="empty-line">등록된 직책이 없습니다.</p>
-          {/each}
-        </div>
-        <datalist id="role-titles">
-          {#each data.roleTitles as title (title)}
-            <option value={title}></option>
-          {/each}
-        </datalist>
-        {#if roleIssue}<p class="field-error" role="alert">{roleIssue}</p>{/if}
+        <label class="paper-field">
+          <span class="paper-label">학기와 직책</span>
+          <textarea
+            name="roles"
+            rows="5"
+            bind:value={roles}
+            disabled={busy}
+            aria-invalid={!!roleIssue}
+            aria-describedby="roles-help roles-error"
+            spellcheck="false"></textarea>
+        </label>
+        <p id="roles-help" class="field-note">
+          한 줄에 하나씩 ‘26-2 회장’처럼 입력합니다. 빈 칸으로 저장하면 모든
+          직책이 해제됩니다.
+        </p>
+        <p id="roles-error" class="field-error">{roleIssue ?? ""}</p>
+        {#if data.roleTitles.length}<p class="field-note">
+            등록된 직책: {data.roleTitles.join(" · ")}
+          </p>{/if}
         <footer>
-          <p>역할은 권한과 공개 회장단 표시의 단일 원천입니다.</p>
-          <button class="paper-btn primary" disabled={processing === "roles"}
-            >직책 저장</button
-          >
+          <p>
+            권한과 공개 회장단 표시의 원본입니다. 저장한 변경은 감사 기록에
+            남습니다.
+          </p>
+          <button class="paper-btn primary" disabled={busy}>직책 저장</button>
         </footer>
       </form>
     </section>
@@ -240,7 +224,7 @@
       <form
         method="POST"
         action="?/setAdmin"
-        use:enhance={() => actionEnhancer("admin")}
+        use:enhance={submit("adminUpdated")}
       >
         <input
           type="hidden"
@@ -250,7 +234,7 @@
         <button
           class="paper-btn"
           class:danger={member.isAdmin}
-          disabled={processing === "admin" || member.id === "dev-admin"}
+          disabled={busy || data.isSelf}
           onclick={(event) => {
             if (
               member.isAdmin &&
@@ -260,7 +244,7 @@
           }}>{member.isAdmin ? "관리자 권한 회수" : "관리자 권한 부여"}</button
         >
       </form>
-      {#if member.id === "dev-admin"}<p class="locked-note">
+      {#if data.isSelf}<p class="locked-note">
           현재 로그인한 관리자의 자기 권한 회수는 차단됩니다.
         </p>{/if}
     </section>
@@ -291,8 +275,7 @@
     border-right: 0;
   }
   .member-index span,
-  .authority-section header p,
-  .role-row label > span {
+  .authority-section header p {
     color: var(--latex-muted);
     font-family: var(--font-mono);
     font-size: 0.58rem;
@@ -321,12 +304,6 @@
   .notice p {
     margin: 0;
     font-size: 0.8rem;
-  }
-  .notice button {
-    border: 0;
-    background: transparent;
-    color: inherit;
-    cursor: pointer;
   }
   .authority-grid {
     display: grid;
@@ -364,33 +341,13 @@
   .roles-section form {
     padding: 0.8rem;
   }
-  .role-editor {
-    display: grid;
-    gap: 0.45rem;
-  }
-  .role-row {
-    display: grid;
-    grid-template-columns: 0.65fr 1fr auto;
-    gap: 0.4rem;
-    align-items: end;
-  }
-  .role-row label {
-    display: grid;
-    gap: 0.25rem;
-  }
-  .remove-role {
-    width: 2.25rem;
-    height: 2.25rem;
-    border: 1px solid var(--latex-rule);
-    background: transparent;
-    color: var(--latex-accent);
-    cursor: pointer;
-    font-size: 1rem;
-  }
-  .empty-line {
-    margin: 0;
+  .field-note {
     color: var(--latex-muted);
-    font-size: 0.76rem;
+    font-size: 0.72rem;
+    line-height: 1.55;
+  }
+  .roles-section textarea {
+    font-family: var(--font-mono);
   }
   .roles-section footer {
     display: flex;
@@ -446,18 +403,6 @@
     }
   }
   @media (max-width: 540px) {
-    .role-row {
-      grid-template-columns: 1fr auto;
-    }
-    .role-row label:nth-child(2) {
-      grid-column: 1;
-    }
-    .role-row .remove-role {
-      grid-column: 2;
-      grid-row: 1 / span 2;
-      align-self: stretch;
-      height: auto;
-    }
     .roles-section footer {
       align-items: stretch;
       flex-direction: column;

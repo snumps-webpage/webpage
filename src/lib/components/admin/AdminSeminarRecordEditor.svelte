@@ -2,18 +2,15 @@
   import type { AdminSeminarRecord } from "$lib/domain/admin-records";
   import AdminDirectUploadForm from "$lib/components/admin/AdminDirectUploadForm.svelte";
   import PosterUploadField from "$lib/components/poster/PosterUploadField.svelte";
+  import {
+    recordFieldValue,
+    recordPresenterIds,
+    recordFailureMessage,
+    type AdminRecordActionState,
+  } from "$lib/domain/admin-record-editor";
   import { uploadLimitMb } from "$lib/domain/uploads";
 
-  export interface SeminarRecordFormState {
-    success?: boolean;
-    operation?: string;
-    scope?: string;
-    id?: string;
-    error?: string;
-    issues?: Record<string, string>;
-    values?: Record<string, string>;
-    presenterIds?: string[];
-  }
+  export type SeminarRecordFormState = AdminRecordActionState;
 
   interface MemberOption {
     id: string;
@@ -38,6 +35,7 @@
     const normalized = query.trim().toLocaleLowerCase("ko-KR");
     return records.filter(
       (record) =>
+        (record.id === form?.id && !!form?.error) ||
         !normalized ||
         [
           record.title,
@@ -67,12 +65,28 @@
   const kindText = (kind: AdminSeminarRecord["kind"]) =>
     kind ? kindLabel[kind] : "구분 미상";
 
-  /** The backend action reads one comma-separated `presenterIds` field. */
-  function joinPresenterIds(event: FormDataEvent) {
-    const ids = event.formData.getAll("presenterIds").map(String);
-    event.formData.delete("presenterIds");
-    event.formData.set("presenterIds", ids.join(","));
-  }
+  const failureMessage = $derived(recordFailureMessage(form));
+  const createValue = (field: string, fallback: string) =>
+    recordFieldValue(form, "record-create", undefined, field, fallback);
+  const createPresenters = $derived(
+    recordPresenterIds(form, "record-create", undefined, []),
+  );
+  const extraCreatePresenters = $derived(
+    createPresenters.filter(
+      (id) => !members.some((member) => member.id === id),
+    ),
+  );
+  const valueFor = (
+    record: AdminSeminarRecord,
+    field: string,
+    fallback: string | number,
+  ) => recordFieldValue(form, "record-update", record.id, field, fallback);
+  const selectedPresenters = (record: AdminSeminarRecord) =>
+    recordPresenterIds(form, "record-update", record.id, record.presenterIds);
+  const extraPresenters = (record: AdminSeminarRecord) =>
+    [
+      ...new Set([...record.presenterIds, ...selectedPresenters(record)]),
+    ].filter((id) => !members.some((member) => member.id === id));
 
   function scheduleLabel(value: string | null) {
     if (!value) return "일정 미정";
@@ -98,21 +112,13 @@
       {messages[form.operation]}
     </p>
   {/if}
-  {#if form?.error === "CONFLICT"}
-    <p class="paper-status-note error" role="alert">
-      출석 기록이나 갤러리가 연결되어 있어 삭제할 수 없습니다. 활동 편집에서
-      출석자를 먼저 정리하세요.
-    </p>
-  {/if}
+  {#if failureMessage}<p class="paper-status-note error" role="alert">
+      {failureMessage}
+    </p>{/if}
 
   <details class="create-record" open={form?.scope === "record-create"}>
     <summary>새 세미나 레코드 생성</summary>
-    <form
-      method="POST"
-      action="?/create"
-      class="record-form"
-      onformdata={joinPresenterIds}
-    >
+    <form method="POST" action="?/create" class="record-form">
       <div class="field-grid">
         <label class="title-field"
           ><span class="paper-label">제목</span><input
@@ -138,10 +144,16 @@
           ><span class="paper-label">구분</span><select
             name="kind"
             aria-invalid={!!createIssues.kind}
-            ><option value="regular">정기</option><option
+            ><option
+              value="regular"
+              selected={createValue("kind", "regular") === "regular"}
+              >정기</option
+            ><option
               value="irregular"
-              selected={form?.values?.kind === "irregular"}>비정기</option
-            ><option value="" selected={form?.values?.kind === ""}>미상</option
+              selected={createValue("kind", "regular") === "irregular"}
+              >비정기</option
+            ><option value="" selected={createValue("kind", "regular") === ""}
+              >미상</option
             ></select
           >{#if createIssues.kind}<small>{createIssues.kind}</small>{/if}</label
         >
@@ -161,7 +173,7 @@
         >
         <label class="wide"
           ><span class="paper-label">설명</span><textarea
-            name="note"
+            name="description"
             rows="3"
             aria-invalid={!!createIssues.description}
             >{form?.scope === "record-create"
@@ -170,6 +182,16 @@
           >{#if createIssues.description}<small
               >{createIssues.description}</small
             >{/if}</label
+        >
+        <label class="wide"
+          ><span class="paper-label">비고</span><textarea
+            name="note"
+            rows="2"
+            aria-invalid={!!createIssues.note}
+            >{form?.scope === "record-create"
+              ? (form.values?.note ?? "")
+              : ""}</textarea
+          >{#if createIssues.note}<small>{createIssues.note}</small>{/if}</label
         >
         <label class="wide"
           ><span class="paper-label">선수지식</span><input
@@ -185,15 +207,24 @@
       </div>
       <fieldset class="member-picker">
         <legend>발표자</legend>
+        <input type="hidden" name="presenterIds" value="" />
         <div>
           {#each members as member (member.id)}<label
               ><input
                 type="checkbox"
                 name="presenterIds"
                 value={member.id}
-                checked={form?.scope === "record-create" &&
-                  form.presenterIds?.includes(member.id)}
+                checked={createPresenters.includes(member.id)}
               /><span>{member.name}<small>{member.department}</small></span
+              ></label
+            >{/each}
+          {#each extraCreatePresenters as id (id)}<label
+              ><input
+                type="checkbox"
+                name="presenterIds"
+                value={id}
+                checked
+              /><span>제출된 발표자<small>선택 목록 외 · {id}</small></span
               ></label
             >{/each}
         </div>
@@ -225,7 +256,10 @@
     {#each filtered as record (record.id)}
       {@const updateIssues = issuesFor("record-update", record.id)}
       {@const fileIssues = issuesFor("record-file", record.id)}
-      <details class="record-card">
+      <details
+        class="record-card"
+        open={form?.id === record.id && !!form?.error}
+      >
         <summary
           ><div>
             <span
@@ -240,25 +274,20 @@
           ></summary
         >
         <div class="record-body">
-          <form
-            method="POST"
-            action="?/update"
-            class="record-form"
-            onformdata={joinPresenterIds}
-          >
+          <form method="POST" action="?/update" class="record-form">
             <input type="hidden" name="id" value={record.id} />
             <div class="field-grid">
               <label class="title-field"
                 ><span class="paper-label">제목</span><input
                   name="title"
-                  value={record.title}
+                  value={valueFor(record, "title", record.title)}
                   aria-invalid={!!updateIssues.title}
                 />{#if updateIssues.title}<small>{updateIssues.title}</small
                   >{/if}</label
               ><label
                 ><span class="paper-label">학기</span><input
                   name="semester"
-                  value={record.term}
+                  value={valueFor(record, "term", record.term)}
                   aria-invalid={!!updateIssues.term}
                 />{#if updateIssues.term}<small>{updateIssues.term}</small
                   >{/if}</label
@@ -266,12 +295,18 @@
                 ><span class="paper-label">구분</span><select
                   name="kind"
                   aria-invalid={!!updateIssues.kind}
-                  ><option value="regular" selected={record.kind === "regular"}
-                    >정기</option
+                  ><option
+                    value="regular"
+                    selected={valueFor(record, "kind", record.kind ?? "") ===
+                      "regular"}>정기</option
                   ><option
                     value="irregular"
-                    selected={record.kind === "irregular"}>비정기</option
-                  ><option value="" selected={record.kind === null}>미상</option
+                    selected={valueFor(record, "kind", record.kind ?? "") ===
+                      "irregular"}>비정기</option
+                  ><option
+                    value=""
+                    selected={valueFor(record, "kind", record.kind ?? "") ===
+                      ""}>미상</option
                   ></select
                 >{#if updateIssues.kind}<small>{updateIssues.kind}</small
                   >{/if}</label
@@ -282,7 +317,11 @@
                   min="10"
                   max="600"
                   placeholder="미상"
-                  value={record.durationMinutes ?? ""}
+                  value={valueFor(
+                    record,
+                    "durationMinutes",
+                    record.durationMinutes ?? "",
+                  )}
                   aria-invalid={!!updateIssues.durationMinutes}
                 />{#if updateIssues.durationMinutes}<small
                     >{updateIssues.durationMinutes}</small
@@ -294,17 +333,33 @@
                 /></label
               ><label class="wide"
                 ><span class="paper-label">설명</span><textarea
-                  name="note"
+                  name="description"
                   rows="3"
                   aria-invalid={!!updateIssues.description}
-                  >{record.description}</textarea
+                  >{valueFor(
+                    record,
+                    "description",
+                    record.description,
+                  )}</textarea
                 >{#if updateIssues.description}<small
                     >{updateIssues.description}</small
                   >{/if}</label
               ><label class="wide"
+                ><span class="paper-label">비고</span><textarea
+                  name="note"
+                  rows="2"
+                  aria-invalid={!!updateIssues.note}
+                  >{valueFor(record, "note", record.note)}</textarea
+                >{#if updateIssues.note}<small>{updateIssues.note}</small
+                  >{/if}</label
+              ><label class="wide"
                 ><span class="paper-label">선수지식</span><input
                   name="prerequisites"
-                  value={record.prerequisites}
+                  value={valueFor(
+                    record,
+                    "prerequisites",
+                    record.prerequisites,
+                  )}
                   aria-invalid={!!updateIssues.prerequisites}
                 />{#if updateIssues.prerequisites}<small
                     >{updateIssues.prerequisites}</small
@@ -313,15 +368,30 @@
             </div>
             <fieldset class="member-picker">
               <legend>발표자</legend>
+              <input type="hidden" name="presenterIds" value="" />
               <div>
                 {#each members as member (member.id)}<label
                     ><input
                       type="checkbox"
                       name="presenterIds"
                       value={member.id}
-                      checked={record.presenterIds.includes(member.id)}
+                      checked={selectedPresenters(record).includes(member.id)}
                     /><span
                       >{member.name}<small>{member.department}</small></span
+                    ></label
+                  >{/each}
+                {#each extraPresenters(record) as id (id)}<label
+                    ><input
+                      type="checkbox"
+                      name="presenterIds"
+                      value={id}
+                      checked={selectedPresenters(record).includes(id)}
+                    /><span
+                      >{record.presenterNames[
+                        record.presenterIds.indexOf(id)
+                      ] ?? "제출된 발표자"}<small
+                        >기록된 발표자 · 운영 명단 외</small
+                      ></span
                     ></label
                   >{/each}
               </div>
@@ -393,14 +463,9 @@
           >
             <input type="hidden" name="id" value={record.id} /><span
               >{record.activityId || record.eventId
-                ? "연결된 활동·이벤트가 있어 삭제 불가"
+                ? "공개된 레코드 삭제는 활동·출석을 유지합니다. 비공개 레코드는 출석·다른 연결이 남아 있으면 서버가 거절합니다."
                 : "삭제 시 공개 아카이브에서도 제거"}</span
-            ><button
-              class="paper-btn small"
-              type="submit"
-              disabled={!!record.activityId || !!record.eventId}
-              >레코드 삭제</button
-            >
+            ><button class="paper-btn small" type="submit">레코드 삭제</button>
           </form>
         </div>
       </details>

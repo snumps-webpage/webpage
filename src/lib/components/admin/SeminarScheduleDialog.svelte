@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
+  import { seminarOperationError } from "$lib/domain/admin-seminars";
   import { untrack } from "svelte";
   import type {
     AdminSeminarItem,
@@ -47,6 +48,9 @@
 <dialog
   bind:this={dialog}
   class="schedule-dialog"
+  oncancel={(event) => {
+    if (processing) event.preventDefault();
+  }}
   onclose={() => {
     if (!processing) onClose();
   }}
@@ -59,32 +63,43 @@
       issues = {};
 
       return async ({ result, update }) => {
-        processing = false;
-
-        if (result.type === "success") {
-          // 커스텀 콜백이 있으면 SvelteKit은 기본 동작(invalidateAll)을 건너뛴다.
-          // 부르지 않으면 저장해도 카드가 그대로라 관리자가 실패로 오인한다.
-          await update({ reset: false });
-          onSaved(result.data as AdminSeminarOperationResult);
-          return;
-        }
-
-        if (result.type === "failure") {
-          const data = result.data as { issues?: SeminarScheduleIssues };
-          issues = data.issues ?? {
-            _form: "일정을 저장하지 못했습니다.",
+        try {
+          if (result.type === "redirect") {
+            await update({ reset: false });
+            return;
+          }
+          if (result.type === "success") {
+            await update({ reset: false });
+            processing = false;
+            onSaved(result.data as AdminSeminarOperationResult);
+            return;
+          }
+          if (result.type === "failure") {
+            const data = result.data as {
+              issues?: SeminarScheduleIssues;
+              error?: string;
+            };
+            issues = data.issues ?? {
+              _form: seminarOperationError(data.error, "일정 저장"),
+            };
+            return;
+          }
+          issues = { _form: "일정을 저장하지 못했습니다." };
+        } catch {
+          issues = {
+            _form:
+              "처리 결과를 새로 불러오지 못했습니다. 새로고침해 현재 상태를 확인해 주세요.",
           };
-          return;
+        } finally {
+          processing = false;
         }
-
-        issues = { _form: "일정을 저장하지 못했습니다." };
       };
     }}
   >
     <input type="hidden" name="seminarId" value={seminar.id} />
 
     <header>
-      <p class="eyebrow">Schedule · KST</p>
+      <p class="eyebrow">일정 · 한국 시간 (KST)</p>
       <h2>{seminar.schedule ? "세미나 일정 수정" : "세미나 일정 입력"}</h2>
       <p>{seminar.title}</p>
     </header>
@@ -165,12 +180,17 @@
     </div>
 
     <aside class="publication-note">
-      <strong>저장은 공개가 아닙니다.</strong>
+      <strong
+        >{seminar.publicationStatus === "published"
+          ? "공개된 일정이 바로 갱신됩니다."
+          : "일정 저장은 공개 전 준비입니다."}</strong
+      >
       {#if seminar.publicationStatus === "published"}
         저장하면 회원 페이지와 공개 아카이브의 일정이 함께 갱신됩니다.
       {:else}
         일정 저장 후 ‘활동·출석 이벤트 공개’를 누르면 회원 페이지에 노출되고
-        확정 일정 안내 메일을 보냅니다. 저장만으로는 메일을 보내지 않습니다.
+        일정이 표시됩니다. 공지 대상 세미나는 공개 시 안내하며, 저장만으로는
+        안내하지 않습니다.
       {/if}
     </aside>
 
@@ -190,6 +210,7 @@
 
 <style>
   .schedule-dialog {
+    font-family: var(--font-ui);
     width: min(94vw, 720px);
     max-height: min(88vh, 760px);
     margin: auto;
@@ -292,6 +313,7 @@
 
   @media (max-width: 620px) {
     .schedule-dialog {
+      font-family: var(--font-ui);
       width: calc(100vw - 1rem);
       max-height: calc(100vh - 1rem);
     }

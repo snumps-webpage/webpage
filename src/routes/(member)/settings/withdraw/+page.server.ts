@@ -1,6 +1,14 @@
-import { fail, redirect } from "@sveltejs/kit";
+import {
+  fail,
+  redirect,
+  isActionFailure,
+  type ActionFailure,
+} from "@sveltejs/kit";
 import { isStudyClosed } from "$lib/domain/studies";
-import { validateWithdrawalRequestForm } from "$lib/domain/account";
+import {
+  validateWithdrawalRequestForm,
+  withdrawalValuesFromFormData,
+} from "$lib/domain/account";
 import { handleUserAction } from "$lib/server/auth-guards";
 import { requestWithdrawal } from "$lib/server/services/withdrawal";
 import { getTable } from "$lib/server/data/tables";
@@ -36,7 +44,7 @@ export const actions = {
     locals: App.Locals;
   }) => {
     const data = await request.formData();
-    return handleUserAction(locals, async () => {
+    const result = await handleUserAction(locals, async () => {
       const memberId = locals.member!.memberId;
 
       // Every bad confirmation at once, per field; the service re-verifies
@@ -52,5 +60,16 @@ export const actions = {
 
       throw redirect(303, "/withdraw/pending");
     });
+    if (isActionFailure(result as unknown)) {
+      const failure = result as unknown as ActionFailure<
+        Record<string, unknown>
+      >;
+      return fail(failure.status, {
+        ...failure.data,
+        operation: "withdrawalRequested" as const,
+        values: withdrawalValuesFromFormData(data),
+      });
+    }
+    return result;
   },
 };

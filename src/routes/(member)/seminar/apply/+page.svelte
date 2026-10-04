@@ -6,10 +6,15 @@
   let { data, form } = $props();
 </script>
 
+<svelte:head><title>세미나 개설 신청 · SNUMPS</title></svelte:head>
+
 <article class="paper-document seminar-request-paper">
+  <nav class="proposal-back" aria-label="세미나 경로">
+    <a href="/">← 회원 홈</a><a href="/#my-seminars-heading">내 신청 확인</a>
+  </nav>
   <ManuscriptHeader
     title="세미나 개설 신청"
-    subtitle="Seminar Proposal · Schedule After Approval"
+    subtitle="Seminar Proposal"
     figure={MANUSCRIPT.FIGURES.SEMINAR_APPLY}
   />
 
@@ -24,13 +29,22 @@
     initialPresenters={data.initialPresenters}
     timingOptions={data.timingOptions}
     memberDirectoryUnavailable={data.memberDirectoryUnavailable}
+    canSubmit={data.canSubmit}
     {form}
   />
 </article>
 
 <style>
   .seminar-request-paper {
-    position: relative;
+    width: min(100%, 60rem);
+  }
+  .proposal-back {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    font-family: var(--font-ui);
+    font-size: 0.8rem;
   }
 
   .proposal-intro {

@@ -1,8 +1,9 @@
 import { handleUserAction } from "$lib/server/auth-guards";
-import { fail } from "@sveltejs/kit";
+import { fail, isActionFailure, type ActionFailure } from "@sveltejs/kit";
 import type { z } from "zod/v4";
 import { formText } from "$lib/domain/form-data";
 import { managedEventIdSchema } from "$lib/domain/attendance";
+import { CAPABILITIES, hasCapability } from "$lib/server/core/capabilities";
 import { getQueue, getTable } from "$lib/server/data/tables";
 import {
   cancelSeminar,
@@ -55,8 +56,8 @@ export const load: PageServerLoad = async ({ locals }) => {
       const activity = event ? activityById.get(event.activityId) : undefined;
       const pool = new Set(event?.applicantIds ?? []);
       // Queue rows carry the link check-in instant (EVT-01) for each applicant.
-      const checkedInAt = new Map(
-        (await getQueue(seminar.id)).map((r) => [r.memberId, r.startTime]),
+      const checkIns = new Map(
+        (await getQueue(seminar.id)).map((r) => [r.memberId, r]),
       );
       const row = event ? seminarOfEvent(event) : undefined;
       return {
@@ -75,13 +76,20 @@ export const load: PageServerLoad = async ({ locals }) => {
         ).length,
         applicants: seminar.applicants.map((applicant) => ({
           ...applicant,
-          checkedInAt: checkedInAt.get(applicant.id) ?? null,
+          checkedInAt: checkIns.get(applicant.id)?.startTime ?? null,
+          checkInStatus: checkIns.get(applicant.id)?.status ?? null,
         })),
       };
     }),
   );
 
-  return { managedSeminars };
+  return {
+    managedSeminars,
+    canSave: hasCapability(
+      locals.member?.capabilities,
+      CAPABILITIES.PARTICIPATE,
+    ),
+  };
 };
 
 /** A bad id answers VALIDATION_FAILED with the field's issue, before any read. */
@@ -101,7 +109,8 @@ export const actions = {
     locals: App.Locals;
   }) => {
     const data = await request.formData();
-    return handleUserAction(locals, async () => {
+    const eventId = formText(data, "eventId").trim();
+    const result = await handleUserAction(locals, async () => {
       const parsed = managedEventIdSchema.safeParse(formText(data, "eventId"));
       if (!parsed.success) return invalidId("eventId", parsed.error);
       const eventId = parsed.data;
@@ -110,7 +119,7 @@ export const actions = {
         locals.member!.memberId,
         (data.getAll("attendeeIds") as string[]).filter(Boolean),
       );
-      // Echo the merged result so the UI can reconcile without a reload.
+      // Echo the merged result for receipts; load re-fetches the current roster.
       const event = (await getTable("events")).find((e) => e.id === eventId);
       const activity = event
         ? (await getTable("activities")).find((a) => a.id === event.activityId)
@@ -124,6 +133,22 @@ export const actions = {
         totalAttendanceCount: attendeeIds.length,
       };
     });
+    if (isActionFailure(result as unknown)) {
+      const failure = result as unknown as ActionFailure<
+        Record<string, unknown>
+      >;
+      return fail(failure.status, {
+        ...failure.data,
+        operation: "presenterAttendanceSaved" as const,
+        eventId,
+        values: {
+          attendeeIds: data
+            .getAll("attendeeIds")
+            .filter((id): id is string => typeof id === "string" && !!id),
+        },
+      });
+    }
+    return result;
   },
 
   /**
@@ -144,17 +169,33 @@ export const actions = {
     locals: App.Locals;
   }) => {
     const data = await request.formData();
-    return handleUserAction(locals, async () => {
+    const result = await handleUserAction(locals, async () => {
       const parsed = managedEventIdSchema.safeParse(
         formText(data, "seminarId"),
       );
       if (!parsed.success) return invalidId("seminarId", parsed.error);
       const seminarId = parsed.data;
-      const { mailFailed } = await cancelSeminar(seminarId, {
+      const { seminar, mailFailed } = await cancelSeminar(seminarId, {
         memberId: locals.member!.memberId,
         isAdmin: locals.member!.isAdmin === true,
       });
-      return { operation: "seminarCancelled" as const, seminarId, mailFailed };
+      return {
+        operation: "seminarCancelled" as const,
+        seminarId,
+        seminarTitle: seminar.title,
+        mailFailed,
+      };
     });
+    if (isActionFailure(result as unknown)) {
+      const failure = result as unknown as ActionFailure<
+        Record<string, unknown>
+      >;
+      return fail(failure.status, {
+        ...failure.data,
+        operation: "seminarCancelled" as const,
+        seminarId: formText(data, "seminarId").trim(),
+      });
+    }
+    return result;
   },
 };

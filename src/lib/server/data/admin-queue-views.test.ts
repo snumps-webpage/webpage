@@ -38,10 +38,8 @@ describe("adminSeminarRequestItem", () => {
     );
   });
 
-  it("shows a request from before the form asked the kind as 비정기", () => {
-    expect(adminSeminarRequestItem(request(null), new Map()).kind).toBe(
-      "irregular",
-    );
+  it("preserves an unknown legacy request kind as null", () => {
+    expect(adminSeminarRequestItem(request(null), new Map()).kind).toBeNull();
   });
 });
 

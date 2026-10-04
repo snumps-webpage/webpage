@@ -168,3 +168,56 @@ describe("requestWithdrawal action", () => {
     expect(await statusOf()).toBe("regular");
   });
 });
+
+describe("withdrawal request response recovery", () => {
+  it("retains explicit confirmations and raw name in a conflict", async () => {
+    const study = {
+      id: "conflict",
+      title: "예시 스터디",
+      semester: "26-2",
+      textbook: "",
+      description: "",
+      note: "",
+      organizerIds: [MEMBER_ID],
+      participantIds: [MEMBER_ID],
+      pendingParticipantIds: [],
+      pendingTransfer: null,
+      schedule: [],
+      transferHistory: [],
+      photos: [],
+      status: "ongoing",
+      sourceRequestId: null,
+    } satisfies Study;
+    await mutate("studies", () => [study]);
+    expect(
+      await actions.requestWithdrawal(
+        post({ ...valid, confirmName: ` ${NAME} ` }),
+      ),
+    ).toMatchObject({
+      status: 409,
+      data: {
+        operation: "withdrawalRequested",
+        values: {
+          ackInfo: true,
+          ackDataPolicy: true,
+          confirmName: ` ${NAME} `,
+        },
+      },
+    });
+    expect(await statusOf()).toBe("regular");
+  });
+  it("does not check an acknowledgement absent from the posted values", async () => {
+    expect(
+      await actions.requestWithdrawal(
+        post({ ackInfo: "on", confirmName: NAME }),
+      ),
+    ).toMatchObject({
+      status: 400,
+      data: {
+        operation: "withdrawalRequested",
+        values: { ackInfo: true, ackDataPolicy: false, confirmName: NAME },
+      },
+    });
+    expect(notifyExecutivesOfWithdrawal).not.toHaveBeenCalled();
+  });
+});

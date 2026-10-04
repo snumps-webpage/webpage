@@ -7,9 +7,12 @@ import {
   updateGalleryEntry,
 } from "$lib/server/services/records-admin";
 import { promotePendingUpload } from "$lib/server/services/uploads";
-import { fail } from "@sveltejs/kit";
+import { fail, isActionFailure, type ActionFailure } from "@sveltejs/kit";
 import { formText, fieldIssues } from "$lib/domain/form-data";
-import { adminGalleryRecordSchema } from "$lib/domain/admin-records";
+import {
+  adminGalleryRecordSchema,
+  type AdminRecordActionScope,
+} from "$lib/domain/admin-records";
 import { nowKstIso } from "$lib/server/core/time";
 import type { PageServerLoad } from "./$types";
 
@@ -57,39 +60,57 @@ function galleryValues(data: FormData) {
   };
 }
 
+/** Preserve the shared auth/error classification and add only editor values. */
+async function recordAction<T extends Record<string, unknown>>(
+  locals: App.Locals,
+  scope: AdminRecordActionScope,
+  id: string,
+  values: Record<string, string>,
+  logic: () => Promise<T | ActionFailure<Record<string, unknown>>>,
+) {
+  const result = await handleAdminAction(locals, logic);
+  if (isActionFailure(result as unknown)) {
+    const failure = result as ActionFailure<Record<string, unknown>>;
+    return fail(failure.status, { ...failure.data, scope, id, values });
+  }
+  const successful = result as T & { success: true };
+  return {
+    ...successful,
+    scope,
+    id: typeof successful.id === "string" ? successful.id : id,
+  };
+}
+
 export const actions = {
   create: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
-    return handleAdminAction(locals, async () => {
-      const values = galleryValues(data);
+    const values = galleryValues(data);
+    return recordAction(locals, "record-create", "", values, async () => {
       const parsed = adminGalleryRecordSchema.safeParse(values);
       if (!parsed.success) {
         return fail(400, {
           error: "VALIDATION_FAILED",
           issues: fieldIssues(parsed.error),
-          values,
         });
       }
-      await createGalleryEntry({
+      const created = await createGalleryEntry({
         year: parsed.data.year,
         activityId: parsed.data.activityId || null,
       });
-      return { operation: "galleryCreated" };
+      return { operation: "galleryCreated", id: created.id };
     });
   },
 
   update: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
-    return handleAdminAction(locals, async () => {
-      const id = data.get("id") as string;
-      const values = galleryValues(data);
+    const id = formText(data, "id");
+    const values = galleryValues(data);
+    return recordAction(locals, "record-update", id, values, async () => {
       const parsed = adminGalleryRecordSchema.safeParse(values);
       if (!parsed.success) {
         return fail(400, {
           error: "VALIDATION_FAILED",
-          id,
           issues: fieldIssues(parsed.error),
-          values,
         });
       }
       await updateGalleryEntry(id, {
@@ -101,8 +122,8 @@ export const actions = {
   },
 
   delete: async ({ request, locals }: Ctx) => {
-    const id = (await request.formData()).get("id") as string;
-    return handleAdminAction(locals, async () => {
+    const id = formText(await request.formData(), "id");
+    return recordAction(locals, "record-delete", id, {}, async () => {
       await deleteGalleryEntry(id);
       return { operation: "galleryDeleted" };
     });
@@ -110,8 +131,9 @@ export const actions = {
 
   addPhoto: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
-    return handleAdminAction(locals, async () => {
-      const id = data.get("id") as string;
+    const id = formText(data, "id");
+    const values = { pendingKey: formText(data, "pendingKey") };
+    return recordAction(locals, "record-file", id, values, async () => {
       const finalKey = await promotePendingUpload(
         data.get("pendingKey") as string,
         "gallery-photo",
@@ -124,8 +146,10 @@ export const actions = {
 
   removePhoto: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
-    return handleAdminAction(locals, async () => {
-      await setGalleryPhotos(data.get("id") as string, {
+    const id = formText(data, "id");
+    const values = { s3Key: formText(data, "s3Key") };
+    return recordAction(locals, "record-file", id, values, async () => {
+      await setGalleryPhotos(id, {
         remove: data.get("s3Key") as string,
       });
       return { operation: "galleryPhotoRemoved" };

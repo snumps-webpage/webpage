@@ -122,7 +122,7 @@
   );
 </script>
 
-<main class="stage" data-poster-root="seminar">
+<div class="stage" data-poster-root="seminar">
   <article class="poster" data-mode={mode}>
     <div class="paper-symbols" aria-hidden="true">
       <span class="paper-symbol">∑</span>
@@ -144,13 +144,13 @@
     <div class="rule-thick"></div>
 
     <section class="hero">
-      <h1 class="title">
+      <h4 class="title">
         {#each titleLines as line, index (line + index)}
           <span class="title-line" class:accent={index === accentTitleIndex}
             >{line}</span
           >
         {/each}
-      </h1>
+      </h4>
 
       <section class="abstract-panel">
         <p class="abstract-body">{abstract}</p>
@@ -175,7 +175,7 @@
       </div>
     </footer>
   </article>
-</main>
+</div>
 
 <style>
   * {

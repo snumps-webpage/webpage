@@ -7,6 +7,7 @@ import { getMemberVisibleEvents } from "$lib/server/services/visibility";
 import { parseGoogleName } from "$lib/utils";
 import type { PageServerLoad } from "./$types";
 import { sendAttendanceNotification } from "$lib/server/mail";
+import { CAPABILITIES, hasCapability } from "$lib/server/core/capabilities";
 
 /** EVT-01 / SEM-05: the shared check-in page behind the obfuscated link. */
 
@@ -52,9 +53,15 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
       : null;
 
   return {
-    event: { ...event, date: event.date.start },
+    // The form action resolves its target from the guarded URL, not hidden
+    // client fields. Only metadata used by the confirmation page crosses it.
+    event: { title: event.title, type: event.type, date: event.date.start },
     context,
-    user: session.user,
+    user: { name: session.user.name, email: session.user.email },
+    canAttend: hasCapability(
+      locals.member?.capabilities,
+      CAPABILITIES.PARTICIPATE,
+    ),
     actionType: "attend",
   };
 };

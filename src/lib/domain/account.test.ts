@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   validateMailPreferenceForm,
+  validatePhonePreferenceForm,
   validateWithdrawalRequestForm,
   withdrawalGraceEndsAt,
 } from "./account";
@@ -15,6 +16,35 @@ describe("account settings validation", () => {
       success: true,
       data: { type: "announcements", enabled: false },
     });
+  });
+
+  it.each(["true", "false"])("accepts explicit phone visibility %s", (hide) => {
+    const formData = new FormData();
+    formData.set("hide", hide);
+    expect(validatePhonePreferenceForm(formData)).toEqual({
+      success: true,
+      data: { hide: hide === "true" },
+    });
+  });
+  it.each([undefined, "", "yes", "FALSE"])(
+    "refuses a missing or malformed privacy choice %s",
+    (hide) => {
+      const formData = new FormData();
+      if (hide !== undefined) formData.set("hide", hide);
+      expect(validatePhonePreferenceForm(formData)).toMatchObject({
+        success: false,
+        failure: {
+          error: "VALIDATION_FAILED",
+          issues: { hide: expect.any(String) },
+          values: { hide: hide ?? "" },
+        },
+      });
+    },
+  );
+  it("refuses a file in place of the privacy choice", () => {
+    const formData = new FormData();
+    formData.set("hide", new File(["false"], "choice.txt"));
+    expect(validatePhonePreferenceForm(formData).success).toBe(false);
   });
 
   it("requires every withdrawal confirmation on the server", () => {
