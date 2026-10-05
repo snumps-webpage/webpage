@@ -534,7 +534,10 @@ build_production() {
   git archive --format=tar "$HEAD_SHA" | tar -x -C "$dir"
   cp .vercel/project.json "$dir/.vercel/project.json"
   say "Vercel에서 운영 빌드를 만든다 (도메인 연결 없이 — 사이트는 아직 옛 배포를 보여 준다)…"
-  out="$(vc deploy --cwd "$dir" --prod --skip-domain --yes --archive=tgz -m "gitCommitSha=$HEAD_SHA" 2> "$TMP/deploy.log")" || {
+  # 빌드 정보(VITE_BUILD_*)는 Vite가 빌드에 심고 /api/version 이 답한다 — check-deployed.mjs가 읽는다.
+  out="$(vc deploy --cwd "$dir" --prod --skip-domain --yes --archive=tgz -m "gitCommitSha=$HEAD_SHA" \
+    --build-env "VITE_BUILD_SHA=$HEAD_SHA" --build-env "VITE_BUILD_APP_KEY=$APP_KEY" \
+    --build-env "VITE_BUILD_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" 2> "$TMP/deploy.log")" || {
     tail -n 40 "$TMP/deploy.log" >&2
     die "Vercel 운영 빌드 실패 — DB는 아직 바뀌지 않았다. 원인을 고쳐 커밋한 뒤 --from 2."
   }
@@ -625,9 +628,10 @@ cd "$(dirname "$0")/../.."
 REPO="$(pwd -P)"
 STATE="$(git rev-parse --absolute-git-dir)/release-prod.state"
 HEAD_SHA="$(git rev-parse HEAD)"
-# 배포되는 내용의 지문: 커밋의 트리에서 문서·운영 스크립트·루트 *.md를 뺀 것. 그것만 바뀐 커밋은
-# 빌드·테스트 대상이 같으므로 2·3단계 기록을 그대로 쓴다.
-APP_KEY="$(git ls-tree -r HEAD | grep -vE $'\t(docs/|scripts/|[^/]+\\.md$)' | git hash-object --stdin)"
+# 배포되는 내용의 지문(app-key.sh): 커밋의 트리에서 문서·운영 스크립트·루트 *.md를 뺀 것. 그것만
+# 바뀐 커밋은 빌드·테스트 대상이 같으므로 2·3단계 기록을 그대로 쓴다. 빌드에도 찍어
+# check-deployed.mjs가 운영 사이트와 대조한다.
+APP_KEY="$(bash "$REPO/scripts/ops/app-key.sh" HEAD)"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/release-prod.XXXXXX")"
 CURRENT_STEP="$FROM"
 
@@ -900,7 +904,7 @@ CURRENT_STEP=8
 if run_step 8; then
   step 8 "운영 도메인이 새 빌드를 가리키는지"
   if [ "$DRY_RUN" = 1 ]; then
-    say "(DRY_RUN) vercel inspect $SITE 의 배포 id를 5단계 빌드와 대조한다."
+    say "(DRY_RUN) vercel inspect $SITE 의 배포 id를 5단계 빌드와 대조하고, /api/version 도 확인한다."
   else
     build_id="$(state_get prod_build_id)"
     [ "$(state_get prod_build_sha)" = "$HEAD_SHA" ] && [ -n "$build_id" ] ||
@@ -912,6 +916,12 @@ if run_step 8; then
     code="$(curl -sL -o /dev/null -w '%{http_code}' --max-time 20 "$SITE/" || true)"
     [ "$code" = 200 ] || die "운영 첫 화면이 $code 다 — Vercel 로그를 볼 것."
     say "운영 = $build_id (커밋 ${HEAD_SHA:0:7}), 첫 화면 200."
+    # 사이트가 스스로 밝히는 빌드 정보도 대조한다. 배포 id 대조가 이미 결정적이므로 경고만 한다.
+    if node "$REPO/scripts/ops/check-deployed.mjs" "$SITE" --ref HEAD --no-fetch < /dev/null; then
+      say "/api/version 도 이 커밋이다."
+    else
+      say "경고: /api/version 이 이 커밋을 답하지 않는다 — 빌드 정보(VITE_BUILD_*)가 빌드에 안 들어갔을 수 있다."
+    fi
     state_set deploy_confirmed_sha "$HEAD_SHA"
   fi
 fi

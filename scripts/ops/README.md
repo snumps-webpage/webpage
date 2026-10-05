@@ -29,6 +29,7 @@ Supabase 자격증명이 놓인 곳이 CLI라서 실제로는 CLI를 거치게 �
 | `ops-add-member.mjs`               |        |       ✅       | 없음 (`supabase login`)                             | Supabase CLI·**터미널**                      |
 | `release-prod.sh`                  |        |       ✅       | 없음 (`supabase login`; `.env.prod-secrets`는 선택) | Supabase CLI·Vercel CLI·git·**터미널**(tmux) |
 | `ops-push-prod.sh`                 |        |                | (`.env.proddbpass` 선택)                            | Supabase CLI·**터미널**                      |
+| `check-deployed.mjs`               |   ✅   |                | 없음                                                | git (+`app-key.sh`: bash)                    |
 | `ops-export-members.mjs`           |        |       ✅       | Supabase                                            |                                              |
 | `ops-assets-private.mjs`           |        |       ✅       | Supabase                                            |                                              |
 | `ops-repair-seminar-schedules.mjs` |        |       ✅       | Supabase                                            |                                              |
@@ -104,6 +105,28 @@ Notion 쪽(`NOTION_API_KEY`, `NOTION_DB_*`)도 같은 방식이다 — 다만 �
 | `ops-assets-private.mjs`           | `--apply`   |
 
 표에 있는 나머지는 전부 읽기 전용이다.
+
+## 배포된 사이트가 최신인지 — `check-deployed.mjs`
+
+```bash
+node scripts/ops/check-deployed.mjs                    # 운영 도메인 vs origin/main (먼저 fetch)
+node scripts/ops/check-deployed.mjs --ref HEAD --no-fetch
+node scripts/ops/check-deployed.mjs https://<프리뷰>.vercel.app
+```
+
+사이트가 스스로 밝히는 빌드 정보(`GET /api/version` — 커밋, 앱 키, 빌드 시각)를
+git과 대조한다. 빌드 정보는 `release-prod.sh`가 빌드에 넣는다(`--build-env
+VITE_BUILD_*`). 앱 키(`app-key.sh`)는 문서·운영 스크립트·루트 `*.md`를 뺀 트리의
+해시라, 그런 커밋만 쌓인 경우는 "앱 코드는 최신"으로 본다.
+
+| 종료 코드 | 뜻                                                                 |
+| :-------: | ------------------------------------------------------------------ |
+|     0     | 최신, 또는 문서·스크립트만 다름                                    |
+|     1     | 뒤처짐(배포 안 된 앱 커밋을 함께 출력), 앞섬, 갈라짐               |
+|     2     | 판단 불가 — 빌드 정보 없음(이 기능 이전 배포), 모르는 커밋, 무응답 |
+
+로그인·DB·배포 권한이 필요 없고 아무것도 바꾸지 않는다. `release-prod.sh`의 8단계도
+이것으로 한 번 더 대조한다(경고만).
 
 ## 표에 없는 것들
 
