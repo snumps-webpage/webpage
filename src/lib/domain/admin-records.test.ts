@@ -96,6 +96,7 @@ describe("admin record validation", () => {
         title: "조합론 세미나",
         term: "26-2",
         description: "",
+        note: "",
         externalPresenters: "",
         kind: "",
         durationMinutes: "",
@@ -111,6 +112,74 @@ describe("admin record validation", () => {
         note: "",
       }).success,
     ).toBe(false);
+  });
+
+  it("validates a date-only activity without inventing a datetime input", () => {
+    const input = {
+      title: "회의",
+      type: "회의",
+      start: "",
+      end: "",
+      date: "2026-09-01",
+    };
+    expect(adminActivityRecordSchema.safeParse(input).success).toBe(true);
+    expect(adminActivityRecordUpdateSchema.safeParse(input).success).toBe(true);
+  });
+
+  it.each(["2026-02-30", "2026-09-31", "2026-13-01", "2026-9-1", "tomorrow"])(
+    "refuses raw invalid date-only input %s",
+    (date) => {
+      for (const schema of [
+        adminActivityRecordSchema,
+        adminActivityRecordUpdateSchema,
+      ]) {
+        const result = schema.safeParse({
+          title: "회의",
+          type: "회의",
+          start: "",
+          end: "",
+          date,
+        });
+        expect(result.success).toBe(false);
+        if (!result.success)
+          expect(fieldIssues(result.error)).toHaveProperty("date");
+      }
+    },
+  );
+
+  it.each(["1999-12-31", "2100-01-01"])(
+    "only permits %s as an update candidate for an unchanged stored day",
+    (date) => {
+      const input = { title: "회의", type: "회의", start: "", end: "", date };
+      expect(adminActivityRecordSchema.safeParse(input).success).toBe(false);
+      expect(adminActivityRecordUpdateSchema.safeParse(input).success).toBe(
+        true,
+      );
+    },
+  );
+
+  it("validates seminar description and note independently", () => {
+    const input = {
+      title: "세미나",
+      term: "26-2",
+      description: "",
+      note: "",
+      externalPresenters: "",
+      kind: "",
+      durationMinutes: "",
+      prerequisites: "",
+    };
+    const result = adminSeminarRecordSchema.safeParse({
+      ...input,
+      description: "가".repeat(2401),
+      note: "나".repeat(2401),
+    });
+    expect(result.success).toBe(false);
+    if (!result.success)
+      expect(Object.keys(fieldIssues(result.error)).sort()).toEqual([
+        "description",
+        "note",
+      ]);
   });
 
   it("bounds free text and requires an organizer on study create", () => {

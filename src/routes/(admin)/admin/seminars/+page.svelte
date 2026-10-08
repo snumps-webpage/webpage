@@ -66,14 +66,14 @@
         tone: "success",
         message: result.mailFailed
           ? "일정을 저장했지만 변경 공지 발송에 실패했습니다. 같은 값으로 다시 저장해도 재발송되지 않으니, 회원에게 직접 알려 주세요."
-          : "일정을 저장했습니다. 공개하면 전 회원에게 안내 메일이 나갑니다.",
+          : "일정을 저장했습니다. 공개 전 세미나는 공개 준비 단계로, 공개된 세미나는 변경된 일정으로 표시됩니다.",
       };
     } else if (result.operation === "published") {
       notice = {
         tone: "success",
         message: result.mailFailed
-          ? '세미나를 공개했습니다. 다만 전 회원 공지 발송에 실패했습니다 — 카드의 "공지 재발송"으로 다시 보낼 수 있습니다.'
-          : "세미나를 공개했습니다. 전 회원에게 확정 일정 안내를 보냈습니다.",
+          ? "세미나를 공개했습니다. 다만 공지 발송에 실패했습니다. 카드에 공지 재발송이 표시되면 다시 시도하고, 표시되지 않으면 누락된 회원에게 별도로 알려 주세요."
+          : "세미나를 공개했습니다. 회원 화면과 공개 아카이브에서 확인할 수 있습니다.",
       };
     } else if (result.operation === "cancelled") {
       notice = {
@@ -85,13 +85,7 @@
     }
   }
 
-  /**
-   * The backend approval creates 활동·출석 이벤트 in the same chain (§7-2),
-   * so a review verdict is the only board transition; the reloaded data
-   * carries the new published seminar and record.
-   */
-  // 승인은 더 이상 메일을 보내지 않는다 — 전 회원 공지는 공개 시점 한 번뿐이다.
-  // 예전 문구는 발송하지도 않은 메일을 발송했다고 알리고 있었다.
+  // Approval creates an unscheduled seminar; activity/event creation waits for publication.
   function handleTransition(
     operation: "approved" | "rejected",
     requestId: string,
@@ -112,7 +106,7 @@
       notice = {
         tone: "success",
         message:
-          "세미나를 승인했습니다. 일정을 확정한 뒤 공개하면 전 회원에게 안내 메일이 나갑니다.",
+          "세미나를 승인했습니다. 발표자와 일정을 조율한 뒤 공개해 주세요.",
       };
     } else {
       notice = { tone: "success", message: "세미나 신청을 반려했습니다." };
@@ -128,7 +122,7 @@
 <article class="paper-document admin-seminar-paper">
   <ManuscriptHeader
     title="세미나 운영"
-    subtitle="Review · Schedule · Publish"
+    subtitle="승인 → 일정 조율 → 공개"
     figure={MANUSCRIPT.FIGURES.ADMIN_SEMINARS}
   />
   <AdminSectionNav />
@@ -139,31 +133,31 @@
   </div>
 
   <section class="workflow-summary" aria-label="세미나 운영 현황">
-    <div>
+    <a href="#seminar-review">
       <strong>{requests.length}</strong>
       <span>심사 대기</span>
-    </div>
-    <div>
+    </a>
+    <a href="#seminar-schedule">
       <strong
         >{seminars.filter((item) => item.publicationStatus === "unscheduled")
           .length}</strong
       >
       <span>일정 미정</span>
-    </div>
-    <div>
+    </a>
+    <a href="#seminar-publish">
       <strong
         >{seminars.filter((item) => item.publicationStatus === "scheduled")
           .length}</strong
       >
       <span>공개 준비</span>
-    </div>
-    <div>
+    </a>
+    <a href="#seminar-live">
       <strong
         >{seminars.filter((item) => item.publicationStatus === "published")
           .length}</strong
       >
       <span>공개됨</span>
-    </div>
+    </a>
   </section>
 
   {#if notice}
@@ -174,16 +168,20 @@
   {/if}
 
   <section class="workflow-board" aria-label="세미나 작업함">
-    <div class="workflow-column triage-column">
+    <section
+      class="workflow-column triage-column"
+      id="seminar-review"
+      aria-labelledby="review-heading"
+    >
       <header class="column-heading">
         <div>
-          <p>01 · Triage</p>
-          <h2>심사 대기</h2>
+          <p>§ 01 · 신청 검토</p>
+          <h2 id="review-heading">심사 대기</h2>
         </div>
         <span>{requests.length}</span>
       </header>
       <p class="column-description">
-        주제와 발표자를 검토하고 정기·비정기 구분을 확정합니다.
+        주제와 발표자를 검토합니다. 승인하면 일정 조율 단계로 옮겨집니다.
       </p>
       <div class="column-items">
         {#each requests as request (request.id)}
@@ -196,13 +194,17 @@
           <p class="empty-state">심사할 신청이 없습니다.</p>
         {/each}
       </div>
-    </div>
+    </section>
 
-    <div class="workflow-column unscheduled-column">
+    <section
+      class="workflow-column unscheduled-column"
+      id="seminar-schedule"
+      aria-labelledby="schedule-heading"
+    >
       <header class="column-heading">
         <div>
-          <p>02 · Coordinate</p>
-          <h2>일정 미정</h2>
+          <p>§ 02 · 승인 후 조율</p>
+          <h2 id="schedule-heading">일정 입력</h2>
         </div>
         <span
           >{seminars.filter((item) => item.publicationStatus === "unscheduled")
@@ -224,13 +226,17 @@
           <p class="empty-state">일정을 입력할 세미나가 없습니다.</p>
         {/each}
       </div>
-    </div>
+    </section>
 
-    <div class="workflow-column scheduled-column">
+    <section
+      class="workflow-column scheduled-column"
+      id="seminar-publish"
+      aria-labelledby="publish-heading"
+    >
       <header class="column-heading">
         <div>
-          <p>03 · Publish</p>
-          <h2>공개 준비</h2>
+          <p>§ 03 · 최종 확인</p>
+          <h2 id="publish-heading">공개 준비</h2>
         </div>
         <span
           >{seminars.filter((item) => item.publicationStatus === "scheduled")
@@ -252,13 +258,13 @@
           <p class="empty-state">공개를 기다리는 세미나가 없습니다.</p>
         {/each}
       </div>
-    </div>
+    </section>
   </section>
 
-  <section class="published-section">
+  <section class="published-section" id="seminar-live">
     <header>
       <div>
-        <p>04 · Live Index</p>
+        <p>§ 04 · 공개된 일정</p>
         <h2>공개된 세미나</h2>
       </div>
       <span>공개 시 확정 일정 안내 · 공개 후 변경 시 변경 안내</span>
@@ -281,7 +287,7 @@
     <section class="published-section cancelled-section">
       <header>
         <div>
-          <p>05 · Cancelled</p>
+          <p>§ 05 · 취소 기록</p>
           <h2>취소된 세미나</h2>
         </div>
         <span>회원·공개 아카이브에서는 보이지 않습니다 · 출석 기록은 보존</span>
@@ -299,21 +305,24 @@
     </section>
   {/if}
 
-  <AdminSeminarRecordEditor
-    {records}
-    members={data.members}
-    currentTerm={data.currentTerm}
-    form={form as SeminarRecordFormState | null}
-  />
+  <details class="record-tools" open={!!form}>
+    <summary>세미나 기록 직접 작성·수정</summary>
+    <AdminSeminarRecordEditor
+      {records}
+      members={data.members}
+      currentTerm={data.currentTerm}
+      form={form as SeminarRecordFormState | null}
+    />
+  </details>
 
   {#if pollingError}
     <p class="polling-error" role="status">{pollingError}</p>
   {/if}
 
   <footer class="data-freshness">
-    프리뷰 데이터 기준 시각 {new Date(
-      data.dashboard.generatedAt,
-    ).toLocaleString("ko-KR")}
+    데이터 기준 시각 {new Date(data.dashboard.generatedAt).toLocaleString(
+      "ko-KR",
+    )}
   </footer>
 </article>
 
@@ -332,7 +341,8 @@
 
 <style>
   .admin-seminar-paper {
-    width: min(100%, 1500px);
+    width: min(100%, 1120px);
+    font-family: var(--font-ui);
   }
 
   .page-toolbar {
@@ -360,16 +370,19 @@
     border: 1px solid var(--latex-rule);
   }
 
-  .workflow-summary div {
+  .workflow-summary a {
     display: grid;
     grid-template-columns: auto 1fr;
     align-items: baseline;
     gap: 0.55rem;
     padding: 0.7rem 0.85rem;
     border-right: 1px solid var(--latex-rule);
+    color: var(--latex-text);
+    text-decoration: none;
+    min-height: 3.25rem;
   }
 
-  .workflow-summary div:last-child {
+  .workflow-summary a:last-child {
     border-right: 0;
   }
 
@@ -419,16 +432,19 @@
 
   .workflow-board {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 0.8rem;
     align-items: start;
   }
 
   .workflow-column {
     min-width: 0;
-    padding: 0.75rem;
-    border: 1px solid var(--latex-rule);
-    background: color-mix(in srgb, var(--latex-bg) 97%, var(--latex-text));
+    display: grid;
+    grid-template-columns: minmax(180px, 0.8fr) minmax(0, 2fr);
+    gap: 0.5rem 1.5rem;
+    padding: 1.25rem 0;
+    border-top: 1px solid var(--latex-rule);
+    scroll-margin-top: 1rem;
   }
 
   .column-heading,
@@ -478,6 +494,8 @@
   }
 
   .column-items {
+    grid-column: 2;
+    grid-row: 1 / 3;
     display: grid;
     gap: 0.65rem;
   }
@@ -506,12 +524,11 @@
 
   .cancelled-section {
     margin-top: 1.6rem;
-    opacity: 0.75;
   }
 
   .published-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 0.7rem;
     margin-top: 0.75rem;
   }
@@ -534,7 +551,20 @@
     font-size: 0.72rem;
   }
 
-  @media (max-width: 1120px) {
+  .record-tools {
+    margin-top: 1.5rem;
+    border-top: 1px solid var(--latex-rule);
+  }
+  .record-tools > summary {
+    padding: 1rem 0;
+    font: 550 1.1rem/1.5 var(--font-display);
+    cursor: pointer;
+  }
+  .workflow-summary a:focus-visible {
+    outline: 2px solid var(--latex-accent);
+    outline-offset: -4px;
+  }
+  @media (max-width: 840px) {
     .workflow-board {
       grid-template-columns: 1fr;
     }
@@ -543,8 +573,13 @@
       min-height: 0;
     }
 
+    .workflow-column {
+      grid-template-columns: 1fr;
+    }
     .column-items {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-column: auto;
+      grid-row: auto;
+      grid-template-columns: 1fr;
     }
   }
 
@@ -558,11 +593,11 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .workflow-summary div:nth-child(2) {
+    .workflow-summary a:nth-child(2) {
       border-right: 0;
     }
 
-    .workflow-summary div:nth-child(-n + 2) {
+    .workflow-summary a:nth-child(-n + 2) {
       border-bottom: 1px solid var(--latex-rule);
     }
 
@@ -586,13 +621,13 @@
       grid-template-columns: 1fr;
     }
 
-    .workflow-summary div,
-    .workflow-summary div:nth-child(2) {
+    .workflow-summary a,
+    .workflow-summary a:nth-child(2) {
       border-right: 0;
       border-bottom: 1px solid var(--latex-rule);
     }
 
-    .workflow-summary div:last-child {
+    .workflow-summary a:last-child {
       border-bottom: 0;
     }
   }

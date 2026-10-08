@@ -19,6 +19,7 @@ vi.mock("$lib/server/public/archive", async (importOriginal) => {
 });
 
 import { load } from "./+layout.server";
+import { capabilitiesFor } from "$lib/server/core/capabilities";
 
 /**
  * Every rendered page goes through this load, error pages included — Kit loads
@@ -74,4 +75,60 @@ describe("root layout load", () => {
 
     expect(data.executives).toBeNull();
   });
+  it("exposes participation permission without treating admin or alumni status as registration", async () => {
+    const guest = await loadGuestData();
+    expect(guest.canParticipate).toBe(false);
+    for (const registered of [false, true]) {
+      const event = {
+        locals: {
+          auth: async () => ({
+            user: { email: "fixture@snu.ac.kr", name: "Fixture" },
+          }),
+          member: {
+            memberId: "fixture",
+            status: "regular",
+            isAdmin: true,
+            isAlumni: true,
+            registered,
+            capabilities: capabilitiesFor({ isAlumni: true, registered }),
+          },
+        },
+      } as unknown as Parameters<typeof load>[0];
+      const data = await load(event);
+      expect(data?.canParticipate).toBe(registered);
+    }
+  });
+});
+
+describe("navigation session and capability projection", () => {
+  it("resolved null-member applicant keeps auth session", async () => {
+    const session = { user: { email: "applicant@example.test" } };
+    const data = await load({
+      locals: { member: null, auth: async () => session },
+    } as never);
+    expect(data?.session).toBe(session);
+    expect(data?.canViewMemberZone).toBe(false);
+    expect(data?.canManageSelf).toBe(false);
+  });
+  it("undefined anonymous fast path does not call auth", async () => {
+    const auth = vi.fn(async () => null);
+    const data = await load({ locals: { auth } } as never);
+    expect(data?.session).toBeNull();
+    expect(auth).not.toHaveBeenCalled();
+  });
+  it.each([false, true])(
+    "projects readable/self capabilities for alumni registered=%s",
+    async (registered) => {
+      const caps = capabilitiesFor({ isAlumni: true, registered });
+      const data = await load({
+        locals: {
+          member: { memberId: "alumni", status: "regular", capabilities: caps },
+          auth: async () => ({ user: { email: "alumni@example.test" } }),
+        },
+      } as never);
+      expect(data?.canViewMemberZone).toBe(true);
+      expect(data?.canManageSelf).toBe(true);
+      expect(data?.canParticipate).toBe(registered);
+    },
+  );
 });

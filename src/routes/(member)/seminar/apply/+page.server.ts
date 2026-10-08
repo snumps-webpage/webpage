@@ -1,4 +1,4 @@
-import { fail } from "@sveltejs/kit";
+import { fail, isActionFailure, type ActionFailure } from "@sveltejs/kit";
 import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
 import { memberPickers } from "$lib/server/data/repos";
 import { submitSeminarRequest } from "$lib/server/services/seminar-requests";
@@ -7,10 +7,12 @@ import { parseGoogleName } from "$lib/utils";
 import { proposalTerm } from "$lib/domain/term";
 import { formText } from "$lib/domain/form-data";
 import {
+  seminarRequestValuesFromFormData,
   seminarTimingOptions,
   validateSeminarRequestForm,
 } from "$lib/domain/seminars";
 import type { PageServerLoad, Actions } from "./$types";
+import { CAPABILITIES, hasCapability } from "$lib/server/core/capabilities";
 import { sendSeminarApplicationNotification } from "$lib/server/mail";
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -28,6 +30,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   }
 
   return {
+    canSubmit: hasCapability(
+      locals.member?.capabilities,
+      CAPABILITIES.PARTICIPATE,
+    ),
     user: session.user,
     actualName: locals.member?.name || parseGoogleName(session.user.name).name,
     members: searchableMembers,
@@ -43,18 +49,18 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 export const actions: Actions = {
   default: async ({ request, locals }) => {
-    return handleUserAction(locals, async () => {
+    const data = await request.formData();
+    const result = await handleUserAction(locals, async () => {
       const member = locals.member;
       if (!member) throw new AppError("FORBIDDEN");
 
-      const data = await request.formData();
       const parsed = validateSeminarRequestForm(data);
       if (!parsed.success) return fail(400, parsed.failure);
       const { title, description, prerequisites, duration } = parsed.data;
       const { preferredTiming, presenterIds, attachmentUrl, kind } =
         parsed.data;
 
-      await submitSeminarRequest({
+      const row = await submitSeminarRequest({
         title,
         description,
         prerequisites,
@@ -68,6 +74,18 @@ export const actions: Actions = {
       });
 
       await sendSeminarApplicationNotification(member.name, title);
+      return { operation: "requestSubmitted" as const, requestId: row.id };
     });
+    if (isActionFailure(result as unknown)) {
+      const failure = result as unknown as ActionFailure<
+        Record<string, unknown>
+      >;
+      return fail(failure.status, {
+        ...failure.data,
+        operation: "requestSubmitted" as const,
+        values: seminarRequestValuesFromFormData(data),
+      });
+    }
+    return result;
   },
 };

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
+  import { seminarOperationError } from "$lib/domain/admin-seminars";
   import type {
     AdminSeminarItem,
     AdminSeminarOperationResult,
@@ -91,10 +92,10 @@
   <header class="card-heading">
     <div>
       <p class="eyebrow">
-        Seminar{seminar.kind === "regular"
-          ? " · Regular"
+        세미나{seminar.kind === "regular"
+          ? " · 정기"
           : seminar.kind === "irregular"
-            ? " · Irregular"
+            ? " · 비정기"
             : ""}
       </p>
       <h3>{seminar.title}</h3>
@@ -136,19 +137,6 @@
     </p>
   {/if}
 
-  {#if seminar.publicationStatus === "published"}
-    <dl class="linkage">
-      <div>
-        <dt>Activity</dt>
-        <dd>{seminar.activityId}</dd>
-      </div>
-      <div>
-        <dt>Event</dt>
-        <dd>{seminar.eventId}</dd>
-      </div>
-    </dl>
-  {/if}
-
   <div class="card-actions">
     {#if seminar.canCancel}
       <form
@@ -178,12 +166,26 @@
           }
           processing = true;
           return async ({ result, update }) => {
-            processing = false;
-            if (result.type === "success") {
-              await update({ reset: false });
-              onTransition(result.data as AdminSeminarOperationResult);
-            } else {
-              onError(cancelFailure(result as { data?: unknown }));
+            try {
+              if (result.type === "redirect") {
+                await update({ reset: false });
+                processing = false;
+                return;
+              }
+              if (result.type === "success") {
+                await update({ reset: false });
+                onTransition(result.data as AdminSeminarOperationResult);
+                processing = false;
+              } else {
+                onError(cancelFailure(result as { data?: unknown }));
+                processing = false;
+              }
+            } catch {
+              onError(
+                "처리 결과를 새로 불러오지 못했습니다. 새로고침해 현재 상태를 확인해 주세요.",
+              );
+            } finally {
+              processing = false;
             }
           };
         }}
@@ -212,12 +214,26 @@
           formData.set("acknowledgeStarted", "yes");
           processing = true;
           return async ({ result, update }) => {
-            processing = false;
-            if (result.type === "success") {
-              await update({ reset: false });
-              onTransition(result.data as AdminSeminarOperationResult);
-            } else {
-              onError(cancelFailure(result as { data?: unknown }));
+            try {
+              if (result.type === "redirect") {
+                await update({ reset: false });
+                processing = false;
+                return;
+              }
+              if (result.type === "success") {
+                await update({ reset: false });
+                onTransition(result.data as AdminSeminarOperationResult);
+                processing = false;
+              } else {
+                onError(cancelFailure(result as { data?: unknown }));
+                processing = false;
+              }
+            } catch {
+              onError(
+                "처리 결과를 새로 불러오지 못했습니다. 새로고침해 현재 상태를 확인해 주세요.",
+              );
+            } finally {
+              processing = false;
             }
           };
         }}
@@ -230,7 +246,11 @@
     {/if}
 
     {#if seminar.canSchedule}
-      <button class="paper-btn secondary" onclick={() => onSchedule(seminar)}>
+      <button
+        class="paper-btn secondary"
+        disabled={processing}
+        onclick={() => onSchedule(seminar)}
+      >
         {seminar.schedule ? "일정 수정" : "일정 입력"}
       </button>
     {/if}
@@ -242,12 +262,31 @@
         use:enhance={() => {
           processing = true;
           return async ({ result, update }) => {
-            processing = false;
-            if (result.type === "success") {
-              await update({ reset: false });
-              onTransition(result.data as AdminSeminarOperationResult);
-            } else {
-              onError("공지를 재발송하지 못했습니다.");
+            try {
+              if (result.type === "redirect") {
+                await update({ reset: false });
+                processing = false;
+                return;
+              }
+              if (result.type === "success") {
+                await update({ reset: false });
+                onTransition(result.data as AdminSeminarOperationResult);
+                processing = false;
+              } else {
+                onError(
+                  seminarOperationError(
+                    (result as { data?: { error?: string } }).data?.error,
+                    "공지 재발송",
+                  ),
+                );
+                processing = false;
+              }
+            } catch {
+              onError(
+                "처리 결과를 새로 불러오지 못했습니다. 새로고침해 현재 상태를 확인해 주세요.",
+              );
+            } finally {
+              processing = false;
             }
           };
         }}
@@ -266,20 +305,32 @@
         use:enhance={() => {
           processing = true;
           return async ({ result, update }) => {
-            processing = false;
-            if (result.type === "success") {
-              await update({ reset: false });
-              const payload = result.data as AdminSeminarOperationResult;
-              // 서버는 전 회원 메일 실패를 정직하게 보고한다 — 삼키면 관리자가
-              // 재발송이 필요하다는 사실을 알 길이 없다.
-              if ("mailFailed" in payload && payload.mailFailed) {
-                onError(
-                  "세미나는 공개했지만 전 회원 공지 발송에 실패했습니다. 다시 공개를 눌러 재발송할 수 있습니다.",
-                );
+            try {
+              if (result.type === "redirect") {
+                await update({ reset: false });
+                processing = false;
+                return;
               }
-              onTransition(payload);
-            } else {
-              onError("세미나를 공개하지 못했습니다.");
+              if (result.type === "success") {
+                await update({ reset: false });
+                const payload = result.data as AdminSeminarOperationResult;
+                onTransition(payload);
+                processing = false;
+              } else {
+                onError(
+                  seminarOperationError(
+                    (result as { data?: { error?: string } }).data?.error,
+                    "세미나 공개",
+                  ),
+                );
+                processing = false;
+              }
+            } catch {
+              onError(
+                "처리 결과를 새로 불러오지 못했습니다. 새로고침해 현재 상태를 확인해 주세요.",
+              );
+            } finally {
+              processing = false;
             }
           };
         }}
@@ -298,7 +349,8 @@
     </p>
   {:else if seminar.publicationStatus === "scheduled"}
     <p class="mail-note">
-      공개할 때 전 회원에게 확정 일정 안내 메일을 보냅니다.
+      공개하면 회원 화면과 아카이브에 일정이 표시됩니다. 공지 대상 세미나는 확정
+      일정을 안내합니다.
     </p>
   {:else if seminar.publicationStatus === "cancelled"}
     <p class="mail-note">
@@ -306,13 +358,14 @@
     </p>
   {:else if seminar.publicationStatus === "unscheduled"}
     <p class="mail-note">
-      일정 저장은 비공개 초안이며, 공개할 때 확정 일정 안내를 보냅니다.
+      일정 저장은 비공개 초안입니다. 최종 확인한 뒤 공개해 주세요.
     </p>
   {/if}
 </article>
 
 <style>
   .publication-card {
+    font-family: var(--font-ui);
     display: grid;
     gap: 0.8rem;
     padding: 1rem;
@@ -395,8 +448,7 @@
     gap: 0.55rem;
   }
 
-  .schedule-sheet span,
-  dt {
+  .schedule-sheet span {
     color: var(--latex-muted);
     font-family: var(--font-mono);
     font-size: 0.58rem;
@@ -421,25 +473,6 @@
   .unscheduled-note {
     padding-left: 0.55rem;
     border-left: 2px solid var(--latex-accent);
-  }
-
-  .linkage {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.45rem;
-    margin: 0;
-  }
-
-  .linkage div {
-    min-width: 0;
-  }
-
-  dd {
-    margin: 0.12rem 0 0;
-    overflow: hidden;
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
-    text-overflow: ellipsis;
   }
 
   .card-actions {

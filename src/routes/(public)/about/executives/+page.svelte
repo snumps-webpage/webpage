@@ -44,14 +44,17 @@
 
   {#if data.dataAvailable}
     <div class="history-list">
-      {#each history as term, termIndex (term.term)}
-        <section class:current-term={termIndex === 0} class="term-section">
+      {#each history as term (term.term)}
+        <section
+          class:current-term={term.term === data.currentTerm}
+          class="term-section"
+        >
           <header>
             <div>
               <span>{term.term}</span>
               <h2>{termLabel(term.term)}</h2>
             </div>
-            {#if termIndex === 0}<strong>Current</strong>{/if}
+            {#if term.term === data.currentTerm}<strong>Current</strong>{/if}
           </header>
           <div class="executive-grid">
             {#each term.executives as executive (`${executive.name}-${executive.title}`)}

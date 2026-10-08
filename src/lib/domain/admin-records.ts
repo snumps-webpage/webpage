@@ -8,6 +8,14 @@ import {
   type SeminarKind,
 } from "$lib/domain/seminars";
 
+export type AdminRecordActionScope =
+  | "record-create"
+  | "record-update"
+  | "record-delete"
+  | "record-file"
+  | "record-organizer"
+  | "record-attendees";
+
 export interface AdminContentFile extends Omit<PublicFileReference, "url"> {
   url: string | null;
   contentType: string;
@@ -23,6 +31,7 @@ export interface AdminSeminarRecord {
   title: string;
   term: string;
   description: string;
+  note: string;
   prerequisites: string;
   /** null: not recorded (the request's duration is free text) */
   durationMinutes: number | null;
@@ -78,14 +87,64 @@ const pickedIdSchema = z.string().trim().max(200, "선택 값을 확인해 주�
 
 const optionalLocalDateTime = z.union([z.literal(""), localDateTimeSchema]);
 
+/** Stored rows can predate the editable datetime range; unchanged days survive. */
+export function isAdminActivityCalendarDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const [year, month, day] = match.slice(1).map(Number);
+  // Date.UTC treats 00–99 as 1900–1999; setUTCFullYear preserves all four digits.
+  const wall = new Date(0);
+  wall.setUTCFullYear(year, month - 1, day);
+  return (
+    wall.getUTCFullYear() === year &&
+    wall.getUTCMonth() === month - 1 &&
+    wall.getUTCDate() === day
+  );
+}
+
+const optionalStoredDate = z
+  .union([
+    z.literal(""),
+    z
+      .string()
+      .trim()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, {
+        message: "날짜를 확인해 주세요.",
+        abort: true,
+      })
+      .refine(isAdminActivityCalendarDate, "존재하지 않는 날짜입니다."),
+  ])
+  .default("");
+const optionalDate = z
+  .union([
+    z.literal(""),
+    z
+      .string()
+      .trim()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, {
+        message: "날짜를 확인해 주세요.",
+        abort: true,
+      })
+      .refine(
+        (value) => Number.isFinite(localDateTimeMs(`${value}T00:00`)),
+        "존재하지 않는 날짜입니다.",
+      ),
+  ])
+  .default("");
+
 const activityRecordFields = {
   title: z.string().trim().min(1, "활동명을 입력해 주세요.").max(160),
   type: z.enum(RECORD_ACTIVITY_TYPES, {
     message: "활동 유형을 선택해 주세요.",
   }),
-  start: localDateTimeSchema,
+  start: optionalLocalDateTime,
   end: optionalLocalDateTime,
+  date: optionalDate,
 };
+const activityDateFields = z.object({
+  start: optionalLocalDateTime,
+  date: optionalDate,
+});
 
 /**
  * The date pair's own rules (audit LC03-1): an end needs a start — update
@@ -111,14 +170,20 @@ function checkActivityDates(
   }
 }
 
-/** Fields: title, type, start / end (KST `datetime-local`, end optional). */
+/** A date-only editor and the existing KST datetime API share validation. */
 export const adminActivityRecordSchema = z
   .object(activityRecordFields)
-  .superRefine(checkActivityDates);
+  .superRefine(checkActivityDates)
+  .refine((value) => !!value.start || !!value.date, {
+    path: ["start"],
+    message: "시작 날짜와 시간을 입력해 주세요.",
+    // A bad title/type must not hide the missing date's field issue.
+    when: ({ value }) => activityDateFields.safeParse(value).success,
+  });
 
-/** Update leaves the date alone when the editor sends no `start`. */
+/** Update preserves an unchanged stored day, including historical dates. */
 export const adminActivityRecordUpdateSchema = z
-  .object({ ...activityRecordFields, start: optionalLocalDateTime })
+  .object({ ...activityRecordFields, date: optionalStoredDate })
   .superRefine(checkActivityDates);
 
 /** The dinner gallery: a year label ("2026", or "미상" from the migration). */
@@ -130,7 +195,7 @@ export const adminGalleryRecordSchema = z.object({
 const { min: MIN_MINUTES, max: MAX_MINUTES } = SEMINAR_DURATION_MINUTES;
 
 /**
- * Fields: title, term (posted as `semester`), description (posted as `note`),
+ * Fields: title, term (posted as `semester`), description and note separately,
  * externalPresenters, kind, durationMinutes, prerequisites. An empty kind or
  * duration means "unknown" and parses to null — what migrated and approved
  * seminars hold (#7, #12). Duration is whole minutes within the stored range.
@@ -142,6 +207,7 @@ export const adminSeminarRecordSchema = z.object({
     .string()
     .trim()
     .max(2400, "세미나 설명은 2400자 이하로 입력해 주세요."),
+  note: z.string().trim().max(2400, "메모는 2400자 이하로 입력해 주세요."),
   externalPresenters: z
     .string()
     .trim()

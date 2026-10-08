@@ -1,4 +1,5 @@
 import { AppError, definedOnly } from "$lib/server/core/errors";
+import { kstInputToIso, toKstIso } from "$lib/server/core/time";
 import { newId } from "$lib/server/core/id";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { audit } from "$lib/server/data/audit";
@@ -6,6 +7,7 @@ import { promoteSeminarPoster } from "$lib/server/services/uploads";
 import { forgetUnreferencedAssets } from "./asset-cleanup";
 import { assertOrganizerCandidates, handOver } from "./studies";
 import { isStudyClosed } from "$lib/domain/studies";
+import { isAdminActivityCalendarDate } from "$lib/domain/admin-records";
 import { callFlow, type FlowResult } from "$lib/server/data/flows";
 import { SeminarSchema } from "$lib/server/data/schemas";
 import type {
@@ -70,7 +72,12 @@ function pairedOwner(
 export async function updateActivity(
   id: string,
   patch: Partial<Pick<Activity, "title" | "date" | "type">>,
+  dateOnly?: string,
 ): Promise<void> {
+  // A stored day can be outside the editable datetime range. Validate its
+  // calendar first; only a changed day needs that range's conversion rule.
+  if (dateOnly !== undefined && !isAdminActivityCalendarDate(dateOnly))
+    throw new AppError("VALIDATION_FAILED");
   const [seminars, events] = await Promise.all([
     getTable("seminars"),
     getTable("events"),
@@ -79,16 +86,23 @@ export async function updateActivity(
     const idx = rows.findIndex((a) => a.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
     const current = rows[idx];
+    const date =
+      dateOnly === undefined
+        ? patch.date
+        : toKstIso(new Date(current.date.start)).slice(0, 10) === dateOnly
+          ? undefined
+          : { start: kstInputToIso(`${dateOnly}T00:00`), end: null };
+    const requested = { ...patch, date };
     const moves =
-      (patch.title !== undefined && patch.title !== current.title) ||
-      (patch.date !== undefined &&
+      (requested.title !== undefined && requested.title !== current.title) ||
+      (requested.date !== undefined &&
         !(
-          sameInstant(patch.date.start, current.date.start) &&
-          sameInstant(patch.date.end, current.date.end)
+          sameInstant(requested.date.start, current.date.start) &&
+          sameInstant(requested.date.end, current.date.end)
         ));
     const owner = moves ? pairedOwner(current, seminars, events) : null;
     if (owner) throw new AppError("CONFLICT", { userMessage: owner });
-    rows[idx] = { ...rows[idx], ...definedOnly(patch) };
+    rows[idx] = { ...rows[idx], ...definedOnly(requested) };
     return rows;
   });
 }
@@ -119,17 +133,27 @@ export async function createSeminar(
     Seminar,
     "title" | "semester" | "note" | "presenterIds" | "externalPresenters"
   > &
-    Partial<Pick<Seminar, "kind" | "durationMinutes" | "prerequisites">>,
+    Partial<
+      Pick<
+        Seminar,
+        "description" | "kind" | "durationMinutes" | "prerequisites"
+      >
+    >,
   posterPendingKey = "",
 ): Promise<Seminar> {
-  const { kind = null, durationMinutes = null, prerequisites = "" } = input;
+  const {
+    description = "",
+    kind = null,
+    durationMinutes = null,
+    prerequisites = "",
+  } = input;
   const row: Seminar = {
     id: newId(),
     ...input,
     kind,
     durationMinutes,
     prerequisites,
-    description: "",
+    description,
     materials: [],
     photos: [],
     // 이 경로에는 아직 일정 입력 칸이 없다(입력은 title·semester·note·발표자뿐).
@@ -159,6 +183,7 @@ export async function updateSeminar(
       Seminar,
       | "title"
       | "semester"
+      | "description"
       | "note"
       | "presenterIds"
       | "externalPresenters"

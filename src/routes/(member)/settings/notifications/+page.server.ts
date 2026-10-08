@@ -1,14 +1,24 @@
-import { fail } from "@sveltejs/kit";
+import { fail, isActionFailure, type ActionFailure } from "@sveltejs/kit";
 import {
   DEFAULT_MAIL_PREFS,
   validateMailPreferenceForm,
+  validatePhonePreferenceForm,
 } from "$lib/domain/account";
+import type { PreferenceOperation } from "$lib/domain/account-preferences";
 import { handleUserAction } from "$lib/server/auth-guards";
 import { AppError } from "$lib/server/core/errors";
 import { currentTerm } from "$lib/server/core/semester";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { formatPhoneForDisplay } from "$lib/utils";
 import type { PageServerLoad } from "./$types";
+
+function withOperation(result: unknown, operation: PreferenceOperation) {
+  if (isActionFailure(result)) {
+    const failure = result as unknown as ActionFailure<Record<string, unknown>>;
+    return fail(failure.status, { ...failure.data, operation });
+  }
+  return { ...(result as Record<string, unknown>), operation };
+}
 
 /** MEM-06: mail preference toggle — also the landing page of the opt-out link. */
 export const load: PageServerLoad = async ({ locals }) => {
@@ -41,7 +51,7 @@ export const actions = {
     locals: App.Locals;
   }) => {
     const data = await request.formData();
-    return handleUserAction(locals, async () => {
+    const result = await handleUserAction(locals, async () => {
       // A malformed `enabled` used to read as false and unsubscribe silently.
       const parsed = validateMailPreferenceForm(data);
       if (!parsed.success) return fail(400, parsed.failure);
@@ -59,6 +69,7 @@ export const actions = {
       });
       return {};
     });
+    return withOperation(result, "mailPreferenceUpdated");
   },
 
   setPhonePublic: async ({
@@ -69,8 +80,11 @@ export const actions = {
     locals: App.Locals;
   }) => {
     const data = await request.formData();
-    return handleUserAction(locals, async () => {
-      const hide = data.get("hide") === "true";
+    const result = await handleUserAction(locals, async () => {
+      // A missing or malformed field must never silently publish a phone.
+      const parsed = validatePhonePreferenceForm(data);
+      if (!parsed.success) return fail(400, parsed.failure);
+      const { hide } = parsed.data;
       const memberId = locals.member!.memberId;
       await mutate("private-info", (rows) => {
         const idx = rows.findIndex((p) => p.memberId === memberId);
@@ -80,5 +94,6 @@ export const actions = {
       });
       return {};
     });
+    return withOperation(result, "phonePreferenceUpdated");
   },
 };

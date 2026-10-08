@@ -499,6 +499,8 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용 — `$lib/doma
 - 가드: `ensureMember`
 - POST 입력: `{ type: "announcements", enabled: "true" | "false" }` — 유형별 키 (확장 대비).
   `validateMailPreferenceForm`으로 검증 — 그 밖의 값은 `VALIDATION_FAILED`(예전처럼 "false"로 읽어 수신을 끊지 않는다)
+- `POST ?/setPhonePublic`: `{ hide: "true" | "false" }`. `validatePhonePreferenceForm`으로 검증하며 누락·다른 값·파일은400 `VALIDATION_FAILED` + `issues.hide`·`values.hide`. 기존처럼 본인 memberId의 private-info만 변경한다. 유효한 입력과 회원 `MANAGE_SELF` 권한은 유지하며 UI는 현 회장·부회장에게만 이 토글을 보인다.
+- 메일/전화 액션의 성공과 실패는 각각 `operation: "mailPreferenceUpdated" | "phonePreferenceUpdated"`를 포함한다. native POST도 실제 액션의 결과를 표시한다. 저장 스키마·공개 연락처 정책·수신자 선택·메일 발송 자체는 바꾸지 않는다.
 - 비로그인 옵트아웃 링크 클릭 → `/login` 경유 복귀
 
 ### 4-7. 회원 탈퇴 — MEM-07
@@ -623,11 +625,12 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용 — `$lib/doma
 
 ### 6-1. `GET /study` — 목록. `ensureMember`. 모집중 우선 + 본인 상태
 
-### 6-2. `GET /study/apply` + `POST` (default) — STU-01
+### 6-2. `GET /study/apply` + `POST ?/submit` — STU-01
 
 - 가드: `ensureMember`. 입력: `title`, `textbook`, `description`, `semester` — `validateStudyRequestForm`
   (`studyRequestInputSchema`, 길이 상한 포함)으로 검증, 다듬어(trim) 저장
 - 신규(pending) → 관리자 알림 메일. `POST ?/withdraw` (본인 pending 철회) 지원 — 세미나와 대칭
+- 두 액션은 이름을 분리한다. 응답의 `operation`·`requestId`가 제출과 철회를 구분하며, 제출 실패는 `values`를 보존한다. 기본 POST와 named action을 함께 선언하지 않는다.
 
 ### 6-3. `GET /study/[id]` + `POST ?/join` · `?/leave` — STU-02
 
@@ -889,3 +892,37 @@ audit LC11-3). 새 회원 행은 승인 흐름이 legacy 가입일 또는 승인
 - **감사 로그**: §1-5 대상 액션 전부 로그 생성 확인
 - **탈퇴 수명주기**: 삼중 확인 결여 시 거부 · 신청 즉시 접근 상실 · 보존 집행 시 삭제 중단 ·
   1개월 경과 자동 익명화(이름·학과·roles 외 소거, private-info 완전 삭제) · 참여 기록 해석이 이름·학과로 유지
+
+### 세미나 제안 폼의 전송과 실패 복원
+
+`/seminar/apply`의 default POST와 `/seminar/edit/[id]`의 `?/update`는 `speakerIds`의 반복 필드와 기존 쉼표 목록을 모두 읽고 중복을 제거한다. 최소1명·최대20명 서버 검증을 유지한다. create/update의 실패 응답은 입력 `values`와 `operation`을 포함한다. withdraw 실패의 `operation`은 원고 검증 결과와 구분한다. 성공 철회는 기존303 홈 이동을 유지한다. 이 응답 메타데이터는 저장 스키마나 권한 규칙을 바꾸지 않는다.
+
+### 가입 신청 실패 복원 메타데이터
+
+기존 `/signup`·`/signup/edit`의 default POST와 `/wait?/withdrawApplication`은 그대로 유지한다. 제출/수정 실패의 `operation`은 각각 `applicationSubmitted`·`applicationUpdated`이며 연락 입력 `values`를 보존한다. 제출 실패는 사용자가 전송한 `agreement` 값도 보존한다. 최초 동의 기본값은 unchecked이며 동의 내용·필수 서버 검증은 바꾸지 않는다. 철회 실패는 `applicationWithdrawn`으로 구분하고 성공은 기존303 홈 이동을 유지한다. 수정/철회 대상은 기존처럼 세션 이메일로 찾으며 client id/name/email은 소유권이나 신청 계정의 원천이 아니다.
+
+### 발표자 출석부의 응답 복원 메타데이터
+
+기존 `/events/manage?/saveAttendance`·`?/cancelSeminar` 서비스 계약과 권한은 유지한다. 저장 실패는 `operation: "presenterAttendanceSaved"`, 정규화한 `eventId`, 문자열 `values.attendeeIds`를 보존한다. 표시 복원은 현재 명부에 속하는 항목만 선택하며 검증을 통과하지 않은 ID를 저장하지 않는다. 취소 실패는 `operation: "seminarCancelled"`·`seminarId`, 성공은 기존 `mailFailed`와 대상 `seminarTitle`을 반환한다. GET의 `canSave`는 기존 PARTICIPATE capability의 표시용 값이며 가드를 대체하지 않는다. 신청자 projection의 `checkInStatus`는 실제 출석 큐 상태로, 활동 출석 체크에서 큐 승인을 추론하지 않는다. 이 메타데이터는 저장 스키마·병합 범위·발표자 소유권·취소 시각·메일 수신자 규칙을 바꾸지 않는다.
+
+### 탈퇴 요청·철회 실패 복원 메타데이터
+
+기존 `?/requestWithdrawal`·`?/cancelWithdrawal`과 성공303 대상은 유지한다. 요청 실패는 `operation: "withdrawalRequested"`와 사용자가 제출한 `values: { ackInfo, ackDataPolicy, confirmName }`을 보존한다. 확인 항목은 기존 `on` 해석이고 이름은 실패 복원에 원문을 사용하며 검증/서비스의 trim·이름 일치 규칙은 그대로다. 철회 실패는 `operation: "withdrawalCancelled"`를 포함한다. SERVICE_UNAVAILABLE는 상태 확인 불가로 안내하며 영구 철회 불가로 단정하지 않는다. 익명화 집행 보류 중 유예 기준이 지난 뒤에도 본인 철회를 허용하는 기존 서비스 정책(§4-7)을 UI에 반영한다. 저장·본인 대상·삼중 확인·주최자 인계·보존 표시·감사·메일 규칙을 바꾸지 않는다.
+
+#### 관리자 회원 상세 응답 표시 메타데이터
+
+`/admin/members/[id]`의 기존 8개 액션은 결과에 대상 `memberId`와 영역별 `operation`을 포함한다. 실패는 기존 상태/오류/필드 issues를 유지하고 해당 액션의 제출 필드만 원문 `values`로 반환한다. 성공 `success: true`는 저장 완료 후 다시 조회한 기록을 표시한다. 서비스·감사·권한·동문 박탈·마지막 관리자·자기 권한 회수·보존 정책은 변경되지 않는다. 조회의 `isSelf`는 UI 표시용이며 서버 권한 근거가 아니다.
+
+#### 관리자 기록 폼 응답과 native 날짜
+
+기존 활동·세미나·스터디·갤러리 CRUD/파일/주최자/참석자 액션은 `scope`와 대상 `id`를 함께 반환한다. 생성 실패 id는 빈 문자열, 생성 성공은 생성 행 id다. 실패의 기존 상태·오류·메시지·issues를 유지하고 액션별 제출 필드만 원문 `values`로 반환한다. `presenterIds`/`attendeeIds`는 별도 배열이며 다른 필드나 관련 없는 개인정보를 되돌리지 않는다.
+
+활동 액션은 기존 `start`/`end` KST datetime API와 함께 native `date`(YYYY-MM-DD)를 받는다. 날짜가 저장된 KST 일자와 같으면 실제 시간 범위를 그대로 유지한다. 비교는 현재 행의 mutate 안에서 하고 client oldDate를 신뢰하지 않는다. 기존 과거 날짜의 같은 날도 그대로 편집할 수 있으나 날짜 변경과 생성은 기존 2000–2099 입력 규칙을 따른다.
+
+세미나 기록은 `description`(공개 소개)과 `note`(비고)를 각각 검증·저장하며 서로 합치거나 덮지 않는다. 반복 `presenterIds`와 쉼표 문자열을 함께 파싱한다. update에서 필드가 없으면 유지하고 명시적 빈 필드는 전체 해제다. 공개/숨김 레코드 삭제의 활동·출석·참조 보존 판단과 파일 정리는 기존 flow_delete_seminar 및 서비스의 책임이다. 승인/일정/공개/취소 계약은 변경하지 않는다.
+
+#### 관리자 임원진/메일의 표시 메타데이터
+
+임원진 액션은 기존 서비스/본문 입력으로 처리하고 결과에 action, scope=executive, targetKey/title, viewTerm을 포함한다. assign/unassign의 targetTerm은 실제 서비스에 전달한 본문 학기다. viewTerm/query는 표시 문맥만 식별하고 쓰기 권한/대상을 결정하지 않는다. 실패에는 액션별 원문 값만 반환한다. selectedTitle은 현재 선택 옵션에 있는 query 제목만 반영한다.
+
+기존 메일 14개 액션은 action, 영역별 scope, targetKey를 포함하고 실패에 해당 액션 필드만 원문 values로 반환한다. save의 enabled가 빠진 경우 빈 문자열을 복구해 체크를 합성하지 않는다. saveVariable의 editor=create는 생성 form의 표시 구분만 하며 서비스에는 전달되지 않는다. 생성된 템플릿 key와 기존 operation/message/count 의미를 유지한다. 메일 수신자, 토큰, 실제 전송, 규칙/템플릿/변수 저장·되돌리기·마지막 규칙 보호, 권한은 기존 서비스의 책임이다.

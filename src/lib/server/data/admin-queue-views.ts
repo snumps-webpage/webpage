@@ -83,10 +83,8 @@ export function adminSeminarRequestItem(
 ): AdminSeminarRequestItem {
   return {
     id: r.id,
-    // The kind the requester chose; requests from before the form asked it
-    // (null) read as 비정기. The reviewer can still change the label in the
-    // UI (informational only).
-    kind: r.kind ?? "irregular",
+    // Unknown legacy kinds stay unknown; review does not change the stored kind.
+    kind: r.kind,
     title: r.title,
     description: r.description,
     prerequisites: r.prerequisites,

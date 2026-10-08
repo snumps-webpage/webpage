@@ -11,7 +11,11 @@ vi.mock("$lib/server/mail/dispatch", () => ({
 }));
 
 import { __reset } from "$lib/server/data/store-memory";
-import { _resetDataLayerForTests, getTable } from "$lib/server/data/tables";
+import {
+  _resetDataLayerForTests,
+  getTable,
+  mutateQueue,
+} from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { newId } from "$lib/server/core/id";
 import { toKstIso } from "$lib/server/core/time";
@@ -20,6 +24,7 @@ import {
   submitSeminarRequest,
 } from "$lib/server/services/seminar-requests";
 import { publishSeminar, scheduleSeminar } from "$lib/server/services/seminars";
+import { capabilitiesFor } from "$lib/server/core/capabilities";
 import { actions, load } from "./+page.server";
 
 /**
@@ -58,7 +63,12 @@ async function publishedSeminar(startOffsetMs: number) {
 
 const asMember = (memberId: string) =>
   ({
-    member: { memberId, isAdmin: false, status: "active" },
+    member: {
+      memberId,
+      isAdmin: false,
+      status: "active",
+      capabilities: capabilitiesFor({ isAlumni: false, registered: true }),
+    },
     auth: async () => ({ user: { email: "m@snu.ac.kr", name: "발표자" } }),
   }) as never;
 
@@ -222,4 +232,85 @@ describe("id 검증 — managedEventIdSchema", () => {
       );
     },
   );
+});
+
+describe("native presenter response metadata", () => {
+  it("retains failed selection without allowing an outsider to be written", async () => {
+    const { presenterId } = await publishedSeminar(10 * 24 * HOUR);
+    const [event] = await getTable("events");
+    const before = await getTable("activities");
+    expect(
+      await actions.saveAttendance(
+        post(presenterId, { eventId: event.id, attendeeIds: "not-in-pool" }),
+      ),
+    ).toMatchObject({
+      status: 400,
+      data: {
+        operation: "presenterAttendanceSaved",
+        eventId: event.id,
+        values: { attendeeIds: ["not-in-pool"] },
+      },
+    });
+    expect(await getTable("activities")).toEqual(before);
+  });
+  it("retains an intentionally empty selection in an ownership failure", async () => {
+    const { presenterId } = await publishedSeminar(10 * 24 * HOUR);
+    const [event] = await getTable("events");
+    expect(
+      await actions.saveAttendance(
+        post("another-presenter", { eventId: event.id }),
+      ),
+    ).toMatchObject({
+      status: 403,
+      data: {
+        operation: "presenterAttendanceSaved",
+        eventId: event.id,
+        values: { attendeeIds: [] },
+      },
+    });
+    expect(await loadFor(presenterId)).toMatchObject({ canSave: true });
+  });
+  it("identifies cancellation failure separately from attendance drafts", async () => {
+    const { seminarId } = await publishedSeminar(10 * 24 * HOUR);
+    expect(
+      await actions.cancelSeminar(post("another-presenter", { seminarId })),
+    ).toMatchObject({
+      status: 403,
+      data: { operation: "seminarCancelled", seminarId },
+    });
+  });
+  it("projects queue status as well as check-in time", async () => {
+    const { presenterId } = await publishedSeminar(10 * 24 * HOUR);
+    const [event] = await getTable("events");
+    const { mutate } = await import("$lib/server/data/tables");
+    await mutate("events", (rows) =>
+      rows.map((r) =>
+        r.id === event.id ? { ...r, applicantIds: ["applicant"] } : r,
+      ),
+    );
+    await mutateQueue(event.id, () => [
+      {
+        id: "queue",
+        eventId: event.id,
+        memberId: "applicant",
+        startTime: at(-HOUR),
+        endTime: null,
+        status: "rejected",
+      },
+    ]);
+    expect(await loadFor(presenterId)).toMatchObject({
+      managedSeminars: [
+        {
+          applicants: [
+            {
+              id: "applicant",
+              checked: false,
+              checkInStatus: "rejected",
+              checkedInAt: expect.any(String),
+            },
+          ],
+        },
+      ],
+    });
+  });
 });

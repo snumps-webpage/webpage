@@ -1,4 +1,9 @@
-import { redirect, fail } from "@sveltejs/kit";
+import {
+  redirect,
+  fail,
+  isActionFailure,
+  type ActionFailure,
+} from "@sveltejs/kit";
 import { dev } from "$app/environment";
 import { ensureSession, handleUserAction } from "$lib/server/auth-guards";
 import {
@@ -62,7 +67,14 @@ export const actions = {
       });
     }
 
-    return handleUserAction(locals, async (session) => {
+    const data = await request.formData();
+    const retainedValues = {
+      phone: formText(data, "phone"),
+      studentId: stripInvisibles(formText(data, "studentId")),
+      background: formText(data, "background"),
+      agreement: formText(data, "agreement"),
+    };
+    const result = await handleUserAction(locals, async (session) => {
       const { name, department } = parseGoogleName(session.user.name);
       if (!name || !department) {
         throw new AppError("VALIDATION_FAILED", {
@@ -70,7 +82,6 @@ export const actions = {
         });
       }
 
-      const data = await request.formData();
       const values = {
         phone: formText(data, "phone"),
         studentId: stripInvisibles(formText(data, "studentId")),
@@ -111,6 +122,18 @@ export const actions = {
       }
 
       await sendSignupNotification(name);
+      return { operation: "applicationSubmitted" as const };
     });
+    if (isActionFailure(result as unknown)) {
+      const failure = result as unknown as ActionFailure<
+        Record<string, unknown>
+      >;
+      return fail(failure.status, {
+        ...failure.data,
+        operation: "applicationSubmitted" as const,
+        values: retainedValues,
+      });
+    }
+    return result;
   },
 };

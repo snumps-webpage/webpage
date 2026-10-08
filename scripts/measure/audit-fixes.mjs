@@ -122,7 +122,7 @@ const [termYear] = ANCHOR.split("-");
 {
   // D: 직전 학기 회원, 동문 아님 → 이번 학기엔 재가입 대상. use:enhance 제출은
   // HTML로 가는 303이 아니라 Kit의 ActionResult를 받아야 한다.
-  const r = await action("/study/apply", null, { title: "x" }, D);
+  const r = await action("/study/apply", "submit", { title: "x" }, D);
   check(
     "S12 enhanced POST by an unregistered member → ActionResult redirect to /signup (2ad2f5a)",
     r.httpStatus === 200 && r.type === "redirect" && r.location === "/signup",

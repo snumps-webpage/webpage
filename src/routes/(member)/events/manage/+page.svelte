@@ -1,146 +1,243 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
-  import { goto } from "$app/navigation";
+  import { goto, invalidateAll } from "$app/navigation";
   import { page } from "$app/state";
-  import { untrack } from "svelte";
+  import { tick, untrack } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
+  import type { SubmitFunction } from "@sveltejs/kit";
+  import { createAttendanceSubmissionGate } from "$lib/client/attendance-submission";
   import CopyButton from "$lib/components/CopyButton.svelte";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import { MANUSCRIPT } from "$lib/constants";
-  import type { PresenterAttendanceOperationResult } from "$lib/domain/attendance";
+  import {
+    attendanceDateLabel,
+    attendanceSessionLabel,
+  } from "$lib/domain/attendance";
+  import {
+    presenterFeedback,
+    presenterInitialSelection,
+    presenterRequestStatus,
+    reconcilePresenterSelection,
+    type PresenterActionState,
+    type PresenterApplicantState,
+  } from "$lib/domain/presenter-attendance";
 
-  let { data } = $props();
-
-  function buildManagement(
-    seminars: typeof data.managedSeminars,
-    requestedEventId: string | null,
-  ) {
-    if (seminars.length === 0) return null;
-    const selectedEvent =
-      seminars.find((seminar) => seminar.id === requestedEventId) ??
-      seminars[0];
-    return {
-      events: seminars,
-      selectedEvent,
-      applicants: selectedEvent.applicants,
-      nonApplicantAttendanceCount: selectedEvent.nonApplicantAttendanceCount,
-    };
-  }
-
-  const initialManagement = untrack(() =>
-    buildManagement(data.managedSeminars, page.url.searchParams.get("event")),
+  let { data, form } = $props();
+  const submissions = createAttendanceSubmissionGate();
+  const management = $derived(
+    data.managedSeminars.find(
+      (seminar) => seminar.id === page.url.searchParams.get("event"),
+    ) ??
+      data.managedSeminars[0] ??
+      null,
   );
-  let management = $derived(
-    buildManagement(data.managedSeminars, page.url.searchParams.get("event")),
+  const scopeKey = $derived(
+    `${page.url.pathname}?event=${page.url.searchParams.get("event") ?? ""}`,
   );
+  const actionForm = $derived(form as PresenterActionState | null);
+  const initial = untrack(() => management);
   const selectedIds = new SvelteSet(
-    initialManagement?.applicants
-      .filter((member) => member.checked)
-      .map((member) => member.id) ?? [],
+    untrack(() =>
+      initial
+        ? presenterInitialSelection(initial.id, initial.applicants, actionForm)
+        : [],
+    ),
   );
-  const savedApplicantIds = new SvelteSet(selectedIds);
-  let selectedEventId = $state(initialManagement?.selectedEvent.id ?? "");
-  let processing = $state(false);
-  let notice = $state<{ tone: "success" | "error"; message: string } | null>(
-    null,
+  const savedApplicantIds = new SvelteSet(
+    initial?.applicants.filter((m) => m.checked).map((m) => m.id) ?? [],
   );
-  let stickyNotice = $state(false);
-
+  let syncedEventId = $state(initial?.id ?? "");
+  let syncedScope = $state(untrack(() => scopeKey));
+  let rosterSnapshot = $state.raw<PresenterApplicantState[]>(
+    initial?.applicants.map(({ id, checked }) => ({ id, checked })) ?? [],
+  );
+  let pending = $state<{
+    operation: "presenterAttendanceSaved" | "seminarCancelled";
+    eventId: string;
+  } | null>(null);
+  const processing = $derived(pending !== null);
+  let notice = $state<ReturnType<typeof presenterFeedback>>(null);
+  let dismissedForm = $state<PresenterActionState | null>(null);
+  const nativeNotice = $derived(
+    actionForm !== dismissedForm &&
+      (actionForm?.operation === "seminarCancelled" ||
+        actionForm?.eventId === management?.id)
+      ? presenterFeedback(actionForm)
+      : null,
+  );
+  const visibleNotice = $derived(processing ? null : (notice ?? nativeNotice));
   const selectedCount = $derived(selectedIds.size);
   const allSelected = $derived(
+    !!management?.applicants.length &&
+      management.applicants.every((m) => selectedIds.has(m.id)),
+  );
+  const dirty = $derived(
     !!management &&
-      management.applicants.length > 0 &&
-      selectedIds.size === management.applicants.length,
+      management.applicants.some(
+        (m) => selectedIds.has(m.id) !== savedApplicantIds.has(m.id),
+      ),
+  );
+  const savePath = $derived(
+    management
+      ? `?event=${encodeURIComponent(management.id)}&/saveAttendance`
+      : "?/saveAttendance",
+  );
+  const cancelPath = $derived(
+    management
+      ? `?event=${encodeURIComponent(management.id)}&/cancelSeminar`
+      : "?/cancelSeminar",
   );
 
   $effect(() => {
-    if (!management || management.selectedEvent.id === selectedEventId) return;
-    selectedEventId = management.selectedEvent.id;
-    // 이 효과는 "다른 세미나를 골랐으니 이전 알림은 낡았다"를 위한 것이다.
-    // 취소는 목록에서 세미나를 빼면서 선택도 바꾸므로, 방금 띄운 취소 알림이
-    // 여기서 지워진다 — 한 번은 넘긴다.
-    const keep = stickyNotice;
-    stickyNotice = false;
-    replaceSelected(
-      management.applicants
-        .filter((member) => member.checked)
-        .map((member) => member.id),
-    );
-    replaceSaved(
-      management.applicants
-        .filter((member) => member.checked)
-        .map((member) => member.id),
-    );
-    if (!keep) notice = null;
+    const current = management;
+    const key = scopeKey;
+    untrack(() => {
+      if (key !== syncedScope) {
+        syncedScope = key;
+        submissions.invalidate();
+        pending = null;
+        notice = null;
+        dismissedForm = actionForm;
+      }
+      const next =
+        current?.applicants.map(({ id, checked }) => ({ id, checked })) ?? [];
+      replaceSelected(
+        current?.id !== syncedEventId
+          ? next.filter((m) => m.checked).map((m) => m.id)
+          : reconcilePresenterSelection(rosterSnapshot, next, selectedIds),
+      );
+      syncedEventId = current?.id ?? "";
+      rosterSnapshot = next;
+      replaceSaved(next.filter((m) => m.checked).map((m) => m.id));
+    });
   });
 
-  function replaceSelected(memberIds: Iterable<string>) {
+  function replaceSelected(ids: Iterable<string>) {
     selectedIds.clear();
-    for (const memberId of memberIds) selectedIds.add(memberId);
+    for (const id of ids) selectedIds.add(id);
   }
-
-  function replaceSaved(memberIds: Iterable<string>) {
+  function replaceSaved(ids: Iterable<string>) {
     savedApplicantIds.clear();
-    for (const memberId of memberIds) savedApplicantIds.add(memberId);
+    for (const id of ids) savedApplicantIds.add(id);
   }
-
-  function setSelected(memberId: string, checked: boolean) {
-    if (checked) selectedIds.add(memberId);
-    else selectedIds.delete(memberId);
+  function setSelected(id: string, checked: boolean) {
+    if (processing || !data.canSave) return;
+    if (checked) selectedIds.add(id);
+    else selectedIds.delete(id);
   }
-
   function toggleAll() {
-    if (!management) return;
+    if (processing || !data.canSave || !management) return;
     if (allSelected) selectedIds.clear();
-    else replaceSelected(management.applicants.map((member) => member.id));
+    else replaceSelected(management.applicants.map((m) => m.id));
   }
-
-  function switchEvent(eventId: string) {
+  function resetSelection() {
+    if (processing || !data.canSave) return;
+    replaceSelected(savedApplicantIds);
+  }
+  async function switchEvent(event: SubmitEvent) {
+    event.preventDefault();
+    const selector = (
+      event.currentTarget as HTMLFormElement
+    ).querySelector<HTMLSelectElement>("select")!;
+    if (
+      processing ||
+      (dirty &&
+        !confirm(
+          "저장하지 않은 출석 선택이 있습니다. 변경을 버리고 다른 세미나를 확인할까요?",
+        ))
+    ) {
+      selector.value = management?.id ?? "";
+      return;
+    }
+    // A local navigation target, not retained reactive state.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const next = new URL(page.url);
-    next.searchParams.set("event", eventId);
-    goto(`${next.pathname}${next.search}`);
+    next.search = "";
+    next.searchParams.set("event", selector.value);
+    await goto(`${next.pathname}${next.search}`, { noScroll: true });
   }
-
-  function formatDate(value: string) {
-    return new Intl.DateTimeFormat("ko-KR", {
-      timeZone: "Asia/Seoul",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(value));
+  function dismissNotice() {
+    notice = null;
+    dismissedForm = actionForm;
   }
-
-  function statusLabel(status: string) {
-    return (
-      {
-        draft: "공개 전",
-        active: "출석 진행",
-        expired: "종료",
-        cancelled: "취소",
-      }[status] ?? status
-    );
-  }
-
-  function attendanceSourceLabel(member: {
-    id: string;
-    checkedInAt: string | null;
-  }) {
-    if (member.checkedInAt && savedApplicantIds.has(member.id))
-      return "링크 체크인";
-    if (member.checkedInAt) return "승인 대기";
-    if (savedApplicantIds.has(member.id)) return "수동 확인";
-    if (selectedIds.has(member.id)) return "수동 선택";
-    return "미확인";
+  function operationEnhancer(
+    operation: "presenterAttendanceSaved" | "seminarCancelled",
+  ): SubmitFunction {
+    return ({ cancel, formElement }) => {
+      if (processing || !data.canSave || !management) {
+        cancel();
+        return;
+      }
+      const eventId = management.id;
+      const ticket = submissions.begin(scopeKey);
+      const ownsResponse = () =>
+        submissions.current(ticket, scopeKey) &&
+        (operation === "seminarCancelled" || management?.id === eventId);
+      const article = formElement.closest("article");
+      pending = { operation, eventId };
+      notice = null;
+      return async ({ result, update }) => {
+        try {
+          if (!ownsResponse()) return;
+          if (result.type === "redirect") {
+            await update({ reset: false });
+            return;
+          }
+          if (result.type === "success") {
+            if (operation === "presenterAttendanceSaved") {
+              await invalidateAll();
+              if (!ownsResponse()) return;
+              replaceSelected(
+                management?.applicants
+                  .filter((m) => m.checked)
+                  .map((m) => m.id) ?? [],
+              );
+              await update({ reset: false, invalidateAll: false });
+            } else {
+              await update({ reset: false });
+            }
+            if (!ownsResponse()) return;
+            const payload = result.data as PresenterActionState;
+            notice = presenterFeedback({ ...payload, operation });
+          } else if (result.type === "failure") {
+            await update({ reset: false, invalidateAll: false });
+            if (!ownsResponse()) return;
+            notice = presenterFeedback({
+              ...(result.data as PresenterActionState),
+              operation,
+            });
+          } else {
+            notice = {
+              tone: "warning",
+              message:
+                "처리 결과를 확인하지 못했습니다. 저장되었을 수 있으니 현재 목록을 다시 불러와 확인해 주세요.",
+            };
+          }
+        } catch {
+          if (ownsResponse())
+            notice = {
+              tone: "warning",
+              message:
+                "처리 후 최신 목록을 불러오지 못했습니다. 저장되었을 수 있으니 새로고침해 기록을 확인해 주세요.",
+            };
+        } finally {
+          if (submissions.current(ticket, scopeKey)) pending = null;
+        }
+        if (ownsResponse()) {
+          await tick();
+          article?.querySelector<HTMLElement>(".notice")?.focus();
+        }
+      };
+    };
   }
 </script>
 
-<svelte:head>
-  <title>발표자 출석 관리 · SNUMPS</title>
-  <meta name="robots" content="noindex" />
-</svelte:head>
+<svelte:head
+  ><title>발표자 출석 관리 · SNUMPS</title><meta
+    name="robots"
+    content="noindex"
+  /></svelte:head
+>
 
 <article class="paper-document presenter-register">
   <ManuscriptHeader
@@ -148,225 +245,249 @@
     subtitle="Presenter Attendance Register"
     figure={MANUSCRIPT.FIGURES.PRESENTER_ATTENDANCE}
   />
-
-  {#if notice}
-    <div class="notice" data-tone={notice.tone} role="status">
-      <p>{notice.message}</p>
-      <button aria-label="알림 닫기" onclick={() => (notice = null)}>×</button>
+  <p class="page-intro">
+    담당 세미나를 고르고, 참가 신청자의 실제 출석을 확인·정정합니다.
+  </p>
+  {#if visibleNotice}
+    <div
+      class="notice"
+      data-tone={visibleNotice.tone}
+      role={visibleNotice.tone === "error" ? "alert" : "status"}
+      tabindex="-1"
+    >
+      <p>{visibleNotice.message}</p>
+      <button type="button" aria-label="알림 닫기" onclick={dismissNotice}
+        >×</button
+      >
     </div>
   {/if}
-
   {#if !management}
-    <section class="empty-sheet">
+    <section class="empty-sheet" aria-labelledby="empty-heading">
       <p class="section-index">No Assigned Events</p>
-      <h1>발표자로 배정된 공개 세미나가 없습니다.</h1>
+      <h2 id="empty-heading">발표자로 배정된 공개 세미나가 없습니다.</h2>
       <p>
         세미나가 승인·일정 공개된 뒤 본인이 발표자로 등록되면 이곳에서 신청자
         출석과 공유 링크를 관리할 수 있습니다.
       </p>
       <div class="empty-actions">
-        <a class="paper-btn primary" href="/seminar/apply">세미나 신청</a>
-        <a class="paper-btn" href="/">대시보드</a>
+        <a class="paper-btn" href="/">회원 홈</a>{#if data.canSave}<a
+            class="paper-btn primary"
+            href="/seminar/apply">세미나 신청</a
+          >{/if}
       </div>
     </section>
   {:else}
-    <div class="event-toolbar">
+    <form
+      class="event-toolbar"
+      method="GET"
+      action="/events/manage"
+      onsubmit={switchEvent}
+    >
       <label for="event-selector">관리할 세미나</label>
       <select
         id="event-selector"
-        value={management.selectedEvent.id}
-        onchange={(event) => switchEvent(event.currentTarget.value)}
+        name="event"
+        value={management.id}
+        disabled={processing}
       >
-        {#each management.events as event (event.id)}
-          <option value={event.id}
-            >{event.title} · {statusLabel(event.status)}</option
-          >
-        {/each}
+        {#each data.managedSeminars as event (event.id)}<option value={event.id}
+            >{event.title} · {attendanceSessionLabel(event.status)}</option
+          >{/each}
       </select>
-    </div>
-
-    <section class="event-index">
+      <button type="submit" class="paper-btn small" disabled={processing}
+        >출석부 열기</button
+      >
+    </form>
+    <section class="event-index" aria-label="선택한 세미나">
       <div class="title-cell">
-        <span>Seminar</span>
-        <strong>{management.selectedEvent.title}</strong>
+        <span>Seminar</span><strong>{management.title}</strong>
       </div>
       <div>
-        <span>상태</span><strong
-          >{statusLabel(management.selectedEvent.status)}</strong
+        <span>접수 상태</span><strong
+          >{attendanceSessionLabel(management.status)}</strong
         >
       </div>
       <div>
-        <span>선택</span><strong
-          >{selectedCount} / {management.applicants.length}</strong
+        <span>저장된 신청자 출석</span><strong
+          >{savedApplicantIds.size} / {management.applicants.length}</strong
         >
       </div>
     </section>
-
-    <section class="schedule-line">
+    <section class="schedule-line" aria-label="세미나 일시">
       <div>
-        <span>일시</span><strong
-          >{formatDate(management.selectedEvent.date)}</strong
+        <span>일시 · KST</span><strong
+          >{attendanceDateLabel(management.date)}</strong
         >
       </div>
-      {#if management.selectedEvent.canCancel && management.selectedEvent.seminarId}
+    </section>
+    {#if management.seminarId && !management.canCancel}<p class="cancel-note">
+        이미 시작된 세미나는 개설자가 취소할 수 없습니다. 취소가 필요하면
+        운영진에게 요청해 주세요.
+      </p>{/if}
+    {#if !data.canSave}<p class="read-only-note">
+        이번 학기 등록 전에는 출석부를 열람만 할 수 있습니다.
+      </p>{/if}
+    <section aria-labelledby="roster-heading" class="roster-section">
+      <div class="register-heading">
+        <div>
+          <p>Applicant Register</p>
+          <h2 id="roster-heading">신청자별 출석 확인</h2>
+        </div>
+        <span class="draft-mark"
+          >{dirty ? "저장하지 않은 선택" : "저장된 기록과 같음"}</span
+        >
+      </div>
+      <aside class="merge-note" id="merge-scope">
+        <strong>기록 정정</strong>체크는 신청자 명부의 활동 출석을 직접
+        수정합니다. 출석 요청의 승인·거절은 운영진이 별도로 처리합니다. 명부
+        밖의 기존 출석 {management.nonApplicantAttendanceCount}명은 보존하며,
+        접수 종료 후에도 정정할 수 있습니다.
+      </aside>
+      <form
+        method="POST"
+        action={savePath}
+        aria-describedby="merge-scope"
+        aria-busy={pending?.operation === "presenterAttendanceSaved"}
+        use:enhance={operationEnhancer("presenterAttendanceSaved")}
+      >
+        <input type="hidden" name="eventId" value={management.id} />
+        <div class="roster-toolbar">
+          <span>{management.applicants.length}명 중 {selectedCount}명 선택</span
+          >
+          <div>
+            <button
+              type="button"
+              class="paper-btn small"
+              onclick={toggleAll}
+              disabled={processing ||
+                !data.canSave ||
+                !management.applicants.length}
+              >{allSelected ? "전체 해제" : "전체 선택"}</button
+            ><button
+              type="button"
+              class="paper-btn small"
+              onclick={resetSelection}
+              disabled={processing || !data.canSave || !dirty}
+              >저장된 선택으로</button
+            >
+          </div>
+        </div>
+        <fieldset
+          class="roster-fields"
+          aria-labelledby="roster-heading"
+          disabled={processing || !data.canSave}
+        >
+          <div class="attendance-list">
+            {#each management.applicants as member, index (member.id)}
+              <label
+                class="attendance-row"
+                class:checked={selectedIds.has(member.id)}
+              >
+                <span class="row-index"
+                  >{String(index + 1).padStart(2, "0")}</span
+                >
+                <input
+                  type="checkbox"
+                  name="attendeeIds"
+                  value={member.id}
+                  checked={selectedIds.has(member.id)}
+                  disabled={processing || !data.canSave}
+                  onchange={(event) =>
+                    setSelected(member.id, event.currentTarget.checked)}
+                />
+                <span class="member-label"
+                  ><strong
+                    >{member.name === "Unknown"
+                      ? "이름 확인 필요"
+                      : member.name}</strong
+                  ><span>{member.department}</span></span
+                >
+                <span class="saved-state"
+                  >{savedApplicantIds.has(member.id)
+                    ? "저장된 출석"
+                    : "출석 기록 없음"}</span
+                >
+                <span
+                  class="checkin-source"
+                  title={member.checkedInAt
+                    ? attendanceDateLabel(member.checkedInAt)
+                    : undefined}
+                  >{member.checkedInAt
+                    ? presenterRequestStatus(member.checkInStatus)
+                    : "링크 요청 없음"}</span
+                >
+              </label>
+            {:else}<p class="empty-row">
+                참가 신청자가 없습니다. 명부 밖의 기존 출석 기록은 그대로
+                보존됩니다.
+              </p>{/each}
+          </div>
+        </fieldset>
+        <div class="save-actions">
+          <p>
+            {dirty
+              ? "선택 변경은 출석 저장을 눌러야 반영됩니다."
+              : "현재 선택은 저장된 출석 기록과 같습니다."}
+          </p>
+          <button
+            type="submit"
+            class="paper-btn primary"
+            disabled={processing || !data.canSave}
+            >{pending?.operation === "presenterAttendanceSaved"
+              ? "출석 저장 중…"
+              : `${selectedCount}명 출석 저장`}</button
+          >
+        </div>
+      </form>
+    </section>
+    <section class="share-link" aria-labelledby="share-heading">
+      <div>
+        <h2 id="share-heading">참여자용 출석 링크</h2>
+        {#if management.status === "active"}<p>
+            회원의 링크 요청은 운영진 승인 후 활동 이력에 반영됩니다.
+          </p>
+          <code>{management.attendPath}</code>{:else}<p>
+            새 출석 요청은 받지 않습니다. 위에서 기존 기록을 정정할 수 있습니다.
+          </p>{/if}
+      </div>
+      {#if management.status === "active"}<div class="share-actions">
+          <CopyButton
+            text={`${page.url.origin}${management.attendPath}`}
+            title="출석 링크 복사"
+          /><a
+            class="paper-btn small"
+            href={management.attendPath}
+            target="_blank"
+            rel="noopener noreferrer">출석 링크 열기</a
+          >
+        </div>{/if}
+    </section>
+    {#if data.canSave && management.canCancel && management.seminarId}
+      <details class="cancel-confirmation">
+        <summary>세미나 취소 안내와 실행</summary>
+        <p>
+          시작 전에는 이 세미나를 취소할 수 있습니다. 공개·참가 신청 목록에서
+          숨겨지며 기존 기록은 보존됩니다. 이 화면에서 취소를 되돌릴 수
+          없습니다. 저장하지 않은 출석 선택은 반영하지 않습니다.
+        </p>
         <form
           method="POST"
-          action="?/cancelSeminar"
-          use:enhance={() => {
-            processing = true;
-            notice = null;
-            return async ({ result, update }) => {
-              processing = false;
-              if (result.type === "success") {
-                await update({ reset: false });
-                stickyNotice = true;
-                notice = {
-                  tone: "success",
-                  message:
-                    "세미나를 취소했습니다. 신청자와 공개 아카이브에서 사라집니다.",
-                };
-                return;
-              }
-              const payload =
-                "data" in result
-                  ? (result.data as { error?: string } | undefined)
-                  : undefined;
-              stickyNotice = true;
-              notice = {
-                tone: "error",
-                message:
-                  payload?.error === "FORBIDDEN"
-                    ? "이미 시작된 세미나이거나 취소 권한이 없습니다."
-                    : "세미나를 취소하지 못했습니다.",
-              };
-            };
-          }}
+          action={cancelPath}
+          aria-busy={pending?.operation === "seminarCancelled"}
+          use:enhance={operationEnhancer("seminarCancelled")}
         >
           <input
             type="hidden"
             name="seminarId"
-            value={management.selectedEvent.seminarId}
-          />
-          <button
-            type="submit"
-            class="paper-btn small danger"
-            disabled={processing}
-            onclick={(event) => {
-              if (
-                !confirm(
-                  `‘${management.selectedEvent.title}’ 세미나를 취소합니다. 신청자와 공개 아카이브에서 사라지며 되돌릴 수 없습니다.`,
-                )
-              ) {
-                event.preventDefault();
-              }
-            }}>세미나 취소</button
+            value={management.seminarId}
+          /><button type="submit" class="paper-btn danger" disabled={processing}
+            >{pending?.operation === "seminarCancelled"
+              ? "세미나 취소 중…"
+              : "확인 후 세미나 취소"}</button
           >
         </form>
-      {/if}
-    </section>
-
-    {#if management.selectedEvent.seminarId && !management.selectedEvent.canCancel}
-      <p class="cancel-note">
-        이미 시작된 세미나는 개설자가 취소할 수 없습니다. 취소가 필요하면
-        운영진에게 요청해 주세요.
-      </p>
+      </details>
     {/if}
-
-    <aside class="merge-note">
-      <strong>병합 저장</strong>
-      신청자 명부만 수정합니다. 공유 링크 등 다른 경로로 출석한 {management.nonApplicantAttendanceCount}명의
-      기록은 저장 후에도 보존됩니다.
-    </aside>
-
-    <form
-      method="POST"
-      action="?/saveAttendance"
-      use:enhance={() => {
-        processing = true;
-        notice = null;
-        return async ({ result }) => {
-          processing = false;
-          if (result.type === "success") {
-            const payload = result.data as PresenterAttendanceOperationResult;
-            replaceSelected(payload.applicantAttendeeIds);
-            replaceSaved(payload.applicantAttendeeIds);
-            notice = {
-              tone: "success",
-              message: `신청자 ${payload.applicantAttendeeIds.length}명을 출석 처리했습니다. 전체 출석 기록은 ${payload.totalAttendanceCount}명입니다.`,
-            };
-            return;
-          }
-          const payload =
-            "data" in result ? (result.data as { error?: string }) : null;
-          notice = {
-            tone: "error",
-            message:
-              payload?.error === "FORBIDDEN"
-                ? "이 세미나의 출석을 수정할 권한이 없습니다."
-                : "출석을 저장하지 못했습니다.",
-          };
-        };
-      }}
-    >
-      <input type="hidden" name="eventId" value={management.selectedEvent.id} />
-      <div class="register-heading">
-        <div>
-          <p>Applicant Register</p>
-          <h2>신청자 명부</h2>
-        </div>
-        <button type="button" class="paper-btn small" onclick={toggleAll}>
-          {allSelected ? "전체 해제" : "전체 선택"}
-        </button>
-      </div>
-
-      <div class="attendance-list">
-        {#each management.applicants as member, index (member.id)}
-          <label
-            class="attendance-row"
-            class:checked={selectedIds.has(member.id)}
-          >
-            <span class="row-index">{String(index + 1).padStart(2, "0")}</span>
-            <input
-              type="checkbox"
-              name="attendeeIds"
-              value={member.id}
-              checked={selectedIds.has(member.id)}
-              onchange={(event) =>
-                setSelected(member.id, event.currentTarget.checked)}
-            />
-            <span class="check-mark" aria-hidden="true"
-              >{selectedIds.has(member.id) ? "✓" : ""}</span
-            >
-            <span class="member-name">{member.name}</span>
-            <span class="member-department">{member.department}</span>
-            <span class="checkin-source">{attendanceSourceLabel(member)}</span>
-          </label>
-        {:else}
-          <p class="empty-row">신청자가 없습니다.</p>
-        {/each}
-      </div>
-
-      <div class="register-actions">
-        <div class="share-link">
-          <span>참여자용 출석 링크</span>
-          <code>{management.selectedEvent.attendPath}</code>
-          <div class="share-actions">
-            <CopyButton
-              text={`${page.url.origin}${management.selectedEvent.attendPath}`}
-              title="출석 링크 복사"
-            />
-            <a
-              class="paper-btn small"
-              href={management.selectedEvent.attendPath}
-              target="_blank">열기</a
-            >
-          </div>
-        </div>
-        <button class="paper-btn primary" disabled={processing}>
-          {processing ? "저장 중…" : `${selectedCount}명 출석 저장`}
-        </button>
-      </div>
-    </form>
   {/if}
 </article>
 
@@ -376,7 +497,7 @@
   }
   .event-toolbar {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     gap: 0.65rem;
     margin-bottom: 0.85rem;
@@ -385,7 +506,6 @@
   .event-index span,
   .schedule-line span,
   .register-heading p,
-  .share-link > span,
   .section-index {
     color: var(--latex-muted);
     font: 700 0.58rem/1.2 var(--font-mono);
@@ -436,14 +556,6 @@
     color: var(--latex-muted);
     font-size: 0.75rem;
     line-height: 1.55;
-  }
-
-  .schedule-line form {
-    display: flex;
-    justify-content: flex-end;
-    margin: 0;
-    padding: 0.5rem 0.75rem;
-    border-top: 1px solid var(--latex-rule);
   }
 
   .merge-note {
@@ -508,10 +620,12 @@
   .attendance-row {
     display: grid;
     grid-template-columns:
-      2rem 1.2rem 1.2rem minmax(7rem, 1fr) minmax(8rem, 1fr)
-      auto;
+      2rem 1.2rem minmax(8rem, 1fr) minmax(7rem, auto)
+      minmax(6rem, auto);
+    gap: 0.65rem;
     align-items: center;
-    min-height: 3.1rem;
+    min-height: 3.5rem;
+    padding: 0.5rem 0.45rem;
     border-bottom: 1px solid var(--latex-rule);
     cursor: pointer;
   }
@@ -522,34 +636,40 @@
     background: color-mix(in srgb, var(--latex-text) 4%, transparent);
   }
   .attendance-row input {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-  }
-  .row-index,
-  .checkin-source {
-    color: var(--latex-muted);
-    font: 0.58rem/1.2 var(--font-mono);
-  }
-  .check-mark {
     width: 1rem;
     height: 1rem;
-    display: grid;
-    place-items: center;
-    border: 1px solid var(--latex-rule);
-    font-size: 0.7rem;
+    margin: 0;
+    accent-color: var(--latex-text);
   }
-  .member-name {
+  .attendance-row input:focus-visible {
+    outline: 2px solid var(--latex-text);
+    outline-offset: 3px;
+  }
+  .row-index,
+  .checkin-source,
+  .saved-state {
+    color: var(--latex-muted);
+    font: 0.62rem/1.5 var(--font-mono);
+  }
+  .member-label {
+    display: grid;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+  .member-label strong,
+  .member-label > span {
+    overflow-wrap: anywhere;
+  }
+  .member-label strong {
     font-size: 0.8rem;
     font-weight: 650;
   }
-  .member-department {
+  .member-label > span {
     color: var(--latex-muted);
     font-size: 0.72rem;
   }
   .checkin-source {
     justify-self: end;
-    padding-right: 0.35rem;
   }
   .empty-row {
     margin: 0;
@@ -558,41 +678,121 @@
     text-align: center;
     font-size: 0.75rem;
   }
-  .register-actions {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.8rem;
-    align-items: end;
-    padding: 0.8rem;
-    border-top: 2px solid var(--latex-rule);
+  .page-intro,
+  .save-actions p,
+  .share-link p,
+  .cancel-confirmation p {
+    color: var(--latex-muted);
+    font-size: 0.78rem;
+    line-height: 1.65;
   }
-  .share-link {
+  .page-intro {
+    margin: -0.4rem 0 1.4rem;
+  }
+  .read-only-note {
+    padding: 0.7rem 0.8rem;
+    border: 1px solid var(--latex-rule);
+    font-size: 0.78rem;
+  }
+  .draft-mark {
+    color: var(--latex-muted);
+    font: 0.64rem/1.5 var(--font-mono);
+  }
+  .roster-section {
+    margin-top: 1.4rem;
+  }
+  .roster-fields {
+    border: 0;
+    padding: 0;
+    margin: 0;
     min-width: 0;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.25rem 0.5rem;
   }
-  .share-link > span,
-  .share-link code {
-    grid-column: 1;
-  }
-  .share-link code {
-    min-width: 0;
-    overflow-wrap: anywhere;
-    font-size: 0.67rem;
-  }
-  .share-actions {
-    grid-column: 2;
-    grid-row: 1 / span 2;
+  .roster-toolbar,
+  .save-actions {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding: 0.8rem;
+    border-bottom: 1px solid var(--latex-rule);
+  }
+  .roster-toolbar > span {
+    color: var(--latex-muted);
+    font: 0.68rem/1.5 var(--font-mono);
+  }
+  .roster-toolbar > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .save-actions {
+    border-top: 2px solid var(--latex-rule);
+    border-bottom: 0;
+  }
+  .save-actions p {
+    margin: 0;
+  }
+  .share-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    padding: 1rem 0;
+    border-top: 1px solid var(--latex-rule);
+    border-bottom: 1px solid var(--latex-rule);
+  }
+  .share-link > div {
+    min-width: 0;
+  }
+  .share-link h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 560;
+  }
+  .share-link p {
+    margin: 0.4rem 0;
+  }
+  .share-link code {
+    display: block;
+    overflow-wrap: anywhere;
+    font-size: 0.68rem;
+  }
+  .share-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .cancel-confirmation {
+    margin-top: 1.5rem;
+  }
+  .cancel-confirmation summary {
+    padding: 0.8rem;
+    border: 1px solid var(--latex-rule);
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.8rem;
+  }
+  .cancel-confirmation form {
+    border: 0;
+  }
+  .cancel-confirmation p {
+    margin: 0.8rem 0;
+  }
+  .notice[data-tone="warning"] {
+    color: var(--color-warning-text);
+    border-left-color: var(--color-warning-text);
+  }
+  .notice:focus,
+  .cancel-confirmation summary:focus-visible {
+    outline: 2px solid var(--latex-text);
+    outline-offset: 3px;
   }
   .empty-sheet {
     padding: clamp(1rem, 4vw, 1.5rem);
     border: 1px solid var(--latex-rule);
   }
-  .empty-sheet h1 {
+  .empty-sheet h2 {
     margin: 0.4rem 0;
     font-size: 1.25rem;
     font-weight: 560;
@@ -631,17 +831,14 @@
       border-bottom: 0;
     }
     .attendance-row {
-      grid-template-columns: 1.6rem 1.1rem minmax(5rem, 1fr) auto;
-      gap: 0.3rem;
-      padding: 0.45rem 0.2rem;
+      grid-template-columns: 1.6rem 1.1rem minmax(0, 1fr) auto;
+      gap: 0.35rem;
+      padding: 0.65rem 0.4rem;
     }
-    .attendance-row .check-mark {
-      grid-column: 2;
-    }
-    .attendance-row .member-name {
+    .member-label {
       grid-column: 3;
     }
-    .member-department {
+    .saved-state {
       grid-column: 3;
       grid-row: 2;
     }
@@ -649,23 +846,19 @@
       grid-column: 4;
       grid-row: 1 / span 2;
     }
-    .attendance-row input {
-      display: none;
+    .register-heading,
+    .roster-toolbar,
+    .save-actions,
+    .share-link {
+      align-items: stretch;
+      flex-direction: column;
     }
-    .register-actions {
-      grid-template-columns: 1fr;
-    }
-    .register-actions > :global(.paper-btn) {
+    .save-actions :global(.paper-btn) {
       width: 100%;
     }
   }
   @media (max-width: 430px) {
-    .share-link {
-      grid-template-columns: 1fr;
-    }
     .share-actions {
-      grid-column: 1;
-      grid-row: auto;
       justify-content: stretch;
     }
     .share-actions :global(.paper-btn) {

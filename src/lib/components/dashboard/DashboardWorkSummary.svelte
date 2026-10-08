@@ -1,5 +1,6 @@
 <script lang="ts">
-  import type { DashboardRequestItem } from "$lib/domain/dashboard";
+  import type { OwnSeminarRequestItem } from "$lib/domain/seminar-progress";
+  import DashboardSeminarProgress from "./DashboardSeminarProgress.svelte";
   import {
     STUDY_STATUS_LABELS,
     type StudyRelationship,
@@ -19,21 +20,17 @@
     requests,
     studies,
     pendingTransfer,
+    canParticipate,
+    canViewMemberZone = true,
+    pendingTransferCount = 1,
   }: {
-    requests: DashboardRequestItem[];
+    requests: OwnSeminarRequestItem[];
+    canParticipate: boolean;
+    canViewMemberZone?: boolean;
+    pendingTransferCount?: number;
     studies: WorkStudyItem[];
     pendingTransfer: { studyTitle: string; fromMemberName: string } | null;
   } = $props();
-
-  function requestStatus(status: DashboardRequestItem["status"]) {
-    return {
-      pending: "심사 대기",
-      approved: "승인",
-      rejected: "반려",
-      withdrawn: "철회",
-      cancelled: "취소됨",
-    }[status];
-  }
 
   function studyRelation(study: WorkStudyItem) {
     return {
@@ -47,51 +44,41 @@
 
 {#if pendingTransfer}
   <aside class="transfer-callout">
-    <div><span>Action Required</span><strong>주최자 전달 제안</strong></div>
+    <div>
+      <span>확인할 제안</span><strong
+        >주최자 전달 제안{pendingTransferCount > 1
+          ? ` ${pendingTransferCount}건`
+          : ""}</strong
+      >
+    </div>
     <p>
       <b>{pendingTransfer.studyTitle}</b>의 {pendingTransfer.fromMemberName} 님이
       주최자 역할을 전달하려 합니다.
     </p>
-    <a class="paper-btn primary small" href="/study">확인</a>
+    <a
+      class="paper-btn primary small"
+      href={canViewMemberZone ? "/study" : "/signup"}
+      >{canViewMemberZone ? "제안 확인" : "학기 등록 확인"}</a
+    >
   </aside>
 {/if}
 
-<div class="work-grid">
-  <section class="work-panel">
-    <header>
-      <div>
-        <span>My Proposals</span>
-        <h2>개설 신청</h2>
-      </div>
-      <a href="/seminar/apply">세미나 신청</a>
-    </header>
-    <div class="record-list">
-      {#each requests as request (request.id)}
-        <article>
-          <div>
-            <span>{request.type === "seminar" ? "세미나" : "스터디"}</span
-            ><strong>{request.title}</strong>
-          </div>
-          <div class="record-action">
-            <span data-status={request.status}
-              >{requestStatus(request.status)}</span
-            >{#if request.actionPath}<a href={request.actionPath}>관리</a>{/if}
-          </div>
-        </article>
-      {:else}
-        <p class="empty">개설 신청 내역이 없습니다.</p>
-      {/each}
-    </div>
-    <footer><a href="/study/apply">스터디 개설 신청 →</a></footer>
-  </section>
+<DashboardSeminarProgress {requests} {canParticipate} />
 
-  <section class="work-panel">
+<div class="work-grid">
+  <section
+    class="work-panel"
+    id="home-studies"
+    aria-labelledby="home-studies-heading"
+  >
     <header>
       <div>
-        <span>My Studies</span>
-        <h2>참여 스터디</h2>
+        <span>§ 02 · 내 스터디</span>
+        <h2 id="home-studies-heading">내 스터디</h2>
       </div>
-      <a href="/study">전체 보기</a>
+      <a href={canViewMemberZone ? "/study" : "/signup"}
+        >{canViewMemberZone ? "전체 보기" : "등록 확인"}</a
+      >
     </header>
     <div class="record-list">
       {#each studies as study (study.id)}
@@ -103,17 +90,28 @@
           </div>
           <div class="record-action">
             <span>{STUDY_STATUS_LABELS[study.status]}</span><a
-              href={study.canManage
-                ? `/study/${study.id}/manage`
-                : `/study/${study.id}`}>{study.canManage ? "관리" : "상세"}</a
+              href={!canViewMemberZone
+                ? "/signup"
+                : study.canManage
+                  ? `/study/${study.id}/manage`
+                  : `/study/${study.id}`}
+              >{!canViewMemberZone
+                ? "학기 등록 확인"
+                : study.canManage
+                  ? "주최자 화면"
+                  : "상태 보기"}</a
             >
           </div>
         </article>
       {:else}
-        <p class="empty">참여 중인 스터디가 없습니다.</p>
+        <p class="empty">연결된 스터디가 없습니다.</p>
       {/each}
     </div>
-    <footer><a href="/study">스터디 찾아보기 →</a></footer>
+    <footer>
+      <a href={canViewMemberZone ? "/study" : "/signup"}
+        >{canViewMemberZone ? "스터디 찾아보기 →" : "학기 등록 확인 →"}</a
+      >
+    </footer>
   </section>
 </div>
 
@@ -150,7 +148,7 @@
   }
   .work-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 1rem;
     margin-bottom: 1rem;
   }
@@ -170,6 +168,7 @@
     gap: 0.18rem;
   }
   .work-panel h2 {
+    font-family: var(--font-display);
     margin: 0;
     font-size: 1rem;
     font-weight: 560;
@@ -209,12 +208,6 @@
     color: var(--latex-muted);
     font: 0.58rem/1.2 var(--font-mono);
     white-space: nowrap;
-  }
-  .record-action > span[data-status="rejected"] {
-    color: var(--latex-accent);
-  }
-  .record-action > span[data-status="cancelled"] {
-    text-decoration: line-through;
   }
   .work-panel footer {
     padding: 0.55rem 0.8rem;

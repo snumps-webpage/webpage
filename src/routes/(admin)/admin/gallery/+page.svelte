@@ -3,6 +3,11 @@
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import { MANUSCRIPT } from "$lib/constants";
   import AdminDirectUploadForm from "$lib/components/admin/AdminDirectUploadForm.svelte";
+  import {
+    recordFieldValue,
+    recordFailureMessage,
+    type AdminRecordActionState,
+  } from "$lib/domain/admin-record-editor";
   import { uploadLimitMb } from "$lib/domain/uploads";
 
   let { data, form } = $props();
@@ -11,12 +16,21 @@
     const normalized = query.trim().toLocaleLowerCase("ko-KR");
     return data.gallery.filter(
       (record) =>
+        (record.id === actionState?.id && !!actionState?.error) ||
         !normalized ||
         [record.title, record.year, record.date].some((value) =>
           value.toLocaleLowerCase("ko-KR").includes(normalized),
         ),
     );
   });
+  const actionState = $derived(form as AdminRecordActionState | null);
+  const failureMessage = $derived(recordFailureMessage(actionState));
+  const createValue = (field: string, fallback: string) =>
+    recordFieldValue(actionState, "record-create", undefined, field, fallback);
+  const updateValue = (id: string, field: string, fallback: string) =>
+    recordFieldValue(actionState, "record-update", id, field, fallback);
+  const knownActivity = (id: string) =>
+    !id || data.activities.some((activity) => activity.id === id);
   const messages: Record<string, string> = {
     galleryCreated: "갤러리 기록을 생성했습니다.",
     galleryUpdated: "갤러리 메타데이터를 수정했습니다.",
@@ -46,10 +60,8 @@
     >
       {messages[form.operation as string]}
     </p>{/if}
-  {#if form?.error}<p class="paper-status-note error" role="alert">
-      {form.error === "VALIDATION_FAILED" && form.issues
-        ? `저장하지 않았습니다 — ${Object.values(form.issues).join(" · ")}`
-        : (form.message ?? "갤러리 기록을 처리하지 못했습니다.")}
+  {#if failureMessage}<p class="paper-status-note error" role="alert">
+      {failureMessage}
     </p>{/if}
 
   <section class="create-panel">
@@ -58,15 +70,27 @@
       <label
         ><span class="paper-label">연도</span><input
           name="year"
+          value={createValue("year", "")}
+          aria-invalid={!!(
+            actionState?.scope === "record-create" && actionState.issues?.year
+          )}
           placeholder="2026"
         /></label
       >
       <label class="alt-field"
         ><span class="paper-label">연결 활동 (회식)</span><select
           name="activityId"
-          ><option value="">연결 안 함</option
+          value={createValue("activityId", "")}
+          >{#if !knownActivity(String(createValue("activityId", "")))}<option
+              value={createValue("activityId", "")}
+              selected>제출한 연결 활동 (선택 목록 외)</option
+            >{/if}<option
+            value=""
+            selected={createValue("activityId", "") === ""}>연결 안 함</option
           >{#each data.activities as activity (activity.id)}<option
-              value={activity.id}>{activity.date} · {activity.title}</option
+              value={activity.id}
+              selected={createValue("activityId", "") === activity.id}
+              >{activity.date} · {activity.title}</option
             >{/each}</select
         ></label
       >
@@ -106,15 +130,42 @@
             <input type="hidden" name="id" value={record.id} /><label
               ><span class="paper-label">연도</span><input
                 name="year"
-                value={record.year}
+                value={updateValue(record.id, "year", record.year)}
+                aria-invalid={!!(
+                  actionState?.scope === "record-update" &&
+                  actionState.id === record.id &&
+                  actionState.issues?.year
+                )}
               /></label
             ><label class="alt-field"
               ><span class="paper-label">연결 활동 (회식)</span><select
                 name="activityId"
-                ><option value="">연결 안 함</option
+                value={updateValue(
+                  record.id,
+                  "activityId",
+                  record.activityId ?? "",
+                )}
+                >{#if !knownActivity(String(updateValue(record.id, "activityId", record.activityId ?? "")))}<option
+                    value={updateValue(
+                      record.id,
+                      "activityId",
+                      record.activityId ?? "",
+                    )}
+                    selected>기록된 연결 활동 (선택 목록 외)</option
+                  >{/if}<option
+                  value=""
+                  selected={updateValue(
+                    record.id,
+                    "activityId",
+                    record.activityId ?? "",
+                  ) === ""}>연결 안 함</option
                 >{#each data.activities as activity (activity.id)}<option
                     value={activity.id}
-                    selected={record.activityId === activity.id}
+                    selected={updateValue(
+                      record.id,
+                      "activityId",
+                      record.activityId ?? "",
+                    ) === activity.id}
                     >{activity.date} · {activity.title}</option
                   >{/each}</select
               ></label

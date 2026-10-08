@@ -22,9 +22,24 @@ export interface SeminarRequesterSummary {
   department: string;
 }
 
+export function seminarOperationError(
+  code: string | undefined,
+  operation: string,
+) {
+  if (code === "UNAUTHORIZED")
+    return "로그인이 풀렸습니다. 다시 로그인한 뒤 시도해 주세요.";
+  if (code === "FORBIDDEN")
+    return "운영 권한이 없습니다. 현재 계정을 확인해 주세요.";
+  if (code === "NOT_FOUND")
+    return "이미 삭제되었거나 더 이상 사용할 수 없는 세미나입니다.";
+  if (code === "CONFLICT")
+    return "다른 작업으로 상태가 바뀌었습니다. 새로고침해 현재 상태를 확인해 주세요.";
+  return `${operation}을 처리하지 못했습니다. 입력과 현재 상태를 확인해 주세요.`;
+}
+
 export interface AdminSeminarRequestItem {
   id: string;
-  kind: SeminarKind;
+  kind: SeminarKind | null;
   title: string;
   description: string;
   prerequisites: string;

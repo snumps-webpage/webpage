@@ -54,7 +54,7 @@
 
   function statusLabel(status: StudySession["status"]) {
     return (
-      { active: "출석 진행", expired: "종료", cancelled: "취소" }[
+      { active: "출석 접수 중", expired: "접수 종료", cancelled: "취소" }[
         status as "active" | "expired" | "cancelled"
       ] ?? status
     );
@@ -80,7 +80,7 @@
 <section class="session-panel" aria-labelledby="sessions-heading">
   <header class="section-heading">
     <div>
-      <p>Sessions · Manual Timeline</p>
+      <p>모임마다 직접 기록</p>
       <h2 id="sessions-heading">회차와 출석</h2>
     </div>
     <span>{sessions.length}회</span>
@@ -90,8 +90,8 @@
     <div>
       <strong>모임을 시작할 때 새 회차를 만드세요.</strong>
       <p>
-        번호와 시작 시각은 서버가 채우고, 출석 링크가 즉시 열립니다. 입력할 값은
-        없습니다.
+        버튼을 누른 시각으로 회차를 만들고 번호를 붙입니다. 출석 링크가 즉시
+        열리며, 입력할 값은 없습니다.
       </p>
     </div>
     <form
@@ -102,6 +102,10 @@
         formData.set("date", nowKstLocal()); // submit-time now, not render-time
         return async ({ result, update }) => {
           creating = false;
+          if (result.type === "redirect") {
+            await update();
+            return;
+          }
           if (result.type === "success") {
             await update();
             const newest =
@@ -170,11 +174,13 @@
             </div>
           </dl>
           <div class="session-actions">
-            {#if session.status !== "cancelled"}
+            {#if session.status === "active"}
               <CopyButton
                 text={`${page.url.origin}${session.attendPath}`}
                 title={`${session.title} 출석 링크 복사`}
               />
+            {/if}
+            {#if session.status !== "cancelled"}
               <a
                 class="paper-btn small"
                 href={`/study/${studyId}/attendance?event=${session.eventId}`}
@@ -195,6 +201,10 @@
                   cancellingEventId = session.eventId;
                   return async ({ result, update }) => {
                     cancellingEventId = null;
+                    if (result.type === "redirect") {
+                      await update();
+                      return;
+                    }
                     if (result.type === "success") {
                       await update();
                       onNotice(
@@ -247,6 +257,17 @@
 {/if}
 
 <style>
+  .session-panel {
+    font-family:
+      system-ui,
+      -apple-system,
+      "Noto Sans KR",
+      sans-serif;
+  }
+  .session-panel h2,
+  .session-panel h3 {
+    font-family: var(--font-display);
+  }
   .session-panel {
     min-width: 0;
     border: 1px solid var(--latex-rule);

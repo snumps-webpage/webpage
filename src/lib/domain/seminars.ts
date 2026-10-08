@@ -168,7 +168,7 @@ export interface SeminarRequestFormFailure {
   values: SeminarRequestFormValues;
 }
 
-/** The form posts the picked presenters as one comma-separated field. */
+/** Supports native repeated checkbox fields and the legacy comma-separated field. */
 function parsePresenterIds(value: string): string[] {
   return [
     ...new Set(
@@ -195,7 +195,12 @@ export function seminarRequestValuesFromFormData(
     duration: formText(formData, "duration"),
     preferredTiming: formText(formData, "preferredTiming"),
     attachmentUrl: formText(formData, "attachment"),
-    presenterIds: parsePresenterIds(formText(formData, "speakerIds")),
+    presenterIds: parsePresenterIds(
+      formData
+        .getAll("speakerIds")
+        .filter((value): value is string => typeof value === "string")
+        .join(","),
+    ),
   };
 }
 

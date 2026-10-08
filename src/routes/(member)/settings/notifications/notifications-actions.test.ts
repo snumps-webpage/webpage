@@ -80,7 +80,7 @@ describe("setMailPref action", () => {
       await actions.setMailPref(
         post({ type: "announcements", enabled: "false" }),
       ),
-    ).toMatchObject({ success: true });
+    ).toMatchObject({ success: true, operation: "mailPreferenceUpdated" });
     expect(await announcements()).toBe(false);
 
     await actions.setMailPref(post({ type: "announcements", enabled: "true" }));
@@ -116,5 +116,60 @@ describe("setMailPref action", () => {
 
     expect(Object.keys(result.data.issues).sort()).toEqual(["enabled", "type"]);
     expect(await announcements()).toBe(true);
+  });
+});
+
+describe("setPhonePublic action", () => {
+  const privacy = async () =>
+    (await getTable("private-info"))[0].hidePublicPhone;
+  it("changes only the caller's explicitly chosen phone preference", async () => {
+    expect(
+      await actions.setPhonePublic(post({ hide: "true", memberId: "other" })),
+    ).toMatchObject({ success: true, operation: "phonePreferenceUpdated" });
+    expect(await privacy()).toBe(true);
+    expect(await announcements()).toBe(true);
+    expect(await actions.setPhonePublic(post({ hide: "false" }))).toMatchObject(
+      { success: true, operation: "phonePreferenceUpdated" },
+    );
+    expect(await privacy()).toBe(false);
+  });
+  it.each([undefined, "", "no", "FALSE"])(
+    "does not publish a private phone for malformed hide %s",
+    async (hide) => {
+      await actions.setPhonePublic(post({ hide: "true" }));
+      const result = await actions.setPhonePublic(
+        post(hide === undefined ? {} : { hide }),
+      );
+      expect(result).toMatchObject({
+        status: 400,
+        data: {
+          operation: "phonePreferenceUpdated",
+          error: "VALIDATION_FAILED",
+          issues: { hide: expect.any(String) },
+        },
+      });
+      expect(await privacy()).toBe(true);
+    },
+  );
+  it("keeps authentication failure and identifies the failed setting", async () => {
+    const result = await actions.setPhonePublic({
+      ...post({ hide: "false" }),
+      locals: { ...locals, auth: async () => null },
+    });
+    expect(result).toMatchObject({
+      status: 401,
+      data: { error: "UNAUTHORIZED", operation: "phonePreferenceUpdated" },
+    });
+    expect(await privacy()).toBe(false);
+  });
+  it("does not create a missing private-info row", async () => {
+    await mutate("private-info", () => []);
+    expect(await actions.setPhonePublic(post({ hide: "false" }))).toMatchObject(
+      {
+        status: 404,
+        data: { error: "NOT_FOUND", operation: "phonePreferenceUpdated" },
+      },
+    );
+    expect(await getTable("private-info")).toEqual([]);
   });
 });

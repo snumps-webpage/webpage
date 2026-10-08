@@ -7,13 +7,13 @@
   /* Header Height for sticky elements */
   --nav-height: 4.1rem;
 
-  /* LaTeX-centered palette */
-  --latex-bg: #f4f4f4;
-  --latex-surface: #f8f8f8;
-  --latex-text: #111111;
-  --latex-muted: #4a4a4a;
-  --latex-rule: #1a1a1a;
-  --latex-accent: #b22222;
+  /* Quiet paper palette: LaTeX homage with lower light-mode brightness. */
+  --latex-bg: #e7e3da;
+  --latex-surface: #eeeae2;
+  --latex-text: #2e302e;
+  --latex-muted: #575a53;
+  --latex-rule: #94978e;
+  --latex-accent: #7a3932;
   --latex-side-mark: rgba(17, 17, 17, 0.22);
 
   /* System aliases (legacy-safe) */
@@ -35,7 +35,7 @@
   --color-success-bg: #e8f5ea;
   --color-danger-text: #8a1d1d;
   --color-danger-bg: #fceceb;
-  --color-warning-text: #9a6900;
+  --color-warning-text: #72510a;
 
   /* Remove default soft shadow language */
   --shadow: none;
@@ -48,10 +48,13 @@
   --space-xl: 2.4rem;
 
   /* Typography */
+  --font-ui: "Noto Sans KR", "Noto Sans CJK KR", system-ui, sans-serif;
   --font-body:
-    "Noto Serif KR", "STIX Two Text", "Noto Sans KR", "Times New Roman", serif;
+    "Noto Serif KR", "Noto Serif CJK KR", "STIX Two Text", "Batang",
+    "Times New Roman", serif;
   --font-display:
-    "Noto Serif KR", "STIX Two Text", "Noto Sans KR", "Times New Roman", serif;
+    "Noto Serif KR", "Noto Serif CJK KR", "STIX Two Text", "Batang",
+    "Times New Roman", serif;
   --font-math: "STIX Two Math", "STIX Two Text", "Cambria Math", serif;
   --font-mono: "JetBrains Mono", "Noto Sans KR", "Courier Prime", monospace;
 }

@@ -1,16 +1,25 @@
 <script lang="ts">
   import AdminSectionNav from "$lib/components/admin/AdminSectionNav.svelte";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
+  import {
+    recordFieldValue,
+    recordCalendarDate,
+    recordFailureMessage,
+    scopedRecordAction,
+    type AdminRecordActionState,
+  } from "$lib/domain/admin-record-editor";
   import { MANUSCRIPT } from "$lib/constants";
 
   let { data, form } = $props();
   let query = $state("");
   type ActivityRow = (typeof data.activities)[number];
-  const dateOf = (activity: ActivityRow) => activity.date.start.slice(0, 10);
+  const dateOf = (activity: ActivityRow) =>
+    recordCalendarDate(activity.date.start);
   const activities = $derived.by(() => {
     const normalized = query.trim().toLocaleLowerCase("ko-KR");
     return data.activities.filter(
       (activity) =>
+        (activity.id === actionState?.id && !!actionState?.error) ||
         !normalized ||
         [activity.title, activity.type, dateOf(activity)].some((value) =>
           value.toLocaleLowerCase("ko-KR").includes(normalized),
@@ -20,15 +29,25 @@
   const today = new Date().toLocaleDateString("en-CA", {
     timeZone: "Asia/Seoul",
   });
-  /** The date-only picker feeds the action's datetime `start` field. */
-  function dateToStart(originalDate?: string) {
-    return (event: FormDataEvent) => {
-      const picked = event.formData.get("date") as string | null;
-      event.formData.delete("date");
-      if (picked && picked !== originalDate)
-        event.formData.set("start", `${picked}T00:00`);
-    };
-  }
+  const actionState = $derived(form as AdminRecordActionState | null);
+  const failureMessage = $derived(recordFailureMessage(actionState));
+  const createValue = (field: string, fallback: string) =>
+    recordFieldValue(actionState, "record-create", undefined, field, fallback);
+  const updateValue = (
+    activity: ActivityRow,
+    field: string,
+    fallback: string,
+  ) =>
+    recordFieldValue(
+      actionState,
+      "record-update",
+      activity.id,
+      field,
+      fallback,
+    );
+  const attendeesFor = (activity: ActivityRow) =>
+    scopedRecordAction(actionState, "record-attendees", activity.id)
+      ?.attendeeIds ?? activity.attendeeIds;
   const operationLabel: Record<string, string> = {
     activityCreated: "활동 기록을 생성했습니다.",
     activityUpdated: "활동 기록을 수정했습니다.",
@@ -57,40 +76,27 @@
     >
       {operationLabel[form.operation as string]}
     </p>{/if}
-  {#if form?.error === "CONFLICT"}<p
-      class="paper-status-note error"
-      role="alert"
-    >
-      {form.message ??
-        "연결된 이벤트가 있어 삭제할 수 없습니다. 먼저 이벤트와 출석 큐를 정리해 주세요."}
-    </p>{/if}
-  {#if form?.error === "VALIDATION_FAILED"}<p
-      class="paper-status-note error"
-      role="alert"
-    >
-      저장하지 않았습니다 — {Object.values(form.issues ?? {}).join(" · ") ||
-        "입력값을 확인해 주세요."}
+  {#if failureMessage}<p class="paper-status-note error" role="alert">
+      {failureMessage}
     </p>{/if}
 
   <section class="create-panel">
     <h2>1. 새 활동 기록</h2>
-    <form
-      method="POST"
-      action="?/create"
-      class="record-form"
-      onformdata={dateToStart()}
-    >
+    <form method="POST" action="?/create" class="record-form">
       <label
         ><span class="paper-label">활동명</span><input
           name="title"
-          value=""
+          value={createValue("title", "")}
+          aria-invalid={!!(
+            actionState?.scope === "record-create" && actionState?.issues?.title
+          )}
         /></label
       >
       <label
         ><span class="paper-label">유형</span><select name="type"
           >{#each data.activityTypes as type (type)}<option
               value={type}
-              selected={type === "세미나"}>{type}</option
+              selected={type === createValue("type", "세미나")}>{type}</option
             >{/each}</select
         ></label
       >
@@ -98,7 +104,12 @@
         ><span class="paper-label">날짜</span><input
           type="date"
           name="date"
-          value={today}
+          value={createValue("date", today)}
+          required
+          aria-invalid={!!(
+            actionState?.scope === "record-create" &&
+            (actionState?.issues?.date || actionState?.issues?.start)
+          )}
         /></label
       >
       <button class="paper-btn primary" type="submit">기록 생성</button>
@@ -121,7 +132,10 @@
     </div>
     <div class="record-list">
       {#each activities as activity (activity.id)}
-        <details class="record-card">
+        <details
+          class="record-card"
+          open={actionState?.id === activity.id && !!actionState?.error}
+        >
           <summary
             ><div>
               <span>{dateOf(activity)} · {activity.type}</span><strong
@@ -134,29 +148,37 @@
             ></summary
           >
           <div class="record-body">
-            <form
-              method="POST"
-              action="?/update"
-              class="record-form"
-              onformdata={dateToStart(dateOf(activity))}
-            >
+            <form method="POST" action="?/update" class="record-form">
               <input type="hidden" name="id" value={activity.id} /><label
                 ><span class="paper-label">활동명</span><input
                   name="title"
-                  value={activity.title}
+                  value={updateValue(activity, "title", activity.title)}
+                  aria-invalid={!!(
+                    actionState?.scope === "record-update" &&
+                    actionState.id === activity.id &&
+                    actionState.issues?.title
+                  )}
                 /></label
               ><label
                 ><span class="paper-label">유형</span><select name="type"
                   >{#each data.activityTypes as type (type)}<option
                       value={type}
-                      selected={type === activity.type}>{type}</option
+                      selected={type ===
+                        updateValue(activity, "type", activity.type)}
+                      >{type}</option
                     >{/each}</select
                 ></label
               ><label
                 ><span class="paper-label">날짜</span><input
                   type="date"
                   name="date"
-                  value={dateOf(activity)}
+                  value={updateValue(activity, "date", dateOf(activity))}
+                  required
+                  aria-invalid={!!(
+                    actionState?.scope === "record-update" &&
+                    actionState.id === activity.id &&
+                    (actionState.issues?.date || actionState.issues?.start)
+                  )}
                 /></label
               ><button class="paper-btn" type="submit">기본 정보 수정</button>
             </form>
@@ -182,7 +204,7 @@
                         type="checkbox"
                         name="attendeeIds"
                         value={member.id}
-                        checked={activity.attendeeIds.includes(member.id)}
+                        checked={attendeesFor(activity).includes(member.id)}
                       /><span
                         >{member.name}<small>{member.department}</small></span
                       ></label

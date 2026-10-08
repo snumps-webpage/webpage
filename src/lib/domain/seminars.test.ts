@@ -127,3 +127,24 @@ describe("seminarTimingOptions", () => {
     expect(seminarTimingOptions("27-1", "아무 말")).not.toContain("아무 말");
   });
 });
+
+describe("native presenter checkbox wire contract", () => {
+  it("combines repeated fields with legacy comma lists without duplicates", () => {
+    const data = new FormData();
+    data.append("speakerIds", " m1 ");
+    data.append("speakerIds", "m2,m1");
+    data.append("speakerIds", "");
+    const result = validateSeminarRequestForm(data);
+    if (result.success) throw new Error("fixture should lack required topic");
+    expect(result.failure.values.presenterIds).toEqual(["m1", "m2"]);
+    expect(result.failure.issues.presenterIds).toBeUndefined();
+  });
+  it("rejects more than20 repeated presenter fields and preserves the selection for recovery", () => {
+    const data = new FormData();
+    for (let i = 0; i < 21; i++) data.append("speakerIds", "member-" + i);
+    const result = validateSeminarRequestForm(data);
+    if (result.success) throw new Error("fixture should lack required topic");
+    expect(result.failure.values.presenterIds).toHaveLength(21);
+    expect(result.failure.issues.presenterIds).toContain("20명");
+  });
+});

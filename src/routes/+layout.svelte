@@ -5,6 +5,10 @@
   import { browser } from "$app/environment";
   import { page, navigating } from "$app/state";
   import { onNavigate, afterNavigate } from "$app/navigation";
+  import {
+    memberNavigation,
+    navigationCurrent,
+  } from "$lib/domain/member-navigation";
   import { signOut } from "@auth/sveltekit/client";
   import { getInitialTheme, applyTheme, type Theme } from "$lib/theme";
   import ExecutiveContacts from "$lib/components/ExecutiveContacts.svelte";
@@ -14,11 +18,24 @@
   let { children } = $props();
   const session = $derived(page.data.session);
   const isWithdrawn = $derived(page.data.memberStatus === "withdrawn");
+  const navigation = $derived(
+    memberNavigation({
+      hasSession: !!session?.user,
+      isMember: page.data.isMember === true,
+      isAdmin: page.data.isAdmin === true,
+      isWithdrawn,
+      canViewMemberZone: page.data.canViewMemberZone === true,
+      canParticipate: page.data.canParticipate === true,
+      canManageSelf: page.data.canManageSelf === true,
+      hasPresenterEvents: page.data.hasPresenterEvents === true,
+    }),
+  );
   const isGuestLanding = $derived(!session?.user && page.url.pathname === "/");
 
   // Theme state
   let currentTheme = $state<Theme>(getInitialTheme());
   let isMobileMenuOpen = $state(false);
+  let menuToggle = $state<HTMLButtonElement>();
 
   $effect(() => {
     applyTheme(currentTheme);
@@ -35,6 +52,13 @@
     const root = document.documentElement;
     const body = document.body;
     const syncScrollbarComp = () => {
+      if (
+        window.innerWidth > 900 ||
+        (isGuestLanding && window.innerWidth > 768)
+      ) {
+        isMobileMenuOpen = false;
+        return;
+      }
       const scrollbarComp = Math.max(0, window.innerWidth - body.offsetWidth);
       body.style.setProperty(
         "--mobile-menu-scrollbar-comp",
@@ -77,6 +101,16 @@
   });
 </script>
 
+<svelte:window
+  onkeydown={(event) => {
+    if (event.key === "Escape" && isMobileMenuOpen) {
+      event.preventDefault();
+      isMobileMenuOpen = false;
+      menuToggle?.focus();
+    }
+  }}
+/>
+
 <svelte:head>
   <link rel="icon" href={favicon} />
   <script>
@@ -105,40 +139,71 @@
   <div class="nav-content">
     <div class="nav-left">
       <a href="/" class="guest-wordmark no-sel" aria-label="SNUMPS Home">
-        <img src={favicon} alt="" aria-hidden="true" class="guest-logo-mark" />
+        <img
+          src={favicon}
+          alt=""
+          aria-hidden="true"
+          class="guest-logo-mark"
+        />{#if !isGuestLanding}<span class="brand-name">SNUMPS</span>{/if}
       </a>
-      <a href="/about" class="paper-nav-link desktop-only">About</a>
-      <a href="/archive" class="paper-nav-link desktop-only">Archive</a>
-      <a href="/members" class="paper-nav-link desktop-only">Members</a>
-      {#if session?.user && !isWithdrawn}
-        <a href="/seminar/apply" class="paper-nav-link desktop-only">Seminar</a>
-        <a href="/study" class="paper-nav-link desktop-only">Study</a>
-        {#if page.data.hasPresenterEvents}
-          <a href="/events/manage" class="paper-nav-link desktop-only"
-            >Attendance</a
+      {#if isGuestLanding}
+        <a href="/about" class="paper-nav-link desktop-only">About</a>
+        <a href="/archive" class="paper-nav-link desktop-only">Archive</a>
+        <a href="/members" class="paper-nav-link desktop-only">Members</a>
+      {:else}
+        {#each [...navigation.publicLinks, ...navigation.memberLinks].filter((link) => link.desktop !== false) as link (link.href)}
+          <a
+            href={link.href}
+            class="paper-nav-link desktop-only"
+            aria-current={navigationCurrent(
+              link.href,
+              page.url.pathname,
+              [
+                ...navigation.publicLinks,
+                ...navigation.memberLinks,
+                ...navigation.adminLinks,
+              ].filter((candidate) => candidate.desktop !== false),
+            )
+              ? "page"
+              : undefined}>{link.label}</a
           >
-        {/if}
-        <a href="/settings/notifications" class="paper-nav-link desktop-only"
-          >Settings</a
-        >
+        {/each}
       {/if}
     </div>
     <div class="nav-right">
       {#if session?.user}
         <div class="desktop-only nav-actions">
-          {#if page.data.isAdmin && !isWithdrawn}
-            <a href="/admin" class="circle-btn">Admin</a>
-          {/if}
+          {#each navigation.adminLinks.filter((link) => link.desktop !== false) as link (link.href)}
+            <a
+              href={link.href}
+              class="paper-nav-link"
+              aria-current={navigationCurrent(
+                link.href,
+                page.url.pathname,
+                [
+                  ...navigation.publicLinks,
+                  ...navigation.memberLinks,
+                  ...navigation.adminLinks,
+                ].filter((candidate) => candidate.desktop !== false),
+              )
+                ? "page"
+                : undefined}>{link.label}</a
+            >
+          {/each}
           <button class="logout-btn" onclick={() => signOut()}>로그아웃</button>
         </div>
-      {/if}
+      {:else if !isGuestLanding}<a
+          href="/login"
+          class="paper-nav-link desktop-only">로그인</a
+        >{/if}
       <button
         class="mobile-menu-toggle mobile-only"
+        bind:this={menuToggle}
         class:is-open={isMobileMenuOpen}
         onclick={() => (isMobileMenuOpen = !isMobileMenuOpen)}
         aria-controls="mobile-nav-menu"
         aria-expanded={isMobileMenuOpen}
-        aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+        aria-label={isMobileMenuOpen ? "메뉴 닫기" : "메뉴 열기"}
       >
         <span class="menu-glyph" aria-hidden="true">
           <span class="menu-line line-1"></span>
@@ -149,46 +214,75 @@
     </div>
   </div>
 
-  {#if isMobileMenuOpen}
-    <div id="mobile-nav-menu" class="mobile-dropdown mobile-only stagger-1">
-      <div class="mobile-dropdown-content">
+  <div
+    id="mobile-nav-menu"
+    class="mobile-dropdown mobile-only stagger-1"
+    hidden={!isMobileMenuOpen}
+  >
+    <div class="mobile-dropdown-content">
+      {#if navigation.memberLinks.length}
         <div class="mobile-group">
-          <span class="group-label">Public</span>
-          <a href="/about" class="mobile-link">동아리 소개</a>
-          <a href="/about/executives" class="mobile-link">역대 회장단</a>
-          <a href="/archive" class="mobile-link">활동 아카이브</a>
-          <a href="/members" class="mobile-link">회원 명단</a>
+          <span class="group-label">내 작업</span>
+          {#each navigation.memberLinks as link (link.href)}<a
+              href={link.href}
+              class="mobile-link"
+              aria-current={navigationCurrent(
+                link.href,
+                page.url.pathname,
+                navigation.memberLinks,
+              )
+                ? "page"
+                : undefined}>{link.label}</a
+            >{/each}
         </div>
-        {#if session?.user && !isWithdrawn}
-          <div class="mobile-group">
-            <span class="group-label">Member</span>
-            <a href="/study" class="mobile-link">내 스터디</a>
-            <a href="/seminar/apply" class="mobile-link">세미나 개설</a>
-            {#if page.data.hasPresenterEvents}
-              <a href="/events/manage" class="mobile-link">발표 출석 관리</a>
-            {/if}
-            <a href="/settings/notifications" class="mobile-link">회원 설정</a>
-          </div>
-          {#if page.data.isAdmin}
-            <div class="mobile-group">
-              <span class="group-label">Admin</span>
-              <a href="/admin" class="mobile-link">관리자 대시보드</a>
-              <a href="/admin/seminars" class="mobile-link">세미나 운영</a>
-              <a href="/admin/activities" class="mobile-link">활동 기록</a>
-              <a href="/admin/gallery" class="mobile-link">갤러리 관리</a>
-            </div>
-          {/if}
-        {/if}
-        {#if session?.user}
-          <div class="mobile-group">
-            <button class="mobile-logout-btn" onclick={() => signOut()}
-              >로그아웃</button
-            >
-          </div>
-        {/if}
+      {/if}
+      <div class="mobile-group">
+        <span class="group-label"
+          >{isGuestLanding ? "Public" : "동아리 둘러보기"}</span
+        >
+        {#each navigation.publicLinks as link (link.href)}<a
+            href={link.href}
+            class="mobile-link"
+            aria-current={navigationCurrent(
+              link.href,
+              page.url.pathname,
+              navigation.publicLinks,
+            )
+              ? "page"
+              : undefined}
+            >{isGuestLanding && link.href === "/archive"
+              ? "활동 아카이브"
+              : link.label}</a
+          >{/each}
       </div>
+      {#if navigation.adminLinks.length}
+        <div class="mobile-group">
+          <span class="group-label">운영진</span>
+          {#each navigation.adminLinks as link (link.href)}<a
+              href={link.href}
+              class="mobile-link"
+              aria-current={navigationCurrent(
+                link.href,
+                page.url.pathname,
+                navigation.adminLinks,
+              )
+                ? "page"
+                : undefined}>{link.label}</a
+            >{/each}
+        </div>
+      {/if}
+      {#if session?.user || !isGuestLanding}
+        <div class="mobile-group">
+          {#if session?.user}<button
+              class="mobile-logout-btn"
+              onclick={() => signOut()}>로그아웃</button
+            >{:else if !isGuestLanding}<a href="/login" class="mobile-link"
+              >로그인</a
+            >{/if}
+        </div>
+      {/if}
     </div>
-  {/if}
+  </div>
 </nav>
 
 <main class:guest-latex-main={isGuestLanding}>
@@ -242,5 +336,98 @@
 </footer>
 
 <style>
-  /* All global styles moved to $lib/manuscript.css */
+  .guest-wordmark {
+    width: auto;
+    gap: 0.4rem;
+    flex-shrink: 0;
+  }
+  .guest-logo-mark {
+    width: 24px;
+    height: 24px;
+  }
+  .nav-left,
+  .nav-right {
+    gap: 0.7rem;
+  }
+  .paper-nav-link {
+    min-height: 44px;
+    line-height: 44px;
+    white-space: nowrap;
+  }
+  .brand-name {
+    font: 600 1.15rem/1 var(--font-display);
+    color: var(--latex-text);
+  }
+  .paper-nav-link {
+    font-family: var(--font-ui);
+    font-style: normal;
+    font-size: 0.8rem;
+    letter-spacing: 0;
+  }
+  .paper-nav-link[aria-current="page"],
+  .mobile-link[aria-current="page"] {
+    text-decoration: underline;
+    text-underline-offset: 0.3em;
+  }
+  .mobile-dropdown.mobile-only[hidden] {
+    /* Override the global mobile-only utility's important display rule. */
+    display: none !important;
+  }
+  .group-label {
+    font-family: var(--font-ui);
+  }
+  .mobile-link {
+    font-family: var(--font-ui);
+  }
+  @media (max-width: 900px) {
+    .desktop-only {
+      display: none;
+    }
+    .mobile-only {
+      display: inline-flex;
+    }
+    .mobile-dropdown.mobile-only {
+      display: block;
+    }
+    .mobile-dropdown.mobile-only[hidden] {
+      display: none !important;
+    }
+  }
+
+  /* The anonymous homepage keeps its original visual identity. */
+  .global-nav.guest-latex .guest-wordmark {
+    width: 1.7rem;
+    height: 1.7rem;
+    gap: 0;
+  }
+  .global-nav.guest-latex .guest-logo-mark {
+    width: 1.42rem;
+    height: 1.42rem;
+  }
+  .global-nav.guest-latex .nav-left,
+  .global-nav.guest-latex .nav-right {
+    gap: 1rem;
+  }
+  .global-nav.guest-latex .paper-nav-link {
+    min-height: initial;
+    line-height: normal;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 0.86rem;
+    letter-spacing: 0.02em;
+  }
+  .global-nav.guest-latex .group-label {
+    font-family: var(--font-display);
+  }
+  .global-nav.guest-latex .mobile-link {
+    font-family: var(--font-body);
+  }
+  @media (min-width: 769px) and (max-width: 900px) {
+    .global-nav.guest-latex .desktop-only {
+      display: flex;
+    }
+    .global-nav.guest-latex .mobile-only {
+      display: none;
+    }
+  }
 </style>

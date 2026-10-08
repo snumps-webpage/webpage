@@ -1,9 +1,8 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
-  import { untrack } from "svelte";
   import type { SubmitFunction } from "@sveltejs/kit";
+  import { seminarOperationError } from "$lib/domain/admin-seminars";
   import type { AdminSeminarRequestItem } from "$lib/domain/admin-seminars";
-  import type { SeminarKind } from "$lib/domain/seminars";
 
   interface Props {
     request: AdminSeminarRequestItem;
@@ -16,7 +15,6 @@
   }
 
   let { request, onTransition, onError }: Props = $props();
-  let selectedKind = $state<SeminarKind>(untrack(() => request.kind));
   let processing = $state<"approve" | "reject" | null>(null);
 
   function actionEnhancer(operation: "approve" | "reject"): SubmitFunction {
@@ -24,25 +22,40 @@
       processing = operation;
 
       return async ({ result, update }) => {
-        processing = null;
+        try {
+          if (result.type === "redirect") {
+            await update({ reset: false });
+            processing = null;
+            return;
+          }
 
-        if (result.type === "success") {
-          // The verdict lands on /admin — reload this page's board data.
-          await update({ reset: false });
-          const payload = result.data as { mailFailed?: boolean } | undefined;
-          onTransition(
-            operation === "approve" ? "approved" : "rejected",
-            request.id,
-            Boolean(payload?.mailFailed),
+          if (result.type === "success") {
+            // The verdict lands on /admin — reload this page's board data.
+            await update({ reset: false });
+            const payload = result.data as { mailFailed?: boolean } | undefined;
+            onTransition(
+              operation === "approve" ? "approved" : "rejected",
+              request.id,
+              Boolean(payload?.mailFailed),
+            );
+            processing = null;
+            return;
+          }
+
+          processing = null;
+          onError(
+            seminarOperationError(
+              (result as { data?: { error?: string } }).data?.error,
+              operation === "approve" ? "세미나 승인" : "신청 반려",
+            ),
           );
-          return;
+        } catch {
+          onError(
+            "처리 결과를 새로 불러오지 못했습니다. 새로고침해 현재 상태를 확인해 주세요.",
+          );
+        } finally {
+          processing = null;
         }
-
-        onError(
-          operation === "approve"
-            ? "세미나 승인을 처리하지 못했습니다."
-            : "세미나 신청을 반려하지 못했습니다.",
-        );
       };
     };
   }
@@ -51,10 +64,16 @@
 <article class="review-card">
   <header class="card-heading">
     <div>
-      <p class="eyebrow">Proposal · {request.id}</p>
+      <p class="eyebrow">신청 검토</p>
       <h3>{request.title}</h3>
     </div>
-    <span class="kind-mark">{request.kind === "regular" ? "R" : "I"}</span>
+    <span class="kind-mark"
+      >{request.kind === "regular"
+        ? "정기"
+        : request.kind === "irregular"
+          ? "비정기"
+          : "구분 미상"}</span
+    >
   </header>
 
   <dl class="metadata">
@@ -83,7 +102,7 @@
   </dl>
 
   <details>
-    <summary>신청 원고 검토</summary>
+    <summary>신청 내용과 자료</summary>
     <div class="proposal-copy">
       <p>{request.description}</p>
       <p><strong>선수 지식</strong> {request.prerequisites || "없음"}</p>
@@ -115,18 +134,6 @@
     </div>
   </details>
 
-  <div class="kind-correction">
-    <span>승인 시 구분</span>
-    <label class:active={selectedKind === "regular"}>
-      <input type="radio" value="regular" bind:group={selectedKind} />
-      정기
-    </label>
-    <label class:active={selectedKind === "irregular"}>
-      <input type="radio" value="irregular" bind:group={selectedKind} />
-      비정기
-    </label>
-  </div>
-
   <p class="mail-policy">
     승인 시 ‘일정 추후 안내’를 보내며, 확정 일정은 최초 공개할 때 다시
     안내합니다.
@@ -140,9 +147,8 @@
         use:enhance={actionEnhancer("approve")}
       >
         <input type="hidden" name="id" value={request.id} />
-        <input type="hidden" name="kind" value={selectedKind} />
         <button class="paper-btn primary" disabled={processing !== null}>
-          {processing === "approve" ? "처리 중…" : "승인 및 개설 공지"}
+          {processing === "approve" ? "처리 중…" : "승인 · 일정 조율로"}
         </button>
       </form>
     {/if}
@@ -172,6 +178,7 @@
     border: 1px solid var(--latex-rule);
   }
   .review-card {
+    font-family: var(--font-ui);
     display: grid;
     gap: 0.85rem;
     padding: 1rem;
@@ -227,8 +234,7 @@
     min-width: 0;
   }
 
-  dt,
-  .kind-correction > span {
+  dt {
     color: var(--latex-muted);
     font-family: var(--font-mono);
     font-size: 0.58rem;
@@ -281,38 +287,6 @@
     width: fit-content;
     color: var(--latex-accent);
     font-size: 0.78rem;
-  }
-
-  .kind-correction {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-  }
-
-  .kind-correction > span {
-    margin-right: auto;
-  }
-
-  .kind-correction label {
-    position: relative;
-    padding: 0.35rem 0.55rem;
-    border: 1px solid var(--latex-rule);
-    cursor: pointer;
-    font-family: var(--font-mono);
-    font-size: 0.63rem;
-  }
-
-  .kind-correction label.active {
-    border-color: var(--latex-text);
-    background: var(--latex-text);
-    color: var(--latex-bg);
-  }
-
-  .kind-correction input {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
   }
 
   .mail-policy {

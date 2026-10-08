@@ -98,6 +98,140 @@ const seedMember = async (
     },
   ]);
 
+describe("seminar descriptions and notes are independent", () => {
+  const input = {
+    title: "세미나",
+    semester: "26-2",
+    note: "운영 메모",
+    presenterIds: [],
+    externalPresenters: "",
+  };
+
+  it("defaults real description for old service callers without copying note", async () => {
+    const row = await createSeminar(input);
+    expect(row).toMatchObject({ description: "", note: "운영 메모" });
+  });
+
+  it("creates and updates real description without overwriting note", async () => {
+    const row = await createSeminar({ ...input, description: "공개 개요" });
+    await updateSeminar(row.id, { description: "새 개요", note: undefined });
+    expect((await getTable("seminars"))[0]).toMatchObject({
+      description: "새 개요",
+      note: "운영 메모",
+    });
+    await updateSeminar(row.id, { description: undefined, note: "" });
+    expect((await getTable("seminars"))[0]).toMatchObject({
+      description: "새 개요",
+      note: "",
+    });
+  });
+});
+
+describe("date-only activity updates use the current stored KST date", () => {
+  const stored = {
+    start: "2026-09-01T15:30:25Z",
+    end: "2026-09-02T03:00:35+09:00",
+  };
+  const activity = () =>
+    createActivity({ title: "회의", type: "회의", date: stored });
+
+  it("preserves an unchanged historical day and actual time range", async () => {
+    const historical = {
+      start: "1999-10-02T19:15:30+09:00",
+      end: "1999-10-02T21:30:45+09:00",
+    };
+    const row = await createActivity({
+      title: "회의",
+      type: "회의",
+      date: historical,
+    });
+    await updateActivity(
+      row.id,
+      { title: "옛 회의", type: "기타" },
+      "1999-10-02",
+    );
+    expect((await getTable("activities"))[0]).toMatchObject({
+      title: "옛 회의",
+      type: "기타",
+      date: historical,
+    });
+  });
+
+  it("refuses a changed historical day outside the existing editable range", async () => {
+    const row = await activity();
+    await expect(
+      updateActivity(row.id, { type: "기타" }, "1999-10-02"),
+    ).rejects.toSatisfy(
+      (error) =>
+        error instanceof AppError && error.code === "VALIDATION_FAILED",
+    );
+    expect((await getTable("activities"))[0]).toMatchObject({
+      type: "회의",
+      date: stored,
+    });
+  });
+
+  it("keeps the actual time and end on the same KST day", async () => {
+    const row = await activity();
+    await updateActivity(row.id, { title: "회의", type: "기타" }, "2026-09-02");
+    expect((await getTable("activities"))[0]).toMatchObject({
+      type: "기타",
+      date: stored,
+    });
+  });
+
+  it("changes a new day to midnight and clears the old end", async () => {
+    const row = await activity();
+    await updateActivity(row.id, { title: "회의" }, "2026-09-03");
+    expect((await getTable("activities"))[0].date).toEqual({
+      start: "2026-09-03T00:00:00+09:00",
+      end: null,
+    });
+  });
+
+  it("leaves a range alone when start/date is omitted", async () => {
+    const row = await activity();
+    await updateActivity(row.id, { type: "기타" });
+    expect((await getTable("activities"))[0].date).toEqual(stored);
+  });
+
+  it("rejects an invalid raw day before writing", async () => {
+    const row = await activity();
+    await expect(
+      updateActivity(row.id, { type: "기타" }, "2026-02-30"),
+    ).rejects.toSatisfy(
+      (error) =>
+        error instanceof AppError && error.code === "VALIDATION_FAILED",
+    );
+    expect((await getTable("activities"))[0]).toMatchObject({
+      type: "회의",
+      date: stored,
+    });
+  });
+
+  it("keeps paired-owner guards while permitting the same day", async () => {
+    const row = await activity();
+    const seminar = await createSeminar({
+      title: "회의",
+      semester: "26-2",
+      note: "",
+      presenterIds: [],
+      externalPresenters: "",
+    });
+    await updateSeminar(seminar.id, { activityId: row.id });
+    await updateActivity(row.id, { title: "회의", type: "기타" }, "2026-09-02");
+    await expect(
+      updateActivity(row.id, { title: "회의" }, "2026-09-03"),
+    ).rejects.toSatisfy(
+      (error) =>
+        error instanceof AppError &&
+        error.code === "CONFLICT" &&
+        (error.userMessage?.includes("세미나") ?? false),
+    );
+    expect((await getTable("activities"))[0].date).toEqual(stored);
+  });
+});
+
 describe("setAttendees — the sanctioned wholesale overwrite", () => {
   it("replaces the list entirely, deduped — merge rule deliberately absent", async () => {
     const a = await createActivity({

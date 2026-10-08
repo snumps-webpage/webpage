@@ -1,4 +1,5 @@
 import { building } from "$app/environment";
+import { CAPABILITIES, hasCapability } from "$lib/server/core/capabilities";
 import { getPublicExecutives } from "$lib/server/public/archive";
 import { hasPresenterEvents } from "$lib/server/services/events";
 import type { LayoutServerLoad } from "./$types";
@@ -15,10 +16,26 @@ import type { LayoutServerLoad } from "./$types";
  */
 export const load: LayoutServerLoad = async ({ locals }) => {
   const member = locals.member ?? null;
+  // undefined is the anonymous public fast path; null is a resolved
+  // authenticated nonmember (or resolved guest). Keep applicants signed in.
+  const session =
+    building || locals.member === undefined ? null : await locals.auth();
   return {
-    session: member ? await locals.auth() : null,
+    session,
     isAdmin: member?.isAdmin === true,
     isMember: !!member && member.status !== "withdrawn",
+    canParticipate: hasCapability(
+      member?.capabilities,
+      CAPABILITIES.PARTICIPATE,
+    ),
+    canViewMemberZone: hasCapability(
+      member?.capabilities,
+      CAPABILITIES.VIEW_MEMBER_ZONE,
+    ),
+    canManageSelf: hasCapability(
+      member?.capabilities,
+      CAPABILITIES.MANAGE_SELF,
+    ),
     memberStatus: member?.status ?? null,
     // A read failure must not hide the whole nav; the link degrades to hidden.
     hasPresenterEvents: member

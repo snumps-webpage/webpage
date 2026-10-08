@@ -1,5 +1,5 @@
 import { ensureAdmin, handleAdminAction } from "$lib/server/auth-guards";
-import { fail } from "@sveltejs/kit";
+import { fail, isActionFailure, type ActionFailure } from "@sveltejs/kit";
 import { getTable } from "$lib/server/data/tables";
 import { memberPickers } from "$lib/server/data/repos";
 import {
@@ -19,7 +19,10 @@ import {
   byCreatedAtAsc,
 } from "$lib/server/data/admin-queue-views";
 import { validateSeminarScheduleForm } from "$lib/domain/admin-seminars";
-import { adminSeminarRecordSchema } from "$lib/domain/admin-records";
+import {
+  adminSeminarRecordSchema,
+  type AdminRecordActionScope,
+} from "$lib/domain/admin-records";
 import { formText, fieldIssues } from "$lib/domain/form-data";
 import {
   cancelSeminar,
@@ -116,7 +119,8 @@ export const load: PageServerLoad = async ({ locals }) => {
       kind: s.kind,
       title: s.title,
       term: s.semester,
-      description: s.note,
+      description: s.description,
+      note: s.note,
       prerequisites: s.prerequisites,
       durationMinutes: s.durationMinutes,
       preferredTiming: s.preferredTiming,
@@ -139,45 +143,59 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 type Ctx = { request: Request; locals: App.Locals };
 
-const parseIds = (raw: string | null) =>
-  raw
-    ? [
-        ...new Set(
-          raw
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-        ),
-      ]
-    : [];
+const parseIds = (data: FormData) => [
+  ...new Set(
+    data
+      .getAll("presenterIds")
+      .filter((value): value is string => typeof value === "string")
+      .flatMap((value) => value.split(","))
+      .map((value) => value.trim())
+      .filter(Boolean),
+  ),
+];
 
 /**
- * The record editor posts `semester`/`note`; the schema names them
- * term/description — the keys the editor renders issues and values under.
+ * The editor's semester is rendered as term; description and note remain
+ * independent, including explicit empty values.
  */
-function parseSeminarRecord(data: FormData) {
-  const values = {
+function seminarValues(data: FormData) {
+  return {
     title: formText(data, "title"),
     term: formText(data, "semester"),
-    description: formText(data, "note"),
+    description: formText(data, "description"),
+    note: formText(data, "note"),
     externalPresenters: formText(data, "externalPresenters"),
     kind: formText(data, "kind"),
     durationMinutes: formText(data, "durationMinutes"),
     prerequisites: formText(data, "prerequisites"),
   };
-  const parsed = adminSeminarRecordSchema.safeParse(values);
-  if (parsed.success) return { success: true as const, data: parsed.data };
+}
+
+/** Enrich failures after the unchanged auth/error wrapper has classified them. */
+async function recordAction<T extends Record<string, unknown>>(
+  locals: App.Locals,
+  scope: AdminRecordActionScope,
+  id: string,
+  values: Record<string, string>,
+  logic: () => Promise<T | ActionFailure<Record<string, unknown>>>,
+  arrays: Record<string, string[]> = {},
+) {
+  const result = await handleAdminAction(locals, logic);
+  if (isActionFailure(result as unknown)) {
+    const failure = result as ActionFailure<Record<string, unknown>>;
+    return fail(failure.status, {
+      ...failure.data,
+      scope,
+      id,
+      values,
+      ...arrays,
+    });
+  }
+  const successful = result as T & { success: true };
   return {
-    success: false as const,
-    fail: (scope: "record-create" | "record-update", id?: string) =>
-      fail(400, {
-        error: "VALIDATION_FAILED",
-        scope,
-        id,
-        issues: fieldIssues(parsed.error),
-        values,
-        presenterIds: parseIds(data.get("presenterIds") as string),
-      }),
+    ...successful,
+    scope,
+    id: typeof successful.id === "string" ? successful.id : id,
   };
 }
 
@@ -269,68 +287,106 @@ export const actions = {
 
   create: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
-    return handleAdminAction(locals, async () => {
-      const parsed = parseSeminarRecord(data);
-      if (!parsed.success) return parsed.fail("record-create");
-      const { title, term, description, externalPresenters, ...fields } =
-        parsed.data;
-      await createSeminar(
-        {
+    const values = seminarValues(data);
+    const presenterIds = parseIds(data);
+    return recordAction(
+      locals,
+      "record-create",
+      "",
+      values,
+      async () => {
+        const parsed = adminSeminarRecordSchema.safeParse(values);
+        if (!parsed.success)
+          return fail(400, {
+            error: "VALIDATION_FAILED",
+            issues: fieldIssues(parsed.error),
+          });
+        const {
           title,
-          semester: term,
-          note: description,
-          presenterIds: parseIds(data.get("presenterIds") as string),
+          term,
+          description,
+          note,
           externalPresenters,
-          kind: fields.kind,
-          durationMinutes: fields.durationMinutes,
-          prerequisites: fields.prerequisites,
-        },
-        (data.get("posterPendingKey") as string) || "",
-      );
-      return { operation: "seminarRecordCreated" };
-    });
+          ...fields
+        } = parsed.data;
+        const created = await createSeminar(
+          {
+            title,
+            semester: term,
+            description,
+            note,
+            presenterIds,
+            externalPresenters,
+            kind: fields.kind,
+            durationMinutes: fields.durationMinutes,
+            prerequisites: fields.prerequisites,
+          },
+          (data.get("posterPendingKey") as string) || "",
+        );
+        return { operation: "seminarRecordCreated", id: created.id };
+      },
+      { presenterIds },
+    );
   },
 
   update: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
-    return handleAdminAction(locals, async () => {
-      const id = data.get("id") as string;
-      const parsed = parseSeminarRecord(data);
-      if (!parsed.success) return parsed.fail("record-update", id);
-      const { title, term, description, externalPresenters, ...fields } =
-        parsed.data;
-      await updateSeminar(
-        id,
-        {
+    const id = formText(data, "id");
+    const values = seminarValues(data);
+    const presenterIds = parseIds(data);
+    return recordAction(
+      locals,
+      "record-update",
+      id,
+      values,
+      async () => {
+        const parsed = adminSeminarRecordSchema.safeParse(values);
+        if (!parsed.success)
+          return fail(400, {
+            error: "VALIDATION_FAILED",
+            issues: fieldIssues(parsed.error),
+          });
+        const {
           title,
-          semester: term,
-          // 편집기가 보내지 않는 칸은 그대로 둔다 — 빈 값으로 지우지 않는다.
-          note: sent(data, "note", description),
-          presenterIds: data.get("presenterIds")
-            ? parseIds(data.get("presenterIds") as string)
-            : undefined,
-          externalPresenters: sent(
-            data,
-            "externalPresenters",
-            externalPresenters,
-          ),
-          kind: sent(data, "kind", fields.kind),
-          durationMinutes: sent(
-            data,
-            "durationMinutes",
-            fields.durationMinutes,
-          ),
-          prerequisites: sent(data, "prerequisites", fields.prerequisites),
-        },
-        (data.get("posterPendingKey") as string) || "",
-      );
-      return { operation: "seminarRecordUpdated" };
-    });
+          term,
+          description,
+          note,
+          externalPresenters,
+          ...fields
+        } = parsed.data;
+        await updateSeminar(
+          id,
+          {
+            title,
+            semester: term,
+            // 편집기가 보내지 않는 칸은 그대로 둔다 — 빈 값으로 지우지 않는다.
+            description: sent(data, "description", description),
+            note: sent(data, "note", note),
+            presenterIds: sent(data, "presenterIds", presenterIds),
+            externalPresenters: sent(
+              data,
+              "externalPresenters",
+              externalPresenters,
+            ),
+            kind: sent(data, "kind", fields.kind),
+            durationMinutes: sent(
+              data,
+              "durationMinutes",
+              fields.durationMinutes,
+            ),
+            prerequisites: sent(data, "prerequisites", fields.prerequisites),
+          },
+          (data.get("posterPendingKey") as string) || "",
+        );
+        return { operation: "seminarRecordUpdated" };
+      },
+      { presenterIds },
+    );
   },
 
   delete: async ({ request, locals }: Ctx) => {
-    const id = (await request.formData()).get("id") as string;
-    return handleAdminAction(locals, async () => {
+    const id = formText(await request.formData(), "id");
+    return recordAction(locals, "record-delete", id, {}, async () => {
       await deleteSeminar(id);
       return { operation: "seminarRecordDeleted" };
     });
@@ -339,8 +395,12 @@ export const actions = {
   /** Registers a pending upload: promote (size/type enforced there) then attach. */
   addFile: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
-    return handleAdminAction(locals, async () => {
-      const id = data.get("id") as string;
+    const id = formText(data, "id");
+    const values = {
+      field: formText(data, "field"),
+      pendingKey: formText(data, "pendingKey"),
+    };
+    return recordAction(locals, "record-file", id, values, async () => {
       const field = data.get("field") as "materials" | "photos";
       if (field !== "materials" && field !== "photos")
         throw new AppError("VALIDATION_FAILED");
@@ -358,11 +418,16 @@ export const actions = {
 
   removeFile: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
-    return handleAdminAction(locals, async () => {
+    const id = formText(data, "id");
+    const values = {
+      field: formText(data, "field"),
+      s3Key: formText(data, "s3Key"),
+    };
+    return recordAction(locals, "record-file", id, values, async () => {
       const field = data.get("field") as "materials" | "photos";
       if (field !== "materials" && field !== "photos")
         throw new AppError("VALIDATION_FAILED");
-      await setSeminarFiles(data.get("id") as string, field, {
+      await setSeminarFiles(id, field, {
         remove: data.get("s3Key") as string,
       });
       return { operation: "seminarFileRemoved" };

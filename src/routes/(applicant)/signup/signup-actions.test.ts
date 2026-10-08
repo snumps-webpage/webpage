@@ -8,7 +8,7 @@ vi.mock("$lib/server/mail", () => ({
   sendSignupNotification: async () => undefined,
 }));
 
-import { __reset } from "$lib/server/data/store-memory";
+import { __reset, __setWritesFail } from "$lib/server/data/store-memory";
 import { _resetDataLayerForTests, getTable } from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { actions as signup } from "./+page.server";
@@ -144,5 +144,52 @@ describe("signup/edit", () => {
     });
     const [row] = await getTable("applications");
     expect(row.phone).toBe("010-1234-5678");
+  });
+});
+
+describe("membership draft recovery", () => {
+  it("preserves raw contact fields and the explicit consent choice after validation failure", async () => {
+    expect(await signup.default(post({ ...valid, phone: "12" }))).toMatchObject(
+      {
+        status: 400,
+        data: {
+          operation: "applicationSubmitted",
+          values: { ...valid, phone: "12" },
+        },
+      },
+    );
+    expect(
+      await signup.default(post({ ...valid, phone: "12", agreement: "" })),
+    ).toMatchObject({ data: { values: { agreement: "" } } });
+  });
+  it("preserves a signup draft and consent after a store write503", async () => {
+    __setWritesFail(true);
+    try {
+      expect(await signup.default(post(valid))).toMatchObject({
+        status: 503,
+        data: { operation: "applicationSubmitted", values: valid },
+      });
+    } finally {
+      __setWritesFail(false);
+    }
+    expect(await getTable("applications")).toEqual([]);
+  });
+  it("preserves revised contact fields after a store write503 without altering the row", async () => {
+    await signup.default(post(valid));
+    const revised = {
+      phone: "01099998888",
+      studentId: "2025-54321",
+      background: "수정한 원고",
+    };
+    __setWritesFail(true);
+    try {
+      expect(await edit.default(post(revised))).toMatchObject({
+        status: 503,
+        data: { operation: "applicationUpdated", values: revised },
+      });
+    } finally {
+      __setWritesFail(false);
+    }
+    expect((await getTable("applications"))[0].phone).toBe("010-1234-5678");
   });
 });

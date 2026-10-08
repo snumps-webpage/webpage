@@ -12,7 +12,11 @@
   let { seminarRequests, studyRequests, withdrawals }: Props = $props();
 
   function seminarKind(kind: AdminSeminarRequestItem["kind"]) {
-    return kind === "regular" ? "정기 편성" : "비정기";
+    return kind === "regular"
+      ? "정기 편성"
+      : kind === "irregular"
+        ? "비정기"
+        : "구분 미상";
   }
 </script>
 

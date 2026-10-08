@@ -9,7 +9,7 @@ const mail = vi.hoisted(() => ({
 }));
 vi.mock("$lib/server/mail", () => mail);
 
-import { __reset } from "$lib/server/data/store-memory";
+import { __reset, __setWritesFail } from "$lib/server/data/store-memory";
 import {
   _resetDataLayerForTests,
   getTable,
@@ -311,5 +311,50 @@ describe("seminar/edit/[id]", () => {
     const result = await edit.update(post(valid, { id }));
 
     expect(result).toMatchObject({ status: 409, data: { error: "CONFLICT" } });
+  });
+});
+
+describe("seminar proposal failure recovery", () => {
+  it("tags create write failures and preserves the complete raw draft", async () => {
+    __setWritesFail(true);
+    try {
+      expect(await apply.default(post(valid))).toMatchObject({
+        status: 503,
+        data: {
+          error: "SERVICE_UNAVAILABLE",
+          operation: "requestSubmitted",
+          values: { title: valid.title, presenterIds: ["m1", "m2"] },
+        },
+      });
+      expect(mail.sendSeminarApplicationNotification).not.toHaveBeenCalled();
+    } finally {
+      __setWritesFail(false);
+    }
+  });
+  it("tags revision write failures without reverting the draft to stored fields", async () => {
+    const row = await submitSeminarRequest({
+      title: "원래",
+      description: "원래",
+      prerequisites: "",
+      duration: "60분",
+      preferredTiming: "",
+      presenterIds: [MEMBER_ID],
+      attachment: "",
+      requesterId: MEMBER_ID,
+    });
+    __setWritesFail(true);
+    try {
+      expect(await edit.update(post(valid, { id: row.id }))).toMatchObject({
+        status: 503,
+        data: {
+          operation: "requestUpdated",
+          requestId: row.id,
+          values: { title: valid.title, duration: valid.duration },
+        },
+      });
+    } finally {
+      __setWritesFail(false);
+    }
+    expect((await getTable("seminar-requests"))[0].title).toBe("원래");
   });
 });
