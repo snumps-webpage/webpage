@@ -369,8 +369,9 @@
     text-decoration: underline;
     text-underline-offset: 0.3em;
   }
-  .mobile-dropdown[hidden] {
-    display: none;
+  .mobile-dropdown.mobile-only[hidden] {
+    /* Override the global mobile-only utility's important display rule. */
+    display: none !important;
   }
   .group-label {
     font-family: var(--font-ui);
@@ -388,8 +389,8 @@
     .mobile-dropdown.mobile-only {
       display: block;
     }
-    .mobile-dropdown[hidden] {
-      display: none;
+    .mobile-dropdown.mobile-only[hidden] {
+      display: none !important;
     }
   }
 
