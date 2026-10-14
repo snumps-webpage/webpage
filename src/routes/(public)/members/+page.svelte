@@ -1,14 +1,23 @@
 <script lang="ts">
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import { MANUSCRIPT } from "$lib/constants";
+  import { ACTIVE_WINDOW_DAYS } from "$lib/domain/member-activity";
 
   let { data } = $props();
   let query = $state("");
+  // 기본은 활동 회원 보기 (snumps-webpage/D-000052)
+  let view = $state<"active" | "all">("active");
+
+  const viewMembers = $derived(
+    view === "active"
+      ? data.members.filter((member) => member.activity.active)
+      : data.members,
+  );
 
   const filteredMembers = $derived.by(() => {
     const normalized = query.trim().toLocaleLowerCase("ko-KR");
-    if (!normalized) return data.members;
-    return data.members.filter((member) =>
+    if (!normalized) return viewMembers;
+    return viewMembers.filter((member) =>
       [
         member.name,
         member.department,
@@ -17,6 +26,10 @@
       ].some((value) => value.toLocaleLowerCase("ko-KR").includes(normalized)),
     );
   });
+
+  function countLabel(list: readonly unknown[]) {
+    return list.length ? String(list.length) : "—";
+  }
 
   function joinedLabel(value: string | null) {
     return value
@@ -29,7 +42,7 @@
   <title>회원 명단 · 서울대학교 수학문제연구회</title>
   <meta
     name="description"
-    content="서울대학교 수학문제연구회 회원의 이름, 학과, 가입일 및 임원 이력입니다."
+    content="서울대학교 수학문제연구회 회원의 이름, 학과, 가입일, 임원 이력과 세미나·스터디 활동 기록입니다."
   />
 </svelte:head>
 
@@ -42,13 +55,32 @@
 
   <div class="intro-row">
     <p>
-      이름·학과·가입일·학기별 직책만 공개합니다. 연락처와 회원 지위, 관리자
-      권한은 포함하지 않습니다.
+      이름·학과·가입일·학기별 직책과 세미나·스터디 주최, 활동 참석 기록을
+      공개합니다. 연락처와 회원 지위, 관리자 권한은 포함하지 않습니다. 활동
+      회원은 최근 {ACTIVE_WINDOW_DAYS}일 안에 세미나나 스터디에 참석한
+      회원입니다.
     </p>
     <a class="paper-btn" href="/about/executives">역대 회장단</a>
   </div>
 
   {#if data.dataAvailable}
+    <div class="view-toggle" role="group" aria-label="명단 보기">
+      <button
+        type="button"
+        class="paper-btn small"
+        class:primary={view === "active"}
+        aria-pressed={view === "active"}
+        onclick={() => (view = "active")}>활동 회원</button
+      >
+      <button
+        type="button"
+        class="paper-btn small"
+        class:primary={view === "all"}
+        aria-pressed={view === "all"}
+        onclick={() => (view = "all")}>전체 회원</button
+      >
+    </div>
+
     <section class="search-panel">
       <label class="paper-label" for="public-member-search">명단 검색</label>
       <input
@@ -57,7 +89,7 @@
         bind:value={query}
         placeholder="이름, 학과, 가입일, 학기 또는 직책"
       />
-      <span>{filteredMembers.length} / {data.members.length}</span>
+      <span>{filteredMembers.length} / {viewMembers.length}</span>
     </section>
 
     <div class="member-table-wrap desktop-register">
@@ -66,18 +98,33 @@
           <tr>
             <th scope="col">No.</th>
             <th scope="col">이름</th>
+            <th scope="col">활동</th>
             <th scope="col">학과</th>
             <th scope="col">가입일</th>
+            <th scope="col">주최 세미나</th>
+            <th scope="col">주최 스터디</th>
             <th scope="col">임원 이력</th>
           </tr>
         </thead>
         <tbody>
-          {#each filteredMembers as member, index (`${member.name}-${member.department}-${index}`)}
+          {#each filteredMembers as member, index (member.id)}
             <tr>
               <td>{String(index + 1).padStart(3, "0")}</td>
-              <th scope="row">{member.name}</th>
+              <th scope="row"
+                ><a href={`/members/${member.id}`}>{member.name}</a></th
+              >
+              <td>
+                {#if member.activity.active}
+                  <span class="active-chip">활동</span>
+                {:else}
+                  <span class="muted">—</span>
+                {/if}
+              </td>
               <td>{member.department}</td>
               <td>{joinedLabel(member.joinedAt)}</td>
+              <td class="count">{countLabel(member.activity.hostedSeminars)}</td
+              >
+              <td class="count">{countLabel(member.activity.hostedStudies)}</td>
               <td>
                 {#each member.roles as role (`${role.term}-${role.title}`)}
                   <span class="role-chip">{role.term} {role.title}</span>
@@ -88,7 +135,7 @@
             </tr>
           {:else}
             <tr
-              ><td colspan="5" class="empty-state">검색 결과가 없습니다.</td
+              ><td colspan="8" class="empty-state">검색 결과가 없습니다.</td
               ></tr
             >
           {/each}
@@ -97,18 +144,26 @@
     </div>
 
     <section class="mobile-register" aria-label="회원 명단">
-      {#each filteredMembers as member, index (`${member.name}-${member.department}-${index}`)}
+      {#each filteredMembers as member, index (member.id)}
         <article class="member-card">
           <header>
             <span>{String(index + 1).padStart(3, "0")}</span>
             <div>
-              <h2>{member.name}</h2>
+              <h2>
+                <a href={`/members/${member.id}`}>{member.name}</a>
+                {#if member.activity.active}<span class="active-chip">활동</span
+                  >{/if}
+              </h2>
               <p>{member.department}</p>
             </div>
             <time datetime={member.joinedAt ?? undefined}
               >{joinedLabel(member.joinedAt)}</time
             >
           </header>
+          <p class="mobile-hosted">
+            주최 세미나 {member.activity.hostedSeminars.length} · 주최 스터디
+            {member.activity.hostedStudies.length}
+          </p>
           <div class="mobile-roles">
             {#each member.roles as role (`${role.term}-${role.title}`)}
               <span>{role.term} · {role.title}</span>
@@ -149,6 +204,11 @@
     color: var(--latex-muted);
     font-size: 0.82rem;
     line-height: 1.65;
+  }
+  .view-toggle {
+    display: flex;
+    gap: 0.4rem;
+    margin-bottom: 0.6rem;
   }
   .search-panel {
     position: relative;
@@ -206,6 +266,22 @@
     font-size: 0.88rem;
     font-weight: 570;
   }
+  tbody th a {
+    color: var(--latex-text);
+  }
+  .count {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+  .active-chip {
+    display: inline-flex;
+    padding: 0.14rem 0.32rem;
+    border: 1px solid var(--latex-text);
+    font-size: 0.62rem;
+    font-weight: 650;
+    white-space: nowrap;
+  }
   .role-chip {
     display: inline-flex;
     margin: 0 0.3rem 0.3rem 0;
@@ -246,6 +322,9 @@
     .intro-row a {
       width: 100%;
     }
+    .view-toggle .paper-btn {
+      flex: 1;
+    }
     .desktop-register {
       display: none;
     }
@@ -274,8 +353,22 @@
       margin: 0;
     }
     .member-card h2 {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem;
       font-size: 0.98rem;
       font-weight: 570;
+    }
+    .member-card h2 a {
+      color: var(--latex-text);
+    }
+    .mobile-hosted {
+      margin: 0;
+      padding: 0.5rem 0.7rem;
+      border-top: 1px solid var(--latex-rule);
+      color: var(--latex-muted);
+      font-size: 0.66rem;
     }
     .member-card p {
       margin-top: 0.12rem;

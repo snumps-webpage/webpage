@@ -8,6 +8,7 @@ import { currentTerm } from "$lib/server/core/semester";
 import { formatPhoneForDisplay } from "$lib/utils";
 import { PUBLIC_EXECUTIVE_TITLES } from "$lib/domain/executive-profile";
 import { publicExecutiveResolver } from "$lib/server/services/executive-profiles";
+import { memberActivityIndex } from "$lib/server/public/member-activity";
 
 /**
  * Public-zone reads (API-SPEC §3 / BE-60·61). EVERYTHING here is guest-facing:
@@ -61,17 +62,33 @@ async function memberNameMap(): Promise<Map<string, string>> {
   return new Map([...index].map(([id, m]) => [id, m.name]));
 }
 
-/** PUB-15: the public roster — D2 fields, withdrawn members excluded. */
+/**
+ * PUB-15: the public roster — D2 fields, withdrawn members excluded.
+ *
+ * Each row also carries its id (the `/members/[id]` path) and a summary of
+ * the person's public activity (snumps-webpage/D-000041·051·052). The
+ * attendance list stays on the member's own page: the roster would otherwise
+ * ship every attendance of every member.
+ */
 export async function getPublicMembers() {
-  const members = await getMemberDirectory();
+  const [members, activityOf] = await Promise.all([
+    getMemberDirectory(),
+    memberActivityIndex({ publicOnly: true }),
+  ]);
   return members
     .filter((m) => m.status !== "withdrawn")
-    .map((m) => ({
-      name: m.name,
-      department: m.department,
-      joinedAt: m.joinedAt,
-      roles: m.roles,
-    }))
+    .map((m) => {
+      const { active, hostedSeminars, hostedStudies, countsByType } =
+        activityOf(m);
+      return {
+        id: m.id,
+        name: m.name,
+        department: m.department,
+        joinedAt: m.joinedAt,
+        roles: m.roles,
+        activity: { active, hostedSeminars, hostedStudies, countsByType },
+      };
+    })
     .sort((a, b) => a.name.localeCompare(b.name, "ko"));
 }
 

@@ -63,6 +63,7 @@ const REGISTERED: Record<string, Zone> = {
   "/(public)/archive/problems": "(public)",
   "/(public)/archive/discussions": "(public)",
   "/(public)/members": "(public)",
+  "/(public)/members/[id]": "(public)",
   "/(public)/robots.txt": "(public)",
   "/(public)/sitemap.xml": "(public)",
   "/(applicant)/signup": "(applicant)",
