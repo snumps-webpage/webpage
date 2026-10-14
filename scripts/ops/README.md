@@ -30,6 +30,7 @@ Supabase 자격증명이 놓인 곳이 CLI라서 실제로는 CLI를 거치게 �
 | `release-prod.sh`                  |        |       ✅       | 없음 (`supabase login`; `.env.prod-secrets`는 선택) | Supabase CLI·Vercel CLI·git·**터미널**(tmux) |
 | `ops-push-prod.sh`                 |        |                | (`.env.proddbpass` 선택)                            | Supabase CLI·**터미널**                      |
 | `check-deployed.mjs`               |   ✅   |                | 없음                                                | git (+`app-key.sh`: bash)                    |
+| `ops-fix-approval-dates.mjs`       |   ✅   |                | 없음 (`supabase login`)                             | Supabase CLI·**터미널**                      |
 | `ops-export-members.mjs`           |        |       ✅       | Supabase                                            |                                              |
 | `ops-assets-private.mjs`           |        |       ✅       | Supabase                                            |                                              |
 | `ops-repair-seminar-schedules.mjs` |        |       ✅       | Supabase                                            |                                              |
@@ -96,13 +97,16 @@ Notion 쪽(`NOTION_API_KEY`, `NOTION_DB_*`)도 같은 방식이다 — 다만 �
 
 ## 운영 데이터를 바꾸는 것
 
-셋뿐이고, 전부 **미리보기가 기본**이다. 바꾸려면 인자를 명시해야 한다.
+위 표에서 운영 데이터를 쓰는 것은 아래 다섯이다. 전부 **미리보기가 기본**이고, 바꾸려면
+인자나 확인 입력이 있어야 한다.
 
-| 스크립트                           | 바꾸는 인자 |
-| ---------------------------------- | ----------- |
-| `ops-repair-seminar-schedules.mjs` | `apply`     |
-| `ops-notion-backfill-seminars.mjs` | `apply`     |
-| `ops-assets-private.mjs`           | `--apply`   |
+| 스크립트                           | 바꾸는 인자·확인                                          |
+| ---------------------------------- | --------------------------------------------------------- |
+| `ops-repair-seminar-schedules.mjs` | `apply`                                                   |
+| `ops-notion-backfill-seminars.mjs` | `apply`                                                   |
+| `ops-assets-private.mjs`           | `--apply`                                                 |
+| `ops-add-member.mjs`               | `yes` 입력 (+ prod면 ref 입력)                            |
+| `ops-fix-approval-dates.mjs`       | `yes` 입력 (+ prod면 ref 입력), `--dry-run`이면 쓰지 않음 |
 
 표에 있는 나머지는 전부 읽기 전용이다.
 
