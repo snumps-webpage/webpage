@@ -119,16 +119,24 @@ export async function createSeminar(
     Seminar,
     "title" | "semester" | "note" | "presenterIds" | "externalPresenters"
   > &
-    Partial<Pick<Seminar, "kind" | "durationMinutes" | "prerequisites">>,
+    Partial<
+      Pick<Seminar, "kind" | "durationMinutes" | "prerequisites" | "videos">
+    >,
   posterPendingKey = "",
 ): Promise<Seminar> {
-  const { kind = null, durationMinutes = null, prerequisites = "" } = input;
+  const {
+    kind = null,
+    durationMinutes = null,
+    prerequisites = "",
+    videos = [],
+  } = input;
   const row: Seminar = {
     id: newId(),
     ...input,
     kind,
     durationMinutes,
     prerequisites,
+    videos,
     description: "",
     materials: [],
     photos: [],
@@ -166,6 +174,7 @@ export async function updateSeminar(
       | "kind"
       | "durationMinutes"
       | "prerequisites"
+      | "videos"
     >
   >,
   posterPendingKey = "",

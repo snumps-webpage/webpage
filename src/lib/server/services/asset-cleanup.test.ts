@@ -102,6 +102,7 @@ describe("access and cleanup agree on which records hold files", () => {
         prerequisites: "",
         announce: true,
         semesterPinned: false,
+        videos: [],
         materials: [keys.material],
         photos: [keys.photo],
         posterKey: keys.poster,

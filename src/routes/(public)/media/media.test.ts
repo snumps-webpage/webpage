@@ -46,6 +46,7 @@ const seminarRow = (over: Record<string, unknown>) => ({
   prerequisites: "",
   announce: true,
   semesterPinned: false,
+  videos: [],
   materials: [],
   photos: [],
   posterKey: "",

@@ -27,7 +27,7 @@
 #   2 로컬 검증            테스트·타입·린트·포맷·빌드, 서버 번들에 PGlite 없음 → 검증한 커밋을 기록
 #   3 프리뷰 확인 (수동)   pnpm 설치, SNU 계정 실로그인, 세미나 흐름 스모크 (SKIP_PREVIEW=1이면 생략)
 #   4 prod 백업            세 테이블 전부를 SQL 한 문장(한 스냅숏)으로 backups/에 (롤백의 유일한 수단)
-#   5 사전 검사·운영 빌드  적용될 파일이 정확히 5개인지·dry-run·판독 시험 → Vercel 운영 빌드(도메인 연결 없이)
+#   5 사전 검사·운영 빌드  적용될 파일이 EXPECTED_MIGRATIONS와 맞는지·dry-run·판독 시험 → Vercel 운영 빌드(도메인 연결 없이)
 #   6 적용                 백업·쓰기 동결 확인 → db push (곧바로 7단계)
 #   7 배포                 전제 재확인 → 5단계의 빌드로 운영 도메인 승격(vercel promote) → main push
 #   8 배포 확인            운영 도메인이 그 빌드를 가리키는지 vercel inspect로 대조, 첫 화면 200
@@ -83,11 +83,13 @@ readonly EXPECTED_MIGRATIONS=(
   20260928000200
   20260928000300
   20260928000400
+  20261014000000
 )
 readonly BACKFILLS=(
   supabase/migrations/20260928000100_seminar_publication_status.sql
   supabase/migrations/20260928000300_seminar_fields.sql
   supabase/migrations/20260928000400_member_revocation_reason.sql
+  supabase/migrations/20261014000000_seminar_videos.sql
 )
 readonly PUBLIC_PAGES=(/ /about /archive /archive/seminars /archive/studies /archive/projects /login)
 readonly BACKUP_MAX_AGE_SECONDS=$((6 * 3600))
@@ -347,8 +349,8 @@ json_array() {
 }
 
 # prod에 걸린 링크로 목록을 읽어 상태를 한 단어로 출력한다:
-#   pending  — 예상한 5개가 전부 대기 (적용 전)
-#   applied  — 5개가 전부 적용됨
+#   pending  — EXPECTED_MIGRATIONS가 전부 대기 (적용 전)
+#   applied  — EXPECTED_MIGRATIONS가 전부 적용됨
 #   partial  — 앞쪽 일부만 적용되고 나머지가 대기 (중간에 끊긴 push)
 # 그 밖(원격에만 있는 파일, 예상 밖 대기 파일)은 멈춘다.
 migration_state() {
@@ -407,6 +409,9 @@ select
            or jsonb_typeof(r->'durationMinutes') not in ('number', 'null') or r->'durationMinutes' is null
            or jsonb_typeof(r->'prerequisites') is distinct from 'string'
            or jsonb_typeof(r->'announce') is distinct from 'boolean')) as sem_bad_fields,
+  (select count(*) from app_tables t, jsonb_array_elements(t.doc->'rows') r
+    where t.name = 'seminars'
+      and jsonb_typeof(r->'videos') is distinct from 'array') as sem_no_videos,
   (select count(*) from app_tables t, jsonb_array_elements(t.doc->'rows') r
     where t.name in ('members', 'legacy-members')
       and not r ? 'alumniRevocationReason') as members_no_reason,
@@ -578,7 +583,7 @@ repair_and_check() {
       const rows = JSON.parse(s);
       if (rows.length !== 1) { console.error("행이 1개가 아니다"); process.exit(2); }
       const r = rows[0];
-      const want = { flow_fns: 19, sem_no_status: 0, sem_bad_fields: 0, members_no_reason: 0, anon_can_exec: false, assets_public: false };
+      const want = { flow_fns: 19, sem_no_status: 0, sem_bad_fields: 0, sem_no_videos: 0, members_no_reason: 0, anon_can_exec: false, assets_public: false };
       console.log("결과:", JSON.stringify(r));
       const bad = Object.entries(want).filter(([k, v]) => String(r[k]) !== String(v));
       if (bad.length) { console.error("기대와 다름:", bad.map(([k, v]) => k + "=" + r[k] + " (기대 " + v + ")").join(", ")); process.exit(3); }
@@ -819,7 +824,7 @@ if run_step 6; then
   fi
   case "$state" in
     applied)
-      say "5개 모두 이미 적용돼 있다 — 적용을 건너뛴다."
+      say "예상한 마이그레이션이 모두 이미 적용돼 있다 — 적용을 건너뛴다."
       ;;
     pending | partial)
       say "적용 직후부터 7단계 승격까지(빌드는 이미 Ready라 몇 초 — 바로 이어서 진행한다):"

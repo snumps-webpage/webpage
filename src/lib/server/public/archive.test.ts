@@ -138,6 +138,7 @@ async function seedFixture() {
       schedule: null,
       announcedAt: null,
       semesterPinned: false,
+      videos: [],
       activityId: "act1",
       sourceRequestId: "req1",
     },

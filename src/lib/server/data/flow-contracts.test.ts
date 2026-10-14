@@ -70,6 +70,7 @@ const legacySeminar = (over: Partial<Seminar> = {}): Seminar => ({
   },
   announcedAt: null,
   semesterPinned: false,
+  videos: [],
   activityId: "a1",
   sourceRequestId: null,
   ...over,

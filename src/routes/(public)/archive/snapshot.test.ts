@@ -126,6 +126,7 @@ async function seedFixture() {
       schedule: null,
       announcedAt: null,
       semesterPinned: false,
+      videos: [],
       materials: ["seminars/sem1/a.pdf"],
       photos: ["seminars/sem1/p.png"],
       posterKey: "",

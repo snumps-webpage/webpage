@@ -349,6 +349,7 @@ describe("updateSeminarSchedule — 확정 후 일정 변경", () => {
         prerequisites: "",
         announce: true,
         semesterPinned: false,
+        videos: [],
         activityId: null,
         sourceRequestId: null,
       },
@@ -795,6 +796,7 @@ describe("학기 — 자동 도출과 관리자 결정", () => {
               semester: "25-W",
               publicationStatus: "published" as const,
               semesterPinned: false,
+              videos: [],
               schedule: SCHEDULE,
             }
           : r,
@@ -851,6 +853,7 @@ describe("학기 — 자동 도출과 관리자 결정", () => {
         prerequisites: "",
         announce: true,
         semesterPinned: true,
+        videos: [],
         activityId: null,
         sourceRequestId: null,
       },

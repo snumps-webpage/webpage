@@ -20,6 +20,7 @@ import {
 } from "$lib/server/data/admin-queue-views";
 import { validateSeminarScheduleForm } from "$lib/domain/admin-seminars";
 import { adminSeminarRecordSchema } from "$lib/domain/admin-records";
+import { parseSeminarVideosForm } from "$lib/domain/seminar-videos";
 import { formText, fieldIssues } from "$lib/domain/form-data";
 import {
   cancelSeminar,
@@ -166,7 +167,19 @@ function parseSeminarRecord(data: FormData) {
     prerequisites: formText(data, "prerequisites"),
   };
   const parsed = adminSeminarRecordSchema.safeParse(values);
-  if (parsed.success) return { success: true as const, data: parsed.data };
+  // 영상 칸은 편집기가 `videosSent`를 실어 보낼 때만 읽는다 — 없는 폼은 영상을
+  // 건드리지 않는다(다른 칸의 `sent` 규칙과 같다).
+  const videos = data.has("videosSent") ? parseSeminarVideosForm(data) : null;
+  if (parsed.success && (videos === null || videos.success)) {
+    return {
+      success: true as const,
+      data: { ...parsed.data, videos: videos?.data },
+    };
+  }
+  const issues: Record<string, string> = parsed.success
+    ? {}
+    : fieldIssues(parsed.error);
+  if (videos && !videos.success) issues.videos = videos.issue;
   return {
     success: false as const,
     fail: (scope: "record-create" | "record-update", id?: string) =>
@@ -174,7 +187,7 @@ function parseSeminarRecord(data: FormData) {
         error: "VALIDATION_FAILED",
         scope,
         id,
-        issues: fieldIssues(parsed.error),
+        issues,
         values,
         presenterIds: parseIds(data.get("presenterIds") as string),
       }),
@@ -284,6 +297,7 @@ export const actions = {
           kind: fields.kind,
           durationMinutes: fields.durationMinutes,
           prerequisites: fields.prerequisites,
+          videos: fields.videos,
         },
         (data.get("posterPendingKey") as string) || "",
       );
@@ -321,6 +335,7 @@ export const actions = {
             fields.durationMinutes,
           ),
           prerequisites: sent(data, "prerequisites", fields.prerequisites),
+          videos: fields.videos,
         },
         (data.get("posterPendingKey") as string) || "",
       );

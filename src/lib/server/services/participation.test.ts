@@ -51,6 +51,7 @@ const cancelledSeminar: Seminar = {
   schedule: null,
   announcedAt: null,
   semesterPinned: false,
+  videos: [],
   activityId: null,
   sourceRequestId: null,
 };

@@ -4,7 +4,15 @@ import {
   SEMINAR_KINDS,
   SEMINAR_PUBLICATION_STATUSES,
 } from "$lib/domain/seminars";
+import { SEMINAR_VIDEO_LIMITS } from "$lib/domain/seminar-videos";
 import { DateTime, Id, Semester, SourceRequestId } from "./common";
+
+/** 영상 링크 하나 — 규칙의 원천은 domain/seminar-videos.ts(폼 검증과 같은 상한). */
+export const SeminarVideoSchema = z.object({
+  url: z.string().url().startsWith("https://").max(SEMINAR_VIDEO_LIMITS.url),
+  title: z.string().max(SEMINAR_VIDEO_LIMITS.title),
+});
+export type SeminarVideo = z.infer<typeof SeminarVideoSchema>;
 
 // 공개 상태의 닫힌 집합은 도메인이 단일 원천 — 관리자 화면이 같은 목록으로
 // 칼럼을 나눈다 (seminar-request.ts가 SEMINAR_TIMING_OPTIONS를 다루는 방식과 동일).
@@ -122,6 +130,14 @@ export const SeminarSchema = z.object({
     .nullable(),
   /** 선수지식. 승인이 신청서의 값을 옮긴다. 없으면 빈 문자열. */
   prerequisites: z.string(),
+  /**
+   * 녹화·관련 영상의 외부 링크 목록 (snumps-webpage/D-000010). 이 필드 전의
+   * 행에는 키가 없다 — "영상 없음"과 같은 뜻이라 기본값이 모호하지 않다.
+   */
+  videos: z
+    .array(SeminarVideoSchema)
+    .max(SEMINAR_VIDEO_LIMITS.count)
+    .default([]),
   /**
    * 전 회원 공지(공개·일정 변경·취소)의 대상인가 (결정 #21). 신청 흐름으로
    * 생긴 세미나는 true, "기록 직접 생성"은 false — 아카이브 기록이지 알릴

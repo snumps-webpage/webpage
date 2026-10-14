@@ -47,6 +47,7 @@ beforeEach(async () => {
       schedule: null,
       announcedAt: null,
       semesterPinned: false,
+      videos: [],
       activityId: null,
       sourceRequestId: "req1",
     },
