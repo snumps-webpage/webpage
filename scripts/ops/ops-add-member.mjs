@@ -29,12 +29,7 @@
  * 전제: 대상 DB에 흐름 함수가 있어야 한다(마이그레이션 20260928000000). prod는 release-prod.sh로
  * 반영하기 전에는 없으므로, 그 전에는 멈춘다.
  */
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import { createInterface } from "node:readline/promises";
-import { REPO_ROOT } from "./lib-env.mjs";
 import {
   addSql,
   inspectSql,
@@ -43,8 +38,7 @@ import {
   termOf,
   toKstIso,
 } from "./lib-add-member.mjs";
-
-const REF = { prod: "rwlvnttpaqkhpebtebif", dev: "gcahkryexewswzvtfltj" };
+import { queryFor, REF } from "./lib-supabase-cli.mjs";
 
 // ---------------------------------------------------------------------------
 // 인자
@@ -68,90 +62,8 @@ if (!process.stdin.isTTY) {
   process.exit(2);
 }
 
-// ---------------------------------------------------------------------------
-// Supabase CLI로 SQL 실행 (stdin 없이 — 숨은 프롬프트에서 멈추지 않게)
-// ---------------------------------------------------------------------------
-
-const workDir = mkdtempSync(path.join(tmpdir(), "ops-add-member-"));
-
-/** SQL을 대상 프로젝트에서 돌리고 결과 행을 돌려준다. 실패하면 오류 메시지를 던진다. */
-function query(sql) {
-  const file = path.join(workDir, "q.sql");
-  writeFileSync(file, sql, { mode: 0o600 });
-  const res = spawnSync(
-    "supabase",
-    [
-      "--workdir",
-      REPO_ROOT,
-      "db",
-      "query",
-      "--linked",
-      "--project-ref",
-      REF[TARGET],
-      "--output-format",
-      "json",
-      "-f",
-      file,
-    ],
-    { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" },
-  );
-  rmSync(file, { force: true });
-  if (res.error) {
-    throw new Error(
-      res.error.code === "ENOENT"
-        ? "supabase CLI가 없다."
-        : `supabase 실행 실패: ${res.error.message}`,
-    );
-  }
-  const out = `${res.stdout ?? ""}\n${res.stderr ?? ""}`;
-  if (res.status !== 0) throw new Error(cliError(out));
-  return rowsOf(out);
-}
-
-/** CLI 출력에서 오류 문구만 — SQL 본문(base64 입력)은 되풀이하지 않는다. */
-function cliError(out) {
-  const json = parseJson(out);
-  const message =
-    json?.error?.message ?? json?.message ?? json?.error ?? undefined;
-  const text =
-    typeof message === "string"
-      ? message
-      : (out
-          .split("\n")
-          .find((l) => /error|ERROR|not found|login|link/i.test(l)) ??
-        "원인 불명");
-  return text.slice(0, 400);
-}
-
-function parseJson(out) {
-  const starts = [out.indexOf("{"), out.indexOf("[")].filter((i) => i >= 0);
-  if (!starts.length) return null;
-  const end = Math.max(out.lastIndexOf("}"), out.lastIndexOf("]"));
-  try {
-    return JSON.parse(out.slice(Math.min(...starts), end + 1));
-  } catch {
-    return null;
-  }
-}
-
-/** 행 배열을 찾는다 — 모르는 형식이면 성공으로 치지 않고 던진다. */
-function rowsOf(out) {
-  const json = parseJson(out);
-  if (Array.isArray(json)) return json;
-  const find = (v) => {
-    if (v && typeof v === "object") {
-      if (Array.isArray(v.rows)) return v.rows;
-      for (const x of Object.values(v)) {
-        const r = find(x);
-        if (r) return r;
-      }
-    }
-    return null;
-  };
-  const rows = find(json);
-  if (!rows) throw new Error("조회 결과를 읽지 못했다 (CLI 출력 형식).");
-  return rows;
-}
+// Supabase CLI로 SQL 실행 — lib-supabase-cli.mjs (stdin 없이, 임시 SQL 파일은 소유자 전용)
+const query = queryFor(/** @type {"dev" | "prod"} */ (TARGET));
 
 let ulid;
 try {
@@ -325,6 +237,5 @@ try {
   console.error(`\n실패: ${e.message}`);
 } finally {
   rl.close();
-  rmSync(workDir, { recursive: true, force: true });
 }
 process.exit(code);
