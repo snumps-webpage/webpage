@@ -68,3 +68,9 @@ backups/
 
 # 명부 내보내기 (ops-export-members.mjs) — 전화번호·학번이 들어 있다
 exports/
+
+# 작업용 임시 파일 (git 제외)
+.tmp/
+
+# 개인 거버넌스 설정 (Claude Code 로컬 지침)
+CLAUDE.local.md
