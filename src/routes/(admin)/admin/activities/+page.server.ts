@@ -1,6 +1,10 @@
 import { ensureAdmin, handleAdminAction } from "$lib/server/auth-guards";
 import { getTable } from "$lib/server/data/tables";
-import { memberPickers } from "$lib/server/data/repos";
+import { recordPickers } from "$lib/server/data/repos";
+import {
+  directorySummaryIndex,
+  formerPeople,
+} from "$lib/server/data/admin-queue-views";
 import {
   createActivity,
   deleteActivity,
@@ -19,10 +23,11 @@ import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
   await ensureAdmin(locals, { silent: true });
-  const [activities, members, events] = await Promise.all([
+  const [activities, members, events, summaries] = await Promise.all([
     getTable("activities"),
-    memberPickers(),
+    recordPickers(),
     getTable("events"),
+    directorySummaryIndex(),
   ]);
   return {
     activities: [...activities].reverse().map((a) => ({
@@ -31,6 +36,8 @@ export const load: PageServerLoad = async ({ locals }) => {
       linkedEventIds: events
         .filter((e) => e.activityId === a.id)
         .map((e) => e.id),
+      // 이주된 출석(legacy id)·탈퇴 회원 — 명단에 없어도 체크된 채 보존한다.
+      formerAttendees: formerPeople(a.attendeeIds, members, summaries),
     })),
     members,
     activityTypes: [...ACTIVITY_TYPES],

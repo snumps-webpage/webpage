@@ -1,6 +1,7 @@
 import { getTable } from "./tables";
 import { withoutHiddenActivities } from "$lib/server/services/visibility";
 import type { Activity, Member, PrivateInfo } from "./schemas";
+import type { PickerMember } from "$lib/domain/recorded-people";
 
 /**
  * Read helpers over the table layer (BE-30). Plain array scans — the tables
@@ -15,6 +16,23 @@ export async function memberPickers(): Promise<
   return members
     .filter((m) => m.status !== "withdrawn")
     .map((m) => ({ id: m.id, name: m.name, department: m.department }));
+}
+
+/**
+ * 관리자 기록 편집기(출석·발표자)의 명단 — memberPickers에 옛 id를 더한다.
+ * 재가입 회원이 이주된 기록에 옛 id로 남아 있어도 그 칸이 체크로 보이게
+ * (domain/recorded-people).
+ */
+export async function recordPickers(): Promise<PickerMember[]> {
+  const members = await getTable("members");
+  return members
+    .filter((m) => m.status !== "withdrawn")
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      department: m.department,
+      legacyMemberId: m.legacyMemberId,
+    }));
 }
 
 export async function getMemberById(id: string): Promise<Member | null> {

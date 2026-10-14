@@ -10,6 +10,7 @@ import type { AdminStudyRequestItem } from "$lib/domain/studies";
 import { externalHref } from "$lib/domain/links";
 import { assetUrl } from "$lib/server/public/archive";
 import { getDirectoryIndex } from "./directory";
+import { formerIds, type PickerMember } from "$lib/domain/recorded-people";
 
 /**
  * Admin queue projections shared by the dashboard load, the per-domain
@@ -44,6 +45,20 @@ export async function directorySummaryIndex(): Promise<MemberSummaryMap> {
 }
 
 const UNKNOWN_MEMBER = { id: "", name: "알 수 없음", department: "" };
+
+/**
+ * 기록 편집기의 명단 밖 기록된 사람(옛 회원·탈퇴 회원) — 이름을 붙여 체크된
+ * 채로 보여 주고 저장 때 보존한다(domain/recorded-people, D-000047~49).
+ */
+export function formerPeople(
+  recordedIds: readonly string[],
+  pickers: readonly Pick<PickerMember, "id" | "legacyMemberId">[],
+  summaries: MemberSummaryMap,
+) {
+  return formerIds(recordedIds, pickers).map(
+    (id) => summaries.get(id) ?? { ...UNKNOWN_MEMBER, id },
+  );
+}
 
 export function adminApplicationItem(
   a: Application,

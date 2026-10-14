@@ -2,6 +2,7 @@
   import AdminSectionNav from "$lib/components/admin/AdminSectionNav.svelte";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import { MANUSCRIPT } from "$lib/constants";
+  import { pickerChoice } from "$lib/domain/recorded-people";
 
   let { data, form } = $props();
   let query = $state("");
@@ -177,12 +178,22 @@
               <fieldset>
                 <legend>참석자 전체 교체</legend>
                 <div class="member-picker">
-                  {#each data.members as member (member.id)}<label
+                  {#each activity.formerAttendees as person (person.id)}<label
                       ><input
                         type="checkbox"
                         name="attendeeIds"
-                        value={member.id}
-                        checked={activity.attendeeIds.includes(member.id)}
+                        value={person.id}
+                        checked
+                      /><span>{person.name}<small>이전 회원</small></span
+                      ></label
+                    >{/each}
+                  {#each data.members as member (member.id)}{@const choice =
+                      pickerChoice(member, activity.attendeeIds)}<label
+                      ><input
+                        type="checkbox"
+                        name="attendeeIds"
+                        value={choice.value}
+                        checked={choice.checked}
                       /><span
                         >{member.name}<small>{member.department}</small></span
                       ></label
