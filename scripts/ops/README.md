@@ -31,6 +31,7 @@ Supabase 자격증명이 놓인 곳이 CLI라서 실제로는 CLI를 거치게 �
 | `ops-push-prod.sh`                 |        |                | (`.env.proddbpass` 선택)                            | Supabase CLI·**터미널**                      |
 | `check-deployed.mjs`               |   ✅   |                | 없음                                                | git (+`app-key.sh`: bash)                    |
 | `ops-fix-approval-dates.mjs`       |   ✅   |                | 없음 (`supabase login`)                             | Supabase CLI·**터미널**                      |
+| `ops-notion-backfill-body.mjs`     |   ✅   |                | `NOTION_API_KEY`+`_DB_SEMINARS` (`supabase login`)  | Supabase CLI·**터미널**                      |
 | `ops-export-members.mjs`           |        |       ✅       | Supabase                                            |                                              |
 | `ops-assets-private.mjs`           |        |       ✅       | Supabase                                            |                                              |
 | `ops-repair-seminar-schedules.mjs` |        |       ✅       | Supabase                                            |                                              |
@@ -97,8 +98,8 @@ Notion 쪽(`NOTION_API_KEY`, `NOTION_DB_*`)도 같은 방식이다 — 다만 �
 
 ## 운영 데이터를 바꾸는 것
 
-위 표에서 운영 데이터를 쓰는 것은 아래 다섯이다. 전부 **미리보기가 기본**이고, 바꾸려면
-인자나 확인 입력이 있어야 한다.
+위 표의 Node 스크립트 가운데 운영 데이터(행)를 쓰는 것은 아래다. 전부 **미리보기가
+기본**이고, 바꾸려면 인자나 확인 입력이 있어야 한다.
 
 | 스크립트                           | 바꾸는 인자·확인                                          |
 | ---------------------------------- | --------------------------------------------------------- |
@@ -107,8 +108,11 @@ Notion 쪽(`NOTION_API_KEY`, `NOTION_DB_*`)도 같은 방식이다 — 다만 �
 | `ops-assets-private.mjs`           | `--apply`                                                 |
 | `ops-add-member.mjs`               | `yes` 입력 (+ prod면 ref 입력)                            |
 | `ops-fix-approval-dates.mjs`       | `yes` 입력 (+ prod면 ref 입력), `--dry-run`이면 쓰지 않음 |
+| `ops-notion-backfill-body.mjs`     | `yes` 입력 (+ prod면 ref 입력), `--dry-run`이면 쓰지 않음 |
 
-표에 있는 나머지는 전부 읽기 전용이다.
+표의 나머지 Node 스크립트는 읽기만 한다(2026-10-14, 각 파일에서 쓰기 호출을 찾아
+확인 — 남은 POST는 노션 DB 조회뿐). 셸 스크립트 `release-prod.sh`·`ops-push-prod.sh`는
+운영 DB에 마이그레이션을 적용한다.
 
 ## 배포된 사이트가 최신인지 — `check-deployed.mjs`
 
