@@ -14,6 +14,7 @@
     issues?: Record<string, string>;
     values?: Record<string, string>;
     presenterIds?: string[];
+    videoRows?: { url: string; title: string }[];
   }
 
   interface MemberOption {
@@ -55,6 +56,39 @@
       ? (form.issues ?? {})
       : {};
   const createIssues = $derived(issuesFor("record-create"));
+  /**
+   * 수정 폼에 채울 값 — 그 레코드의 수정이 거절됐으면 **제출한 값**, 아니면 저장된
+   * 값. 거절된 뒤 저장값을 다시 보이면 방금 입력한 것이 사라져 오류를 고칠 수 없다.
+   */
+  function shownFor(record: AdminSeminarRecord) {
+    const refused =
+      form?.scope === "record-update" && form.id === record.id && form.values
+        ? form
+        : null;
+    if (!refused?.values) {
+      return {
+        title: record.title,
+        term: record.term,
+        kind: record.kind ?? "",
+        durationMinutes: record.durationMinutes ?? "",
+        description: record.description,
+        prerequisites: record.prerequisites,
+        presenterIds: record.presenterIds,
+        videos: record.videos,
+      };
+    }
+    const v = refused.values;
+    return {
+      title: v.title ?? record.title,
+      term: v.term ?? record.term,
+      kind: v.kind ?? record.kind ?? "",
+      durationMinutes: v.durationMinutes ?? record.durationMinutes ?? "",
+      description: v.description ?? record.description,
+      prerequisites: v.prerequisites ?? record.prerequisites,
+      presenterIds: refused.presenterIds ?? record.presenterIds,
+      videos: refused.videoRows ?? record.videos,
+    };
+  }
   const messages: Record<string, string> = {
     seminarRecordCreated:
       "세미나 레코드를 생성했습니다. 일정은 위 공개 흐름에서 별도로 입력해 주세요.",
@@ -226,6 +260,7 @@
   <div class="record-list">
     {#each filtered as record (record.id)}
       {@const updateIssues = issuesFor("record-update", record.id)}
+      {@const shown = shownFor(record)}
       {@const fileIssues = issuesFor("record-file", record.id)}
       <!-- 수정이 거절되면 그 레코드를 펼친 채로 — 접혀 있으면 칸 옆 오류가 보이지 않는다 -->
       <details
@@ -257,14 +292,14 @@
               <label class="title-field"
                 ><span class="paper-label">제목</span><input
                   name="title"
-                  value={record.title}
+                  value={shown.title}
                   aria-invalid={!!updateIssues.title}
                 />{#if updateIssues.title}<small>{updateIssues.title}</small
                   >{/if}</label
               ><label
                 ><span class="paper-label">학기</span><input
                   name="semester"
-                  value={record.term}
+                  value={shown.term}
                   aria-invalid={!!updateIssues.term}
                 />{#if updateIssues.term}<small>{updateIssues.term}</small
                   >{/if}</label
@@ -272,12 +307,12 @@
                 ><span class="paper-label">구분</span><select
                   name="kind"
                   aria-invalid={!!updateIssues.kind}
-                  ><option value="regular" selected={record.kind === "regular"}
+                  ><option value="regular" selected={shown.kind === "regular"}
                     >정기</option
                   ><option
                     value="irregular"
-                    selected={record.kind === "irregular"}>비정기</option
-                  ><option value="" selected={record.kind === null}>미상</option
+                    selected={shown.kind === "irregular"}>비정기</option
+                  ><option value="" selected={shown.kind === ""}>미상</option
                   ></select
                 >{#if updateIssues.kind}<small>{updateIssues.kind}</small
                   >{/if}</label
@@ -288,7 +323,7 @@
                   min="10"
                   max="600"
                   placeholder="미상"
-                  value={record.durationMinutes ?? ""}
+                  value={shown.durationMinutes}
                   aria-invalid={!!updateIssues.durationMinutes}
                 />{#if updateIssues.durationMinutes}<small
                     >{updateIssues.durationMinutes}</small
@@ -303,14 +338,14 @@
                   name="note"
                   rows="3"
                   aria-invalid={!!updateIssues.description}
-                  >{record.description}</textarea
+                  >{shown.description}</textarea
                 >{#if updateIssues.description}<small
                     >{updateIssues.description}</small
                   >{/if}</label
               ><label class="wide"
                 ><span class="paper-label">선수지식</span><input
                   name="prerequisites"
-                  value={record.prerequisites}
+                  value={shown.prerequisites}
                   aria-invalid={!!updateIssues.prerequisites}
                 />{#if updateIssues.prerequisites}<small
                     >{updateIssues.prerequisites}</small
@@ -318,7 +353,7 @@
               >
             </div>
             <SeminarVideoRows
-              videos={record.videos}
+              videos={shown.videos}
               issue={updateIssues.videos}
             />
             <fieldset class="member-picker">
@@ -329,7 +364,7 @@
                       type="checkbox"
                       name="presenterIds"
                       value={member.id}
-                      checked={record.presenterIds.includes(member.id)}
+                      checked={shown.presenterIds.includes(member.id)}
                     /><span
                       >{member.name}<small>{member.department}</small></span
                     ></label

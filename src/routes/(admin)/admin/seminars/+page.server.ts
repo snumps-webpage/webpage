@@ -20,7 +20,10 @@ import {
 } from "$lib/server/data/admin-queue-views";
 import { validateSeminarScheduleForm } from "$lib/domain/admin-seminars";
 import { adminSeminarRecordSchema } from "$lib/domain/admin-records";
-import { parseSeminarVideosForm } from "$lib/domain/seminar-videos";
+import {
+  parseSeminarVideosForm,
+  readSeminarVideoRows,
+} from "$lib/domain/seminar-videos";
 import { formText, fieldIssues } from "$lib/domain/form-data";
 import {
   cancelSeminar,
@@ -191,6 +194,10 @@ function parseSeminarRecord(data: FormData) {
         issues,
         values,
         presenterIds: parseIds(data.get("presenterIds") as string),
+        // 편집기가 입력한 그대로 다시 보여 준다 — 영상 칸을 보낸 폼일 때만
+        videoRows: data.has("videosSent")
+          ? readSeminarVideoRows(data)
+          : undefined,
       }),
   };
 }

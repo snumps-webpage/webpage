@@ -58,13 +58,20 @@ const videosSchema = z
 export function parseSeminarVideosForm(
   formData: FormData,
 ): { success: true; data: SeminarVideo[] } | { success: false; issue: string } {
+  const parsed = videosSchema.safeParse(readSeminarVideoRows(formData));
+  if (parsed.success) return { success: true, data: parsed.data };
+  return { success: false, issue: parsed.error.issues[0].message };
+}
+
+/**
+ * 제출된 영상 행을 검증 없이(정리만 하고) 읽는다 — 수정이 거절됐을 때 편집기가
+ * 입력한 그대로 다시 보여 주도록 응답에 싣는 값이다.
+ */
+export function readSeminarVideoRows(formData: FormData): SeminarVideo[] {
   const text = (v: FormDataEntryValue) => (typeof v === "string" ? v : "");
   const urls = formData.getAll("videoUrl").map(text);
   const titles = formData.getAll("videoTitle").map(text);
-  const rows = urls
+  return urls
     .map((url, i) => ({ url: clean(url), title: clean(titles[i] ?? "") }))
     .filter((row) => row.url !== "" || row.title !== "");
-  const parsed = videosSchema.safeParse(rows);
-  if (parsed.success) return { success: true, data: parsed.data };
-  return { success: false, issue: parsed.error.issues[0].message };
 }

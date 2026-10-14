@@ -178,6 +178,31 @@ describe("admin ?/update", () => {
     expect((await stored()).videos).toEqual([]);
   });
 
+  // snumps-webpage/D-000020 — a refused edit hands the submitted rows back so
+  // the editor shows what was typed, not the stored list
+  it("returns the submitted video rows with a refusal", async () => {
+    const s = await seminar();
+    const result = await actions.update(
+      post({
+        ...record(s.id),
+        title: "",
+        videosSent: "1",
+        videoUrl: ["http://example.com/v", YT, ""],
+        videoTitle: ["오타", "", ""],
+      }),
+    );
+    expect(result).toMatchObject({
+      status: 400,
+      data: {
+        values: { title: "" },
+        videoRows: [
+          { url: "http://example.com/v", title: "오타" },
+          { url: YT, title: "" },
+        ],
+      },
+    });
+  });
+
   it("leaves the list alone when the form carries no video section", async () => {
     const s = await seminar();
     await updateSeminar(s.id, { videos: [{ url: YT, title: "" }] });
