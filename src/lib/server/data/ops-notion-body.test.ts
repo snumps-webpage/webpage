@@ -85,6 +85,13 @@ describe("candidatesFrom", () => {
     ["소요시간 2시간", 120, "sentence"],
     ["소요시간은 미정입니다.", null, "sentence"],
     ["소요시간: 5분", null, "label"], // below the app's range
+    // a time before the mention is not the duration, and two times are not summed
+    [
+      "초반 30분 정도 소개합니다. 소요 시간은 기본 2시간 이내입니다.",
+      120,
+      "sentence",
+    ],
+    ["소요시간은 2시간이고 쉬는 시간은 10분입니다.", 120, "sentence"],
   ])("duration %j → %s minutes (%s)", (text, minutes, kind) => {
     const [d] = candidatesFrom([block(text)]).duration;
     expect(d).toEqual({ minutes, text, kind });

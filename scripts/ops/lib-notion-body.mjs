@@ -34,13 +34,19 @@ function normalizeVideoUrl(raw) {
   return raw.replace(TRAILING, "").replace(/^http:\/\//, "https://");
 }
 
-/** "1시간 30분" → 90, 숫자가 없거나 앱 범위 밖이면 null. @param {string} text */
+/**
+ * "소요시간" 뒤 첫 시간 표기 하나만 — "1시간 30분" → 90. 앞에 나온 시간이나 떨어진
+ * 두 표기를 더하지 않는다. 숫자가 없거나 앱 범위 밖이면 null. @param {string} text
+ */
 function minutesIn(text) {
-  const rest = text.replace(DURATION, " ");
-  const h = /(\d+)\s*시간/.exec(rest);
-  const m = /(\d+)\s*분/.exec(rest);
-  if (!h && !m) return null;
-  const minutes = (h ? Number(h[1]) * 60 : 0) + (m ? Number(m[1]) : 0);
+  const mention = DURATION.exec(text);
+  if (!mention) return null;
+  const rest = text.slice(mention.index + mention[0].length);
+  const t = /(\d+)\s*시간(?:\s*(\d+)\s*분)?|(\d+)\s*분/.exec(rest);
+  if (!t) return null;
+  const minutes = t[3]
+    ? Number(t[3])
+    : Number(t[1]) * 60 + (t[2] ? Number(t[2]) : 0);
   return minutes >= LIMITS.duration.min && minutes <= LIMITS.duration.max
     ? minutes
     : null;
