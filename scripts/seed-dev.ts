@@ -175,6 +175,7 @@ const activities = [
     },
     type: "세미나",
     attendeeIds: [],
+    studyId: null,
     sourceRequestId: null,
   },
   {
@@ -183,6 +184,7 @@ const activities = [
     date: { start: kstISO(daysFromNow(10)), end: null },
     type: "스터디",
     attendeeIds: [],
+    studyId: null,
     sourceRequestId: null,
   },
   {
@@ -194,6 +196,7 @@ const activities = [
     },
     type: "회의",
     attendeeIds: [adminId, regularId],
+    studyId: null,
     sourceRequestId: null,
   },
 ];

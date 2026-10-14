@@ -81,6 +81,7 @@ beforeEach(async () => {
         date: { start: "2025-03-01T19:00:00+09:00", end: null },
         type: "스터디",
         attendeeIds: ["L1", "m1", "L2", "w1"],
+        studyId: null,
         sourceRequestId: null,
       },
     ],
