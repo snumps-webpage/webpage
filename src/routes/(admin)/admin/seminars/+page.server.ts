@@ -1,7 +1,7 @@
 import { ensureAdmin, handleAdminAction } from "$lib/server/auth-guards";
 import { fail } from "@sveltejs/kit";
 import { getTable } from "$lib/server/data/tables";
-import { memberPickers } from "$lib/server/data/repos";
+import { recordPickers } from "$lib/server/data/repos";
 import {
   createSeminar,
   deleteSeminar,
@@ -17,6 +17,7 @@ import {
   contentFileFromKey,
   directorySummaryIndex,
   byCreatedAtAsc,
+  formerPeople,
 } from "$lib/server/data/admin-queue-views";
 import { validateSeminarScheduleForm } from "$lib/domain/admin-seminars";
 import { adminSeminarRecordSchema } from "$lib/domain/admin-records";
@@ -35,11 +36,11 @@ import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
   await ensureAdmin(locals, { silent: true });
-  // members(=memberPickers)는 발표자 지정용 운영 명단, summaries는 표시용
+  // members(=recordPickers)는 발표자 지정용 운영 명단, summaries는 표시용
   // 통합 디렉터리 — 이주된 세미나의 presenterIds는 legacy id다.
   const [seminars, members, requests, events, summaries] = await Promise.all([
     getTable("seminars"),
-    memberPickers(),
+    recordPickers(),
     getTable("seminar-requests"),
     getTable("events"),
     directorySummaryIndex(),
@@ -127,6 +128,8 @@ export const load: PageServerLoad = async ({ locals }) => {
       videos: s.videos,
       presenterIds: s.presenterIds,
       presenterNames: s.presenterIds.map((id) => presenterOf(id).name),
+      // 이주된 발표자(legacy id) — 명단에 없어도 체크된 채 보존한다.
+      formerPresenters: formerPeople(s.presenterIds, members, summaries),
       scheduledAt: s.schedule?.startsAt ?? event?.date.start ?? null,
       endsAt: s.schedule?.endsAt ?? event?.date.end ?? null,
       location: s.schedule?.location ?? null,

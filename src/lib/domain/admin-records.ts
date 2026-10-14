@@ -32,6 +32,8 @@ export interface AdminSeminarRecord {
   videos: { url: string; title: string }[];
   presenterIds: string[];
   presenterNames: string[];
+  /** 운영 명단 밖의 기록된 발표자(옛 회원·탈퇴 회원) — 체크 목록에 따로 보인다 */
+  formerPresenters: { id: string; name: string; department: string }[];
   scheduledAt: string | null;
   endsAt: string | null;
   location: string | null;

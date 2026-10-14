@@ -4,6 +4,7 @@
   import PosterUploadField from "$lib/components/poster/PosterUploadField.svelte";
   import SeminarVideoRows from "$lib/components/admin/SeminarVideoRows.svelte";
   import { uploadLimitMb } from "$lib/domain/uploads";
+  import { pickerChoice, type PickerMember } from "$lib/domain/recorded-people";
 
   export interface SeminarRecordFormState {
     success?: boolean;
@@ -17,11 +18,7 @@
     videoRows?: { url: string; title: string }[];
   }
 
-  interface MemberOption {
-    id: string;
-    name: string;
-    department: string;
-  }
+  type MemberOption = PickerMember;
 
   let {
     records,
@@ -359,12 +356,21 @@
             <fieldset class="member-picker">
               <legend>발표자</legend>
               <div>
-                {#each members as member (member.id)}<label
+                {#each record.formerPresenters as person (person.id)}<label
                     ><input
                       type="checkbox"
                       name="presenterIds"
-                      value={member.id}
-                      checked={shown.presenterIds.includes(member.id)}
+                      value={person.id}
+                      checked={shown.presenterIds.includes(person.id)}
+                    /><span>{person.name}<small>이전 회원</small></span></label
+                  >{/each}
+                {#each members as member (member.id)}{@const choice =
+                    pickerChoice(member, shown.presenterIds)}<label
+                    ><input
+                      type="checkbox"
+                      name="presenterIds"
+                      value={choice.value}
+                      checked={choice.checked}
                     /><span
                       >{member.name}<small>{member.department}</small></span
                     ></label
