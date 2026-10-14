@@ -8,6 +8,7 @@ const activity = {
   date: { start: "2026-09-01T19:00:00+09:00", end: null },
   type: "세미나",
   attendeeIds: [],
+  studyId: null,
   sourceRequestId: null,
 };
 const put = (rows: unknown[]) =>

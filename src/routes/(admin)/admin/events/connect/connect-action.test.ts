@@ -63,6 +63,7 @@ beforeEach(async () => {
       type: "회의" as const,
       date: { start: "2026-09-01T19:00:00+09:00", end: null },
       attendeeIds: [],
+      studyId: null,
       sourceRequestId: null,
     },
   ]);

@@ -80,6 +80,7 @@ export async function createEventWithActivity(input: {
     date: { start: input.startIso, end: null },
     type: input.type,
     attendeeIds: input.attendeeIds ?? [],
+    studyId: null,
     sourceRequestId: input.sourceRequestId ?? null,
   };
   await mutate("activities", (rows) => [...rows, activity]);

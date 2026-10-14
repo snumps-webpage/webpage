@@ -81,6 +81,7 @@ const legacyActivity = {
   date: { start: FUTURE, end: null },
   type: "세미나",
   attendeeIds: ["p1"],
+  studyId: null,
   sourceRequestId: null,
 };
 const legacyEvent = {

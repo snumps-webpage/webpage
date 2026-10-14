@@ -31,6 +31,7 @@ export async function createActivity(
     id: newId(),
     ...input,
     attendeeIds: [],
+    studyId: null,
     sourceRequestId: null,
   };
   await mutate("activities", (rows) => [...rows, row]);

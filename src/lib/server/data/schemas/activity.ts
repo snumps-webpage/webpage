@@ -7,6 +7,9 @@ export const ActivitySchema = z.object({
   date: DateRange,
   type: ActivityType,
   attendeeIds: z.array(Id),
+  // the study this activity belongs to; no default — every writer sets it
+  // (migration 20261015000000_activity_study_link)
+  studyId: Id.nullable(),
   sourceRequestId: SourceRequestId,
 });
 

@@ -84,12 +84,14 @@ readonly EXPECTED_MIGRATIONS=(
   20260928000300
   20260928000400
   20261014000000
+  20261015000000
 )
 readonly BACKFILLS=(
   supabase/migrations/20260928000100_seminar_publication_status.sql
   supabase/migrations/20260928000300_seminar_fields.sql
   supabase/migrations/20260928000400_member_revocation_reason.sql
   supabase/migrations/20261014000000_seminar_videos.sql
+  supabase/migrations/20261015000000_activity_study_link.sql
 )
 readonly PUBLIC_PAGES=(/ /about /archive /archive/seminars /archive/studies /archive/projects /login)
 readonly BACKUP_MAX_AGE_SECONDS=$((6 * 3600))
@@ -415,6 +417,8 @@ select
   (select count(*) from app_tables t, jsonb_array_elements(t.doc->'rows') r
     where t.name in ('members', 'legacy-members')
       and not r ? 'alumniRevocationReason') as members_no_reason,
+  (select count(*) from app_tables t, jsonb_array_elements(t.doc->'rows') r
+    where t.name = 'activities' and not r ? 'studyId') as act_no_study_key,
   (select has_function_privilege('anon', 'flow_publish_seminar(jsonb)', 'execute')) as anon_can_exec,
   (select public from storage.buckets where id = 'assets') as assets_public;
 SQL
@@ -583,7 +587,7 @@ repair_and_check() {
       const rows = JSON.parse(s);
       if (rows.length !== 1) { console.error("행이 1개가 아니다"); process.exit(2); }
       const r = rows[0];
-      const want = { flow_fns: 19, sem_no_status: 0, sem_bad_fields: 0, sem_no_videos: 0, members_no_reason: 0, anon_can_exec: false, assets_public: false };
+      const want = { flow_fns: 20, sem_no_status: 0, sem_bad_fields: 0, sem_no_videos: 0, members_no_reason: 0, act_no_study_key: 0, anon_can_exec: false, assets_public: false };
       console.log("결과:", JSON.stringify(r));
       const bad = Object.entries(want).filter(([k, v]) => String(r[k]) !== String(v));
       if (bad.length) { console.error("기대와 다름:", bad.map(([k, v]) => k + "=" + r[k] + " (기대 " + v + ")").join(", ")); process.exit(3); }

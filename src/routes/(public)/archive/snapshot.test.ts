@@ -180,6 +180,7 @@ async function seedFixture() {
       date: { start: nowKstIso(), end: null },
       type: "세미나" as const,
       attendeeIds: ["m1", "m2"],
+      studyId: null,
       sourceRequestId: null,
     },
   ]);
