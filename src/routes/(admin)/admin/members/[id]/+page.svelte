@@ -5,9 +5,29 @@
   } from "$lib/components/admin/MemberRecordSections.svelte";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import type { MemberRoleAssignment } from "$lib/domain/members";
-  import { MANUSCRIPT } from "$lib/constants";
+  import { MANUSCRIPT, RECORD_ACTIVITY_TYPES } from "$lib/constants";
+  import { ACTIVE_WINDOW_DAYS } from "$lib/domain/member-activity";
+  import { formatArchiveTerm } from "$lib/domain/public-content";
 
   let { data } = $props();
+  const activity = $derived(data.activity);
+  /** 종류별 횟수 — 기록 종류의 순서대로, 그 밖의 종류는 뒤에. */
+  const activityCounts = $derived.by(() => {
+    const known = RECORD_ACTIVITY_TYPES as readonly string[];
+    const rank = (type: string) => known.indexOf(type) + 1 || known.length + 1;
+    return Object.entries(activity.countsByType).sort(
+      ([a], [b]) => rank(a) - rank(b),
+    );
+  });
+
+  function activityDate(value: string) {
+    return new Intl.DateTimeFormat("ko-KR", {
+      timeZone: "Asia/Seoul",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }).format(new Date(value));
+  }
   // The load is the record authority; successful actions re-run it (update()),
   // so the page state is derived and the editable drafts resync afterwards.
   const member = $derived(data.member);
@@ -266,6 +286,80 @@
     </section>
   </div>
 
+  <section class="authority-section activity-section">
+    <header>
+      <div>
+        <p>06 · Activity</p>
+        <h2>활동 정도</h2>
+      </div>
+      {#if activity.active}
+        <span class="activity-flag">활동 회원</span>
+      {:else}
+        <span class="activity-flag muted">비활동</span>
+      {/if}
+    </header>
+    <p class="activity-note">
+      활동 회원은 최근 {ACTIVE_WINDOW_DAYS}일 안에 세미나나 스터디에 참석한
+      회원입니다. 공개 명단에서 숨겨진 활동·공개 전 세미나도 여기서는 셉니다.
+    </p>
+    <div class="activity-grid">
+      <div>
+        <h3>주최 세미나 {activity.hostedSeminars.length}</h3>
+        <ul>
+          {#each activity.hostedSeminars as seminar (seminar.id)}
+            <li>
+              <span>{seminar.title}</span>
+              <span class="meta">{formatArchiveTerm(seminar.semester)}</span>
+            </li>
+          {:else}
+            <li class="empty-line">없음</li>
+          {/each}
+        </ul>
+      </div>
+      <div>
+        <h3>주최 스터디 {activity.hostedStudies.length}</h3>
+        <ul>
+          {#each activity.hostedStudies as study (study.id)}
+            <li>
+              <span>{study.title}</span>
+              <span class="meta">{formatArchiveTerm(study.semester)}</span>
+            </li>
+          {:else}
+            <li class="empty-line">없음</li>
+          {/each}
+        </ul>
+      </div>
+    </div>
+    <div class="attended">
+      <h3>참석 활동 {activity.attended.length}</h3>
+      {#if activityCounts.length}
+        <div class="count-row" aria-label="종류별 참석 횟수">
+          {#each activityCounts as [type, count] (type)}
+            <span>{type} {count}</span>
+          {/each}
+        </div>
+      {/if}
+      <ul>
+        {#each activity.attended as item (item.id)}
+          <li>
+            <span
+              >{item.title}
+              {#if item.hidden}<span class="hidden-flag">공개 면 숨김</span
+                >{/if}</span
+            >
+            <span class="meta"
+              >{item.type} ·
+              <time datetime={item.start}>{activityDate(item.start)}</time
+              ></span
+            >
+          </li>
+        {:else}
+          <li class="empty-line">참석한 활동 기록이 없습니다.</li>
+        {/each}
+      </ul>
+    </div>
+  </section>
+
   <footer class="page-footer">
     <a href="/admin/members" class="paper-btn">회원 목록</a>
   </footer>
@@ -421,6 +515,87 @@
   .locked-note {
     margin: 0.8rem;
   }
+  .activity-section {
+    margin-top: 0.8rem;
+  }
+  .activity-flag {
+    padding: 0.2rem 0.4rem;
+    border: 1px solid var(--latex-text);
+    font-size: 0.68rem;
+    font-weight: 650;
+    white-space: nowrap;
+  }
+  .activity-flag.muted {
+    border-color: var(--latex-rule);
+    color: var(--latex-muted);
+  }
+  .activity-note {
+    margin: 0;
+    padding: 0.7rem 0.8rem 0;
+    color: var(--latex-muted);
+    font-size: 0.72rem;
+    line-height: 1.55;
+  }
+  .activity-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.8rem;
+    padding: 0.8rem;
+  }
+  .attended {
+    padding: 0 0.8rem 0.8rem;
+  }
+  .activity-section h3 {
+    margin: 0 0 0.4rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+  .activity-section ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border: 1px solid var(--latex-rule);
+  }
+  .activity-section li {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid var(--latex-rule);
+    font-size: 0.76rem;
+  }
+  .activity-section li:last-child {
+    border-bottom: 0;
+  }
+  .activity-section .meta {
+    flex-shrink: 0;
+    color: var(--latex-muted);
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    text-align: right;
+  }
+  .activity-section .empty-line {
+    display: block;
+  }
+  .count-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-bottom: 0.45rem;
+  }
+  .count-row span {
+    padding: 0.2rem 0.35rem;
+    background: color-mix(in srgb, var(--latex-rule) 12%, transparent);
+    font-size: 0.66rem;
+  }
+  .hidden-flag {
+    margin-left: 0.35rem;
+    padding: 0.08rem 0.3rem;
+    border: 1px solid var(--latex-accent);
+    color: var(--latex-accent);
+    font-size: 0.58rem;
+    white-space: nowrap;
+  }
   .page-footer {
     display: flex;
     margin-top: 1rem;
@@ -444,6 +619,9 @@
       grid-column: auto;
       grid-row: auto;
     }
+    .activity-grid {
+      grid-template-columns: 1fr;
+    }
   }
   @media (max-width: 540px) {
     .role-row {
@@ -461,6 +639,13 @@
     .roles-section footer {
       align-items: stretch;
       flex-direction: column;
+    }
+    .activity-section li {
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+    .activity-section .meta {
+      text-align: left;
     }
   }
 </style>

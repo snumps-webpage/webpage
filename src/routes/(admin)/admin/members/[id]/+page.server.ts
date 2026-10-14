@@ -14,6 +14,8 @@ import {
   updatePrivateInfo,
 } from "$lib/server/services/members-admin";
 import { listRoleTitles } from "$lib/server/services/executives-admin";
+import { memberActivityIndex } from "$lib/server/public/member-activity";
+import { hiddenActivityIds } from "$lib/server/services/visibility";
 import { formatPhoneForDisplay } from "$lib/utils";
 import { formText, fieldIssues } from "$lib/domain/form-data";
 import {
@@ -42,6 +44,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     targetId: member.id,
   });
 
+  // 활동 정도는 숨김 활동까지 센다 — 공개 면에서 가려진 것은 표시만 한다
+  // (snumps-webpage/D-000041·042).
+  const [activityOf, hidden] = await Promise.all([
+    memberActivityIndex({ publicOnly: false }),
+    hiddenActivityIds(),
+  ]);
+  const activity = activityOf(member);
+
   // The deprecated publicContact stays off the page: nobody reads or writes
   // it (decision #19, audit LB16-3).
   const { publicContact: _deprecated, ...record } = member;
@@ -65,6 +75,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
           background: privateInfo.background,
         }
       : null,
+    activity: {
+      ...activity,
+      attended: activity.attended.map((a) => ({
+        ...a,
+        hidden: hidden.has(a.id),
+      })),
+    },
     // The role suggestions are the executives page's options, not a list of
     // their own (audit LB22-3).
     roleTitles: (await listRoleTitles()).map((o) => o.title),

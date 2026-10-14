@@ -5,11 +5,18 @@
 
   let { data } = $props();
   let query = $state("");
+  let view = $state<"active" | "all">("all");
+
+  const viewMembers = $derived(
+    view === "active"
+      ? data.members.filter((member) => member.active)
+      : data.members,
+  );
 
   const filteredMembers = $derived.by(() => {
     const normalized = query.trim().toLocaleLowerCase("ko-KR");
-    if (!normalized) return data.members;
-    return data.members.filter((member: AdminMemberListItem) =>
+    if (!normalized) return viewMembers;
+    return viewMembers.filter((member: AdminMemberListItem) =>
       [
         member.name,
         member.department,
@@ -43,6 +50,23 @@
     <a href="/admin" class="paper-btn">전체 관리자 화면</a>
   </div>
 
+  <div class="view-toggle" role="group" aria-label="회원 보기">
+    <button
+      type="button"
+      class="paper-btn small"
+      class:primary={view === "active"}
+      aria-pressed={view === "active"}
+      onclick={() => (view = "active")}>활동 회원</button
+    >
+    <button
+      type="button"
+      class="paper-btn small"
+      class:primary={view === "all"}
+      aria-pressed={view === "all"}
+      onclick={() => (view = "all")}>전체 회원</button
+    >
+  </div>
+
   <section class="member-index">
     <label class="paper-label" for="member-search">회원 검색</label>
     <input
@@ -51,7 +75,7 @@
       bind:value={query}
       placeholder="이름, 학과, 지위, 학기 또는 직책"
     />
-    <span>{filteredMembers.length} / {data.members.length}</span>
+    <span>{filteredMembers.length} / {viewMembers.length}</span>
   </section>
 
   <section class="member-list" aria-label="회원 목록">
@@ -63,6 +87,7 @@
             <h2>{member.name}</h2>
           </div>
           <div class="badges">
+            {#if member.active}<span class="badge active">활동</span>{/if}
             {#if member.isAdmin}<span class="badge admin">Admin</span>{/if}
           </div>
         </header>
@@ -114,6 +139,11 @@
     color: var(--latex-muted);
     font-size: 0.84rem;
     line-height: 1.6;
+  }
+  .view-toggle {
+    display: flex;
+    gap: 0.4rem;
+    margin-bottom: 0.6rem;
   }
   .member-index {
     position: relative;
@@ -188,6 +218,10 @@
     font-weight: 700;
     text-transform: uppercase;
   }
+  .badge.active {
+    border-color: var(--latex-accent);
+    color: var(--latex-accent);
+  }
   .badge.admin {
     border-color: var(--latex-text);
     color: var(--latex-text);
@@ -231,6 +265,9 @@
     }
     .page-toolbar a {
       width: 100%;
+    }
+    .view-toggle .paper-btn {
+      flex: 1;
     }
     .member-list {
       grid-template-columns: 1fr;
