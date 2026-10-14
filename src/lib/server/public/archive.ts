@@ -219,5 +219,7 @@ export async function getPublicSeminar(id: string) {
     materials: s.materials.map(assetUrl),
     photos: s.photos.map(assetUrl),
     posterUrl: s.posterKey ? assetUrl(s.posterKey) : null,
+    // 외부 영상 링크 — 관리자가 적은 그대로(https만, schemas/seminar.ts)
+    videos: s.videos.map((v) => ({ url: v.url, title: v.title })),
   };
 }

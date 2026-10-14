@@ -28,6 +28,8 @@ export interface AdminSeminarRecord {
   durationMinutes: number | null;
   /** 신청자 선호 세미나 시점 (빈 문자열이면 미선택) */
   preferredTiming: string;
+  /** 외부 영상 링크 — 제목은 비어 있을 수 있다 */
+  videos: { url: string; title: string }[];
   presenterIds: string[];
   presenterNames: string[];
   scheduledAt: string | null;

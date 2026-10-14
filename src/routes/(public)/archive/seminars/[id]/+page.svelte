@@ -107,13 +107,21 @@
     </section>
     <section class="record-section">
       <h2>2. 공개 자료</h2>
-      {#if files.length}
+      {#if files.length || seminar.videos.length}
         <ul class="file-list">
           {#each files as file (file.id)}
             <li>
               <a href={file.url} target="_blank" rel="noopener noreferrer"
                 >{file.name}</a
               ><span>{file.kind}</span>
+            </li>
+          {/each}
+          <!-- 같은 링크가 두 번 적혀도 화면이 죽지 않게 순번을 키로 쓴다 -->
+          {#each seminar.videos as video, i (i)}
+            <li>
+              <a href={video.url} target="_blank" rel="noopener noreferrer"
+                >{video.title || `영상 ${i + 1}`}</a
+              ><span>영상</span>
             </li>
           {/each}
         </ul>

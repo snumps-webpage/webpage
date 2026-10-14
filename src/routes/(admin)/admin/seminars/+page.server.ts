@@ -121,6 +121,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       prerequisites: s.prerequisites,
       durationMinutes: s.durationMinutes,
       preferredTiming: s.preferredTiming,
+      videos: s.videos,
       presenterIds: s.presenterIds,
       presenterNames: s.presenterIds.map((id) => presenterOf(id).name),
       scheduledAt: s.schedule?.startsAt ?? event?.date.start ?? null,

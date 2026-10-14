@@ -90,4 +90,17 @@ describe("seminar detail", () => {
     );
     expect((await detail()).seminar.duration).toBe("한 시간 반");
   });
+
+  // snumps-webpage/D-000010 — the seminar's video links reach the public page
+  it("carries the seminar's video links", async () => {
+    const videos = [
+      { url: "https://www.youtube.com/watch?v=abc", title: "1부" },
+      { url: "https://youtu.be/xyz", title: "" },
+    ];
+    await mutate("seminars", (rows) => rows.map((s) => ({ ...s, videos })));
+    const seminar = (await detail()).seminar as unknown as {
+      videos: typeof videos;
+    };
+    expect(seminar.videos).toEqual(videos);
+  });
 });

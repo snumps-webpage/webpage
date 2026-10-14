@@ -2,6 +2,7 @@
   import type { AdminSeminarRecord } from "$lib/domain/admin-records";
   import AdminDirectUploadForm from "$lib/components/admin/AdminDirectUploadForm.svelte";
   import PosterUploadField from "$lib/components/poster/PosterUploadField.svelte";
+  import SeminarVideoRows from "$lib/components/admin/SeminarVideoRows.svelte";
   import { uploadLimitMb } from "$lib/domain/uploads";
 
   export interface SeminarRecordFormState {
@@ -183,6 +184,7 @@
             >{/if}</label
         >
       </div>
+      <SeminarVideoRows issue={createIssues.videos} />
       <fieldset class="member-picker">
         <legend>발표자</legend>
         <div>
@@ -225,7 +227,11 @@
     {#each filtered as record (record.id)}
       {@const updateIssues = issuesFor("record-update", record.id)}
       {@const fileIssues = issuesFor("record-file", record.id)}
-      <details class="record-card">
+      <!-- 수정이 거절되면 그 레코드를 펼친 채로 — 접혀 있으면 칸 옆 오류가 보이지 않는다 -->
+      <details
+        class="record-card"
+        open={form?.scope === "record-update" && form?.id === record.id}
+      >
         <summary
           ><div>
             <span
@@ -311,6 +317,10 @@
                   >{/if}</label
               >
             </div>
+            <SeminarVideoRows
+              videos={record.videos}
+              issue={updateIssues.videos}
+            />
             <fieldset class="member-picker">
               <legend>발표자</legend>
               <div>
