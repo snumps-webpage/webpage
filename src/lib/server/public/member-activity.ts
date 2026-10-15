@@ -1,49 +1,100 @@
 import { getDirectoryIndex } from "$lib/server/data/directory";
 import { getTable } from "$lib/server/data/tables";
+import { currentTerm } from "$lib/server/core/semester";
 import type { Member } from "$lib/server/data/schemas";
-import { withoutHiddenActivities } from "$lib/server/services/visibility";
+import { hiddenActivityIds } from "$lib/server/services/visibility";
 import {
   memberActivity,
+  memberStanding,
   type MemberActivity,
+  type MemberStanding,
 } from "$lib/domain/member-activity";
 
 /**
- * 멤버별 활동 정도의 로드 (snumps-webpage/D-000041·042·051).
+ * 회원별 활동 기록과 회칙 기준 지위의 로드 (snumps-webpage/D-000063·064·070·
+ * 074·077·078).
  *
  * 공개 집계(`publicOnly`)는 회원 면의 숨김 규칙을 그대로 쓴다 — 가려진 활동은
- * `withoutHiddenActivities`, 세미나는 공개 아카이브와 같은 기준(공개된 것만,
- * `routes/(public)/archive/+layout.server.ts`). 관리자 화면은 전부를 센다.
+ * `hiddenActivityIds`, 세미나는 공개 아카이브와 같은 기준(공개된 것만,
+ * `routes/(public)/archive/+layout.server.ts`), 취소된 스터디는 주최 목록에서
+ * 뺀다(D-000064). 관리자 화면은 전부를 보이되 공개 면에서 빠지는 것을
+ * `hiddenFromPublic`으로 표시한다(D-000069). 활동 기록 수는 어느 쪽이든 숨김
+ * 활동을 세지 않으므로 같다.
  *
  * 신원은 표시용 통합 디렉터리를 따른다(`data/directory.ts`): 이주된 기록은
  * legacy id를, 재가입 회원의 새 행은 `legacyMemberId`로 그것을 가리키므로
- * 한 사람의 id는 둘일 수 있다.
+ * 한 사람의 id는 둘일 수 있다. 이번 학기 등록도 두 id 어느 쪽이든 그 사람의 것이다.
  */
 
 /** 이 사람의 기록이 가리킬 수 있는 id 전부 — 새 id와 잇는 legacy id. */
-function personIds(member: Pick<Member, "id" | "legacyMemberId">) {
+export function personIds(
+  member: Pick<Member, "id" | "legacyMemberId">,
+): Set<string> {
   return new Set(
     [member.id, member.legacyMemberId].filter((id): id is string => !!id),
   );
 }
 
+export type MemberRecord = {
+  activity: MemberActivity;
+  /** 회칙 기준 지위 — 탈퇴 회원은 null. */
+  standing: MemberStanding | null;
+  registeredThisTerm: boolean;
+};
+
+export type MemberActivityIndex = {
+  of(member: Member): MemberRecord;
+  /** 공개 면에서 빠지는 것 — 관리자 화면의 '공개 면 숨김' 표시용. */
+  hiddenFromPublic: {
+    seminars: Set<string>;
+    studies: Set<string>;
+    activities: Set<string>;
+  };
+};
+
 export async function memberActivityIndex({
   publicOnly,
+  now = new Date(),
 }: {
   publicOnly: boolean;
-}): Promise<(member: Member) => MemberActivity> {
-  const [seminars, studies, allActivities] = await Promise.all([
-    getTable("seminars"),
-    getTable("studies"),
-    getTable("activities"),
-  ]);
+  now?: Date;
+}): Promise<MemberActivityIndex> {
+  const [seminars, studies, allActivities, registrations, hidden] =
+    await Promise.all([
+      getTable("seminars"),
+      getTable("studies"),
+      getTable("activities"),
+      getTable("registrations"),
+      hiddenActivityIds(),
+    ]);
+  const hiddenFromPublic = {
+    seminars: new Set(
+      seminars
+        .filter((s) => s.publicationStatus !== "published")
+        .map((s) => s.id),
+    ),
+    studies: new Set(
+      studies.filter((s) => s.status === "cancelled").map((s) => s.id),
+    ),
+    activities: hidden,
+  };
   const activities = publicOnly
-    ? await withoutHiddenActivities(allActivities)
+    ? allActivities.filter((a) => !hidden.has(a.id))
     : allActivities;
   const data = {
-    seminars: publicOnly
-      ? seminars.filter((s) => s.publicationStatus === "published")
-      : seminars,
-    studies,
+    seminars: (publicOnly
+      ? seminars.filter((s) => !hiddenFromPublic.seminars.has(s.id))
+      : seminars
+    ).map((s) => ({
+      id: s.id,
+      title: s.title,
+      semester: s.semester,
+      presenterIds: s.presenterIds,
+      activityId: s.activityId,
+    })),
+    studies: publicOnly
+      ? studies.filter((s) => !hiddenFromPublic.studies.has(s.id))
+      : studies,
     activities: activities.map((a) => ({
       id: a.id,
       title: a.title,
@@ -51,10 +102,37 @@ export async function memberActivityIndex({
       start: a.date.start,
       end: a.date.end,
       attendeeIds: a.attendeeIds,
+      studyId: a.studyId,
+      sourceRequestId: a.sourceRequestId,
+      hidden: hidden.has(a.id),
     })),
   };
-  const now = new Date();
-  return (member) => memberActivity(personIds(member), data, now);
+  const term = currentTerm(now);
+  const registeredIds = new Set(
+    registrations.filter((r) => r.term === term).map((r) => r.memberId),
+  );
+
+  return {
+    hiddenFromPublic,
+    of(member) {
+      const ids = personIds(member);
+      const activity = memberActivity(ids, data);
+      const registeredThisTerm = [...ids].some((id) => registeredIds.has(id));
+      return {
+        activity,
+        registeredThisTerm,
+        standing:
+          member.status === "withdrawn"
+            ? null
+            : memberStanding({
+                registeredThisTerm,
+                storedStatus: member.status,
+                isAlumni: member.isAlumni,
+                records: activity.records,
+              }),
+      };
+    },
+  };
 }
 
 /** 공개 회원 페이지의 신원 — 명단과 같은 D2 공개 필드만. */
@@ -69,21 +147,25 @@ export type PublicMemberProfile = Pick<
  * - 재가입 회원의 legacy id → 새 id의 주소(`redirectTo`): 한 사람에 주소 하나.
  * - 탈퇴했거나 없는 id → null. 공개 명단이 탈퇴 회원을 빼는 것과 같은 규칙이다.
  */
-export async function getPublicMember(
-  id: string,
-): Promise<
-  | { member: PublicMemberProfile; activity: MemberActivity }
+export async function getPublicMember(id: string): Promise<
+  | {
+      member: PublicMemberProfile;
+      standing: MemberStanding;
+      activity: MemberActivity;
+    }
   | { redirectTo: string }
   | null
 > {
-  const [index, activityOf] = await Promise.all([
+  const [directory, index] = await Promise.all([
     getDirectoryIndex(),
     memberActivityIndex({ publicOnly: true }),
   ]);
-  const m = index.get(id);
+  const m = directory.get(id);
   if (!m || m.status === "withdrawn") return null;
   if (m.id !== id)
     return { redirectTo: `/members/${encodeURIComponent(m.id)}` };
+  const { activity, standing } = index.of(m);
+  if (!standing) return null; // 탈퇴 — 위에서 이미 걸렀다
   return {
     member: {
       id: m.id,
@@ -92,6 +174,7 @@ export async function getPublicMember(
       joinedAt: m.joinedAt,
       roles: m.roles,
     },
-    activity: activityOf(m),
+    standing,
+    activity,
   };
 }

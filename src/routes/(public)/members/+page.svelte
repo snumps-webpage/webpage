@@ -1,17 +1,22 @@
 <script lang="ts">
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import { MANUSCRIPT } from "$lib/constants";
-  import { ACTIVE_WINDOW_DAYS } from "$lib/domain/member-activity";
+  import {
+    MEMBER_STANDING_LABELS,
+    MEMBER_VIEWS,
+    MEMBER_VIEW_LABELS,
+    REGULAR_RECORD_THRESHOLD,
+    inMemberView,
+    type MemberView,
+  } from "$lib/domain/member-activity";
 
   let { data } = $props();
   let query = $state("");
-  // 기본은 활동 회원 보기 (snumps-webpage/D-000052)
-  let view = $state<"active" | "all">("active");
+  // 기본은 현재 회원(정회원+준회원) 보기 (snumps-webpage/D-000077)
+  let view = $state<MemberView>("current");
 
   const viewMembers = $derived(
-    view === "active"
-      ? data.members.filter((member) => member.activity.active)
-      : data.members,
+    data.members.filter((member) => inMemberView(member.standing, view)),
   );
 
   const filteredMembers = $derived.by(() => {
@@ -22,13 +27,15 @@
         member.name,
         member.department,
         member.joinedAt ?? "",
+        MEMBER_STANDING_LABELS[member.standing],
         ...member.roles.flatMap((role) => [role.term, role.title]),
       ].some((value) => value.toLocaleLowerCase("ko-KR").includes(normalized)),
     );
   });
 
-  function countLabel(list: readonly unknown[]) {
-    return list.length ? String(list.length) : "—";
+  /** 0은 '—' (D-000068) */
+  function countLabel(count: number) {
+    return count ? String(count) : "—";
   }
 
   function joinedLabel(value: string | null) {
@@ -42,7 +49,7 @@
   <title>회원 명단 · 서울대학교 수학문제연구회</title>
   <meta
     name="description"
-    content="서울대학교 수학문제연구회 회원의 이름, 학과, 가입일, 임원 이력과 세미나·스터디 활동 기록입니다."
+    content="서울대학교 수학문제연구회 회원의 이름, 학과, 가입일, 임원 이력, 회칙 기준 회원 지위와 세미나·스터디 주최 기록입니다."
   />
 </svelte:head>
 
@@ -55,30 +62,28 @@
 
   <div class="intro-row">
     <p>
-      이름·학과·가입일·학기별 직책과 세미나·스터디 주최, 활동 참석 기록을
-      공개합니다. 연락처와 회원 지위, 관리자 권한은 포함하지 않습니다. 활동
-      회원은 최근 {ACTIVE_WINDOW_DAYS}일 안에 세미나나 스터디에 참석한
-      회원입니다.
+      이름·학과·가입일·학기별 직책, 회원 지위와 세미나·스터디 주최, 활동 참석
+      기록을 공개합니다. 연락처와 관리자 권한은 포함하지 않습니다. 회원 지위는
+      <a href="/about/charter#제4조">회칙</a>을 따릅니다 — 이번 학기에 등록한
+      회원은 활동 기록이 {REGULAR_RECORD_THRESHOLD}회 이상이면 정회원, 아니면
+      준회원이고, 등록하지 않은 회원은 정회원이었던 적이 있으면 동문, 아니면
+      이전 회원입니다. 활동 기록은 세미나 진행·참석, 4회 이상 진행된 스터디의
+      과반 참석, 회식·회의 등 동아리 활동 참석을 셉니다.
     </p>
     <a class="paper-btn" href="/about/executives">역대 회장단</a>
   </div>
 
   {#if data.dataAvailable}
     <div class="view-toggle" role="group" aria-label="명단 보기">
-      <button
-        type="button"
-        class="paper-btn small"
-        class:primary={view === "active"}
-        aria-pressed={view === "active"}
-        onclick={() => (view = "active")}>활동 회원</button
-      >
-      <button
-        type="button"
-        class="paper-btn small"
-        class:primary={view === "all"}
-        aria-pressed={view === "all"}
-        onclick={() => (view = "all")}>전체 회원</button
-      >
+      {#each MEMBER_VIEWS as option (option)}
+        <button
+          type="button"
+          class="paper-btn small"
+          class:primary={view === option}
+          aria-pressed={view === option}
+          onclick={() => (view = option)}>{MEMBER_VIEW_LABELS[option]}</button
+        >
+      {/each}
     </div>
 
     <section class="search-panel">
@@ -87,7 +92,7 @@
         id="public-member-search"
         type="search"
         bind:value={query}
-        placeholder="이름, 학과, 가입일, 학기 또는 직책"
+        placeholder="이름, 학과, 가입일, 지위, 학기 또는 직책"
       />
       <span>{filteredMembers.length} / {viewMembers.length}</span>
     </section>
@@ -98,7 +103,7 @@
           <tr>
             <th scope="col">No.</th>
             <th scope="col">이름</th>
-            <th scope="col">활동</th>
+            <th scope="col">지위</th>
             <th scope="col">학과</th>
             <th scope="col">가입일</th>
             <th scope="col">주최 세미나</th>
@@ -114,17 +119,16 @@
                 ><a href={`/members/${member.id}`}>{member.name}</a></th
               >
               <td>
-                {#if member.activity.active}
-                  <span class="active-chip">활동</span>
-                {:else}
-                  <span class="muted">—</span>
-                {/if}
+                <span
+                  class="standing-chip"
+                  class:current={inMemberView(member.standing, "current")}
+                  >{MEMBER_STANDING_LABELS[member.standing]}</span
+                >
               </td>
               <td>{member.department}</td>
               <td>{joinedLabel(member.joinedAt)}</td>
-              <td class="count">{countLabel(member.activity.hostedSeminars)}</td
-              >
-              <td class="count">{countLabel(member.activity.hostedStudies)}</td>
+              <td class="count">{countLabel(member.hostedSeminars)}</td>
+              <td class="count">{countLabel(member.hostedStudies)}</td>
               <td>
                 {#each member.roles as role (`${role.term}-${role.title}`)}
                   <span class="role-chip">{role.term} {role.title}</span>
@@ -151,8 +155,11 @@
             <div>
               <h2>
                 <a href={`/members/${member.id}`}>{member.name}</a>
-                {#if member.activity.active}<span class="active-chip">활동</span
-                  >{/if}
+                <span
+                  class="standing-chip"
+                  class:current={inMemberView(member.standing, "current")}
+                  >{MEMBER_STANDING_LABELS[member.standing]}</span
+                >
               </h2>
               <p>{member.department}</p>
             </div>
@@ -161,8 +168,8 @@
             >
           </header>
           <p class="mobile-hosted">
-            주최 세미나 {member.activity.hostedSeminars.length} · 주최 스터디
-            {member.activity.hostedStudies.length}
+            주최 세미나 {countLabel(member.hostedSeminars)} · 주최 스터디
+            {countLabel(member.hostedStudies)}
           </p>
           <div class="mobile-roles">
             {#each member.roles as role (`${role.term}-${role.title}`)}
@@ -274,13 +281,18 @@
     font-size: 0.72rem;
     white-space: nowrap;
   }
-  .active-chip {
+  .standing-chip {
     display: inline-flex;
     padding: 0.14rem 0.32rem;
-    border: 1px solid var(--latex-text);
+    border: 1px solid var(--latex-rule);
+    color: var(--latex-muted);
     font-size: 0.62rem;
     font-weight: 650;
     white-space: nowrap;
+  }
+  .standing-chip.current {
+    border-color: var(--latex-text);
+    color: var(--latex-text);
   }
   .role-chip {
     display: inline-flex;

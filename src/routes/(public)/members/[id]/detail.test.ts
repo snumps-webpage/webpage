@@ -43,6 +43,7 @@ beforeEach(async () => {
     "studies",
     "activities",
     "events",
+    "registrations",
   ]) {
     await invalidateCache(`table_${t}`);
   }
@@ -58,10 +59,12 @@ beforeEach(async () => {
 const run = (id: string) => load({ params: { id } } as never);
 
 describe("public member page", () => {
-  it("renders an operational member", async () => {
+  it("renders an operational member with the charter standing", async () => {
+    // 이번 학기 등록이 없고 기록도 없다 — 저장 지위가 regular여도 이전 회원
     await expect(run("m1")).resolves.toMatchObject({
       member: { id: "m1", name: "김수학" },
-      activity: { active: false, attended: [] },
+      standing: "former",
+      activity: { records: 0, recordsByType: {}, attended: [] },
     });
   });
 

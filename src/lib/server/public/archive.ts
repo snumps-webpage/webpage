@@ -65,29 +65,35 @@ async function memberNameMap(): Promise<Map<string, string>> {
 /**
  * PUB-15: the public roster — D2 fields, withdrawn members excluded.
  *
- * Each row also carries its id (the `/members/[id]` path) and a summary of
- * the person's public activity (snumps-webpage/D-000041·051·052). The
- * attendance list stays on the member's own page: the roster would otherwise
- * ship every attendance of every member.
+ * Each row also carries its id (the `/members/[id]` path), the charter
+ * standing and how many public seminars and studies the person hosted
+ * (snumps-webpage/D-000051·063·068·070·077). The stored status never leaves:
+ * the standing is computed from this term's registration and the records.
+ * The attendance list stays on the member's own page: the roster would
+ * otherwise ship every attendance of every member.
  */
 export async function getPublicMembers() {
-  const [members, activityOf] = await Promise.all([
+  const [members, index] = await Promise.all([
     getMemberDirectory(),
     memberActivityIndex({ publicOnly: true }),
   ]);
   return members
-    .filter((m) => m.status !== "withdrawn")
-    .map((m) => {
-      const { active, hostedSeminars, hostedStudies, countsByType } =
-        activityOf(m);
-      return {
-        id: m.id,
-        name: m.name,
-        department: m.department,
-        joinedAt: m.joinedAt,
-        roles: m.roles,
-        activity: { active, hostedSeminars, hostedStudies, countsByType },
-      };
+    .flatMap((m) => {
+      const { activity, standing } = index.of(m);
+      // withdrawn members have no standing and no place on the roster
+      if (!standing) return [];
+      return [
+        {
+          id: m.id,
+          name: m.name,
+          department: m.department,
+          joinedAt: m.joinedAt,
+          roles: m.roles,
+          standing,
+          hostedSeminars: activity.hostedSeminars.length,
+          hostedStudies: activity.hostedStudies.length,
+        },
+      ];
     })
     .sort((a, b) => a.name.localeCompare(b.name, "ko"));
 }
