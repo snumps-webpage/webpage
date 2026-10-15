@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   attendeeRowKeys,
   formerIds,
+  organizerChoices,
   pickerChoice,
   studyParticipantRows,
   type DirectoryPicker,
@@ -130,5 +131,43 @@ describe("studyParticipantRows", () => {
     );
     expect(attendeeRowKeys(rows, ["L2", "L1", "lost"])).toEqual(["m2", "L1"]);
     expect(rows.find((r) => r.key === "m2")?.value).toBe("L2");
+  });
+});
+
+/**
+ * 관리자 주최자 변경의 선택지(D-000044·054): 종료·취소 스터디는 통합 명부
+ * 전원, 모집·진행 스터디는 운영 명단. 기록된 옛 id는 그대로 다시 제출한다.
+ */
+describe("organizerChoices", () => {
+  const roster = [current, rejoined].map(({ id, name, department }) => ({
+    id,
+    name,
+    department,
+  }));
+  const directory: DirectoryPicker[] = [
+    { ...current, former: false },
+    { ...rejoined, former: false },
+    {
+      id: "L1",
+      name: "옛회원",
+      department: "물리천문학부",
+      legacyMemberId: null,
+      former: true,
+    },
+  ];
+
+  it("offers the whole directory on a closed study, the recorded old id selected as is", () => {
+    expect(organizerChoices(true, ["L2"], roster, directory)).toEqual([
+      { value: "m1", label: "현재 · 수리과학부", selected: false },
+      { value: "L2", label: "재가입 · 물리천문학부", selected: true },
+      { value: "L1", label: "옛회원 · 이전 회원", selected: false },
+    ]);
+  });
+
+  it("offers the operating roster on an open study", () => {
+    expect(organizerChoices(false, ["m1"], roster, directory)).toEqual([
+      { value: "m1", label: "현재 · 수리과학부", selected: true },
+      { value: "m2", label: "재가입 · 물리천문학부", selected: false },
+    ]);
   });
 });

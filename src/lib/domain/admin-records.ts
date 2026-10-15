@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 import { RECORD_ACTIVITY_TYPES } from "$lib/constants";
 import { localDateTimeMs, localDateTimeSchema } from "$lib/domain/form-data";
 import type { PublicFileReference } from "$lib/domain/public-content";
+import type { StudyStatus } from "$lib/domain/studies";
 import {
   SEMINAR_DURATION_MINUTES,
   SEMINAR_KINDS,
@@ -54,6 +55,7 @@ export interface AdminStudyRecord {
   sourceRequestId: string | null;
   title: string;
   term: string;
+  status: StudyStatus;
   description: string;
   material: string;
   organizerIds: string[];

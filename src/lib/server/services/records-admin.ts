@@ -364,6 +364,13 @@ export async function deleteStudy(id: string): Promise<void> {
  * Admin plenary transfer (§7-4): skips the two-phase consent, clears any
  * in-flight proposal (otherwise its later acceptance would silently undo
  * this), records history with byAdmin, and audits.
+ *
+ * Who may take it depends on the study (snumps-webpage/D-000044·054): a
+ * recruiting or ongoing study keeps the two-phase proposal's rule (an
+ * operating, non-withdrawn member — someone who can run it); a finished or
+ * cancelled one is a record fix, so anyone in the merged directory, withdrawn
+ * and legacy-only people included. The status is judged on the row being
+ * written, so a study closed or reopened meanwhile gets its own rule.
  */
 export async function setOrganizer(
   studyId: string,
@@ -372,11 +379,30 @@ export async function setOrganizer(
 ): Promise<void> {
   // Same target check and same handover write as the two-phase proposal and
   // its acceptance (studies.ts, audit LB28-4).
-  await assertOrganizerCandidates([newOrganizerId]);
+  const [operating, directory] = await Promise.all([
+    assertOrganizerCandidates([newOrganizerId]).then(
+      () => true,
+      (e: unknown) => {
+        if (e instanceof AppError && e.code === "VALIDATION_FAILED")
+          return false;
+        throw e;
+      },
+    ),
+    getDirectoryIndex(),
+  ]);
 
   await mutate("studies", (rows) => {
     const idx = rows.findIndex((s) => s.id === studyId);
     if (idx === -1) throw new AppError("NOT_FOUND");
+    const allowed = isStudyClosed(rows[idx].status)
+      ? directory.has(newOrganizerId)
+      : operating;
+    if (!allowed)
+      throw new AppError("VALIDATION_FAILED", {
+        userMessage: isStudyClosed(rows[idx].status)
+          ? "명부에 없는 사람은 주최자로 지정할 수 없습니다."
+          : "모집 중·진행 중인 스터디의 주최자는 운영 명단의 회원만 맡을 수 있습니다.",
+      });
     rows[idx] = handOver(rows[idx], newOrganizerId, { byAdmin: true });
     return rows;
   });

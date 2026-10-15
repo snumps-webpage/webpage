@@ -122,3 +122,30 @@ export function attendeeRowKeys(
     .filter((r) => r.ids.some((id) => attendeeIds.includes(id)))
     .map((r) => r.key);
 }
+
+/**
+ * 관리자 주최자 변경의 선택지(D-000044·054). 종료·취소 스터디(`closed`)는
+ * 기록 정정이라 통합 명부 전원 — 기록된 옛 id는 그 id로 다시 제출한다. 모집·
+ * 진행 스터디는 운영 명단(비탈퇴)만, 기존 규칙 그대로.
+ */
+export function organizerChoices(
+  closed: boolean,
+  organizerIds: readonly string[],
+  roster: readonly { id: string; name: string; department: string }[],
+  directory: readonly DirectoryPicker[],
+): { value: string; label: string; selected: boolean }[] {
+  if (!closed)
+    return roster.map((m) => ({
+      value: m.id,
+      label: `${m.name} · ${m.department}`,
+      selected: organizerIds.includes(m.id),
+    }));
+  return directory.map((p) => {
+    const choice = pickerChoice(p, organizerIds);
+    return {
+      value: choice.value,
+      label: `${p.name} · ${p.former ? "이전 회원" : p.department}`,
+      selected: choice.checked,
+    };
+  });
+}

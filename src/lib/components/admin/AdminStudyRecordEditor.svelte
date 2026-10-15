@@ -2,7 +2,11 @@
   import type { AdminStudyRecord } from "$lib/domain/admin-records";
   import AdminDirectUploadForm from "$lib/components/admin/AdminDirectUploadForm.svelte";
   import AdminStudyParticipantEditor from "$lib/components/admin/AdminStudyParticipantEditor.svelte";
-  import type { DirectoryPicker } from "$lib/domain/recorded-people";
+  import {
+    organizerChoices,
+    type DirectoryPicker,
+  } from "$lib/domain/recorded-people";
+  import { isStudyClosed } from "$lib/domain/studies";
   import { uploadLimitMb } from "$lib/domain/uploads";
 
   export interface StudyRecordFormState {
@@ -183,6 +187,12 @@
     {#each filtered as record (record.id)}
       {@const updateIssues = issuesFor("record-update", record.id)}
       {@const fileIssues = issuesFor("record-file", record.id)}
+      {@const choices = organizerChoices(
+        isStudyClosed(record.status),
+        record.organizerIds,
+        members,
+        pickers,
+      )}
       <details class="record-card">
         <summary>
           <div>
@@ -245,6 +255,11 @@
                 현재 주최자: {record.organizerNames.join(", ")}. 변경하면 대기
                 중인 양도 요청은 취소되고 관리자 변경 이력이 남습니다.
               </p>
+              <p>
+                {isStudyClosed(record.status)
+                  ? "종료·취소된 스터디라 통합 명부 전원(이전 회원·탈퇴 회원 포함)에서 고를 수 있습니다."
+                  : "모집 중·진행 중인 스터디는 운영 명단의 회원만 주최자가 될 수 있습니다."}
+              </p>
             </div>
             <form
               method="POST"
@@ -256,10 +271,13 @@
             >
               <input type="hidden" name="id" value={record.id} />
               <select name="organizerId" aria-label="새 주최자">
-                {#each members as member (member.id)}<option
-                    value={member.id}
-                    selected={record.organizerIds.includes(member.id)}
-                    >{member.name} · {member.department}</option
+                {#if !choices.some((choice) => choice.selected)}<option
+                    value=""
+                    selected>주최자 선택</option
+                  >{/if}
+                {#each choices as choice (choice.value)}<option
+                    value={choice.value}
+                    selected={choice.selected}>{choice.label}</option
                   >{/each}
               </select>
               <button class="paper-btn" type="submit">주최자 변경</button>

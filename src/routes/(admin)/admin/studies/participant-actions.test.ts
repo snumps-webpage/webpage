@@ -287,6 +287,17 @@ describe("participant editor load", () => {
     ]);
   });
 
+  // D-000054: the organizer choices follow the study's status
+  it("carries each study's status", async () => {
+    const data = (await load({ locals: admin } as never)) as unknown as {
+      records: { id: string; status: string }[];
+    };
+    expect(data.records.map((r) => [r.id, r.status])).toEqual([
+      ["s2", "recruiting"],
+      ["s1", "finished"],
+    ]);
+  });
+
   it("collects the attendees of the study's linked activities, once each", async () => {
     const { records } = await loaded();
     expect(records.find((r) => r.id === "s1")!.attendeeCandidates).toEqual([

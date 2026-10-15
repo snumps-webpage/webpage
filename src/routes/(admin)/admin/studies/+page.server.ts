@@ -64,6 +64,8 @@ export const load: PageServerLoad = async ({ locals }) => {
       sourceRequestId: s.sourceRequestId,
       title: s.title,
       term: s.semester,
+      // picks the organizer choices: closed → merged directory (D-000054)
+      status: s.status,
       description: s.description,
       material: s.textbook,
       organizerIds: s.organizerIds,
