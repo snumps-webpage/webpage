@@ -310,3 +310,32 @@ export function registeredIdsOf(
     registrations.filter((r) => r.term === term).map((r) => r.memberId),
   );
 }
+
+/**
+ * 자동 승급 대상(D-000073·078·079) — 운영 회원 가운데 이번 학기 등록이 있고,
+ * 저장 지위가 `associate`이며, 활동 기록이 기준 이상인 회원의 id. 강등은 없다.
+ * 매일 maintenance cron(services/member-standing.ts)과 첫 일괄 승급 ops
+ * 스크립트(scripts/ops/ops-promote-regular.ts)가 같은 함수로 고른다.
+ */
+export function selectPromotionCandidates(input: {
+  members: readonly {
+    id: string;
+    legacyMemberId: string | null;
+    status: string;
+  }[];
+  registrations: readonly { memberId: string; term: string }[];
+  term: string;
+  data: MemberActivityData;
+}): string[] {
+  const registered = registeredIdsOf(input.registrations, input.term);
+  return input.members
+    .filter((m) => {
+      if (m.status !== "associate") return false;
+      const ids = personIdsOf(m);
+      if (![...ids].some((id) => registered.has(id))) return false;
+      return (
+        memberActivity(ids, input.data).records >= REGULAR_RECORD_THRESHOLD
+      );
+    })
+    .map((m) => m.id);
+}

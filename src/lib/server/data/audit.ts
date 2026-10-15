@@ -13,6 +13,7 @@ export type AuditAction =
   | "private-info.read"
   | "private-info.update"
   | "member.set-status"
+  | "member.auto-promote" // 매일 자동 승급 (services/member-standing.ts)
   | "member.set-roles"
   | "member.set-admin"
   | "member.revoke-alumni"

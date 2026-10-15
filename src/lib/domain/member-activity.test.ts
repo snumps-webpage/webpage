@@ -5,6 +5,7 @@ import {
   inMemberView,
   memberActivity,
   memberStanding,
+  selectPromotionCandidates,
   type MemberActivityData,
 } from "./member-activity";
 
@@ -308,6 +309,97 @@ describe("memberActivity — one person, two ids", () => {
         end: "2026-09-01T21:00:00+09:00",
       },
     ]);
+  });
+});
+
+describe("selectPromotionCandidates", () => {
+  const TERM = "26-2";
+  const dinners = (n: number, attendeeIds: string[]) =>
+    Array.from({ length: n }, (_, i) =>
+      activity(
+        `d${i}`,
+        "회식",
+        `2026-09-0${i + 1}T19:00:00+09:00`,
+        attendeeIds,
+      ),
+    );
+  const pick = (
+    members: { id: string; legacyMemberId: string | null; status: string }[],
+    registrations: { memberId: string; term: string }[],
+    activities: Act[],
+  ) =>
+    selectPromotionCandidates({
+      members,
+      registrations,
+      term: TERM,
+      data: { ...empty, activities },
+    });
+  const assoc = (id: string, legacyMemberId: string | null = null) => ({
+    id,
+    legacyMemberId,
+    status: "associate",
+  });
+
+  it("picks a registered associate with 3 records", () => {
+    expect(
+      pick([assoc("m1")], [{ memberId: "m1", term: TERM }], dinners(3, ["m1"])),
+    ).toEqual(["m1"]);
+  });
+
+  it("leaves a registered associate with 2 records", () => {
+    expect(
+      pick([assoc("m1")], [{ memberId: "m1", term: TERM }], dinners(2, ["m1"])),
+    ).toEqual([]);
+  });
+
+  it("leaves an associate registered only in another term", () => {
+    expect(
+      pick(
+        [assoc("m1")],
+        [{ memberId: "m1", term: "26-1" }],
+        dinners(3, ["m1"]),
+      ),
+    ).toEqual([]);
+  });
+
+  it("leaves regular and withdrawn members alone — no demotion either", () => {
+    const regs = ["m1", "m2", "m3"].map((memberId) => ({
+      memberId,
+      term: TERM,
+    }));
+    expect(
+      pick(
+        [
+          { id: "m1", legacyMemberId: null, status: "regular" },
+          { id: "m2", legacyMemberId: null, status: "withdrawn" },
+          { id: "m3", legacyMemberId: null, status: "regular" },
+        ],
+        regs,
+        dinners(3, ["m1", "m2"]),
+      ),
+    ).toEqual([]);
+  });
+
+  it("counts the legacy id's records and registration as the person's", () => {
+    expect(
+      pick(
+        [assoc("m1", "L1")],
+        [{ memberId: "L1", term: TERM }],
+        [
+          ...dinners(2, ["L1"]),
+          activity("x", "회의", "2026-09-09T19:00:00+09:00", ["m1"]),
+        ],
+      ),
+    ).toEqual(["m1"]);
+  });
+
+  it("does not count hidden activities toward promotion", () => {
+    const acts = dinners(3, ["m1"]).map((a, i) =>
+      i === 0 ? { ...a, hidden: true } : a,
+    );
+    expect(pick([assoc("m1")], [{ memberId: "m1", term: TERM }], acts)).toEqual(
+      [],
+    );
   });
 });
 

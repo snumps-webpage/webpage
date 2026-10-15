@@ -14,6 +14,7 @@ import {
   runIsolated,
   type CronReport,
 } from "./cron-status";
+import { promoteQualifiedMembers } from "./member-standing";
 
 /**
  * Maintenance job (SUPABASE-MIGRATION-SPEC §5 잡3, R2-9): staging cleanup,
@@ -244,7 +245,7 @@ async function backupDue(now: Date): Promise<boolean> {
 /**
  * The daily maintenance run (잡3). Each phase is isolated like runCron — one
  * failing phase reports itself in `failures` without starving the others.
- * Failures: keepalive_failed, cleanup_failed, backup_failed,
+ * Failures: keepalive_failed, cleanup_failed, promote_failed, backup_failed,
  * backup_push_failed.
  */
 export async function runMaintenance(
@@ -266,6 +267,14 @@ export async function runMaintenance(
     report,
     "cleanup",
     async () => ({ stagedRemoved: await cleanupStaging(now) }),
+    log,
+  );
+
+  // 회칙 제4조 ④: 요건을 채운 준회원은 매일 정회원으로 (snumps-webpage/D-000073)
+  await runIsolated(
+    report,
+    "promote",
+    async () => ({ promoted: await promoteQualifiedMembers(now) }),
     log,
   );
 

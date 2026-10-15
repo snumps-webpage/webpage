@@ -24,6 +24,7 @@ import {
   __stage,
   uploadToBackups,
 } from "$lib/server/data/storage-memory";
+import { invalidateCache } from "$lib/server/cache";
 import {
   STAGING_TTL_MS,
   cleanupStaging,
@@ -244,8 +245,37 @@ describe("runMaintenance", () => {
       expect(failures).toEqual(["keepalive_failed"]);
       expect(counts.keptAlive).toBe(false);
       expect(counts.stagedRemoved).toBe(0);
+      expect(counts.promoted).toBe(0);
     } finally {
       spy.mockRestore();
     }
+  });
+
+  // 매일 자동 승급(snumps-webpage/D-000073·079)은 다른 단계처럼 격리된다 —
+  // 승급이 실패해도 keep-alive·정리·백업은 돈다.
+  it("runs the promotion phase and isolates its failure", async () => {
+    await dumpTakenAgo(1);
+    await invalidateCache("table_registrations");
+    // 읽을 수 없는 등록 표 — 승급 단계만 던진다
+    __putRawDoc("table", "registrations", {
+      schemaVersion: 1,
+      rows: [{ broken: true }],
+    });
+
+    const { counts, failures } = await runMaintenance(MONDAY_KST);
+
+    expect(failures).toEqual(["promote_failed"]);
+    expect(counts.keptAlive).toBe(true);
+    expect(counts.stagedRemoved).toBe(0);
+    expect(counts).not.toHaveProperty("promoted");
+    await invalidateCache("table_registrations");
+  });
+
+  it("reports how many members it promoted", async () => {
+    await dumpTakenAgo(1);
+    const { counts, failures } = await runMaintenance(MONDAY_KST);
+
+    expect(failures).toEqual([]);
+    expect(counts.promoted).toBe(0);
   });
 });
