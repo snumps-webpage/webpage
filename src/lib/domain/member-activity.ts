@@ -1,3 +1,4 @@
+import { hiddenActivityIdsOf } from "./activity-visibility";
 import { compareSemesters } from "./semester-order";
 
 /**
@@ -198,4 +199,114 @@ export function memberStanding(input: {
       : "associate";
   }
   return qualified || input.isAlumni ? "alumni" : "former";
+}
+
+/** 이 사람의 기록이 가리킬 수 있는 id 전부 — 새 id와 잇는 legacy id. */
+export function personIdsOf(member: {
+  id: string;
+  legacyMemberId: string | null;
+}): Set<string> {
+  return new Set(
+    [member.id, member.legacyMemberId].filter((id): id is string => !!id),
+  );
+}
+
+/** 집계에 쓰는 표들 — 저장 행의 필요한 필드만(서버 schemas와 같은 모양). */
+export type ActivityTables = {
+  seminars: readonly (HostedRef & {
+    presenterIds: readonly string[];
+    activityId: string | null;
+    publicationStatus: string;
+  })[];
+  studies: readonly (HostedRef & {
+    organizerIds: readonly string[];
+    status: string;
+  })[];
+  activities: readonly {
+    id: string;
+    title: string;
+    type: string;
+    date: { start: string; end: string | null };
+    attendeeIds: readonly string[];
+    studyId: string | null;
+    sourceRequestId: string | null;
+  }[];
+  events: readonly { activityId: string; status: string }[];
+};
+
+/** 공개 면에서 빠지는 것 — 관리자 화면의 '공개 면 숨김' 표시용(D-000069). */
+export type HiddenFromPublic = {
+  /** 공개되지 않은 세미나 */
+  seminars: Set<string>;
+  /** 취소된 스터디(D-000064) */
+  studies: Set<string>;
+  /** 숨김 활동(`hiddenActivityIdsOf`) */
+  activities: Set<string>;
+};
+
+/**
+ * 표 → 집계 입력. `publicOnly`면 공개 면에서 빠지는 것(숨김 활동, 공개되지 않은
+ * 세미나, 취소된 스터디)을 아예 넣지 않는다. 아니면 전부 넣되 숨김 활동에
+ * `hidden`을 단다 — 기록 수는 어느 쪽이든 같다(숨김 활동은 세지 않는다).
+ */
+export function memberActivityData(
+  tables: ActivityTables,
+  { publicOnly }: { publicOnly: boolean },
+): { data: MemberActivityData; hiddenFromPublic: HiddenFromPublic } {
+  const hiddenFromPublic: HiddenFromPublic = {
+    seminars: new Set(
+      tables.seminars
+        .filter((s) => s.publicationStatus !== "published")
+        .map((s) => s.id),
+    ),
+    studies: new Set(
+      tables.studies.filter((s) => s.status === "cancelled").map((s) => s.id),
+    ),
+    activities: hiddenActivityIdsOf(tables.seminars, tables.events),
+  };
+  const shown = <T extends { id: string }>(
+    rows: readonly T[],
+    hidden: Set<string>,
+  ) => (publicOnly ? rows.filter((r) => !hidden.has(r.id)) : rows);
+  return {
+    hiddenFromPublic,
+    data: {
+      seminars: shown(tables.seminars, hiddenFromPublic.seminars).map((s) => ({
+        id: s.id,
+        title: s.title,
+        semester: s.semester,
+        presenterIds: s.presenterIds,
+        activityId: s.activityId,
+      })),
+      studies: shown(tables.studies, hiddenFromPublic.studies).map((s) => ({
+        id: s.id,
+        title: s.title,
+        semester: s.semester,
+        organizerIds: s.organizerIds,
+      })),
+      activities: shown(tables.activities, hiddenFromPublic.activities).map(
+        (a) => ({
+          id: a.id,
+          title: a.title,
+          type: a.type,
+          start: a.date.start,
+          end: a.date.end,
+          attendeeIds: a.attendeeIds,
+          studyId: a.studyId,
+          sourceRequestId: a.sourceRequestId,
+          hidden: hiddenFromPublic.activities.has(a.id),
+        }),
+      ),
+    },
+  };
+}
+
+/** 이 학기에 등록한 사람의 id 전부(운영 id·legacy id 무엇으로 등록됐든). */
+export function registeredIdsOf(
+  registrations: readonly { memberId: string; term: string }[],
+  term: string,
+): Set<string> {
+  return new Set(
+    registrations.filter((r) => r.term === term).map((r) => r.memberId),
+  );
 }

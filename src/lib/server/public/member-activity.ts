@@ -2,10 +2,13 @@ import { getDirectoryIndex } from "$lib/server/data/directory";
 import { getTable } from "$lib/server/data/tables";
 import { currentTerm } from "$lib/server/core/semester";
 import type { Member } from "$lib/server/data/schemas";
-import { hiddenActivityIds } from "$lib/server/services/visibility";
 import {
   memberActivity,
+  memberActivityData,
   memberStanding,
+  personIdsOf,
+  registeredIdsOf,
+  type HiddenFromPublic,
   type MemberActivity,
   type MemberStanding,
 } from "$lib/domain/member-activity";
@@ -15,9 +18,9 @@ import {
  * 074·077·078).
  *
  * 공개 집계(`publicOnly`)는 회원 면의 숨김 규칙을 그대로 쓴다 — 가려진 활동은
- * `hiddenActivityIds`, 세미나는 공개 아카이브와 같은 기준(공개된 것만,
+ * `hiddenActivityIdsOf`, 세미나는 공개 아카이브와 같은 기준(공개된 것만,
  * `routes/(public)/archive/+layout.server.ts`), 취소된 스터디는 주최 목록에서
- * 뺀다(D-000064). 관리자 화면은 전부를 보이되 공개 면에서 빠지는 것을
+ * 뺀다(D-000064) — 규칙은 순수 모듈의 `memberActivityData`. 관리자 화면은 전부를 보이되 공개 면에서 빠지는 것을
  * `hiddenFromPublic`으로 표시한다(D-000069). 활동 기록 수는 어느 쪽이든 숨김
  * 활동을 세지 않으므로 같다.
  *
@@ -25,15 +28,6 @@ import {
  * legacy id를, 재가입 회원의 새 행은 `legacyMemberId`로 그것을 가리키므로
  * 한 사람의 id는 둘일 수 있다. 이번 학기 등록도 두 id 어느 쪽이든 그 사람의 것이다.
  */
-
-/** 이 사람의 기록이 가리킬 수 있는 id 전부 — 새 id와 잇는 legacy id. */
-export function personIds(
-  member: Pick<Member, "id" | "legacyMemberId">,
-): Set<string> {
-  return new Set(
-    [member.id, member.legacyMemberId].filter((id): id is string => !!id),
-  );
-}
 
 export type MemberRecord = {
   activity: MemberActivity;
@@ -45,11 +39,7 @@ export type MemberRecord = {
 export type MemberActivityIndex = {
   of(member: Member): MemberRecord;
   /** 공개 면에서 빠지는 것 — 관리자 화면의 '공개 면 숨김' 표시용. */
-  hiddenFromPublic: {
-    seminars: Set<string>;
-    studies: Set<string>;
-    activities: Set<string>;
-  };
+  hiddenFromPublic: HiddenFromPublic;
 };
 
 export async function memberActivityIndex({
@@ -59,63 +49,24 @@ export async function memberActivityIndex({
   publicOnly: boolean;
   now?: Date;
 }): Promise<MemberActivityIndex> {
-  const [seminars, studies, allActivities, registrations, hidden] =
+  const [seminars, studies, activities, events, registrations] =
     await Promise.all([
       getTable("seminars"),
       getTable("studies"),
       getTable("activities"),
+      getTable("events"),
       getTable("registrations"),
-      hiddenActivityIds(),
     ]);
-  const hiddenFromPublic = {
-    seminars: new Set(
-      seminars
-        .filter((s) => s.publicationStatus !== "published")
-        .map((s) => s.id),
-    ),
-    studies: new Set(
-      studies.filter((s) => s.status === "cancelled").map((s) => s.id),
-    ),
-    activities: hidden,
-  };
-  const activities = publicOnly
-    ? allActivities.filter((a) => !hidden.has(a.id))
-    : allActivities;
-  const data = {
-    seminars: (publicOnly
-      ? seminars.filter((s) => !hiddenFromPublic.seminars.has(s.id))
-      : seminars
-    ).map((s) => ({
-      id: s.id,
-      title: s.title,
-      semester: s.semester,
-      presenterIds: s.presenterIds,
-      activityId: s.activityId,
-    })),
-    studies: publicOnly
-      ? studies.filter((s) => !hiddenFromPublic.studies.has(s.id))
-      : studies,
-    activities: activities.map((a) => ({
-      id: a.id,
-      title: a.title,
-      type: a.type,
-      start: a.date.start,
-      end: a.date.end,
-      attendeeIds: a.attendeeIds,
-      studyId: a.studyId,
-      sourceRequestId: a.sourceRequestId,
-      hidden: hidden.has(a.id),
-    })),
-  };
-  const term = currentTerm(now);
-  const registeredIds = new Set(
-    registrations.filter((r) => r.term === term).map((r) => r.memberId),
+  const { data, hiddenFromPublic } = memberActivityData(
+    { seminars, studies, activities, events },
+    { publicOnly },
   );
+  const registeredIds = registeredIdsOf(registrations, currentTerm(now));
 
   return {
     hiddenFromPublic,
     of(member) {
-      const ids = personIds(member);
+      const ids = personIdsOf(member);
       const activity = memberActivity(ids, data);
       const registeredThisTerm = [...ids].some((id) => registeredIds.has(id));
       return {

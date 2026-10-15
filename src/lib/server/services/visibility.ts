@@ -1,5 +1,6 @@
 import { getTable } from "$lib/server/data/tables";
-import type { Activity, Event, Seminar } from "$lib/server/data/schemas";
+import type { Activity, Event } from "$lib/server/data/schemas";
+import { hiddenActivityIdsOf } from "$lib/domain/activity-visibility";
 
 /**
  * 취소·미공개 세미나를 **회원 면에서** 가리는 자리.
@@ -18,33 +19,11 @@ import type { Activity, Event, Seminar } from "$lib/server/data/schemas";
  */
 
 /**
- * 회원·게스트에게서 가려야 할 활동 id — **이 규칙의 유일한 정의**다(공개 아카이브
- * 레이아웃도 이것을 부른다; 예전엔 사본이 따로 있었다 — 감사 LB21-1).
- *
- * - 공개되지 않은(미정·확정·취소) 세미나의 활동
- * - 출석 이벤트가 있고 **그 전부가 취소된** 활동 — 취소된 스터디 회차는 열리지
- *   않은 활동이다. 예전엔 이벤트만 취소되고 활동은 공개 달력·대시보드·회원
- *   이력에 남았다(감사 LB31-1). 이벤트가 없는 활동(기록 편집기로 만든 것)은
- *   건드리지 않는다.
+ * 회원·게스트에게서 가려야 할 활동 id — 규칙의 정의는 순수 모듈
+ * `$lib/domain/activity-visibility.ts`에 있다(ops 스크립트도 같은 정의를 쓰도록).
+ * 서버 쪽 호출자는 여기서 가져온다.
  */
-export function hiddenActivityIdsOf(
-  seminars: readonly Pick<Seminar, "publicationStatus" | "activityId">[],
-  events: readonly Pick<Event, "activityId" | "status">[],
-): Set<string> {
-  const hidden = new Set<string>();
-  for (const s of seminars) {
-    if (s.publicationStatus !== "published" && s.activityId)
-      hidden.add(s.activityId);
-  }
-  const live = new Set<string>();
-  const withEvents = new Set<string>();
-  for (const e of events) {
-    withEvents.add(e.activityId);
-    if (e.status !== "cancelled") live.add(e.activityId);
-  }
-  for (const id of withEvents) if (!live.has(id)) hidden.add(id);
-  return hidden;
-}
+export { hiddenActivityIdsOf };
 
 export async function hiddenActivityIds(): Promise<Set<string>> {
   const [seminars, events] = await Promise.all([
