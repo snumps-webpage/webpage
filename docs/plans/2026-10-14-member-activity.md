@@ -264,7 +264,7 @@
 
 ### 전역 제약 (추가·변경)
 
-- 활동 기록(회칙 제17~19조, D-000071·075·076):
+- 활동 기록(회칙 제18~20조, D-000071·075·076):
   - 인정 종류: 세미나·스터디·회식·회의·기타 전부.
   - 세미나 활동: 참석자 또는 그 세미나(`seminar.activityId`)의 발표자면 활동 1건당 1회(둘 다여도 1회).
   - 스터디 세션 활동(`studyId`가 있고 `sourceRequestId`가 `<studyId>:<date>` 형식): 스터디별로 묶어, 취소되지 않은 세션이 4개 이상이고 그 과반에 참석했으면 그 스터디로 1회.
@@ -286,7 +286,7 @@
 
 ```ts
 export const REGULAR_RECORD_THRESHOLD = 3; // 회칙 제4조 ②
-export const STUDY_MIN_SESSIONS = 4; // 회칙 제19조 ②
+export const STUDY_MIN_SESSIONS = 4; // 회칙 제20조 ②
 export type MemberStanding = "regular" | "associate" | "alumni" | "former";
 export type MemberActivity = {
   hostedSeminars: HostedRef[];
