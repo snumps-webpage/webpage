@@ -1,25 +1,60 @@
 import { compareSemesters } from "./semester-order";
 
 /**
- * 멤버별 활동 정도 — 노션 회원 DB의 주최·참석·활동회원 칸을 옮긴 순수 집계
- * (snumps-webpage/D-000042). 공개 명단과 관리자 화면이 같은 함수로 그린다;
- * 무엇을 넣을지(숨김 활동·비공개 세미나 제외 여부)는 부르는 쪽이 정한다
- * (server/public/member-activity.ts).
+ * 회원별 활동 기록과 회칙 기준 지위 — 순수 집계 (snumps-webpage/D-000070·071·
+ * 074·075·076·078). 공개 명단·회원 페이지·관리자 화면·매일 자동 승급
+ * (services/member-standing.ts)·첫 일괄 승급 ops 스크립트
+ * (scripts/ops/ops-promote-regular.ts)가 같은 함수로 센다; 무엇을 넣을지(숨김
+ * 활동·비공개 세미나 제외 여부)는 부르는 쪽이 정한다(server/public/member-activity.ts).
+ *
+ * 브라우저·ops 스크립트에서도 import한다 — `$lib` 경로를 쓰지 않는다.
  *
  * 한 사람은 id가 둘일 수 있다 — 이주된 기록은 legacy id를 가리키고, 재가입한
  * 회원의 새 행은 `legacyMemberId`로 그것을 잇는다. 그래서 id **집합**을 받고,
  * 기록 한 건은 집합의 id가 몇 개 걸리든 한 번만 센다.
  */
 
+/** 정회원·동문이 되는 활동 기록 수 — 회칙 제4조 ②. */
+export const REGULAR_RECORD_THRESHOLD = 3;
+
+/** 활동으로 인정되는 스터디의 최소 진행 회차 — 회칙 제20조 ②. */
+export const STUDY_MIN_SESSIONS = 4;
+
 /**
- * 활동회원 창(일). 노션 공식 `dateBetween(now(), dateEnd(일정), "days") <= 183`.
+ * 회칙 기준 지위. 이번 학기 등록이 있으면 정회원·준회원(제4조), 없으면
+ * 동문(제5조 — 정회원이었던 적이 있는 자)·이전 회원.
  */
-export const ACTIVE_WINDOW_DAYS = 183;
+export type MemberStanding = "regular" | "associate" | "alumni" | "former";
 
-/** 활동회원 판정에 들어가는 활동 종류 — 회식·회의·기타는 세지 않는다. */
-const ACTIVE_TYPES: ReadonlySet<string> = new Set(["세미나", "스터디"]);
+export const MEMBER_STANDING_LABELS: Record<MemberStanding, string> = {
+  regular: "정회원",
+  associate: "준회원",
+  alumni: "동문",
+  former: "이전 회원",
+};
 
-const DAY_MS = 86_400_000;
+/**
+ * 명단 보기(D-000077·065): 현재 회원(정회원+준회원), 정회원, 전체. 공개 명단의
+ * 기본은 현재 회원, 관리자 회원 목록의 기본은 전체.
+ */
+export const MEMBER_VIEWS = ["current", "regular", "all"] as const;
+export type MemberView = (typeof MEMBER_VIEWS)[number];
+
+export const MEMBER_VIEW_LABELS: Record<MemberView, string> = {
+  current: "현재 회원",
+  regular: "정회원",
+  all: "전체",
+};
+
+/** 이 지위가 보기에 들어가는가. 지위가 없는(탈퇴) 회원은 전체 보기에만. */
+export function inMemberView(
+  standing: MemberStanding | null,
+  view: MemberView,
+): boolean {
+  if (view === "all") return true;
+  if (view === "regular") return standing === "regular";
+  return standing === "regular" || standing === "associate";
+}
 
 export type ActivityRef = {
   id: string;
@@ -34,27 +69,43 @@ export type HostedRef = { id: string; title: string; semester: string };
 export type MemberActivity = {
   hostedSeminars: HostedRef[];
   hostedStudies: HostedRef[];
-  /** 최신순 */
+  /** 출석 명단에 있는 활동, 최신순. 숨김 활동을 뺄지는 부르는 쪽이 정한다. */
   attended: ActivityRef[];
-  countsByType: Record<string, number>;
-  active: boolean;
+  /** 회칙 활동 기록 수(제18~20조). 숨김 활동은 세지 않는다. */
+  records: number;
+  /** 활동 종류별 기록 수 — 스터디 세션 묶음은 '스터디' 1회. */
+  recordsByType: Record<string, number>;
 };
 
 export type MemberActivityData = {
-  seminars: readonly (HostedRef & { presenterIds: readonly string[] })[];
+  seminars: readonly (HostedRef & {
+    presenterIds: readonly string[];
+    /** 세미나의 활동 — 발표자는 이 활동의 기록을 받는다. */
+    activityId: string | null;
+  })[];
   studies: readonly (HostedRef & { organizerIds: readonly string[] })[];
-  activities: readonly (ActivityRef & { attendeeIds: readonly string[] })[];
+  activities: readonly (ActivityRef & {
+    attendeeIds: readonly string[];
+    studyId: string | null;
+    sourceRequestId: string | null;
+    /**
+     * 회원 면에서 가려진 활동(services/visibility.ts `hiddenActivityIdsOf`:
+     * 공개되지 않은 세미나의 활동, 출석 이벤트가 모두 취소된 활동 — 취소된
+     * 스터디 세션 포함). 열리지 않은 활동이라 기록으로 세지 않는다.
+     */
+    hidden?: boolean;
+  })[];
 };
 
+type DataActivity = MemberActivityData["activities"][number];
+
 /**
- * 노션 `dateBetween(now, 끝, "days")`처럼 지난 날수를 정수로 잘라 비교한다.
- * 미래 활동은 음수라 언제나 창 안이다.
+ * 스터디 세션 활동 — flow_create_study_session이 만든 것(`sourceRequestId`가
+ * `<studyId>:<date>`). 이주된 스터디 활동은 키가 없어(null 등) 세션이 아니다.
  */
-function withinActiveWindow(a: ActivityRef, now: Date): boolean {
-  const elapsedDays = Math.floor(
-    (now.getTime() - Date.parse(a.end ?? a.start)) / DAY_MS,
-  );
-  return elapsedDays <= ACTIVE_WINDOW_DAYS;
+function sessionStudyOf(a: DataActivity): string | null {
+  if (!a.studyId || !a.sourceRequestId) return null;
+  return a.sourceRequestId.startsWith(`${a.studyId}:`) ? a.studyId : null;
 }
 
 function hostedBy<T extends HostedRef>(
@@ -68,28 +119,83 @@ function hostedBy<T extends HostedRef>(
     .sort((a, b) => compareSemesters(b.semester, a.semester));
 }
 
+const touches = (list: readonly string[], ids: ReadonlySet<string>) =>
+  list.some((id) => ids.has(id));
+
+/**
+ * 활동 기록(회칙 제18~20조, D-000071·075·076):
+ *
+ * - 세미나: 참석했거나 그 세미나(`seminar.activityId`)의 발표자면 활동 1건당 1회.
+ * - 스터디 세션: 스터디별로 묶어 숨김이 아닌 세션이 `STUDY_MIN_SESSIONS`개 이상이고
+ *   그 과반에 참석했으면 그 스터디로 1회.
+ * - 그 밖의 활동(이주된 스터디 활동·회식·회의·기타): 참석 1건당 1회.
+ */
 export function memberActivity(
   ids: ReadonlySet<string>,
   data: MemberActivityData,
-  now: Date,
 ): MemberActivity {
+  const presented = new Set(
+    data.seminars
+      .filter((s) => s.activityId && touches(s.presenterIds, ids))
+      .map((s) => s.activityId as string),
+  );
+
+  const recordsByType: Record<string, number> = {};
+  const record = (type: string) =>
+    (recordsByType[type] = (recordsByType[type] ?? 0) + 1);
+
+  /** studyId → [진행 세션 수, 참석 세션 수] */
+  const sessions = new Map<string, { held: number; attended: number }>();
+  for (const a of data.activities) {
+    if (a.hidden) continue;
+    const studyId = sessionStudyOf(a);
+    const attended = touches(a.attendeeIds, ids);
+    if (studyId) {
+      const tally = sessions.get(studyId) ?? { held: 0, attended: 0 };
+      tally.held += 1;
+      if (attended) tally.attended += 1;
+      sessions.set(studyId, tally);
+    } else if (attended || presented.has(a.id)) {
+      record(a.type);
+    }
+  }
+  for (const { held, attended } of sessions.values()) {
+    if (held >= STUDY_MIN_SESSIONS && attended * 2 > held) record("스터디");
+  }
+
   const attended = data.activities
-    .filter((a) => a.attendeeIds.some((id) => ids.has(id)))
+    .filter((a) => touches(a.attendeeIds, ids))
     .map(({ id, title, type, start, end }) => ({ id, title, type, start, end }))
     // instant 비교 — 오프셋이 다른 ISO 문자열은 사전식 순서가 틀린다(LA26-1)
     .sort((a, b) => Date.parse(b.start) - Date.parse(a.start));
-
-  const countsByType: Record<string, number> = {};
-  for (const a of attended)
-    countsByType[a.type] = (countsByType[a.type] ?? 0) + 1;
 
   return {
     hostedSeminars: hostedBy(data.seminars, (s) => s.presenterIds, ids),
     hostedStudies: hostedBy(data.studies, (s) => s.organizerIds, ids),
     attended,
-    countsByType,
-    active: attended.some(
-      (a) => ACTIVE_TYPES.has(a.type) && withinActiveWindow(a, now),
-    ),
+    records: Object.values(recordsByType).reduce((n, c) => n + c, 0),
+    recordsByType,
   };
+}
+
+/**
+ * 회칙 기준 지위(D-000070·074·078). 탈퇴 회원은 부르는 쪽에서 뺀다.
+ *
+ * - 이번 학기 등록 있음: 저장 지위가 `regular`이거나 기록이 기준 이상이면 정회원
+ *   (제4조 ②·④ — 요건 충족 즉시), 아니면 준회원.
+ * - 등록 없음: 기록이 기준 이상이었거나 `isAlumni`면 동문(제5조 ①), 아니면 이전 회원.
+ */
+export function memberStanding(input: {
+  registeredThisTerm: boolean;
+  storedStatus: "associate" | "regular";
+  isAlumni: boolean;
+  records: number;
+}): MemberStanding {
+  const qualified = input.records >= REGULAR_RECORD_THRESHOLD;
+  if (input.registeredThisTerm) {
+    return input.storedStatus === "regular" || qualified
+      ? "regular"
+      : "associate";
+  }
+  return qualified || input.isAlumni ? "alumni" : "former";
 }
