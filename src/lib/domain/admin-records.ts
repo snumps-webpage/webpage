@@ -58,6 +58,11 @@ export interface AdminStudyRecord {
   material: string;
   organizerIds: string[];
   organizerNames: string[];
+  participantIds: string[];
+  /** participantIds named through the merged directory, in the same order */
+  participantPeople: { id: string; name: string; department: string }[];
+  /** attendees of the activities linked to this study — '출석자에서 채우기' */
+  attendeeCandidates: string[];
   pendingTransfer: { toMemberId: string; requestedAt: string } | null;
   transferHistory: AdminStudyTransferHistoryEntry[];
   sessionCount: number;

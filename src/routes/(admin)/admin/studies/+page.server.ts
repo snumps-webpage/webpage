@@ -1,10 +1,11 @@
 import { ensureAdmin, handleAdminAction } from "$lib/server/auth-guards";
 import { getTable } from "$lib/server/data/tables";
-import { memberPickers } from "$lib/server/data/repos";
+import { directoryPickers, memberPickers } from "$lib/server/data/repos";
 import {
   createStudy,
   deleteStudy,
   setOrganizer,
+  setStudyParticipants,
   setStudyPhotos,
   updateStudy,
 } from "$lib/server/services/records-admin";
@@ -31,7 +32,8 @@ export const load: PageServerLoad = async ({ locals }) => {
   await ensureAdmin(locals, { silent: true });
   // members(=memberPickers)는 조직자 지정용 운영 명단, summaries는 표시용
   // 통합 디렉터리 — 이주된 스터디의 organizerIds는 legacy id다.
-  const [studies, events, activities, members, requests, summaries] =
+  // directoryPickers는 참가자 편집기의 선택지: 통합 명부 전원(D-000057).
+  const [studies, events, activities, members, requests, summaries, pickers] =
     await Promise.all([
       getTable("studies"),
       getTable("events"),
@@ -39,8 +41,19 @@ export const load: PageServerLoad = async ({ locals }) => {
       memberPickers(),
       getTable("study-requests"),
       directorySummaryIndex(),
+      directoryPickers(),
     ]);
   const nameOf = (id: string) => summaries.get(id)?.name ?? "알 수 없음";
+  const personOf = (id: string) =>
+    summaries.get(id) ?? { id, name: "알 수 없음", department: "" };
+  /** '출석자에서 채우기' 후보 — 연결된 활동의 출석자, 처음 나온 순서로 한 번씩. */
+  const attendeesOf = (studyId: string) => [
+    ...new Set(
+      activities
+        .filter((a) => a.studyId === studyId)
+        .flatMap((a) => a.attendeeIds),
+    ),
+  ];
   return {
     requests: requests
       .filter((r) => r.status === "pending")
@@ -55,6 +68,9 @@ export const load: PageServerLoad = async ({ locals }) => {
       material: s.textbook,
       organizerIds: s.organizerIds,
       organizerNames: s.organizerIds.map(nameOf),
+      participantIds: s.participantIds,
+      participantPeople: s.participantIds.map(personOf),
+      attendeeCandidates: attendeesOf(s.id),
       pendingTransfer: s.pendingTransfer,
       transferHistory: s.transferHistory.map((t) => ({
         fromMemberId: t.from,
@@ -69,6 +85,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       files: s.photos.map((key) => contentFileFromKey(key, "image")),
     })),
     members,
+    directoryPickers: pickers,
     currentTerm: currentTerm(),
     generatedAt: nowKstIso(),
   };
@@ -174,6 +191,22 @@ export const actions = {
         locals.member!.memberId,
       );
       return { operation: "studyOrganizerSet" };
+    });
+  },
+
+  /**
+   * Admin participant editor (D-000043): the checked people replace the
+   * study's participants; the organizers must stay among them.
+   */
+  setParticipants: async ({ request, locals }: Ctx) => {
+    const data = await request.formData();
+    return handleAdminAction(locals, async () => {
+      await setStudyParticipants(
+        data.get("id") as string,
+        (data.getAll("participantIds") as string[]).filter(Boolean),
+        locals.member!.memberId,
+      );
+      return { operation: "studyParticipantsSet" };
     });
   },
 

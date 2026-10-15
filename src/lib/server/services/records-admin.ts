@@ -2,6 +2,7 @@ import { AppError, definedOnly } from "$lib/server/core/errors";
 import { newId } from "$lib/server/core/id";
 import { getTable, mutate } from "$lib/server/data/tables";
 import { audit } from "$lib/server/data/audit";
+import { getDirectoryIndex } from "$lib/server/data/directory";
 import { promoteSeminarPoster } from "$lib/server/services/uploads";
 import { forgetUnreferencedAssets } from "./asset-cleanup";
 import { assertOrganizerCandidates, handOver } from "./studies";
@@ -385,6 +386,61 @@ export async function setOrganizer(
     targetTable: "studies",
     targetId: studyId,
     detail: { to: newOrganizerId },
+  });
+}
+
+/**
+ * Admin participant editor (snumps-webpage/D-000043·057): replaces a study's
+ * participants on any study, finished and cancelled included — a record fix,
+ * not the organizer's join flow. Anyone in the merged directory may be named,
+ * withdrawn and legacy-only people too; an id the study already records is
+ * kept even when no directory knows it (saving must not force dropping it).
+ * The organizers stay participants, as removeParticipant guards: a list
+ * missing one is refused and nothing is written. The saved people leave the
+ * waiting list. Audited with the ids added and removed.
+ */
+export async function setStudyParticipants(
+  studyId: string,
+  participantIds: string[],
+  actorId: string,
+): Promise<void> {
+  const ids = [...new Set(participantIds)];
+  const directory = await getDirectoryIndex();
+  let before: string[] = [];
+  await mutate("studies", (rows) => {
+    const idx = rows.findIndex((s) => s.id === studyId);
+    if (idx === -1) throw new AppError("NOT_FOUND");
+    const study = rows[idx];
+    if (
+      ids.some((id) => !directory.has(id) && !study.participantIds.includes(id))
+    )
+      throw new AppError("VALIDATION_FAILED", {
+        userMessage:
+          "명부에 없는 사람이 들어 있습니다. 화면을 새로 고친 뒤 다시 저장해 주세요.",
+      });
+    if (study.organizerIds.some((id) => !ids.includes(id)))
+      throw new AppError("VALIDATION_FAILED", {
+        userMessage: "주최자는 참가자에서 뺄 수 없습니다.",
+      });
+    before = study.participantIds;
+    rows[idx] = {
+      ...study,
+      participantIds: ids,
+      pendingParticipantIds: study.pendingParticipantIds.filter(
+        (id) => !ids.includes(id),
+      ),
+    };
+    return rows;
+  });
+  await audit({
+    actorMemberId: actorId,
+    action: "study.set-participants",
+    targetTable: "studies",
+    targetId: studyId,
+    detail: {
+      added: ids.filter((id) => !before.includes(id)),
+      removed: before.filter((id) => !ids.includes(id)),
+    },
   });
 }
 

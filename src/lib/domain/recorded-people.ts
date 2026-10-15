@@ -15,6 +15,12 @@ export type PickerMember = {
   legacyMemberId: string | null;
 };
 
+/**
+ * 기록 정정용 명단 한 칸(스터디 참가자·종료 스터디 주최자, D-000054·057) —
+ * 통합 디렉터리 전원. `former`는 운영 명단 밖(옛 회원)이거나 탈퇴한 사람.
+ */
+export type DirectoryPicker = PickerMember & { former: boolean };
+
 /** 명단 한 칸이 제출할 id와 체크 여부. */
 export function pickerChoice(
   member: Pick<PickerMember, "id" | "legacyMemberId">,
@@ -38,4 +44,81 @@ export function formerIds(
     ),
   );
   return [...new Set(recordedIds)].filter((id) => !shown.has(id));
+}
+
+/** 스터디 참가자 편집기의 한 칸 — 한 사람(또는 명부가 모르는 기록된 id 하나). */
+export type StudyParticipantRow = {
+  key: string;
+  /** 이 칸이 제출하는 id */
+  value: string;
+  /** 이 칸이 나타내는 id 전부(새 id + 옛 id) */
+  ids: string[];
+  name: string;
+  department: string;
+  former: boolean;
+  /** 주최자 — 칸이 잠긴다(주최자는 참가자에서 뺄 수 없다) */
+  organizer: boolean;
+  /** 지금 참가자로 저장돼 있음 */
+  saved: boolean;
+};
+
+/**
+ * 스터디 참가자 편집기의 칸들(D-000043·057). 통합 명부 한 사람 한 칸, 순서는
+ * 주최자 → 저장된 참가자 → 나머지. 칸이 제출하는 id는 저장된 그 id(재가입
+ * 회원이 옛 id로 기록돼 있으면 옛 id), 주최자는 주최자로 기록된 id, 아직
+ * 참가자가 아니면 출석에 기록된 id, 그것도 없으면 명부 id. 명부가 모르는
+ * 기록된 id는 '알 수 없음' 칸으로 남겨 저장 때 지워지지 않게 한다.
+ */
+export function studyParticipantRows(
+  study: {
+    organizerIds: readonly string[];
+    participantIds: readonly string[];
+    attendeeCandidates: readonly string[];
+  },
+  pickers: readonly DirectoryPicker[],
+): StudyParticipantRow[] {
+  const people = pickers.map((p) => {
+    const ids = p.legacyMemberId ? [p.id, p.legacyMemberId] : [p.id];
+    const organizerId = study.organizerIds.find((id) => ids.includes(id));
+    const saved = pickerChoice(p, study.participantIds);
+    return {
+      key: p.id,
+      value:
+        organizerId ??
+        (saved.checked
+          ? saved.value
+          : pickerChoice(p, study.attendeeCandidates).value),
+      ids,
+      name: p.name,
+      department: p.department,
+      former: p.former,
+      organizer: organizerId !== undefined,
+      saved: saved.checked,
+    };
+  });
+  const unknown = formerIds(
+    [...study.organizerIds, ...study.participantIds],
+    pickers,
+  ).map((id) => ({
+    key: id,
+    value: id,
+    ids: [id],
+    name: "알 수 없음",
+    department: "",
+    former: true,
+    organizer: study.organizerIds.includes(id),
+    saved: study.participantIds.includes(id),
+  }));
+  const rank = (r: StudyParticipantRow) => (r.organizer ? 0 : r.saved ? 1 : 2);
+  return [...unknown, ...people].sort((a, b) => rank(a) - rank(b));
+}
+
+/** '출석자에서 채우기'가 체크할 칸 — 출석에 기록된 id 중 하나라도 나타내는 칸. */
+export function attendeeRowKeys(
+  rows: readonly StudyParticipantRow[],
+  attendeeIds: readonly string[],
+): string[] {
+  return rows
+    .filter((r) => r.ids.some((id) => attendeeIds.includes(id)))
+    .map((r) => r.key);
 }

@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { AdminStudyRecord } from "$lib/domain/admin-records";
   import AdminDirectUploadForm from "$lib/components/admin/AdminDirectUploadForm.svelte";
+  import AdminStudyParticipantEditor from "$lib/components/admin/AdminStudyParticipantEditor.svelte";
+  import type { DirectoryPicker } from "$lib/domain/recorded-people";
   import { uploadLimitMb } from "$lib/domain/uploads";
 
   export interface StudyRecordFormState {
@@ -23,11 +25,14 @@
   let {
     records,
     members,
+    pickers,
     currentTerm,
     form = null,
   }: {
     records: AdminStudyRecord[];
     members: MemberOption[];
+    /** the merged directory — participant editor (D-000057) */
+    pickers: DirectoryPicker[];
     currentTerm: string;
     form?: StudyRecordFormState | null;
   } = $props();
@@ -52,6 +57,7 @@
     studyRecordCreated: "스터디 레코드를 생성했습니다.",
     studyRecordUpdated: "스터디 기본 정보를 수정했습니다.",
     studyOrganizerSet: "주최자를 변경하고 대기 중인 양도를 취소했습니다.",
+    studyParticipantsSet: "스터디 참가자 명단을 저장했습니다.",
     studyFileAdded: "스터디 파일 메타데이터를 등록했습니다.",
     studyFileRemoved: "스터디 파일 연결을 제거했습니다.",
     studyRecordDeleted: "스터디 레코드를 삭제했습니다.",
@@ -76,6 +82,18 @@
     <p class="paper-status-note error" role="alert">
       {form.message ??
         "출석 회차나 연결된 활동이 있는 스터디는 삭제할 수 없습니다. 활동 기록 관리에서 연결을 먼저 풀어 주세요."}
+    </p>
+  {/if}
+
+  {#if form?.error === "VALIDATION_FAILED" && !form.scope}
+    <p class="paper-status-note error" role="alert">
+      저장하지 않았습니다 — {form.message ?? "입력값을 확인해 주세요."}
+    </p>
+  {/if}
+  {#if form?.error === "NOT_FOUND"}
+    <p class="paper-status-note error" role="alert">
+      {form.message ??
+        "스터디 레코드를 찾을 수 없습니다. 화면을 새로 고쳐 주세요."}
     </p>
   {/if}
 
@@ -173,8 +191,8 @@
             >
           </div>
           <small
-            >{record.organizerNames.join(", ")} · 파일 {record.files
-              .length}개</small
+            >{record.organizerNames.join(", ")} · 참가 {record.participantIds
+              .length}명 · 파일 {record.files.length}개</small
           >
         </summary>
         <div class="record-body">
@@ -247,6 +265,8 @@
               <button class="paper-btn" type="submit">주최자 변경</button>
             </form>
           </section>
+
+          <AdminStudyParticipantEditor {record} {pickers} />
 
           <section class="file-section">
             <h3>교재·활동 자료</h3>

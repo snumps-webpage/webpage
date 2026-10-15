@@ -1,7 +1,11 @@
 import { getTable } from "./tables";
 import { withoutHiddenActivities } from "$lib/server/services/visibility";
 import type { Activity, Member, PrivateInfo } from "./schemas";
-import type { PickerMember } from "$lib/domain/recorded-people";
+import type {
+  DirectoryPicker,
+  PickerMember,
+} from "$lib/domain/recorded-people";
+import { getMemberDirectory } from "./directory";
 
 /**
  * Read helpers over the table layer (BE-30). Plain array scans — the tables
@@ -33,6 +37,33 @@ export async function recordPickers(): Promise<PickerMember[]> {
       department: m.department,
       legacyMemberId: m.legacyMemberId,
     }));
+}
+
+/**
+ * 기록 정정용 명단 — 통합 디렉터리 전원(탈퇴자·옛 회원 포함, 재가입 회원은
+ * 새 행 하나). 스터디 참가자 편집기(D-000057)와 종료 스터디 주최자 지정
+ * (D-000054)만 쓴다. 운영 명단 회원이 먼저, `former`(운영 명단 밖이거나
+ * 탈퇴)는 뒤에.
+ */
+export async function directoryPickers(): Promise<DirectoryPicker[]> {
+  const [directory, members] = await Promise.all([
+    getMemberDirectory(),
+    getTable("members"),
+  ]);
+  const operating = new Set(
+    members.filter((m) => m.status !== "withdrawn").map((m) => m.id),
+  );
+  const pickers = directory.map((m) => ({
+    id: m.id,
+    name: m.name,
+    department: m.department,
+    legacyMemberId: m.legacyMemberId,
+    former: !operating.has(m.id),
+  }));
+  return [
+    ...pickers.filter((p) => !p.former),
+    ...pickers.filter((p) => p.former),
+  ];
 }
 
 export async function getMemberById(id: string): Promise<Member | null> {

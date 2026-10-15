@@ -187,6 +187,7 @@
   <AdminStudyRecordEditor
     {records}
     members={data.members}
+    pickers={data.directoryPickers}
     currentTerm={data.currentTerm}
     form={form as StudyRecordFormState | null}
   />
