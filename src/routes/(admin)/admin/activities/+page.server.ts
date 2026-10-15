@@ -8,9 +8,11 @@ import {
 import {
   createActivity,
   deleteActivity,
+  setActivityStudy,
   setAttendees,
   updateActivity,
 } from "$lib/server/services/records-admin";
+import { compareSemesters } from "$lib/domain/semester-order";
 import { fail } from "@sveltejs/kit";
 import { kstInputToIso, nowKstIso } from "$lib/server/core/time";
 import { ACTIVITY_TYPES } from "$lib/server/data/schemas";
@@ -23,11 +25,12 @@ import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
   await ensureAdmin(locals, { silent: true });
-  const [activities, members, events, summaries] = await Promise.all([
+  const [activities, members, events, summaries, studies] = await Promise.all([
     getTable("activities"),
     recordPickers(),
     getTable("events"),
     directorySummaryIndex(),
+    getTable("studies"),
   ]);
   return {
     activities: [...activities].reverse().map((a) => ({
@@ -40,6 +43,14 @@ export const load: PageServerLoad = async ({ locals }) => {
       formerAttendees: formerPeople(a.attendeeIds, members, summaries),
     })),
     members,
+    // 스터디 연결 선택지(D-000053) — 최근 학기 먼저, 학기 안에서는 제목순.
+    studies: studies
+      .map((s) => ({ id: s.id, title: s.title, semester: s.semester }))
+      .sort(
+        (a, b) =>
+          compareSemesters(b.semester, a.semester) ||
+          a.title.localeCompare(b.title, "ko"),
+      ),
     activityTypes: [...ACTIVITY_TYPES],
     generatedAt: nowKstIso(),
   };
@@ -117,6 +128,18 @@ export const actions = {
     return handleAdminAction(locals, async () => {
       await deleteActivity(id);
       return { operation: "activityDeleted" };
+    });
+  },
+
+  /** Links a study-type activity to a study; an empty studyId unlinks it. */
+  setStudy: async ({ request, locals }: Ctx) => {
+    const data = await request.formData();
+    return handleAdminAction(locals, async () => {
+      await setActivityStudy(
+        data.get("id") as string,
+        formText(data, "studyId") || null,
+      );
+      return { operation: "studyLinked" };
     });
   },
 

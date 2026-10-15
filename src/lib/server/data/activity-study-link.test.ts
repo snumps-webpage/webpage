@@ -295,6 +295,24 @@ describe("flow_set_activity_study", () => {
     expect((await rawRows("activities"))[0]).toHaveProperty("studyId", null);
   });
 
+  // snumps-webpage/D-000062: the two NOT_FOUNDs carry their reason, so the
+  // admin screen can say which one is gone.
+  it.each([
+    ["activity", { activityId: "missing", studyId: null }],
+    ["study", { activityId: "a1", studyId: "nope" }],
+  ])("names the missing %s in the NOT_FOUND detail", async (detail, args) => {
+    await put("activities", [activity("a1", { studyId: null })]);
+    const messages = { activity: "활동 없음", study: "스터디 없음" };
+    await expect(
+      callFlow("flow_set_activity_study", args, { messages }),
+    ).rejects.toSatisfy(
+      (e) =>
+        e instanceof AppError &&
+        e.code === "NOT_FOUND" &&
+        e.userMessage === messages[detail as keyof typeof messages],
+    );
+  });
+
   it.each([
     ["activityId", { studyId: null }],
     ["studyId", { activityId: "a1" }],

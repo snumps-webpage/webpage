@@ -15,7 +15,9 @@
 --                 20260928000000_atomic_flows.sql);
 --              3. flow_set_activity_study links an activity to a study or
 --                 unlinks it. Which activity types may be linked is the
---                 caller's rule, not this function's.
+--                 caller's rule, not this function's;
+--              4. flow_delete_study also refuses while an activity is
+--                 linked to the study (snumps-webpage/D-000059).
 -- Run on   : BOTH prod and dev. Order-independent with the code: the old
 --            code drops the unknown key when it rewrites the table, so
 --            release-prod.sh re-runs step 1 after the deploy (BACKFILLS).
@@ -238,8 +240,10 @@ end $$;
 
 -- Link an activity to a study, or unlink it (studyId null). The key must be
 -- given: a call that left it out would otherwise unlink silently. A missing
--- activity or a named study that does not exist is NOT_FOUND. The activity's
--- type is not checked here — that rule belongs to the caller.
+-- activity or a named study that does not exist is NOT_FOUND, its detail
+-- naming which ('activity' / 'study') so the admin screen can say it
+-- (snumps-webpage/D-000062). The activity's type is not checked here — that
+-- rule belongs to the caller.
 --   p = { activityId, studyId | null }  → { touched }
 create or replace function flow_set_activity_study(p jsonb) returns jsonb
 language plpgsql set search_path = public as $$
@@ -256,13 +260,40 @@ begin
   perform app_lock(array['activities', 'studies']);
   v_acts := app_rows('activities');
   v_act := app_find(v_acts, v_id);
-  if v_act is null then raise exception 'NOT_FOUND'; end if;
+  if v_act is null then raise exception 'NOT_FOUND' using detail = 'activity'; end if;
   if v_study is not null and app_find(app_rows('studies'), v_study) is null then
-    raise exception 'NOT_FOUND';
+    raise exception 'NOT_FOUND' using detail = 'study';
   end if;
   perform app_put('activities', app_replace(v_acts, v_id,
     v_act || jsonb_build_object('studyId', v_study)));
   return jsonb_build_object('touched', jsonb_build_array('activities'));
+end $$;
+
+-- Delete a study — as 20260928000000_atomic_flows.sql, plus: refused while an
+-- activity is linked to it (activity.studyId), like a study with sessions,
+-- checked under the same lock (snumps-webpage/D-000059). Otherwise the link
+-- would point at a study that no longer exists; the admin unlinks first.
+create or replace function flow_delete_study(p jsonb) returns jsonb
+language plpgsql set search_path = public as $$
+declare
+  v_id      text := p ->> 'id';
+  v_studies jsonb;
+  v_study   jsonb;
+begin
+  perform app_require(p, array['id']);
+  perform app_lock(array['activities', 'events', 'studies']);
+  if exists (select 1 from jsonb_array_elements(app_rows('events')) e where e ->> 'studyId' = v_id)
+     or exists (select 1 from jsonb_array_elements(app_rows('activities')) a where a ->> 'studyId' = v_id)
+  then
+    raise exception 'CONFLICT';
+  end if;
+  v_studies := app_rows('studies');
+  v_study := app_find(v_studies, v_id);
+  if v_study is null then raise exception 'NOT_FOUND'; end if;
+  perform app_put('studies', app_without(v_studies, 'id', v_id));
+  return jsonb_build_object(
+    'touched', jsonb_build_array('studies'),
+    'assets', coalesce(v_study -> 'photos', '[]'::jsonb));
 end $$;
 
 
@@ -276,7 +307,8 @@ begin
   foreach f in array array[
     'flow_publish_seminar(jsonb)',
     'flow_create_study_session(jsonb)',
-    'flow_set_activity_study(jsonb)'
+    'flow_set_activity_study(jsonb)',
+    'flow_delete_study(jsonb)'
   ] loop
     execute format('revoke all on function %s from public', f);
     if exists (select 1 from pg_roles where rolname = 'service_role') then

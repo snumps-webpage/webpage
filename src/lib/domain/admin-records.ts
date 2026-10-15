@@ -61,6 +61,8 @@ export interface AdminStudyRecord {
   pendingTransfer: { toMemberId: string; requestedAt: string } | null;
   transferHistory: AdminStudyTransferHistoryEntry[];
   sessionCount: number;
+  /** activities whose studyId is this study — deleteStudy refuses those too */
+  linkedActivityCount: number;
   files: AdminContentFile[];
 }
 

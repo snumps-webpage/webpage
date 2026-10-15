@@ -94,6 +94,45 @@ export async function updateActivity(
   });
 }
 
+const ACTIVITY_GONE =
+  "활동 기록을 찾을 수 없습니다. 이미 삭제되었을 수 있습니다. 화면을 새로 고쳐 주세요.";
+const LINKED_STUDY_GONE =
+  "선택한 스터디를 찾을 수 없습니다. 화면을 새로 고친 뒤 다시 골라 주세요.";
+
+/**
+ * Links a study-type activity to a study, or unlinks it (`studyId` null) —
+ * flow_set_activity_study checks both rows under one lock. Only activities of
+ * type '스터디' may be linked here (snumps-webpage/D-000053); the flow leaves
+ * that rule to its caller. A missing activity is NOT_FOUND, a study that does
+ * not exist is a bad pick (VALIDATION_FAILED), each with its own message
+ * (D-000062).
+ */
+export async function setActivityStudy(
+  id: string,
+  studyId: string | null,
+): Promise<void> {
+  const activity = (await getTable("activities")).find((a) => a.id === id);
+  if (!activity)
+    throw new AppError("NOT_FOUND", { userMessage: ACTIVITY_GONE });
+  if (activity.type !== "스터디")
+    throw new AppError("VALIDATION_FAILED", {
+      userMessage: "종류가 '스터디'인 활동만 스터디에 연결할 수 있습니다.",
+    });
+  try {
+    await callFlow(
+      "flow_set_activity_study",
+      { activityId: id, studyId },
+      { messages: { activity: ACTIVITY_GONE, study: LINKED_STUDY_GONE } },
+    );
+  } catch (e) {
+    if (e instanceof AppError && e.userMessage === LINKED_STUDY_GONE)
+      throw new AppError("VALIDATION_FAILED", {
+        userMessage: LINKED_STUDY_GONE,
+      });
+    throw e;
+  }
+}
+
 export async function deleteActivity(id: string): Promise<void> {
   // refused while an event, gallery entry or seminar points at it — checked
   // and deleted under one lock (flow_delete_activity)
@@ -310,8 +349,9 @@ export async function updateStudy(
 }
 
 export async function deleteStudy(id: string): Promise<void> {
-  // refused while it has sessions — checked and deleted under one lock
-  // (flow_delete_study); photos are cleaned after the commit
+  // refused while it has sessions or linked activities (D-000059) — checked
+  // and deleted under one lock (flow_delete_study); photos are cleaned after
+  // the commit
   const { assets } = await callFlow<FlowResult & { assets: string[] }>(
     "flow_delete_study",
     { id },

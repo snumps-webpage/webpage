@@ -35,7 +35,12 @@
     activityUpdated: "활동 기록을 수정했습니다.",
     attendeesReplaced: "참석자 명단을 관리자 권한으로 교체했습니다.",
     activityDeleted: "활동 기록을 삭제했습니다.",
+    studyLinked: "활동의 스터디 연결을 저장했습니다.",
   };
+  const studyLabel = (study: (typeof data.studies)[number]) =>
+    `${study.semester} · ${study.title}`;
+  const linkedStudy = (activity: ActivityRow) =>
+    data.studies.find((study) => study.id === activity.studyId);
 </script>
 
 <svelte:head><title>활동 기록 관리 · SNUMPS 관리자</title></svelte:head>
@@ -70,7 +75,14 @@
       role="alert"
     >
       저장하지 않았습니다 — {Object.values(form.issues ?? {}).join(" · ") ||
+        form.message ||
         "입력값을 확인해 주세요."}
+    </p>{/if}
+  {#if form?.error === "NOT_FOUND"}<p
+      class="paper-status-note error"
+      role="alert"
+    >
+      {form.message ?? "기록을 찾을 수 없습니다. 화면을 새로 고쳐 주세요."}
     </p>{/if}
 
   <section class="create-panel">
@@ -131,7 +143,9 @@
             </div>
             <small
               >{activity.attendeeIds.length}명 참석 · 이벤트 {activity
-                .linkedEventIds.length}개</small
+                .linkedEventIds.length}개{#if activity.studyId}
+                · 스터디 {linkedStudy(activity)?.title ??
+                  "알 수 없음"}{/if}</small
             ></summary
           >
           <div class="record-body">
@@ -161,6 +175,28 @@
                 /></label
               ><button class="paper-btn" type="submit">기본 정보 수정</button>
             </form>
+            {#if activity.type === "스터디"}
+              <form method="POST" action="?/setStudy" class="study-link-form">
+                <input type="hidden" name="id" value={activity.id} />
+                <label
+                  ><span class="paper-label">연결 스터디</span><select
+                    name="studyId"
+                    ><option value="" selected={!activity.studyId}
+                      >연결 안 함</option
+                    >{#if activity.studyId && !linkedStudy(activity)}<option
+                        value={activity.studyId}
+                        selected>알 수 없는 스터디</option
+                      >{/if}{#each data.studies as study (study.id)}<option
+                        value={study.id}
+                        selected={study.id === activity.studyId}
+                        >{studyLabel(study)}</option
+                      >{/each}</select
+                  ></label
+                >
+                <button class="paper-btn" type="submit">스터디 연결 저장</button
+                >
+              </form>
+            {/if}
             <form
               method="POST"
               action="?/setAttendees"
@@ -327,6 +363,20 @@
     padding: 0.8rem;
     border-top: 1px solid var(--latex-rule);
   }
+  .study-link-form {
+    display: flex;
+    align-items: end;
+    gap: 0.7rem;
+  }
+  .study-link-form label {
+    flex: 1;
+    min-width: 0;
+  }
+  .study-link-form select {
+    width: 100%;
+    min-height: 2.7rem;
+    padding: 0.55rem 0.65rem;
+  }
   .attendee-form {
     display: flex;
     align-items: end;
@@ -404,6 +454,7 @@
       grid-column: auto;
     }
     .section-title,
+    .study-link-form,
     .attendee-form,
     .delete-row,
     summary {
@@ -416,6 +467,7 @@
     .member-picker {
       grid-template-columns: 1fr;
     }
+    .study-link-form button,
     .attendee-form button,
     .delete-row button {
       width: 100%;

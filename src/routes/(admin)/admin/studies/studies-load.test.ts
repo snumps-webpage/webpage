@@ -52,7 +52,14 @@ const session = (id: string, studyId: string | null) => ({
 beforeEach(async () => {
   __reset();
   _resetDataLayerForTests({ backoffBaseMs: 1 });
-  for (const t of ["studies", "events", "members", "study-requests"]) {
+  for (const t of [
+    "studies",
+    "events",
+    "activities",
+    "members",
+    "legacy-members",
+    "study-requests",
+  ]) {
     await invalidateCache(`table_${t}`);
   }
 });
@@ -89,5 +96,50 @@ describe("admin study records", () => {
     };
 
     expect(data.records.find((r) => r.id === "st1")?.sessionCount).toBe(2);
+  });
+
+  // D-000059: deleteStudy also refuses while an activity is linked to it.
+  it("count the activities linked to the study", async () => {
+    await mutate("studies", () => [
+      {
+        id: "st1",
+        title: "해석학",
+        semester: "26-2",
+        textbook: "",
+        description: "",
+        note: "",
+        organizerIds: ["m1"],
+        participantIds: ["m1"],
+        pendingParticipantIds: [],
+        pendingTransfer: null,
+        schedule: [],
+        transferHistory: [],
+        photos: [],
+        status: "finished" as const,
+        sourceRequestId: null,
+      },
+    ]);
+    const act = (id: string, studyId: string | null) => ({
+      id,
+      title: id,
+      date: { start: nowKstIso(), end: null },
+      type: "스터디" as const,
+      attendeeIds: [],
+      studyId,
+      sourceRequestId: null,
+    });
+    await mutate("activities", () => [
+      act("a1", "st1"),
+      act("a2", "st1"),
+      act("a3", null),
+    ]);
+
+    const data = (await load({ locals: admin } as never)) as {
+      records: { id: string; linkedActivityCount: number }[];
+    };
+
+    expect(data.records.find((r) => r.id === "st1")?.linkedActivityCount).toBe(
+      2,
+    );
   });
 });

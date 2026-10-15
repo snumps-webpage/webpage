@@ -101,6 +101,49 @@ describe("deleteStudy ∥ createStudySession", () => {
   );
 });
 
+// snumps-webpage/D-000059: an activity linked to the study (activity.studyId)
+// would be left pointing at a deleted study — refused like a session, under
+// the same lock, until the admin unlinks it.
+describe("deleteStudy with a linked activity", () => {
+  it("refuses while an activity is linked, writing nothing, and deletes once unlinked", async () => {
+    const s = await seedStudy();
+    const linked = await createActivity({
+      title: "독서 모임",
+      date: { start: toKstIso(new Date()), end: null },
+      type: "스터디",
+    });
+    await mutate("activities", (rows) =>
+      rows.map((a) => (a.id === linked.id ? { ...a, studyId: s.id } : a)),
+    );
+
+    await expect(deleteStudy(s.id)).rejects.toSatisfy(
+      (err) => codeOf(err) === "CONFLICT",
+    );
+    expect((await getTable("studies")).map((x) => x.id)).toEqual([s.id]);
+
+    await mutate("activities", (rows) =>
+      rows.map((a) => (a.id === linked.id ? { ...a, studyId: null } : a)),
+    );
+    await deleteStudy(s.id);
+    expect(await getTable("studies")).toEqual([]);
+  });
+
+  it("is not blocked by an activity linked to another study", async () => {
+    const s = await seedStudy();
+    const other = await seedStudy();
+    const a = await createActivity({
+      title: "독서 모임",
+      date: { start: toKstIso(new Date()), end: null },
+      type: "스터디",
+    });
+    await mutate("activities", (rows) =>
+      rows.map((r) => (r.id === a.id ? { ...r, studyId: other.id } : r)),
+    );
+    await deleteStudy(s.id);
+    expect((await getTable("studies")).map((x) => x.id)).toEqual([other.id]);
+  });
+});
+
 describe("deleteActivity", () => {
   it("refuses while a study session points at it, deletes once free", async () => {
     const s = await seedStudy();

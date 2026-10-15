@@ -9,6 +9,7 @@
     scope?: string;
     id?: string;
     error?: string;
+    message?: string;
     issues?: Record<string, string>;
     values?: Record<string, string>;
   }
@@ -73,7 +74,8 @@
   {/if}
   {#if form?.error === "CONFLICT"}
     <p class="paper-status-note error" role="alert">
-      출석 회차가 있는 스터디는 삭제할 수 없습니다.
+      {form.message ??
+        "출석 회차나 연결된 활동이 있는 스터디는 삭제할 수 없습니다. 활동 기록 관리에서 연결을 먼저 풀어 주세요."}
     </p>
   {/if}
 
@@ -306,12 +308,15 @@
             <span
               >{record.sessionCount > 0
                 ? "출석 회차가 있어 삭제 불가"
-                : "삭제 시 공개 아카이브에서도 제거"}</span
+                : record.linkedActivityCount > 0
+                  ? `연결된 활동 ${record.linkedActivityCount}개가 있어 삭제 불가 — 활동 기록 관리에서 연결 해제`
+                  : "삭제 시 공개 아카이브에서도 제거"}</span
             >
             <button
               class="paper-btn small"
               type="submit"
-              disabled={record.sessionCount > 0}>레코드 삭제</button
+              disabled={record.sessionCount > 0 ||
+                record.linkedActivityCount > 0}>레코드 삭제</button
             >
           </form>
         </div>
