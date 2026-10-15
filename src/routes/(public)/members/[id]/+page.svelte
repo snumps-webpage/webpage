@@ -131,7 +131,8 @@
       <p class="section-note">
         출석 명단에 오른 활동 {activity.attended.length}건입니다. 활동 기록은
         회칙에 따라 따로 셉니다 — 스터디는 4회 이상 진행된 스터디의 과반 참석이
-        1회, 세미나는 진행만 해도 1회입니다.
+        1회, 세미나는 진행만 해도 1회이고, 아직 열리지 않은 활동은 세지
+        않습니다.
       </p>
       <ul class="record-list">
         {#each activity.attended as item (item.id)}

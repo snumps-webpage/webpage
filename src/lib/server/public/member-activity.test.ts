@@ -199,6 +199,8 @@ beforeEach(async () => {
     activityRow("a-cancelled", "회식", daysAgo(5), ["m1"]),
     activityRow("a-dinner", "회식", daysAgo(3), ["m1", "L2", "m3"]),
     activityRow("a-dinner2", "회식", daysAgo(2), ["m3"]),
+    // 아직 열리지 않은 회식 — 참석 목록에는 있되 기록에는 없음(D-000090)
+    activityRow("a-next", "회식", daysAgo(-5), ["m3"]),
   ]);
   await mutate("events", () => [
     {
@@ -270,10 +272,44 @@ describe("memberActivityIndex", () => {
 
     // 등록·기록 3 → 정회원(저장 지위는 준회원)
     expect(standingOf(m1())).toBe("regular");
-    // legacy id로 남은 등록도 그 사람의 등록 — 기록 2 → 준회원
+    // legacy id로 남은 등록도 그 사람의 등록 — 기록 2(예정 회식은 세지 않음) → 준회원
     expect(
       standingOf(memberRow({ id: "m3", name: "최준", legacyMemberId: "L3" })),
     ).toBe("associate");
+    // 등록한 동문은 기록 2여도 정회원(제5조 ②, D-000092), 박탈됐으면 준회원
+    expect(
+      standingOf(
+        memberRow({
+          id: "m3",
+          name: "최준",
+          legacyMemberId: "L3",
+          isAlumni: true,
+        }),
+      ),
+    ).toBe("regular");
+    expect(
+      standingOf(
+        memberRow({
+          id: "m3",
+          name: "최준",
+          legacyMemberId: "L3",
+          isAlumni: true,
+          alumniRevoked: true,
+        }),
+      ),
+    ).toBe("associate");
+    // 미등록 동문이라도 박탈됐으면 이전 회원(D-000091)
+    expect(
+      standingOf(
+        memberRow({
+          id: "m4",
+          name: "정동문",
+          status: "regular",
+          isAlumni: true,
+          alumniRevoked: true,
+        }),
+      ),
+    ).toBe("former");
     // 지난 학기 등록뿐, isAlumni → 동문
     expect(
       standingOf(
@@ -289,12 +325,48 @@ describe("memberActivityIndex", () => {
     expect(standingOf(memberRow({ id: "L2", name: "박옛날" }))).toBe("former");
   });
 
-  it("has no standing for a withdrawn member", async () => {
+  it("gives a withdrawn member the unregistered standing (D-000093)", async () => {
     const index = await memberActivityIndex({ publicOnly: false });
+    const withdrawn = (over: Partial<Member>) =>
+      index.of(
+        memberRow({ id: "m2", name: "이탈퇴", status: "withdrawn", ...over }),
+      ).standing;
+    expect(withdrawn({})).toBe("former");
+    expect(withdrawn({ isAlumni: true })).toBe("alumni");
+    expect(withdrawn({ isAlumni: true, alumniRevoked: true })).toBe("former");
+    // 이번 학기 등록이 남아 있어도 탈퇴 회원은 정회원·준회원이 아니다
     expect(
-      index.of(memberRow({ id: "m2", name: "이탈퇴", status: "withdrawn" }))
-        .standing,
-    ).toBeNull();
+      index.of(
+        memberRow({
+          id: "m1",
+          name: "김수학",
+          legacyMemberId: "L1",
+          status: "withdrawn",
+        }),
+      ).standing,
+    ).toBe("alumni");
+  });
+
+  it("lists a future activity as attended but does not count it", async () => {
+    const index = await memberActivityIndex({ publicOnly: true });
+    const { activity } = index.of(
+      memberRow({ id: "m3", name: "최준", legacyMemberId: "L3" }),
+    );
+    expect(activity.attended.map((a) => a.id)).toEqual([
+      "a-next",
+      "a-dinner2",
+      "a-dinner",
+    ]);
+    expect(activity.records).toBe(2);
+    // 그 회식이 열린 뒤에는 센다
+    const later = await memberActivityIndex({
+      publicOnly: true,
+      now: new Date(Date.now() + 6 * DAY),
+    });
+    expect(
+      later.of(memberRow({ id: "m3", name: "최준", legacyMemberId: "L3" }))
+        .activity.records,
+    ).toBe(3);
   });
 });
 

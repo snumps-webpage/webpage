@@ -24,8 +24,9 @@ import {
 } from "./member-standing";
 
 /**
- * 매일 자동 승급 (snumps-webpage/D-000073·078·079). 운영 회원 가운데 이번 학기
- * 등록·`associate`·활동 기록 3회 이상인 회원을 `regular`로 — setStatus와 같은
+ * 매일 자동 승급 (snumps-webpage/D-000073·078·079·090·092). 운영 회원 가운데 이번
+ * 학기 등록·`associate`이고 이미 시작한 활동의 기록이 3회 이상이거나 박탈되지 않은
+ * 동문(isAlumni)인 회원을 `regular`로 — setStatus와 같은
  * 필드(statusChangedAt, isAlumni: alumniRevoked가 아니면 true), 한 번의
  * mutate("members"), 회원마다 audit `member.auto-promote`. 강등은 없다.
  */
@@ -97,9 +98,21 @@ beforeEach(async () => {
       },
     }),
     memberRow({ id: "m-revoked", alumniRevoked: true }), // 등록·기록 3, 박탈 이력
+    memberRow({ id: "m-alum", isAlumni: true }), // 등록·동문·기록 0 → 승급(D-000092)
+    // 등록·동문 표시가 남은 박탈·기록 1 → 그대로
+    memberRow({ id: "m-alum-revoked", isAlumni: true, alumniRevoked: true }),
+    memberRow({ id: "m-alum-unreg", isAlumni: true }), // 미등록 동문 → 그대로
   ]);
   await mutate("registrations", () =>
-    ["m-qual", "m-two", "m-reg", "m-gone", "m-revoked"].map((memberId) => ({
+    [
+      "m-qual",
+      "m-two",
+      "m-reg",
+      "m-gone",
+      "m-revoked",
+      "m-alum",
+      "m-alum-revoked",
+    ].map((memberId) => ({
       id: `r-${memberId}`,
       memberId,
       term: TERM,
@@ -117,21 +130,35 @@ beforeEach(async () => {
       ...dinners(1, ["m-two"])[0],
       id: "x2",
     },
+    { ...dinners(1, ["m-alum-revoked"])[0], id: "x3" },
+    // 아직 열리지 않은 회식 — m-two의 세 번째 기록이 되지 않는다(D-000090)
+    {
+      ...dinners(1, ["m-two"])[0],
+      id: "x-next",
+      date: { start: "2026-10-20T19:00:00+09:00", end: null },
+    },
   ]);
 });
 
 describe("promotionCandidates", () => {
-  it("lists only registered associates with enough records", async () => {
+  it("lists only registered associates with enough records or alumni standing", async () => {
     expect((await promotionCandidates(NOW)).sort()).toEqual([
+      "m-alum",
       "m-qual",
       "m-revoked",
     ]);
+  });
+
+  it("counts the future activity once it has started", async () => {
+    expect(
+      (await promotionCandidates(new Date("2026-10-21T00:00:00+09:00"))).sort(),
+    ).toEqual(["m-alum", "m-qual", "m-revoked", "m-two"]);
   });
 });
 
 describe("promoteQualifiedMembers", () => {
   it("promotes with the fields setStatus writes and audits each member", async () => {
-    expect(await promoteQualifiedMembers(NOW)).toBe(2);
+    expect(await promoteQualifiedMembers(NOW)).toBe(3);
 
     const byId = new Map((await getTable("members")).map((m) => [m.id, m]));
     expect(byId.get("m-qual")).toMatchObject({
@@ -145,8 +172,12 @@ describe("promoteQualifiedMembers", () => {
       isAlumni: false,
       alumniRevoked: true,
     });
+    expect(byId.get("m-alum")).toMatchObject({
+      status: "regular",
+      isAlumni: true,
+    });
     // 나머지는 그대로
-    for (const id of ["m-two", "m-unreg"])
+    for (const id of ["m-two", "m-unreg", "m-alum-revoked", "m-alum-unreg"])
       expect(byId.get(id)).toMatchObject({
         status: "associate",
         statusChangedAt: OLD_STAMP,
@@ -163,6 +194,7 @@ describe("promoteQualifiedMembers", () => {
     expect(
       audits.map((r) => [r.actor, r.target_tb, r.target_id]).sort(),
     ).toEqual([
+      ["system", "members", "m-alum"],
       ["system", "members", "m-qual"],
       ["system", "members", "m-revoked"],
     ]);

@@ -29,10 +29,8 @@
     withdrawn: "탈퇴",
   } as const;
   const storedLabel = $derived(STORED_STATUS_LABELS[data.member.status]);
-  // 계산 지위가 없으면(탈퇴) 저장 지위만 보인다
-  const standingLabel = $derived(
-    data.standing ? MEMBER_STANDING_LABELS[data.standing] : storedLabel,
-  );
+  // 탈퇴 회원도 계산 지위(동문·이전 회원)를 '저장 지위 탈퇴' 옆에 보인다 (D-000093)
+  const standingLabel = $derived(MEMBER_STANDING_LABELS[data.standing]);
 
   function activityDate(value: string) {
     return new Intl.DateTimeFormat("ko-KR", {
@@ -317,12 +315,15 @@
     </header>
     <p class="activity-note">
       이번 학기 등록 {data.registeredThisTerm ? "있음" : "없음"}. 등록한 회원은
-      활동 기록 {REGULAR_RECORD_THRESHOLD}회 이상이거나 저장 지위가 정회원이면
-      정회원, 아니면 준회원입니다. 등록하지 않은 회원은 기록
-      {REGULAR_RECORD_THRESHOLD}회 이상이거나 동문 자격이 기록돼 있으면 동문,
-      아니면 이전 회원입니다. 스터디 세션은 {STUDY_MIN_SESSIONS}회 이상 진행된
-      스터디의 과반 참석이 1회입니다. '공개 면 숨김'은 공개 명단·회원 페이지에서
-      빠지는 항목이고, 숨김 활동은 기록에 세지 않습니다.
+      활동 기록 {REGULAR_RECORD_THRESHOLD}회 이상이거나, 저장 지위가
+      정회원이거나, 동문 자격이 기록돼 있으면 정회원, 아니면 준회원입니다.
+      등록하지 않은 회원과 탈퇴 회원은 기록 {REGULAR_RECORD_THRESHOLD}회
+      이상이거나 동문 자격이 기록돼 있으면 동문, 아니면 이전 회원입니다. 동문
+      지위가 박탈됐으면 동문 자격으로 보지 않고, 등록하지 않았으면 기록과
+      관계없이 이전 회원입니다. 활동 기록은 이미 시작한 활동만 셉니다. 스터디
+      세션은 {STUDY_MIN_SESSIONS}회 이상 진행된 스터디의 과반 참석이 1회입니다.
+      '공개 면 숨김'은 공개 명단·회원 페이지에서 빠지는 항목이고, 숨김 활동은
+      기록에 세지 않습니다.
     </p>
     <div class="records">
       <h3>활동 기록 {activity.records}</h3>

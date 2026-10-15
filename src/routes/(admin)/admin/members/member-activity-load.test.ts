@@ -142,6 +142,20 @@ beforeEach(async () => {
         holdAt: null,
       },
     },
+    // 탈퇴한 동문 → 계산 동문(D-000093)
+    {
+      ...base,
+      id: "m5",
+      name: "한동문",
+      status: "withdrawn",
+      isAlumni: true,
+      withdrawal: {
+        requestedAt: nowKstIso(),
+        previousStatus: "regular",
+        holdBy: null,
+        holdAt: null,
+      },
+    },
   ]);
   await mutate("registrations", () =>
     ["m1", "m3"].map((memberId) => ({
@@ -183,6 +197,8 @@ beforeEach(async () => {
     // 이주된 스터디 활동(L1 = m1) → 1
     activityRow("a-old", "스터디", daysAgo(900), ["L1"], null),
     activityRow("a-dinner", "회식", daysAgo(3), ["m1"]),
+    // 아직 열리지 않은 회식 — 목록에는 있되 기록에는 없음(D-000090)
+    activityRow("a-next", "회식", daysAgo(-3), ["m1"]),
   ]);
 });
 
@@ -199,7 +215,8 @@ describe("admin member list", () => {
       m1: ["associate", "regular"],
       m2: ["regular", "alumni"],
       m3: ["associate", "associate"],
-      m4: ["withdrawn", null],
+      m4: ["withdrawn", "former"],
+      m5: ["withdrawn", "alumni"],
     });
   });
 });
@@ -247,6 +264,7 @@ describe("admin member detail", () => {
     expect(
       data.activity.attended.map((a) => ({ id: a.id, hidden: a.hidden })),
     ).toEqual([
+      { id: "a-next", hidden: false },
       { id: "a-dinner", hidden: false },
       { id: "a-draft", hidden: true },
       { id: "a-old", hidden: false },

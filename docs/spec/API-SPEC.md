@@ -826,8 +826,9 @@ audit LC11-3). 새 회원 행은 승인 흐름이 legacy 가입일 또는 승인
     `200 success`로 보고되며 heartbeat까지 눌린다 — 실제로 그랬다 (감사 `CS-5`·`CM-4`)
   - 같은 규약이 `GET /api/cron/maintenance`에 적용된다. 실패 이름: `keepalive_failed`
     (이때 본문의 `keptAlive`는 `false`) · `cleanup_failed` · `promote_failed` · `backup_failed` · `backup_push_failed`.
-    `promote` 단계는 매일 이번 학기 등록·`associate`·활동 기록 3회 이상인 운영 회원을 `regular`로
-    올리고 본문에 `promoted: n`을 싣는다 (회칙 제4조 ④, snumps-webpage/D-000073·078·079)
+    `promote` 단계는 매일 이번 학기 등록·`associate`이고 활동 기록(이미 시작한 활동만) 3회 이상이거나
+    박탈되지 않은 동문(`isAlumni`, `alumniRevoked` 아님)인 운영 회원을 `regular`로 올리고 본문에
+    `promoted: n`을 싣는다 (회칙 제4조 ④·제5조 ②, snumps-webpage/D-000073·078·079·090·092)
 
 ### 8-2. 업로드 — SYS-03
 

@@ -8,8 +8,9 @@ import {
 } from "$lib/domain/member-activity";
 
 /**
- * 매일 자동 승급 (snumps-webpage/D-000073·078·079) — 회칙 제4조 ④ "정회원 자격은
- * 요건 충족 즉시 자동적으로 취득된다". maintenance cron의 한 단계로 돈다
+ * 매일 자동 승급 (snumps-webpage/D-000073·078·079·090·092) — 회칙 제4조 ④ "정회원
+ * 자격은 요건 충족 즉시 자동적으로 취득된다", 제5조 ② "비회원인 동문이 동아리에
+ * 재가입할 경우 정회원 자격을 회복한다". maintenance cron의 한 단계로 돈다
  * (services/maintenance.ts `promote`).
  *
  * 대상은 운영 `members`뿐이다 — legacy 행은 읽기 전용이다(`data/directory.ts`).
@@ -17,7 +18,10 @@ import {
  * 강등은 하지 않는다.
  */
 
-/** 이번 학기 등록·`associate`·활동 기록 기준 이상인 운영 회원 id. */
+/**
+ * 이번 학기 등록·`associate`이고, `now`까지 시작한 활동의 기록이 기준 이상이거나
+ * 박탈되지 않은 동문인 운영 회원 id.
+ */
 export async function promotionCandidates(now: Date): Promise<string[]> {
   const [members, registrations, seminars, studies, activities, events] =
     await Promise.all([
@@ -37,6 +41,7 @@ export async function promotionCandidates(now: Date): Promise<string[]> {
     registrations,
     term: currentTerm(now),
     data,
+    now,
   });
 }
 

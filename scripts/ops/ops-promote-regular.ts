@@ -1,5 +1,6 @@
 /**
- * 첫 일괄 승급 — 회칙 기준 정회원 요건을 이미 채운 준회원을 `regular`로 올린다.
+ * 첫 일괄 승급 — 회칙 기준 정회원 요건(제4조 ②, 재가입 동문은 제5조 ②)을 이미 채운
+ * 준회원을 `regular`로 올린다.
  *
  *   npx tsx scripts/ops/ops-promote-regular.ts                         # dev, 미리보기
  *   npx tsx scripts/ops/ops-promote-regular.ts --target prod           # prod, 미리보기
@@ -9,7 +10,8 @@
  * snumps-webpage/D-000073·079), 그 단계가 배포되기 전부터 요건을 채운 회원이 있다.
  * 첫 회는 미리보기를 보여 주고 질문한 뒤 적용한다(D-000080).
  *
- * 무엇을 하나: 판정에 필요한 표를 읽어(회원은 id·legacyMemberId·status만) cron과
+ * 무엇을 하나: 판정에 필요한 표를 읽어(회원은 id·legacyMemberId·status·isAlumni·
+ * alumniRevoked만) cron과
  * **같은 순수 함수**로 후보를 고른다(lib-promote-regular.ts → src/lib/domain/member-activity.ts).
  * 기본은 미리보기 — 후보 수와 회원 id만 출력한다(이름 없음). `--apply`면 대상
  * 프로젝트 ref를 입력받고, 후보를 **다시 계산**해 그때도 `associate`인 행만 setStatus와
@@ -64,7 +66,7 @@ async function main() {
   console.log(`대상: ${target}${APPLY ? "" : " (미리보기 — 쓰지 않음)"}`);
   const preview = candidatesNow();
   console.log(
-    `\n승급 대상(이번 학기 등록·준회원·활동 기록 3회 이상): ${preview.length}명`,
+    `\n승급 대상(이번 학기 등록·준회원·활동 기록 3회 이상 또는 동문): ${preview.length}명`,
   );
   for (const id of preview) console.log(`  - ${id}`);
   if (!APPLY) {

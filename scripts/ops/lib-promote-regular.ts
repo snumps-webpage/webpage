@@ -18,13 +18,18 @@ import {
 import { termOf } from "../../src/lib/domain/term";
 import { jsonOf } from "./lib-add-member.mjs";
 
-/** 승급 판정에 필요한 표 — 회원은 id·legacyMemberId·status만(이름 등은 읽지 않는다). */
+/**
+ * 승급 판정에 필요한 표 — 회원은 id·legacyMemberId·status·isAlumni·alumniRevoked만
+ * (이름 등은 읽지 않는다).
+ */
 export const readSql = () => `
 select
   (select coalesce(jsonb_agg(jsonb_build_object(
             'id', m ->> 'id',
             'legacyMemberId', m -> 'legacyMemberId',
-            'status', m ->> 'status')), '[]'::jsonb)
+            'status', m ->> 'status',
+            'isAlumni', m -> 'isAlumni',
+            'alumniRevoked', m -> 'alumniRevoked')), '[]'::jsonb)
      from app_tables t, jsonb_array_elements(t.doc -> 'rows') m
     where t.name = 'members') as members,
   ${["registrations", "seminars", "studies", "activities", "events"]
@@ -36,7 +41,13 @@ select
 `;
 
 export type PromotionTables = ActivityTables & {
-  members: { id: string; legacyMemberId: string | null; status: string }[];
+  members: {
+    id: string;
+    legacyMemberId: string | null;
+    status: string;
+    isAlumni: boolean;
+    alumniRevoked: boolean;
+  }[];
   registrations: { memberId: string; term: string }[];
 };
 
@@ -57,6 +68,9 @@ export function tablesFrom(row: Record<string, unknown>): PromotionTables {
       id: String(m.id),
       legacyMemberId: m.legacyMemberId ?? null,
       status: String(m.status),
+      // 저장 행에는 늘 boolean이다 — 없으면 동문 아님·박탈 없음으로 읽는다
+      isAlumni: m.isAlumni === true,
+      alumniRevoked: m.alumniRevoked === true,
     })),
     registrations: list("registrations"),
     seminars: list("seminars"),
@@ -66,7 +80,10 @@ export function tablesFrom(row: Record<string, unknown>): PromotionTables {
   };
 }
 
-/** 지금 학기의 승급 후보 — cron과 같은 규칙(selectPromotionCandidates). */
+/**
+ * 지금 학기의 승급 후보 — cron과 같은 규칙(selectPromotionCandidates): `now`까지
+ * 시작한 활동만 센다.
+ */
 export function candidatesFrom(tables: PromotionTables, now: Date): string[] {
   const { data } = memberActivityData(tables, { publicOnly: false });
   return selectPromotionCandidates({
@@ -74,6 +91,7 @@ export function candidatesFrom(tables: PromotionTables, now: Date): string[] {
     registrations: tables.registrations,
     term: termOf(now),
     data,
+    now,
   });
 }
 

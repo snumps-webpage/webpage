@@ -15,10 +15,18 @@ import {
  * - 활동 기록(회칙 제18~20조): 세미나는 참석하거나 발표한 활동 1건당 1회(둘 다여도
  *   1회), 스터디 세션은 스터디별로 묶어 취소되지 않은 세션 4개 이상 중 과반 참석이면
  *   그 스터디로 1회, 그 밖의 스터디 활동(이주분)·회식·회의·기타는 참석 1건당 1회.
- *   숨김 활동은 세지 않는다.
- * - 지위(회칙 제4·5조): 이번 학기 등록이면 정회원(저장 regular 또는 기록 3회 이상)
- *   /준회원, 미등록이면 동문(기록 3회 이상 또는 isAlumni)/이전 회원.
+ *   숨김 활동과 아직 시작하지 않은 활동은 세지 않는다(D-000090).
+ * - 지위(회칙 제4·5조): 이번 학기 등록이면 정회원(저장 regular, 기록 3회 이상, 또는
+ *   박탈되지 않은 isAlumni — 제5조 ②, D-000092)/준회원, 미등록이면 동문(기록 3회
+ *   이상 또는 isAlumni, 단 alumniRevoked면 아님 — D-000091)/이전 회원.
  */
+
+/** 기준 시각 — 아래 고정 활동(2026-09 이전)은 모두 이미 시작했다. */
+const NOW = new Date("2026-10-16T12:00:00+09:00");
+const FUTURE = "2026-10-20T19:00:00+09:00";
+
+const activityOf = (ids: ReadonlySet<string>, data: MemberActivityData) =>
+  memberActivity(ids, data, NOW);
 
 type Act = MemberActivityData["activities"][number];
 
@@ -83,7 +91,7 @@ describe("constants", () => {
 
 describe("memberActivity — seminar records", () => {
   it("counts a presenter who also attended once", () => {
-    const result = memberActivity(me, {
+    const result = activityOf(me, {
       ...empty,
       seminars: [seminar("s1", ["m1"], "a1")],
       activities: [
@@ -95,7 +103,7 @@ describe("memberActivity — seminar records", () => {
   });
 
   it("counts a presenter who is not on the attendance list", () => {
-    const result = memberActivity(me, {
+    const result = activityOf(me, {
       ...empty,
       seminars: [seminar("s1", ["m1"], "a1")],
       activities: [activity("a1", "세미나", "2026-09-01T19:00:00+09:00", [])],
@@ -106,7 +114,7 @@ describe("memberActivity — seminar records", () => {
   });
 
   it("counts a plain attendee once per seminar activity", () => {
-    const result = memberActivity(me, {
+    const result = activityOf(me, {
       ...empty,
       seminars: [seminar("s1", ["m9"], "a1")],
       activities: [
@@ -118,7 +126,7 @@ describe("memberActivity — seminar records", () => {
   });
 
   it("gives a presenter nothing for a seminar with no activity", () => {
-    const result = memberActivity(me, {
+    const result = activityOf(me, {
       ...empty,
       seminars: [seminar("s1", ["m1"], null)],
     });
@@ -134,7 +142,7 @@ describe("memberActivity — study sessions", () => {
     );
 
   it("gives one record for attending 3 of 4 sessions", () => {
-    const result = memberActivity(me, {
+    const result = activityOf(me, {
       ...empty,
       activities: sessions(3, 4),
     });
@@ -146,19 +154,19 @@ describe("memberActivity — study sessions", () => {
 
   it("gives nothing for 2 of 4 sessions — half is not a majority", () => {
     expect(
-      memberActivity(me, { ...empty, activities: sessions(2, 4) }).records,
+      activityOf(me, { ...empty, activities: sessions(2, 4) }).records,
     ).toBe(0);
   });
 
   it("gives nothing for a study of 3 sessions, all attended", () => {
     expect(
-      memberActivity(me, { ...empty, activities: sessions(3, 3) }).records,
+      activityOf(me, { ...empty, activities: sessions(3, 3) }).records,
     ).toBe(0);
   });
 
   it("gives one record for 5 sessions all attended — once per study", () => {
     expect(
-      memberActivity(me, { ...empty, activities: sessions(5, 5) }).records,
+      activityOf(me, { ...empty, activities: sessions(5, 5) }).records,
     ).toBe(1);
   });
 
@@ -167,17 +175,17 @@ describe("memberActivity — study sessions", () => {
     const five = sessions(3, 5).map((a, i) =>
       i >= 3 ? { ...a, hidden: true } : a,
     );
-    expect(memberActivity(me, { ...empty, activities: five }).records).toBe(0);
+    expect(activityOf(me, { ...empty, activities: five }).records).toBe(0);
 
     // 6세션 중 1개 취소 → 진행 5세션 중 3 참석: 과반
     const six = sessions(3, 6).map((a, i) =>
       i === 5 ? { ...a, hidden: true } : a,
     );
-    expect(memberActivity(me, { ...empty, activities: six }).records).toBe(1);
+    expect(activityOf(me, { ...empty, activities: six }).records).toBe(1);
   });
 
   it("groups sessions per study", () => {
-    const result = memberActivity(me, {
+    const result = activityOf(me, {
       ...empty,
       activities: [
         ...sessions(4, 4),
@@ -190,7 +198,7 @@ describe("memberActivity — study sessions", () => {
   });
 
   it("counts a migrated study activity (no session key) once per attendance", () => {
-    const result = memberActivity(me, {
+    const result = activityOf(me, {
       ...empty,
       activities: [
         activity("a1", "스터디", "2023-09-01T00:00:00+09:00", ["m1"], {
@@ -210,7 +218,7 @@ describe("memberActivity — study sessions", () => {
 
 describe("memberActivity — other records", () => {
   it("counts 회식·회의·기타 once per attendance", () => {
-    const result = memberActivity(me, {
+    const result = activityOf(me, {
       ...empty,
       activities: [
         activity("a1", "회식", "2026-09-01T19:00:00+09:00", ["m1"]),
@@ -224,7 +232,7 @@ describe("memberActivity — other records", () => {
   });
 
   it("never counts a hidden activity but still lists it as attended", () => {
-    const result = memberActivity(me, {
+    const result = activityOf(me, {
       ...empty,
       seminars: [seminar("s1", ["m1"], "a1")],
       activities: [
@@ -242,13 +250,90 @@ describe("memberActivity — other records", () => {
   });
 
   it("is empty with no record at all", () => {
-    expect(memberActivity(me, empty)).toEqual({
+    expect(activityOf(me, empty)).toEqual({
       hostedSeminars: [],
       hostedStudies: [],
       attended: [],
       records: 0,
       recordsByType: {},
     });
+  });
+});
+
+describe("memberActivity — activities that have not started (D-000090)", () => {
+  it("does not count a future seminar, attended or presented, but still lists the attended one", () => {
+    const result = activityOf(me, {
+      ...empty,
+      seminars: [seminar("s1", ["m1"], "a1"), seminar("s2", ["m9"], "a2")],
+      activities: [
+        // 발표 예정 세미나
+        activity("a1", "세미나", FUTURE, []),
+        // 참석 명단에 오른 예정 세미나
+        activity("a2", "세미나", FUTURE, ["m1"]),
+      ],
+    });
+    expect(result.records).toBe(0);
+    expect(result.recordsByType).toEqual({});
+    expect(result.attended.map((a) => a.id)).toEqual(["a2"]);
+  });
+
+  it("does not count a future 회식·회의·기타 or migrated study activity", () => {
+    const result = activityOf(me, {
+      ...empty,
+      activities: [
+        activity("a1", "회식", FUTURE, ["m1"]),
+        activity("a2", "회의", FUTURE, ["m1"]),
+        activity("a3", "기타", FUTURE, ["m1"]),
+        activity("a4", "스터디", FUTURE, ["m1"], { studyId: "st-old" }),
+        activity("a5", "회식", "2026-10-16T11:59:00+09:00", ["m1"]),
+      ],
+    });
+    expect(result.records).toBe(1);
+    expect(result.recordsByType).toEqual({ 회식: 1 });
+  });
+
+  it("counts only started sessions toward the 4-session majority rule", () => {
+    const future = (no: number, attendeeIds: string[]) =>
+      session("st1", no, attendeeIds, { start: FUTURE });
+    // 시작한 4세션 중 3 참석 + 예정 1세션 → 1 (예정 세션은 회차에 넣지 않는다)
+    expect(
+      activityOf(me, {
+        ...empty,
+        activities: [
+          session("st1", 1, ["m1"]),
+          session("st1", 2, ["m1"]),
+          session("st1", 3, ["m1"]),
+          session("st1", 4, ["m9"]),
+          future(5, ["m9"]),
+          future(6, ["m9"]),
+        ],
+      }).records,
+    ).toBe(1);
+    // 시작한 3세션 모두 참석 + 예정 1세션 → 아직 4회 진행 전이라 0
+    expect(
+      activityOf(me, {
+        ...empty,
+        activities: [
+          session("st1", 1, ["m1"]),
+          session("st1", 2, ["m1"]),
+          session("st1", 3, ["m1"]),
+          future(4, ["m1"]),
+        ],
+      }).records,
+    ).toBe(0);
+    // 시작한 4세션 중 2 참석(과반 아님) + 예정 세션 출석 명단 → 0
+    expect(
+      activityOf(me, {
+        ...empty,
+        activities: [
+          session("st1", 1, ["m1"]),
+          session("st1", 2, ["m1"]),
+          session("st1", 3, ["m9"]),
+          session("st1", 4, ["m9"]),
+          future(5, ["m1"]),
+        ],
+      }).records,
+    ).toBe(0);
   });
 });
 
@@ -272,7 +357,7 @@ describe("memberActivity — one person, two ids", () => {
       ],
     };
 
-    const result = memberActivity(new Set(["m1", "L1"]), data);
+    const result = activityOf(new Set(["m1", "L1"]), data);
 
     expect(result.hostedSeminars).toEqual([
       { id: "s-new", title: "새 세미나", semester: "26-2" },
@@ -292,7 +377,7 @@ describe("memberActivity — one person, two ids", () => {
   });
 
   it("carries only the activity reference, not the attendee list", () => {
-    const result = memberActivity(me, {
+    const result = activityOf(me, {
       ...empty,
       activities: [
         activity("a1", "세미나", "2026-09-01T19:00:00+09:00", ["m1", "m2"], {
@@ -323,8 +408,9 @@ describe("selectPromotionCandidates", () => {
         attendeeIds,
       ),
     );
+  type Row = Parameters<typeof selectPromotionCandidates>[0]["members"][number];
   const pick = (
-    members: { id: string; legacyMemberId: string | null; status: string }[],
+    members: Row[],
     registrations: { memberId: string; term: string }[],
     activities: Act[],
   ) =>
@@ -333,12 +419,18 @@ describe("selectPromotionCandidates", () => {
       registrations,
       term: TERM,
       data: { ...empty, activities },
+      now: NOW,
     });
-  const assoc = (id: string, legacyMemberId: string | null = null) => ({
+  const row = (id: string, status: string, over: Partial<Row> = {}): Row => ({
     id,
-    legacyMemberId,
-    status: "associate",
+    legacyMemberId: null,
+    status,
+    isAlumni: false,
+    alumniRevoked: false,
+    ...over,
   });
+  const assoc = (id: string, legacyMemberId: string | null = null) =>
+    row(id, "associate", { legacyMemberId });
 
   it("picks a registered associate with 3 records", () => {
     expect(
@@ -370,9 +462,9 @@ describe("selectPromotionCandidates", () => {
     expect(
       pick(
         [
-          { id: "m1", legacyMemberId: null, status: "regular" },
-          { id: "m2", legacyMemberId: null, status: "withdrawn" },
-          { id: "m3", legacyMemberId: null, status: "regular" },
+          row("m1", "regular"),
+          row("m2", "withdrawn"),
+          row("m3", "regular", { isAlumni: true }),
         ],
         regs,
         dinners(3, ["m1", "m2"]),
@@ -401,6 +493,46 @@ describe("selectPromotionCandidates", () => {
       [],
     );
   });
+
+  it("does not count activities that have not started (D-000090)", () => {
+    const acts = [
+      ...dinners(2, ["m1"]),
+      activity("later", "회식", FUTURE, ["m1"]),
+    ];
+    expect(pick([assoc("m1")], [{ memberId: "m1", term: TERM }], acts)).toEqual(
+      [],
+    );
+  });
+
+  it("picks a registered isAlumni associate with 1 record (제5조 ②, D-000092)", () => {
+    expect(
+      pick(
+        [row("m1", "associate", { isAlumni: true })],
+        [{ memberId: "m1", term: TERM }],
+        dinners(1, ["m1"]),
+      ),
+    ).toEqual(["m1"]);
+  });
+
+  it("leaves a registered associate whose alumni standing was revoked, at 1 record", () => {
+    expect(
+      pick(
+        [row("m1", "associate", { isAlumni: true, alumniRevoked: true })],
+        [{ memberId: "m1", term: TERM }],
+        dinners(1, ["m1"]),
+      ),
+    ).toEqual([]);
+  });
+
+  it("leaves an unregistered isAlumni associate", () => {
+    expect(
+      pick(
+        [row("m1", "associate", { isAlumni: true })],
+        [{ memberId: "m1", term: "26-1" }],
+        dinners(1, ["m1"]),
+      ),
+    ).toEqual([]);
+  });
 });
 
 describe("inMemberView", () => {
@@ -427,6 +559,7 @@ describe("memberStanding", () => {
       registeredThisTerm: true,
       storedStatus: "associate",
       isAlumni: false,
+      alumniRevoked: false,
       records: 0,
       ...over,
     });
@@ -440,8 +573,17 @@ describe("memberStanding", () => {
     expect(standing({ storedStatus: "regular", records: 0 })).toBe("regular");
   });
 
-  it("does not let isAlumni alone make a registered member regular", () => {
-    expect(standing({ isAlumni: true, records: 0 })).toBe("associate");
+  it("makes a registered isAlumni member regular with 1 record — 제5조 ② (D-000092)", () => {
+    expect(standing({ isAlumni: true, records: 1 })).toBe("regular");
+    expect(standing({ isAlumni: true, records: 0 })).toBe("regular");
+  });
+
+  it("does not let a revoked alumni flag make a registered member regular", () => {
+    expect(standing({ isAlumni: true, alumniRevoked: true, records: 1 })).toBe(
+      "associate",
+    );
+    // 기록 기준은 박탈과 무관하다 (제4조 ②)
+    expect(standing({ alumniRevoked: true, records: 3 })).toBe("regular");
   });
 
   it("makes an unregistered person alumni at 3 records, former at 2", () => {
@@ -453,6 +595,20 @@ describe("memberStanding", () => {
     expect(
       standing({ registeredThisTerm: false, isAlumni: true, records: 0 }),
     ).toBe("alumni");
+  });
+
+  it("never makes an unregistered revoked person alumni (D-000091)", () => {
+    expect(
+      standing({ registeredThisTerm: false, alumniRevoked: true, records: 3 }),
+    ).toBe("former");
+    expect(
+      standing({
+        registeredThisTerm: false,
+        isAlumni: true,
+        alumniRevoked: true,
+        records: 5,
+      }),
+    ).toBe("former");
   });
 
   it("does not let a stored regular status outlast the registration", () => {

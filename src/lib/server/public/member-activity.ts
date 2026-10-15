@@ -15,7 +15,7 @@ import {
 
 /**
  * 회원별 활동 기록과 회칙 기준 지위의 로드 (snumps-webpage/D-000063·064·070·
- * 074·077·078).
+ * 074·077·078·090·091·092·093). 기록은 `now`까지 시작한 활동만 센다.
  *
  * 공개 집계(`publicOnly`)는 회원 면의 숨김 규칙을 그대로 쓴다 — 가려진 활동은
  * `hiddenActivityIdsOf`, 세미나는 공개 아카이브와 같은 기준(공개된 것만,
@@ -31,8 +31,11 @@ import {
 
 export type MemberRecord = {
   activity: MemberActivity;
-  /** 회칙 기준 지위 — 탈퇴 회원은 null. */
-  standing: MemberStanding | null;
+  /**
+   * 회칙 기준 지위. 탈퇴 회원은 등록이 없는 사람으로 계산한다(동문·이전 회원,
+   * D-000093 — 관리자 화면용). 공개 면은 탈퇴 회원을 부르는 쪽에서 뺀다.
+   */
+  standing: MemberStanding;
   registeredThisTerm: boolean;
 };
 
@@ -67,20 +70,19 @@ export async function memberActivityIndex({
     hiddenFromPublic,
     of(member) {
       const ids = personIdsOf(member);
-      const activity = memberActivity(ids, data);
+      const activity = memberActivity(ids, data, now);
       const registeredThisTerm = [...ids].some((id) => registeredIds.has(id));
       return {
         activity,
         registeredThisTerm,
-        standing:
-          member.status === "withdrawn"
-            ? null
-            : memberStanding({
-                registeredThisTerm,
-                storedStatus: member.status,
-                isAlumni: member.isAlumni,
-                records: activity.records,
-              }),
+        standing: memberStanding({
+          registeredThisTerm:
+            registeredThisTerm && member.status !== "withdrawn",
+          storedStatus: member.status,
+          isAlumni: member.isAlumni,
+          alumniRevoked: member.alumniRevoked,
+          records: activity.records,
+        }),
       };
     },
   };
@@ -116,7 +118,6 @@ export async function getPublicMember(id: string): Promise<
   if (m.id !== id)
     return { redirectTo: `/members/${encodeURIComponent(m.id)}` };
   const { activity, standing } = index.of(m);
-  if (!standing) return null; // 탈퇴 — 위에서 이미 걸렀다
   return {
     member: {
       id: m.id,

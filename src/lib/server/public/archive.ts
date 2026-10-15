@@ -79,9 +79,9 @@ export async function getPublicMembers() {
   ]);
   return members
     .flatMap((m) => {
+      // withdrawn members have no place on the roster
+      if (m.status === "withdrawn") return [];
       const { activity, standing } = index.of(m);
-      // withdrawn members have no standing and no place on the roster
-      if (!standing) return [];
       return [
         {
           id: m.id,

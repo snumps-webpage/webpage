@@ -87,6 +87,10 @@ beforeEach(async () => {
     // 세션 4개 중 2 참석(0) + 회식 2 = 2 → 아님
     memberRow({ id: "m-two" }),
     memberRow({ id: "m-reg", status: "regular", isAlumni: true }),
+    // 등록한 동문, 기록 2 → 후보(제5조 ②, D-000092)
+    memberRow({ id: "m-alum", isAlumni: true }),
+    // 등록, 동문 표시가 남은 박탈, 기록 2 → 아님
+    memberRow({ id: "m-alum-revoked", isAlumni: true, alumniRevoked: true }),
   ]);
   await mutate("registrations", () =>
     [
@@ -94,6 +98,8 @@ beforeEach(async () => {
       ["L1", currentTerm(NOW)],
       ["m-two", currentTerm(NOW)],
       ["m-reg", currentTerm(NOW)],
+      ["m-alum", currentTerm(NOW)],
+      ["m-alum-revoked", currentTerm(NOW)],
     ].map(([memberId, term]) => ({
       id: `r-${memberId}`,
       memberId,
@@ -112,10 +118,27 @@ beforeEach(async () => {
       title: `회식 ${i}`,
       date: { start: `2026-10-0${i}T19:00:00+09:00`, end: null },
       type: "회식" as const,
-      attendeeIds: ["m-qual", "m-two", "m-reg", "L1"],
+      attendeeIds: [
+        "m-qual",
+        "m-two",
+        "m-reg",
+        "L1",
+        "m-alum",
+        "m-alum-revoked",
+      ],
       studyId: null,
       sourceRequestId: null,
     })),
+    // 아직 열리지 않은 회식 — m-two·m-alum-revoked의 세 번째 기록이 되지 않는다
+    {
+      id: "d-next",
+      title: "예정 회식",
+      date: { start: "2026-10-20T19:00:00+09:00", end: null },
+      type: "회식" as const,
+      attendeeIds: ["m-two", "m-alum-revoked"],
+      studyId: null,
+      sourceRequestId: null,
+    },
     {
       id: "old",
       title: "이주된 스터디",
@@ -137,8 +160,21 @@ async function readTables() {
 describe("readSql + candidatesFrom", () => {
   it("picks the same members as the daily cron", async () => {
     const fromScript = candidatesFrom(await readTables(), NOW).sort();
-    expect(fromScript).toEqual(["m-legacy", "m-qual"]);
+    expect(fromScript).toEqual(["m-alum", "m-legacy", "m-qual"]);
     expect((await promotionCandidates(NOW)).sort()).toEqual(fromScript);
+  });
+
+  it("still agrees with the cron once the future activity has started", async () => {
+    const later = new Date("2026-10-21T00:00:00+09:00");
+    const fromScript = candidatesFrom(await readTables(), later).sort();
+    expect(fromScript).toEqual([
+      "m-alum",
+      "m-alum-revoked",
+      "m-legacy",
+      "m-qual",
+      "m-two",
+    ]);
+    expect((await promotionCandidates(later)).sort()).toEqual(fromScript);
   });
 
   it("reads no member name", async () => {

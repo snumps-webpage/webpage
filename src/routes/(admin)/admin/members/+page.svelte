@@ -28,7 +28,7 @@
         member.department,
         member.status,
         statusLabel(member.status),
-        member.standing ? MEMBER_STANDING_LABELS[member.standing] : "",
+        MEMBER_STANDING_LABELS[member.standing],
         ...member.roles.flatMap((role) => [role.term, role.title]),
       ].some((value) => value.toLocaleLowerCase("ko-KR").includes(normalized)),
     );
@@ -71,7 +71,7 @@
   </div>
   <p class="view-note">
     지위 배지는 회칙 기준 계산 지위입니다(이번 학기 등록과 활동 기록). 카드 위쪽
-    글자는 저장된 지위입니다.
+    글자는 저장된 지위입니다. 탈퇴 회원은 동문 또는 이전 회원으로 계산합니다.
   </p>
 
   <section class="member-index">
@@ -94,12 +94,12 @@
             <h2>{member.name}</h2>
           </div>
           <div class="badges">
-            {#if member.standing}<span
-                class="badge standing"
-                class:current={inMemberView(member.standing, "current")}
-                title="회칙 기준 계산 지위"
-                >{MEMBER_STANDING_LABELS[member.standing]}</span
-              >{/if}
+            <span
+              class="badge standing"
+              class:current={inMemberView(member.standing, "current")}
+              title="회칙 기준 계산 지위"
+              >{MEMBER_STANDING_LABELS[member.standing]}</span
+            >
             {#if member.isAdmin}<span class="badge admin">Admin</span>{/if}
           </div>
         </header>
