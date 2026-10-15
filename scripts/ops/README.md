@@ -16,27 +16,28 @@ Supabase 자격증명이 놓인 곳이 CLI라서 실제로는 CLI를 거치게 �
 
 ## 요구사항 표
 
-| 스크립트                           | Node만 | `pnpm install` | `.env`/환경변수                                     | 그 밖에                                      |
-| ---------------------------------- | :----: | :------------: | --------------------------------------------------- | -------------------------------------------- |
-| `lib-env.mjs` (공용)               |   ✅   |                |                                                     |                                              |
-| `lib-xlsx.mjs` (공용)              |   ✅   |                |                                                     |                                              |
-| `ops-env-names.mjs`                |   ✅   |                |                                                     | `.env` 파일                                  |
-| `ops-notion-inspect.mjs`           |   ✅   |                | `NOTION_API_KEY`+`_DB_*`                            |                                              |
-| `ops-notion-seminar-pages.mjs`     |   ✅   |                | 〃                                                  |                                              |
-| `ops-render-check.mjs`             |   ✅   |                |                                                     | **크로미움**+서버                            |
-| `ops-smoke-all.mjs`                |        |       ○        | Supabase(동적 경로용)                               | **서버**                                     |
-| `ops-backup-db.mjs`                |        |       ✅       | Supabase                                            |                                              |
-| `ops-add-member.mjs`               |        |       ✅       | 없음 (`supabase login`)                             | Supabase CLI·**터미널**                      |
-| `release-prod.sh`                  |        |       ✅       | 없음 (`supabase login`; `.env.prod-secrets`는 선택) | Supabase CLI·Vercel CLI·git·**터미널**(tmux) |
-| `ops-push-prod.sh`                 |        |                | (`.env.proddbpass` 선택)                            | Supabase CLI·**터미널**                      |
-| `check-deployed.mjs`               |   ✅   |                | 없음                                                | git (+`app-key.sh`: bash)                    |
-| `ops-fix-approval-dates.mjs`       |   ✅   |                | 없음 (`supabase login`)                             | Supabase CLI·**터미널**                      |
-| `ops-notion-backfill-body.mjs`     |   ✅   |                | `NOTION_API_KEY`+`_DB_SEMINARS` (`supabase login`)  | Supabase CLI·**터미널**                      |
-| `ops-export-members.mjs`           |        |       ✅       | Supabase                                            |                                              |
-| `ops-assets-private.mjs`           |        |       ✅       | Supabase                                            |                                              |
-| `ops-repair-seminar-schedules.mjs` |        |       ✅       | Supabase                                            |                                              |
-| `ops-notion-backfill-seminars.mjs` |        |       ✅       | Supabase + Notion                                   |                                              |
-| `ops-migration-audit.mjs`          |        |       ○        | Notion (+Supabase 선택)                             |                                              |
+| 스크립트                              | Node만 | `pnpm install` | `.env`/환경변수                                                    | 그 밖에                                      |
+| ------------------------------------- | :----: | :------------: | ------------------------------------------------------------------ | -------------------------------------------- |
+| `lib-env.mjs` (공용)                  |   ✅   |                |                                                                    |                                              |
+| `lib-xlsx.mjs` (공용)                 |   ✅   |                |                                                                    |                                              |
+| `ops-env-names.mjs`                   |   ✅   |                |                                                                    | `.env` 파일                                  |
+| `ops-notion-inspect.mjs`              |   ✅   |                | `NOTION_API_KEY`+`_DB_*`                                           |                                              |
+| `ops-notion-seminar-pages.mjs`        |   ✅   |                | 〃                                                                 |                                              |
+| `ops-render-check.mjs`                |   ✅   |                |                                                                    | **크로미움**+서버                            |
+| `ops-smoke-all.mjs`                   |        |       ○        | Supabase(동적 경로용)                                              | **서버**                                     |
+| `ops-backup-db.mjs`                   |        |       ✅       | Supabase                                                           |                                              |
+| `ops-add-member.mjs`                  |        |       ✅       | 없음 (`supabase login`)                                            | Supabase CLI·**터미널**                      |
+| `release-prod.sh`                     |        |       ✅       | 없음 (`supabase login`; `.env.prod-secrets`는 선택)                | Supabase CLI·Vercel CLI·git·**터미널**(tmux) |
+| `ops-push-prod.sh`                    |        |                | (`.env.proddbpass` 선택)                                           | Supabase CLI·**터미널**                      |
+| `check-deployed.mjs`                  |   ✅   |                | 없음                                                               | git (+`app-key.sh`: bash)                    |
+| `ops-fix-approval-dates.mjs`          |   ✅   |                | 없음 (`supabase login`)                                            | Supabase CLI·**터미널**                      |
+| `ops-notion-backfill-body.mjs`        |   ✅   |                | `NOTION_API_KEY`+`_DB_SEMINARS` (`supabase login`)                 | Supabase CLI·**터미널**                      |
+| `ops-notion-backfill-study-links.mjs` |   ✅   |                | `NOTION_API_KEY`+`_DB_STUDIES`+`_DB_ACTIVITIES` (`supabase login`) | Supabase CLI·**터미널**                      |
+| `ops-export-members.mjs`              |        |       ✅       | Supabase                                                           |                                              |
+| `ops-assets-private.mjs`              |        |       ✅       | Supabase                                                           |                                              |
+| `ops-repair-seminar-schedules.mjs`    |        |       ✅       | Supabase                                                           |                                              |
+| `ops-notion-backfill-seminars.mjs`    |        |       ✅       | Supabase + Notion                                                  |                                              |
+| `ops-migration-audit.mjs`             |        |       ○        | Notion (+Supabase 선택)                                            |                                              |
 
 ○ = 있으면 더 보고, 없으면 그만큼만 보고한다.
 
@@ -101,14 +102,15 @@ Notion 쪽(`NOTION_API_KEY`, `NOTION_DB_*`)도 같은 방식이다 — 다만 �
 위 표의 Node 스크립트 가운데 운영 데이터(행)를 쓰는 것은 아래다. 전부 **미리보기가
 기본**이고, 바꾸려면 인자나 확인 입력이 있어야 한다.
 
-| 스크립트                           | 바꾸는 인자·확인                                          |
-| ---------------------------------- | --------------------------------------------------------- |
-| `ops-repair-seminar-schedules.mjs` | `apply`                                                   |
-| `ops-notion-backfill-seminars.mjs` | `apply`                                                   |
-| `ops-assets-private.mjs`           | `--apply`                                                 |
-| `ops-add-member.mjs`               | `yes` 입력 (+ prod면 ref 입력)                            |
-| `ops-fix-approval-dates.mjs`       | `yes` 입력 (+ prod면 ref 입력), `--dry-run`이면 쓰지 않음 |
-| `ops-notion-backfill-body.mjs`     | `yes` 입력 (+ prod면 ref 입력), `--dry-run`이면 쓰지 않음 |
+| 스크립트                              | 바꾸는 인자·확인                                                         |
+| ------------------------------------- | ------------------------------------------------------------------------ |
+| `ops-repair-seminar-schedules.mjs`    | `apply`                                                                  |
+| `ops-notion-backfill-seminars.mjs`    | `apply`                                                                  |
+| `ops-assets-private.mjs`              | `--apply`                                                                |
+| `ops-add-member.mjs`                  | `yes` 입력 (+ prod면 ref 입력)                                           |
+| `ops-fix-approval-dates.mjs`          | `yes` 입력 (+ prod면 ref 입력), `--dry-run`이면 쓰지 않음                |
+| `ops-notion-backfill-body.mjs`        | `yes` 입력 (+ prod면 ref 입력), `--dry-run`이면 쓰지 않음                |
+| `ops-notion-backfill-study-links.mjs` | 스터디별 `y` + `yes` 입력 (+ prod면 ref 입력), `--dry-run`이면 쓰지 않음 |
 
 표의 나머지 Node 스크립트는 읽기만 한다(2026-10-14, 각 파일에서 쓰기 호출을 찾아
 확인 — 남은 POST는 노션 DB 조회뿐). 셸 스크립트 `release-prod.sh`·`ops-push-prod.sh`는
