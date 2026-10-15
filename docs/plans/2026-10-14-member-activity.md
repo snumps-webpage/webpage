@@ -255,3 +255,117 @@
 - [ ] 전체 테스트·`npm run check`·eslint·prettier
 - [ ] 측정 서버 수정본/HEAD 대조: 참가자 편집, 종료 스터디 주최자, 공개 명단·관리자 화면(실데이터 스냅숏 `real.mjs`는 개수·id만 출력)
 - [ ] 배포는 사용자 질문 후(마이그레이션 포함 릴리스)
+
+---
+
+## 개정 2026-10-15 — 회칙 기준 회원 지위
+
+현행 회칙(사이트 `charter-text.ts`, 라이브 `/about/charter` 대조 일치)에 '활동회원'이 없어 183일 규칙을 폐기(D-000070, D-000042 대체). Task 6~~8(v1, 커밋 2c1abe6·2305c5a·505ad3e)을 아래 Task 6b~~8b로 고쳐 쓰고, Task 9·10을 더함. 기존 Task 1~5는 그대로.
+
+### 전역 제약 (추가·변경)
+
+- 활동 기록(회칙 제17~19조, D-000071·075·076):
+  - 인정 종류: 세미나·스터디·회식·회의·기타 전부.
+  - 세미나 활동: 참석자 또는 그 세미나(`seminar.activityId`)의 발표자면 활동 1건당 1회(둘 다여도 1회).
+  - 스터디 세션 활동(`studyId`가 있고 `sourceRequestId`가 `<studyId>:<date>` 형식): 스터디별로 묶어, 취소되지 않은 세션이 4개 이상이고 그 과반에 참석했으면 그 스터디로 1회.
+  - 그 밖의 스터디 활동(이주된 활동: `sourceRequestId` null 등): 출석 명단에 있으면 1회.
+  - 회식·회의·기타: 참석 1건당 1회.
+  - 숨김 활동(`hiddenActivityIds`: 취소·미게시 세미나 활동)은 열리지 않은 활동이라 세지 않음. 관리자 화면 목록에는 표시만.
+- 지위(D-000070·074·078):
+  - 이번 학기(`currentTerm()`) 등록(`registrations`, 사람의 id 어느 쪽이든)이 있으면 현재 회원: 저장 지위가 `regular`이거나 활동 기록 3회 이상이면 '정회원', 아니면 '준회원'.
+  - 등록이 없으면: 활동 기록 3회 이상이었거나 `isAlumni`면 '동문', 아니면 '이전 회원'.
+  - 탈퇴 회원은 공개에서 제외(기존).
+- 자동 승급(D-000073·078·079): 매일 maintenance cron이 운영 `members`(legacy 제외, 읽기 전용)에서 이번 학기 등록·`associate`·활동 기록 3회 이상인 회원을 `regular`로. `setStatus`와 같은 필드(`statusChangedAt`, `isAlumni`: `alumniRevoked`가 아니면 true), audit `member.auto-promote`. 강등 없음.
+- 공개 명단 보기(D-000077): 기본 '현재 회원'(정회원+준회원), '정회원'·'전체' 전환. 관리자 회원 목록은 기본 '전체'(D-000065), 같은 세 보기.
+
+### Task 6b: 활동 기록·지위 순수 집계 (Task 6 대체)
+
+**파일:** 수정 `src/lib/domain/member-activity.ts`, `src/lib/domain/member-activity.test.ts`
+
+**Interfaces (제공):**
+
+```ts
+export const REGULAR_RECORD_THRESHOLD = 3; // 회칙 제4조 ②
+export const STUDY_MIN_SESSIONS = 4; // 회칙 제19조 ②
+export type MemberStanding = "regular" | "associate" | "alumni" | "former";
+export type MemberActivity = {
+  hostedSeminars: HostedRef[];
+  hostedStudies: HostedRef[];
+  attended: ActivityRef[]; // 최신순, 숨김 제외는 부르는 쪽
+  records: number; // 회칙 활동 기록 수
+  recordsByType: Record<string, number>;
+};
+export function memberActivity(
+  ids,
+  data: MemberActivityData,
+  now: Date,
+): MemberActivity;
+export function memberStanding(input: {
+  registeredThisTerm: boolean;
+  storedStatus: "associate" | "regular";
+  isAlumni: boolean;
+  records: number;
+}): MemberStanding;
+```
+
+- `MemberActivityData`에 `seminars[].activityId`, `activities[].studyId`·`sourceRequestId`·`cancelled?`(세션 이벤트 취소 여부) 추가.
+
+**Acceptance criteria:**
+
+- [ ] 세미나: 발표자이자 참석자면 1회, 발표자만이어도 1회
+- [ ] 스터디 세션: 4세션 중 3 참석 → 1, 4세션 중 2 참석 → 0, 3세션 전부 참석 → 0, 취소 세션은 셈에서 뺌
+- [ ] 이주 스터디 활동 출석 → 1, 회식·회의·기타 각 1
+- [ ] `memberStanding` 네 지위 경계(기록 2/3, 저장 regular 유지, isAlumni)
+
+**의존:** 1(studyId) **크기:** S
+
+### Task 7b: 공개 명단·회원 페이지 갱신 (Task 7 수정)
+
+**파일:** 수정 `src/lib/server/public/member-activity.ts`, `src/lib/server/public/archive.ts`, `src/routes/(public)/members/+page.svelte`, `src/routes/(public)/members/[id]/+page.svelte`, 테스트 2개 + `docs/spec/FUNCTIONAL-SPEC.md`(D2·PUB-15), `docs/spec/API-SPEC.md`(GET /members, GET /members/[id]) (D-000063)
+
+- 공개에서 취소 스터디는 주최 스터디 제외(D-000064), 미게시 세미나 제외(기존).
+- 명단 칸: 이름·지위·주최 세미나 수·주최 스터디 수·임원(+학과·가입일), 0은 '—'(D-000068). 보기 3개(D-000077). 안내 문구에서 183일 문장을 회칙 기준 설명으로 교체.
+- 회원 페이지: 지위, 활동 기록 수·종류별, 주최·임원·참석 목록.
+
+**Acceptance criteria:**
+
+- [ ] 이번 학기 등록 회원 정회원/준회원, 미등록 동문/이전 회원 표시
+- [ ] spec 문서가 새 공개 범위와 결정 ID를 적음
+
+**의존:** 6b **크기:** M
+
+### Task 8b: 관리자 회원 화면 갱신 (Task 8 수정)
+
+**파일:** 수정 `src/routes/(admin)/admin/members/+page.server.ts`, `+page.svelte`, `[id]/+page.server.ts`, `[id]/+page.svelte`, `member-activity-load.test.ts`
+
+- 목록: 계산 지위 칸 + 보기 3개(기본 전체). 상세: 활동 기록 수·종류별, 공개 명단에서 빠지는 주최 세미나(미게시)·주최 스터디(취소)·숨김 활동에 '공개 면 숨김'(D-000069), 저장 지위와 계산 지위가 다르면 둘 다 표시.
+
+**의존:** 6b **크기:** S
+
+### Task 9: 매일 자동 승급
+
+**파일:** 생성 `src/lib/server/services/member-standing.ts`, `src/lib/server/services/member-standing.test.ts` / 수정 `src/lib/server/services/maintenance.ts`(`runMaintenance`에 `promote` 단계, `runIsolated`, 실패 코드 `promote_failed`)
+
+**Interfaces (제공):** `promotionCandidates(now): Promise<string[]>`(운영 members id), `promoteQualifiedMembers(now): Promise<number>`(위 후보를 `associate`일 때만 `regular`로, 한 번의 `mutate("members")`, 각자 audit)
+
+**Acceptance criteria:**
+
+- [ ] 등록·associate·기록 3 → 승급, 기록 2·미등록·이미 regular·탈퇴 → 그대로, `alumniRevoked`면 isAlumni 유지
+- [ ] 한 단계 실패가 다른 단계를 막지 않음(기존 maintenance 테스트 형식)
+
+**의존:** 6b **크기:** S
+
+### Task 10: 첫 일괄 승급 미리보기·적용(ops)
+
+**파일:** 생성 `scripts/ops/ops-promote-regular.ts`(`npx tsx`로 실행, `src/lib/domain/member-activity.ts`를 상대 경로로 import — `scripts/seed-dev.ts`와 같은 방식), 수정 `scripts/ops/README.md`
+
+- `--target prod|dev`, 기본 dry-run: 승급 대상 수와 회원 id 목록(이름 없음) 출력. `--apply`는 ref 입력 확인 후, 같은 후보를 다시 계산해 `associate`인 행만 SQL로 갱신(`setStatus`와 같은 필드) + audit 행, 재조회.
+- 이번 세션 적용은 Claude가 dry-run 결과를 보여 주고 질문 후(D-000080).
+
+**의존:** 6b, 배포 **크기:** S
+
+### Checkpoint: Task 2~~5, 6b~~10 이후
+
+- [ ] 전체 테스트·`npm run check`·eslint·prettier
+- [ ] 측정 서버 수정본/HEAD 대조(참가자 편집, 종료 스터디 주최자, 명단·회원 페이지·관리자, cron 승급)
+- [ ] 배포 여부 질문(마이그레이션 20261015000000 포함)
