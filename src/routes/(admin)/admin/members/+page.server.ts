@@ -8,8 +8,8 @@ import type { PageServerLoad } from "./$types";
 export const load: PageServerLoad = async ({ locals }) => {
   await ensureAdmin(locals, { silent: true });
 
-  // 관리자 면은 숨김 활동까지 센다 (snumps-webpage/D-000041·042)
-  const [members, activityOf] = await Promise.all([
+  // 저장 지위와 회칙 기준 계산 지위를 함께 (snumps-webpage/D-000065·070·078)
+  const [members, index] = await Promise.all([
     getTable("members"),
     memberActivityIndex({ publicOnly: false }),
   ]);
@@ -25,7 +25,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       alumniRevoked: m.alumniRevoked,
       isAdmin: m.isAdmin,
       roles: m.roles,
-      active: activityOf(m).active,
+      standing: index.of(m).standing,
     })),
     generatedAt: nowKstIso(),
   };

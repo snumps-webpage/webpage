@@ -2,25 +2,33 @@
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import type { AdminMemberListItem } from "$lib/domain/members";
   import { MANUSCRIPT } from "$lib/constants";
+  import {
+    MEMBER_STANDING_LABELS,
+    MEMBER_VIEWS,
+    MEMBER_VIEW_LABELS,
+    inMemberView,
+    type MemberView,
+  } from "$lib/domain/member-activity";
 
   let { data } = $props();
   let query = $state("");
-  let view = $state<"active" | "all">("all");
+  // 관리자 목록의 기본은 전체 (snumps-webpage/D-000065·077)
+  let view = $state<MemberView>("all");
 
   const viewMembers = $derived(
-    view === "active"
-      ? data.members.filter((member) => member.active)
-      : data.members,
+    data.members.filter((member) => inMemberView(member.standing, view)),
   );
 
   const filteredMembers = $derived.by(() => {
     const normalized = query.trim().toLocaleLowerCase("ko-KR");
     if (!normalized) return viewMembers;
-    return viewMembers.filter((member: AdminMemberListItem) =>
+    return viewMembers.filter((member) =>
       [
         member.name,
         member.department,
         member.status,
+        statusLabel(member.status),
+        member.standing ? MEMBER_STANDING_LABELS[member.standing] : "",
         ...member.roles.flatMap((role) => [role.term, role.title]),
       ].some((value) => value.toLocaleLowerCase("ko-KR").includes(normalized)),
     );
@@ -51,21 +59,20 @@
   </div>
 
   <div class="view-toggle" role="group" aria-label="회원 보기">
-    <button
-      type="button"
-      class="paper-btn small"
-      class:primary={view === "active"}
-      aria-pressed={view === "active"}
-      onclick={() => (view = "active")}>활동 회원</button
-    >
-    <button
-      type="button"
-      class="paper-btn small"
-      class:primary={view === "all"}
-      aria-pressed={view === "all"}
-      onclick={() => (view = "all")}>전체 회원</button
-    >
+    {#each MEMBER_VIEWS as option (option)}
+      <button
+        type="button"
+        class="paper-btn small"
+        class:primary={view === option}
+        aria-pressed={view === option}
+        onclick={() => (view = option)}>{MEMBER_VIEW_LABELS[option]}</button
+      >
+    {/each}
   </div>
+  <p class="view-note">
+    지위 배지는 회칙 기준 계산 지위입니다(이번 학기 등록과 활동 기록). 카드 위쪽
+    글자는 저장된 지위입니다.
+  </p>
 
   <section class="member-index">
     <label class="paper-label" for="member-search">회원 검색</label>
@@ -87,7 +94,12 @@
             <h2>{member.name}</h2>
           </div>
           <div class="badges">
-            {#if member.active}<span class="badge active">활동</span>{/if}
+            {#if member.standing}<span
+                class="badge standing"
+                class:current={inMemberView(member.standing, "current")}
+                title="회칙 기준 계산 지위"
+                >{MEMBER_STANDING_LABELS[member.standing]}</span
+              >{/if}
             {#if member.isAdmin}<span class="badge admin">Admin</span>{/if}
           </div>
         </header>
@@ -218,9 +230,14 @@
     font-weight: 700;
     text-transform: uppercase;
   }
-  .badge.active {
+  .badge.standing.current {
     border-color: var(--latex-accent);
     color: var(--latex-accent);
+  }
+  .view-note {
+    margin: 0 0 0.6rem;
+    color: var(--latex-muted);
+    font-size: 0.72rem;
   }
   .badge.admin {
     border-color: var(--latex-text);

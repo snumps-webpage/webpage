@@ -6,19 +6,33 @@
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import type { MemberRoleAssignment } from "$lib/domain/members";
   import { MANUSCRIPT, RECORD_ACTIVITY_TYPES } from "$lib/constants";
-  import { ACTIVE_WINDOW_DAYS } from "$lib/domain/member-activity";
+  import {
+    MEMBER_STANDING_LABELS,
+    REGULAR_RECORD_THRESHOLD,
+    STUDY_MIN_SESSIONS,
+  } from "$lib/domain/member-activity";
   import { formatArchiveTerm } from "$lib/domain/public-content";
 
   let { data } = $props();
   const activity = $derived(data.activity);
-  /** 종류별 횟수 — 기록 종류의 순서대로, 그 밖의 종류는 뒤에. */
+  /** 종류별 기록 수 — 기록 종류의 순서대로, 그 밖의 종류는 뒤에. */
   const activityCounts = $derived.by(() => {
     const known = RECORD_ACTIVITY_TYPES as readonly string[];
     const rank = (type: string) => known.indexOf(type) + 1 || known.length + 1;
-    return Object.entries(activity.countsByType).sort(
+    return Object.entries(activity.recordsByType).sort(
       ([a], [b]) => rank(a) - rank(b),
     );
   });
+  const STORED_STATUS_LABELS = {
+    associate: "준회원",
+    regular: "정회원",
+    withdrawn: "탈퇴",
+  } as const;
+  const storedLabel = $derived(STORED_STATUS_LABELS[data.member.status]);
+  // 계산 지위가 없으면(탈퇴) 저장 지위만 보인다
+  const standingLabel = $derived(
+    data.standing ? MEMBER_STANDING_LABELS[data.standing] : storedLabel,
+  );
 
   function activityDate(value: string) {
     return new Intl.DateTimeFormat("ko-KR", {
@@ -290,25 +304,49 @@
     <header>
       <div>
         <p>06 · Activity</p>
-        <h2>활동 정도</h2>
+        <h2>활동 기록·지위</h2>
       </div>
-      {#if activity.active}
-        <span class="activity-flag">활동 회원</span>
-      {:else}
-        <span class="activity-flag muted">비활동</span>
-      {/if}
+      <div class="standing-flags">
+        <span class="activity-flag" title="회칙 기준 계산 지위"
+          >{standingLabel}</span
+        >
+        {#if standingLabel !== storedLabel}
+          <span class="activity-flag muted">저장 지위 {storedLabel}</span>
+        {/if}
+      </div>
     </header>
     <p class="activity-note">
-      활동 회원은 최근 {ACTIVE_WINDOW_DAYS}일 안에 세미나나 스터디에 참석한
-      회원입니다. 공개 명단에서 숨겨진 활동·공개 전 세미나도 여기서는 셉니다.
+      이번 학기 등록 {data.registeredThisTerm ? "있음" : "없음"}. 등록한 회원은
+      활동 기록 {REGULAR_RECORD_THRESHOLD}회 이상이거나 저장 지위가 정회원이면
+      정회원, 아니면 준회원입니다. 등록하지 않은 회원은 기록
+      {REGULAR_RECORD_THRESHOLD}회 이상이거나 동문 자격이 기록돼 있으면 동문,
+      아니면 이전 회원입니다. 스터디 세션은 {STUDY_MIN_SESSIONS}회 이상 진행된
+      스터디의 과반 참석이 1회입니다. '공개 면 숨김'은 공개 명단·회원 페이지에서
+      빠지는 항목이고, 숨김 활동은 기록에 세지 않습니다.
     </p>
+    <div class="records">
+      <h3>활동 기록 {activity.records}</h3>
+      {#if activityCounts.length}
+        <div class="count-row" aria-label="종류별 활동 기록">
+          {#each activityCounts as [type, count] (type)}
+            <span>{type} {count}</span>
+          {/each}
+        </div>
+      {:else}
+        <p class="empty-line">인정된 활동 기록이 없습니다.</p>
+      {/if}
+    </div>
     <div class="activity-grid">
       <div>
         <h3>주최 세미나 {activity.hostedSeminars.length}</h3>
         <ul>
           {#each activity.hostedSeminars as seminar (seminar.id)}
             <li>
-              <span>{seminar.title}</span>
+              <span
+                >{seminar.title}
+                {#if seminar.hidden}<span class="hidden-flag">공개 면 숨김</span
+                  >{/if}</span
+              >
               <span class="meta">{formatArchiveTerm(seminar.semester)}</span>
             </li>
           {:else}
@@ -321,7 +359,11 @@
         <ul>
           {#each activity.hostedStudies as study (study.id)}
             <li>
-              <span>{study.title}</span>
+              <span
+                >{study.title}
+                {#if study.hidden}<span class="hidden-flag">공개 면 숨김</span
+                  >{/if}</span
+              >
               <span class="meta">{formatArchiveTerm(study.semester)}</span>
             </li>
           {:else}
@@ -332,13 +374,6 @@
     </div>
     <div class="attended">
       <h3>참석 활동 {activity.attended.length}</h3>
-      {#if activityCounts.length}
-        <div class="count-row" aria-label="종류별 참석 횟수">
-          {#each activityCounts as [type, count] (type)}
-            <span>{type} {count}</span>
-          {/each}
-        </div>
-      {/if}
       <ul>
         {#each activity.attended as item (item.id)}
           <li>
@@ -524,6 +559,15 @@
     font-size: 0.68rem;
     font-weight: 650;
     white-space: nowrap;
+  }
+  .standing-flags {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.3rem;
+  }
+  .records {
+    padding: 0.8rem 0.8rem 0;
   }
   .activity-flag.muted {
     border-color: var(--latex-rule);
