@@ -41,6 +41,11 @@
     `${study.semester} · ${study.title}`;
   const linkedStudy = (activity: ActivityRow) =>
     data.studies.find((study) => study.id === activity.studyId);
+  /** A study-session activity shows its session's study, read-only (D-000088). */
+  function sessionStudyLabel(studyId: string) {
+    const study = data.studies.find((s) => s.id === studyId);
+    return study ? studyLabel(study) : "알 수 없는 스터디";
+  }
 </script>
 
 <svelte:head><title>활동 기록 관리 · SNUMPS 관리자</title></svelte:head>
@@ -175,7 +180,16 @@
                 /></label
               ><button class="paper-btn" type="submit">기본 정보 수정</button>
             </form>
-            {#if activity.type === "스터디"}
+            {#if activity.sessionStudyId}
+              <p class="study-link-fixed">
+                <span class="paper-label">연결 스터디</span>
+                {sessionStudyLabel(activity.sessionStudyId)}
+                <small
+                  >스터디 회차 활동은 그 회차의 스터디에 고정되어 있어 연결을
+                  바꾸거나 해제할 수 없습니다.</small
+                >
+              </p>
+            {:else if activity.type === "스터디"}
               <form method="POST" action="?/setStudy" class="study-link-form">
                 <input type="hidden" name="id" value={activity.id} />
                 <label
@@ -367,6 +381,15 @@
     display: flex;
     align-items: end;
     gap: 0.7rem;
+  }
+  .study-link-fixed {
+    display: grid;
+    gap: 0.2rem;
+    margin: 0;
+  }
+  .study-link-fixed small {
+    color: var(--latex-muted);
+    font-size: 0.66rem;
   }
   .study-link-form label {
     flex: 1;

@@ -8,6 +8,7 @@ import {
 import {
   createActivity,
   deleteActivity,
+  sessionStudyOf,
   setActivityStudy,
   setAttendees,
   updateActivity,
@@ -39,6 +40,8 @@ export const load: PageServerLoad = async ({ locals }) => {
       linkedEventIds: events
         .filter((e) => e.activityId === a.id)
         .map((e) => e.id),
+      // 스터디 회차 활동은 그 회차의 스터디에 고정 — 연결 선택 칸을 숨긴다(D-000088).
+      sessionStudyId: sessionStudyOf(a.id, events),
       // 이주된 출석(legacy id)·탈퇴 회원 — 명단에 없어도 체크된 채 보존한다.
       formerAttendees: formerPeople(a.attendeeIds, members, summaries),
     })),

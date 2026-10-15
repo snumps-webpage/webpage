@@ -69,6 +69,28 @@ function pairedOwner(
   return null;
 }
 
+/**
+ * The study a study-session activity is fixed to: the study of the first
+ * session event (an event with a study) that records into it, else null
+ * (snumps-webpage/D-000088). Migrated activities no session points at are
+ * not fixed.
+ */
+export function sessionStudyOf(
+  activityId: string,
+  events: { activityId: string; studyId: string | null }[],
+): string | null {
+  return (
+    events.find((e) => e.studyId !== null && e.activityId === activityId)
+      ?.studyId ?? null
+  );
+}
+
+/**
+ * Type, title and date are the admin's to edit, with two exceptions: the
+ * paired owner's title and date (above), and the type of an activity linked
+ * to a study, which stays '스터디' until it is unlinked
+ * (snumps-webpage/D-000087). Either refusal writes nothing.
+ */
 export async function updateActivity(
   id: string,
   patch: Partial<Pick<Activity, "title" | "date" | "type">>,
@@ -81,6 +103,16 @@ export async function updateActivity(
     const idx = rows.findIndex((a) => a.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
     const current = rows[idx];
+    if (
+      current.studyId !== null &&
+      current.type === "스터디" &&
+      patch.type !== undefined &&
+      patch.type !== "스터디"
+    )
+      throw new AppError("VALIDATION_FAILED", {
+        userMessage:
+          "스터디에 연결된 활동은 종류를 바꿀 수 없습니다. 먼저 스터디 연결을 해제해 주세요.",
+      });
     const moves =
       (patch.title !== undefined && patch.title !== current.title) ||
       (patch.date !== undefined &&
@@ -106,18 +138,30 @@ const LINKED_STUDY_GONE =
  * type '스터디' may be linked here (snumps-webpage/D-000053); the flow leaves
  * that rule to its caller. A missing activity is NOT_FOUND, a study that does
  * not exist is a bad pick (VALIDATION_FAILED), each with its own message
- * (D-000062).
+ * (D-000062). A study-session activity stays with its session's study: any
+ * other study, or unlinking, is refused (D-000088). The events are read
+ * before the flow's lock, as the type is.
  */
 export async function setActivityStudy(
   id: string,
   studyId: string | null,
 ): Promise<void> {
-  const activity = (await getTable("activities")).find((a) => a.id === id);
+  const [activities, events] = await Promise.all([
+    getTable("activities"),
+    getTable("events"),
+  ]);
+  const activity = activities.find((a) => a.id === id);
   if (!activity)
     throw new AppError("NOT_FOUND", { userMessage: ACTIVITY_GONE });
   if (activity.type !== "스터디")
     throw new AppError("VALIDATION_FAILED", {
       userMessage: "종류가 '스터디'인 활동만 스터디에 연결할 수 있습니다.",
+    });
+  const fixedTo = sessionStudyOf(id, events);
+  if (fixedTo !== null && studyId !== fixedTo)
+    throw new AppError("VALIDATION_FAILED", {
+      userMessage:
+        "스터디 회차 활동은 그 회차의 스터디에 고정되어 있어 연결을 바꾸거나 해제할 수 없습니다.",
     });
   try {
     await callFlow(
