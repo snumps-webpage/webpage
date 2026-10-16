@@ -47,7 +47,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       formerAttendees: formerPeople(a.attendeeIds, members, summaries),
     })),
     members,
-    // 스터디 연결 선택지(D-000053) — 최근 학기 먼저, 학기 안에서는 제목순.
+    // 스터디 연결 선택지(D-000135) — 최근 학기 먼저, 학기 안에서는 제목순.
     studies: studies
       .map((s) => ({ id: s.id, title: s.title, semester: s.semester }))
       .sort(
@@ -116,7 +116,7 @@ export const actions = {
       try {
         await updateActivity(id, {
           title,
-          // 비활성화된 종류 칸(스터디 연결 활동)은 보내지지 않는다 — 변경 아님(D-000107)
+          // 비활성화된 종류 칸(스터디 회차 활동)은 보내지지 않는다 — 변경 아님(D-000129·138)
           type: type || undefined,
           date: start
             ? {
@@ -151,7 +151,7 @@ export const actions = {
     });
   },
 
-  /** Links a study-type activity to a study; an empty studyId unlinks it. */
+  /** Links a '스터디'·'회식' activity to a study; an empty studyId unlinks it. */
   setStudy: async ({ request, locals }: Ctx) => {
     const data = await request.formData();
     return handleAdminAction(locals, async () => {

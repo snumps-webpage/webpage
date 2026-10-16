@@ -1,7 +1,11 @@
 <script lang="ts">
   import AdminSectionNav from "$lib/components/admin/AdminSectionNav.svelte";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
-  import { MANUSCRIPT } from "$lib/constants";
+  import {
+    MANUSCRIPT,
+    STUDY_LINK_TYPES,
+    isStudyLinkType,
+  } from "$lib/constants";
   import { pickerChoice } from "$lib/domain/recorded-people";
 
   let { data, form } = $props();
@@ -59,6 +63,18 @@
     `${study.semester} · ${study.title}`;
   const linkedStudy = (activity: ActivityRow) =>
     data.studies.find((study) => study.id === activity.studyId);
+  /**
+   * 종류 칸의 선택지(D-000138). 스터디 회차 활동은 잠긴 칸에 지금 종류를, 그 밖의
+   * 연결 활동은 '스터디'·'회식'만 — 지금 종류가 그 둘이 아니면(옛 데이터) 그 종류를
+   * 맨 앞에 두어 저장된 대로 보이되, 저장하려면 둘 중 하나를 골라야 한다(서버가 거부).
+   */
+  function typeChoices(activity: ActivityRow): readonly string[] {
+    if (activity.sessionStudyId || activity.studyId === null)
+      return data.activityTypes;
+    return isStudyLinkType(activity.type)
+      ? STUDY_LINK_TYPES
+      : [activity.type, ...STUDY_LINK_TYPES];
+  }
   /** A study-session activity shows its session's study, read-only (D-000088). */
   function sessionStudyLabel(studyId: string) {
     const study = data.studies.find((s) => s.id === studyId);
@@ -188,15 +204,18 @@
               ><label
                 ><span class="paper-label">유형</span><select
                   name="type"
-                  disabled={activity.studyId !== null}
-                  >{#each data.activityTypes as type (type)}<option
+                  disabled={activity.sessionStudyId !== null}
+                  >{#each typeChoices(activity) as type (type)}<option
                       value={type}
                       selected={type === shown.type}>{type}</option
                     >{/each}</select
-                >{#if activity.studyId !== null}<!-- 연결된 활동은 종류를 잠근다 — 비활성 칸은 제출되지 않아 서버가 종류를 그대로 둔다(D-000107) --><small
+                >{#if activity.sessionStudyId !== null}<!-- 회차 활동은 종류를 잠근다 — 비활성 칸은 제출되지 않아 서버가 종류를 그대로 둔다(D-000129·138) --><small
                     class="field-note"
-                    >스터디에 연결된 활동은 종류를 바꿀 수 없습니다. 먼저 스터디
-                    연결을 해제해 주세요.</small
+                    >스터디 회차 활동은 종류를 바꿀 수 없습니다.</small
+                  >{:else if activity.studyId !== null}<small class="field-note"
+                    >스터디에 연결된 활동은 종류를 '스터디'나 '회식'으로만 바꿀
+                    수 있습니다. 다른 종류로 바꾸려면 먼저 스터디 연결을 해제해
+                    주세요.</small
                   >{/if}</label
               ><label
                 ><span class="paper-label">날짜</span><input
@@ -215,7 +234,7 @@
                   바꾸거나 해제할 수 없습니다.</small
                 >
               </p>
-            {:else if activity.type === "스터디"}
+            {:else if isStudyLinkType(activity.type)}
               <form method="POST" action="?/setStudy" class="study-link-form">
                 <input type="hidden" name="id" value={activity.id} />
                 <label

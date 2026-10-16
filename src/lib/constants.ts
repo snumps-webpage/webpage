@@ -28,6 +28,20 @@ export const RECORD_ACTIVITY_TYPES = [
   "기타",
 ] as const satisfies readonly ActivityType[];
 
+/**
+ * The types an activity linked to a study may have (snumps-webpage/D-000135·
+ * 138): the admin links only these, and a linked activity's type moves only
+ * between them. A study-session activity stays '스터디'. A linked 회식 is one
+ * 회식 record, never a session (D-000137).
+ */
+export const STUDY_LINK_TYPES = [
+  "스터디",
+  "회식",
+] as const satisfies readonly (typeof RECORD_ACTIVITY_TYPES)[number][];
+
+export const isStudyLinkType = (type: string): boolean =>
+  (STUDY_LINK_TYPES as readonly string[]).includes(type);
+
 // Chatroom configuration for welcome emails
 export const CHATROOM_NOTICE_LINK = "https://invite.kakao.com/tc/0PrN2Zk2VZ";
 export const CHATROOM_CHAT_LINK = "https://invite.kakao.com/tc/tGxjs2oKOV";

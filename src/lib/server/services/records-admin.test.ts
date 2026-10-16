@@ -953,21 +953,36 @@ describe("updateActivity leaves paired dates and titles to their owners", () => 
     },
   );
 
-  it.each(Object.entries(pairings))(
-    "still lets %s change type with its title re-sent",
-    async (_, pair) => {
-      const { id } = await pair();
+  // a study session's activity keeps its type '스터디' (snumps-webpage/D-000129·138)
+  it.each(
+    Object.entries(pairings).filter(([name]) => !name.includes("session")),
+  )("still lets %s change type with its title re-sent", async (_, pair) => {
+    const { id } = await pair();
 
-      // the editor always posts the title; an unchanged one is no edit
-      await updateActivity(id, {
-        title: "회차",
-        type: "회의",
-        date: { start, end: null },
-      });
+    // the editor always posts the title; an unchanged one is no edit
+    await updateActivity(id, {
+      title: "회차",
+      type: "회의",
+      date: { start, end: null },
+    });
 
-      expect((await getTable("activities"))[0].type).toBe("회의");
-    },
-  );
+    expect((await getTable("activities"))[0].type).toBe("회의");
+  });
+
+  it("refuses a study session's activity a type other than '스터디'", async () => {
+    const { id } = await pairings["a study session's activity"]();
+
+    await expect(
+      updateActivity(id, { title: "회차", type: "회의" }),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof AppError &&
+        e.code === "VALIDATION_FAILED" &&
+        e.userMessage === "스터디 회차 활동은 종류를 바꿀 수 없습니다.",
+    );
+    await updateActivity(id, { title: "회차", type: "스터디" });
+    expect((await getTable("activities"))[0].type).toBe("스터디");
+  });
 
   it("edits an unpaired activity's date and title freely", async () => {
     const a = await activity();

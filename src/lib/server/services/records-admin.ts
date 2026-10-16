@@ -9,6 +9,7 @@ import { assertOrganizerCandidates, handOver } from "./studies";
 import { isStudyClosed } from "$lib/domain/studies";
 import { callFlow, type FlowResult } from "$lib/server/data/flows";
 import { SeminarSchema } from "$lib/server/data/schemas";
+import { isStudyLinkType } from "$lib/constants";
 import type {
   Activity,
   GalleryDinner,
@@ -86,13 +87,37 @@ export function sessionStudyOf(
   );
 }
 
+const LINKED_TYPE_LIMITED =
+  "스터디에 연결된 활동은 종류를 '스터디'나 '회식'으로만 바꿀 수 있습니다. 다른 종류로 바꾸려면 먼저 스터디 연결을 해제해 주세요.";
+const SESSION_TYPE_FIXED = "스터디 회차 활동은 종류를 바꿀 수 없습니다.";
+
+/**
+ * Why this patch may not set the activity's type, or null. A study-session
+ * activity stays '스터디' (D-000088·129·138) — only a move TO '스터디' passes,
+ * the repair of old data. Any other linked activity must end up '스터디' or
+ * '회식' (D-000138): a move between them passes, and so must a save of old
+ * data that is still neither — kept or left out, its type is refused until
+ * one of the two is picked.
+ */
+function typeRefusal(
+  current: Activity,
+  type: Activity["type"] | undefined,
+  sessionStudyId: string | null,
+): string | null {
+  if (sessionStudyId !== null)
+    return type !== undefined && type !== current.type && type !== "스터디"
+      ? SESSION_TYPE_FIXED
+      : null;
+  if (current.studyId === null) return null;
+  return isStudyLinkType(type ?? current.type) ? null : LINKED_TYPE_LIMITED;
+}
+
 /**
  * Type, title and date are the admin's to edit, with two exceptions: the
  * paired owner's title and date (above), and the type of an activity linked
- * to a study, which may only change TO '스터디' until it is unlinked
- * (snumps-webpage/D-000087·114). Either refusal writes nothing; when both
- * apply, the type refusal is the one reported (D-000108). A patch without a
- * type leaves it as it is.
+ * to a study (`typeRefusal`, snumps-webpage/D-000138). Either refusal writes
+ * nothing; when both apply, the type refusal is the one reported (D-000108).
+ * A patch without a type leaves it as it is.
  */
 export async function updateActivity(
   id: string,
@@ -106,16 +131,13 @@ export async function updateActivity(
     const idx = rows.findIndex((a) => a.id === id);
     if (idx === -1) throw new AppError("NOT_FOUND");
     const current = rows[idx];
-    if (
-      current.studyId !== null &&
-      patch.type !== undefined &&
-      patch.type !== current.type &&
-      patch.type !== "스터디"
-    )
-      throw new AppError("VALIDATION_FAILED", {
-        userMessage:
-          "스터디에 연결된 활동은 종류를 바꿀 수 없습니다. 먼저 스터디 연결을 해제해 주세요.",
-      });
+    const refusal = typeRefusal(
+      current,
+      patch.type,
+      sessionStudyOf(current.id, events),
+    );
+    if (refusal)
+      throw new AppError("VALIDATION_FAILED", { userMessage: refusal });
     const moves =
       (patch.title !== undefined && patch.title !== current.title) ||
       (patch.date !== undefined &&
@@ -139,9 +161,9 @@ const SESSION_FIXED =
   "스터디 회차 활동은 그 회차의 스터디에 고정되어 있어 연결을 바꾸거나 해제할 수 없습니다.";
 
 /**
- * Links a study-type activity to a study, or unlinks it (`studyId` null) —
- * flow_set_activity_study checks the rows under one lock. Only activities of
- * type '스터디' may be linked here (snumps-webpage/D-000053); the flow leaves
+ * Links a '스터디' or '회식' activity to a study, or unlinks it (`studyId`
+ * null) — flow_set_activity_study checks the rows under one lock. Only those
+ * two types may be linked here (snumps-webpage/D-000135); the flow leaves
  * that rule to its caller, read before the lock. A missing activity is
  * NOT_FOUND, a study that does not exist is a bad pick (VALIDATION_FAILED),
  * each with its own message (D-000062). A study-session activity stays with
@@ -156,9 +178,10 @@ export async function setActivityStudy(
   const activity = (await getTable("activities")).find((a) => a.id === id);
   if (!activity)
     throw new AppError("NOT_FOUND", { userMessage: ACTIVITY_GONE });
-  if (activity.type !== "스터디")
+  if (!isStudyLinkType(activity.type))
     throw new AppError("VALIDATION_FAILED", {
-      userMessage: "종류가 '스터디'인 활동만 스터디에 연결할 수 있습니다.",
+      userMessage:
+        "종류가 '스터디'나 '회식'인 활동만 스터디에 연결할 수 있습니다.",
     });
   try {
     await callFlow(

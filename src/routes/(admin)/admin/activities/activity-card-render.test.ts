@@ -4,12 +4,18 @@ import { render } from "svelte/server";
 import Page from "./+page.svelte";
 
 /**
- * 활동 카드의 기본 정보 폼: 스터디에 연결된 활동은 종류 칸이 잠기고 안내가
- * 붙으며(snumps-webpage/D-000107), 수정이 거절되면 그 카드가 입력한 값으로 다시
- * 열린다(D-000098).
+ * 활동 카드의 기본 정보 폼: 스터디에 연결된 활동의 종류 칸은 '스터디'·'회식'만
+ * 보이고 안내가 붙으며, 스터디 회차 활동은 종류 칸이 잠긴다(snumps-webpage/
+ * D-000129·138, D-000107 대체). 스터디 연결 칸은 '스터디'·'회식' 활동에만
+ * 있다(D-000135). 수정이 거절되면 그 카드가 입력한 값으로 다시 열린다(D-000098).
  */
 
-const activity = (id: string, type: string, studyId: string | null) => ({
+const activity = (
+  id: string,
+  type: string,
+  studyId: string | null,
+  sessionStudyId: string | null = null,
+) => ({
   id,
   title: `저장된 ${id}`,
   date: { start: "2025-03-01T19:00:00+09:00", end: null },
@@ -18,7 +24,7 @@ const activity = (id: string, type: string, studyId: string | null) => ({
   studyId,
   sourceRequestId: null,
   linkedEventIds: [],
-  sessionStudyId: null,
+  sessionStudyId,
   formerAttendees: [],
 });
 
@@ -26,6 +32,9 @@ const data = {
   activities: [
     activity("a-linked", "스터디", "s1"),
     activity("a-free", "회의", null),
+    activity("a-linked-meeting", "회의", "s1"),
+    activity("a-session", "스터디", "s1", "s1"),
+    activity("a-dinner", "회식", null),
   ],
   members: [],
   studies: [{ id: "s1", title: "해석학", semester: "25-1" }],
@@ -33,7 +42,9 @@ const data = {
   generatedAt: "2025-03-02T00:00:00+09:00",
 };
 
-const UNLINK_FIRST = /먼저 스터디\s+연결을 해제해 주세요/;
+const LINKED_NOTE =
+  /스터디에 연결된 활동은 종류를 '스터디'나 '회식'으로만\s+바꿀\s+수 있습니다/;
+const SESSION_NOTE = "스터디 회차 활동은 종류를 바꿀 수 없습니다.";
 
 const html = (form: unknown = null) =>
   render(Page, { props: { data, form } as never }).body;
@@ -53,17 +64,50 @@ const typeSelect = (cardHtml: string) => {
   );
 };
 
-describe("activity card type select (D-000107)", () => {
-  it("is disabled with a note on a study-linked activity", () => {
+const optionsOf = (select: string) =>
+  [...select.matchAll(/<option value="([^"]*)"/g)].map((m) => m[1]);
+
+describe("activity card type select (D-000138)", () => {
+  it("offers only 스터디 and 회식 on a study-linked activity, with a note", () => {
     const linked = card(html(), "a-linked");
-    expect(typeSelect(linked)).toContain("disabled");
-    expect(linked).toMatch(UNLINK_FIRST);
+    expect(typeSelect(linked)).not.toContain("disabled");
+    expect(optionsOf(typeSelect(linked))).toEqual(["스터디", "회식"]);
+    expect(typeSelect(linked)).toMatch(/<option value="스터디"[^>]*selected/);
+    expect(linked).toMatch(LINKED_NOTE);
   });
 
-  it("stays editable on an unlinked activity", () => {
+  it("shows an old linked type as it is stored, beside 스터디 and 회식", () => {
+    const old = typeSelect(card(html(), "a-linked-meeting"));
+    expect(optionsOf(old)).toEqual(["회의", "스터디", "회식"]);
+    expect(old).toMatch(/<option value="회의"[^>]*selected/);
+  });
+
+  it("locks a study-session activity's type with the session note (D-000129)", () => {
+    const session = card(html(), "a-session");
+    expect(typeSelect(session)).toContain("disabled");
+    expect(session).toContain(SESSION_NOTE);
+    expect(session).not.toMatch(LINKED_NOTE);
+  });
+
+  it("stays editable on an unlinked activity, every type offered", () => {
     const free = card(html(), "a-free");
     expect(typeSelect(free)).not.toContain("disabled");
-    expect(free).not.toMatch(UNLINK_FIRST);
+    expect(optionsOf(typeSelect(free))).toEqual(data.activityTypes);
+    expect(free).not.toMatch(LINKED_NOTE);
+    expect(free).not.toContain(SESSION_NOTE);
+  });
+});
+
+describe("study link select (D-000135)", () => {
+  const hasLinkForm = (id: string) =>
+    card(html(), id).includes('action="?/setStudy"');
+
+  it("shows on 스터디 and 회식 activities only", () => {
+    expect(hasLinkForm("a-linked")).toBe(true);
+    expect(hasLinkForm("a-dinner")).toBe(true);
+    expect(hasLinkForm("a-free")).toBe(false);
+    // a session's study is shown read-only instead (D-000088)
+    expect(hasLinkForm("a-session")).toBe(false);
   });
 });
 

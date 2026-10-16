@@ -11,9 +11,9 @@ import { invalidateCache } from "$lib/server/cache";
 import { actions, load } from "./+page.server";
 
 /**
- * 관리자 활동 화면의 스터디 지정(계획 2026-10-14 Task 2). 종류가 '스터디'인
- * 활동만 연결한다(snumps-webpage/D-000053). 빈 studyId는 연결 해제. 없는
- * 활동·없는 스터디는 서로 다른 문구로 알린다(D-000062).
+ * 관리자 활동 화면의 스터디 지정(계획 2026-10-14 Task 2). 종류가 '스터디'나
+ * '회식'인 활동만 연결한다(snumps-webpage/D-000135, D-000053 대체). 빈 studyId는
+ * 연결 해제. 없는 활동·없는 스터디는 서로 다른 문구로 알린다(D-000062).
  */
 
 const admin = {
@@ -117,8 +117,10 @@ beforeEach(async () => {
       activity("a-meeting", "회의", null),
       activity("a-session", "스터디", "s1"),
       activity("a-seminar", "스터디", null),
-      // 연결된 채 종류가 '스터디'가 아닌 활동(D-000114 예시 — prod 0건)
+      // 연결된 채 종류가 '스터디'·'회식'이 아닌 활동(D-000114 예시 — prod 0건)
       activity("a-linked-meeting", "회의", "s1"),
+      activity("a-dinner", "회식", null),
+      activity("a-linked-dinner", "회식", "s1"),
     ],
   });
   await __putRawDoc("table", "events", {
@@ -161,26 +163,47 @@ describe("activity editor load", () => {
       "a-session": "s1",
       "a-seminar": null,
       "a-linked-meeting": null,
+      "a-dinner": null,
+      "a-linked-dinner": null,
     });
   });
 });
 
-describe("?/update while linked to a study (D-000087)", () => {
+// D-000138 (replaces D-000107·114): a linked activity's type moves only
+// between '스터디' and '회식'; a study-session activity stays '스터디' (D-000129).
+describe("?/update while linked to a study (D-000138)", () => {
   const update = (id: string, fields: Record<string, string>) =>
     actions.update(post({ id, title: id, type: "스터디", ...fields }));
 
-  it("refuses moving a linked activity off '스터디', writing nothing", async () => {
+  it.each([
+    ["a-linked", "회식"],
+    ["a-linked-dinner", "스터디"],
+  ])("lets linked %s move to '%s', keeping the link", async (id, type) => {
+    const result = await update(id, { type });
+    expect(result).toMatchObject({
+      success: true,
+      operation: "activityUpdated",
+    });
+    expect(await typeOf(id)).toBe(type);
+    expect(await studyIdOf(id)).toBe("s1");
+  });
+
+  it.each([
+    ["a-linked", "회의"],
+    ["a-linked-dinner", "기타"],
+    ["a-linked", "특위 활동"],
+  ])("refuses moving linked %s to '%s', writing nothing", async (id, type) => {
     const before = await version();
-    const result = (await update("a-linked", {
-      type: "회의",
-    })) as unknown as Refusal;
+    const stored = await typeOf(id);
+    const result = (await update(id, { type })) as unknown as Refusal;
     expect(result).toMatchObject({
       status: 400,
       data: { error: "VALIDATION_FAILED" },
     });
+    expect(result.data.message).toContain("'회식'");
     expect(result.data.message).toContain("연결");
     expect(await version()).toBe(before);
-    expect(await typeOf("a-linked")).toBe("스터디");
+    expect(await typeOf(id)).toBe(stored);
   });
 
   it("refuses a type change that comes with other edits, writing none of them", async () => {
@@ -203,7 +226,19 @@ describe("?/update while linked to a study (D-000087)", () => {
     expect(await typeOf("a-study")).toBe("회의");
   });
 
-  // D-000114: a linked activity's type may only move TO '스터디'.
+  // Old data: linked while its type is neither — saving needs 스터디 or 회식.
+  it.each(["스터디", "회식"])(
+    "lets a linked '회의' activity move to '%s'",
+    async (type) => {
+      const result = await update("a-linked-meeting", { type });
+      expect(result).toMatchObject({
+        success: true,
+        operation: "activityUpdated",
+      });
+      expect(await typeOf("a-linked-meeting")).toBe(type);
+    },
+  );
+
   it("refuses moving a linked '회의' activity to '세미나', writing nothing", async () => {
     const before = await version();
     const result = await update("a-linked-meeting", { type: "세미나" });
@@ -215,38 +250,37 @@ describe("?/update while linked to a study (D-000087)", () => {
     expect(await typeOf("a-linked-meeting")).toBe("회의");
   });
 
-  it("lets a linked '회의' activity move to '스터디'", async () => {
-    const result = await update("a-linked-meeting", { type: "스터디" });
+  it("refuses saving a linked '회의' activity that keeps its type, writing nothing", async () => {
+    const before = await version();
+    for (const fields of [
+      { type: "회의", title: "정리 회의" } as Record<string, string>,
+      // a form without a type keeps it — still neither 스터디 nor 회식
+      { title: "정리 회의" },
+    ]) {
+      const result = (await actions.update(
+        post({ id: "a-linked-meeting", ...fields }),
+      )) as unknown as Refusal;
+      expect(result).toMatchObject({
+        status: 400,
+        data: { error: "VALIDATION_FAILED" },
+      });
+      expect(result.data.message).toContain("'회식'");
+    }
+    expect(await version()).toBe(before);
+    expect(await titleOf("a-linked-meeting")).toBe("a-linked-meeting");
+    expect(await typeOf("a-linked-meeting")).toBe("회의");
+  });
+
+  it("saves the other fields of a linked activity when the form carries no type", async () => {
+    const result = await actions.update(
+      post({ id: "a-linked", title: "a-linked 새 제목" }),
+    );
     expect(result).toMatchObject({
       success: true,
       operation: "activityUpdated",
     });
-    expect(await typeOf("a-linked-meeting")).toBe("스터디");
-  });
-
-  it("keeps an unchanged non-'스터디' type of a linked activity", async () => {
-    const result = await update("a-linked-meeting", {
-      type: "회의",
-      title: "정리 회의",
-    });
-    expect(result).toMatchObject({ success: true });
-    expect(await titleOf("a-linked-meeting")).toBe("정리 회의");
-    expect(await typeOf("a-linked-meeting")).toBe("회의");
-  });
-
-  // D-000107: the editor disables the type select of a linked activity, and a
-  // disabled select is not submitted — a missing type is no change.
-  it("saves the other fields when the form carries no type", async () => {
-    for (const id of ["a-linked", "a-linked-meeting"]) {
-      const before = await typeOf(id);
-      const result = await actions.update(post({ id, title: `${id} 새 제목` }));
-      expect(result).toMatchObject({
-        success: true,
-        operation: "activityUpdated",
-      });
-      expect(await titleOf(id)).toBe(`${id} 새 제목`);
-      expect(await typeOf(id)).toBe(before);
-    }
+    expect(await titleOf("a-linked")).toBe("a-linked 새 제목");
+    expect(await typeOf("a-linked")).toBe("스터디");
   });
 
   it("still edits a linked activity's other fields", async () => {
@@ -262,6 +296,48 @@ describe("?/update while linked to a study (D-000087)", () => {
     expect(row).toMatchObject({ title: "해석학 1회", type: "스터디" });
     expect(row?.date.start).not.toBe("2025-03-01T19:00:00+09:00");
     expect(row?.studyId).toBe("s1");
+  });
+});
+
+describe("?/update on a study-session activity (D-000088·129·138)", () => {
+  it.each(["회식", "회의"])(
+    "refuses moving it to '%s' with the session note, writing nothing",
+    async (type) => {
+      const before = await version();
+      const result = (await actions.update(
+        post({ id: "a-session", title: "a-session", type }),
+      )) as unknown as Refusal;
+      expect(result).toMatchObject({
+        status: 400,
+        data: {
+          error: "VALIDATION_FAILED",
+          message: "스터디 회차 활동은 종류를 바꿀 수 없습니다.",
+        },
+      });
+      expect(await version()).toBe(before);
+      expect(await typeOf("a-session")).toBe("스터디");
+    },
+  );
+
+  // D-000108: with a title change too, the type refusal is the one reported
+  it("reports the type refusal over the paired-owner one", async () => {
+    const result = (await actions.update(
+      post({ id: "a-session", title: "새 회차 이름", type: "회식" }),
+    )) as unknown as Refusal;
+    expect(result).toMatchObject({
+      status: 400,
+      data: { message: "스터디 회차 활동은 종류를 바꿀 수 없습니다." },
+    });
+  });
+
+  it("accepts a save that leaves it as it is", async () => {
+    for (const fields of [{ type: "스터디" }, {}] as Record<string, string>[]) {
+      const result = await actions.update(
+        post({ id: "a-session", title: "a-session", ...fields }),
+      );
+      expect(result).toMatchObject({ success: true });
+    }
+    expect(await typeOf("a-session")).toBe("스터디");
   });
 });
 
@@ -387,15 +463,33 @@ describe("?/setStudy", () => {
     expect(await studyIdOf("a-linked")).toBeNull();
   });
 
+  // D-000135: a 회식 may be linked too
+  it("links a 회식 activity to the chosen study", async () => {
+    const result = await actions.setStudy(
+      post({ id: "a-dinner", studyId: "s2" }),
+    );
+    expect(result).toMatchObject({ success: true, operation: "studyLinked" });
+    expect(await studyIdOf("a-dinner")).toBe("s2");
+  });
+
+  it("unlinks a linked 회식", async () => {
+    const result = await actions.setStudy(
+      post({ id: "a-linked-dinner", studyId: "" }),
+    );
+    expect(result).toMatchObject({ success: true, operation: "studyLinked" });
+    expect(await studyIdOf("a-linked-dinner")).toBeNull();
+  });
+
   it("refuses an activity of another type, writing nothing", async () => {
     const before = await version();
-    const result = await actions.setStudy(
+    const result = (await actions.setStudy(
       post({ id: "a-meeting", studyId: "s1" }),
-    );
+    )) as unknown as Refusal;
     expect(result).toMatchObject({
       status: 400,
       data: { error: "VALIDATION_FAILED", message: expect.any(String) },
     });
+    expect(result.data.message).toContain("'회식'");
     expect(await version()).toBe(before);
     expect(await studyIdOf("a-meeting")).toBeNull();
   });
