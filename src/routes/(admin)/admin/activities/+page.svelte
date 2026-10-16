@@ -37,6 +37,24 @@
     activityDeleted: "활동 기록을 삭제했습니다.",
     studyLinked: "활동의 스터디 연결을 저장했습니다.",
   };
+  /** The card whose ?/update was refused — it opens with what was typed. */
+  const refusedId = $derived(
+    form?.error && form.id && form.values ? form.id : null,
+  );
+  /**
+   * 기본 정보 칸에 채울 값 — 그 활동의 수정이 거절됐으면 **제출한 값**, 아니면
+   * 저장된 값(D-000098, 세미나 편집기와 같은 규칙). 보내지 않은 칸(잠긴 종류,
+   * 바꾸지 않은 날짜)은 저장값이다.
+   */
+  function shownFor(activity: ActivityRow) {
+    const v = (refusedId === activity.id ? form?.values : undefined) as
+      Partial<Record<"title" | "type" | "start", string>> | undefined;
+    return {
+      title: v?.title ?? activity.title,
+      type: v?.type || activity.type,
+      date: v?.start ? v.start.slice(0, 10) : dateOf(activity),
+    };
+  }
   const studyLabel = (study: (typeof data.studies)[number]) =>
     `${study.semester} · ${study.title}`;
   const linkedStudy = (activity: ActivityRow) =>
@@ -139,7 +157,9 @@
     </div>
     <div class="record-list">
       {#each activities as activity (activity.id)}
-        <details class="record-card">
+        {@const shown = shownFor(activity)}
+        <!-- 수정이 거절되면 그 카드를 펼친 채로 — 입력한 값이 다시 채워져 있다(D-000098) -->
+        <details class="record-card" open={refusedId === activity.id}>
           <summary
             ><div>
               <span>{dateOf(activity)} · {activity.type}</span><strong
@@ -163,7 +183,7 @@
               <input type="hidden" name="id" value={activity.id} /><label
                 ><span class="paper-label">활동명</span><input
                   name="title"
-                  value={activity.title}
+                  value={shown.title}
                 /></label
               ><label
                 ><span class="paper-label">유형</span><select
@@ -171,7 +191,7 @@
                   disabled={activity.studyId !== null}
                   >{#each data.activityTypes as type (type)}<option
                       value={type}
-                      selected={type === activity.type}>{type}</option
+                      selected={type === shown.type}>{type}</option
                     >{/each}</select
                 >{#if activity.studyId !== null}<!-- 연결된 활동은 종류를 잠근다 — 비활성 칸은 제출되지 않아 서버가 종류를 그대로 둔다(D-000107) --><small
                     class="field-note"
@@ -182,7 +202,7 @@
                 ><span class="paper-label">날짜</span><input
                   type="date"
                   name="date"
-                  value={dateOf(activity)}
+                  value={shown.date}
                 /></label
               ><button class="paper-btn" type="submit">기본 정보 수정</button>
             </form>

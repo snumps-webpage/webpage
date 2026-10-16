@@ -265,6 +265,56 @@ describe("?/update while linked to a study (D-000087)", () => {
   });
 });
 
+// D-000098: a refused edit hands back what was typed, for that card.
+describe("?/update refusals return the submitted values", () => {
+  it("returns them with a type refusal", async () => {
+    const result = await actions.update(
+      post({ id: "a-linked", title: "고친 제목", type: "회의" }),
+    );
+    expect(result).toMatchObject({
+      status: 400,
+      data: {
+        error: "VALIDATION_FAILED",
+        id: "a-linked",
+        message: expect.stringContaining("연결"),
+        values: { title: "고친 제목", type: "회의", start: "", end: "" },
+      },
+    });
+  });
+
+  it("returns them with a paired-owner conflict", async () => {
+    const result = await actions.update(
+      post({
+        id: "a-session",
+        title: "회차 새 이름",
+        type: "스터디",
+        start: "2025-03-08T00:00",
+      }),
+    );
+    expect(result).toMatchObject({
+      status: 409,
+      data: {
+        error: "CONFLICT",
+        id: "a-session",
+        message: expect.stringContaining("스터디 관리"),
+        values: {
+          title: "회차 새 이름",
+          type: "스터디",
+          start: "2025-03-08T00:00",
+        },
+      },
+    });
+  });
+
+  it("returns no values for an activity that is gone", async () => {
+    const result = (await actions.update(
+      post({ id: "missing", title: "x", type: "회의" }),
+    )) as unknown as { status: number; data: Record<string, unknown> };
+    expect(result).toMatchObject({ status: 404 });
+    expect(result.data.values).toBeUndefined();
+  });
+});
+
 describe("?/setStudy on a study-session activity (D-000088)", () => {
   it("refuses relinking it to another study, writing nothing", async () => {
     const before = await version();

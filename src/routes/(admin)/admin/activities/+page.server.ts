@@ -15,6 +15,7 @@ import {
 } from "$lib/server/services/records-admin";
 import { compareSemesters } from "$lib/domain/semester-order";
 import { fail } from "@sveltejs/kit";
+import { AppError } from "$lib/server/core/errors";
 import { kstInputToIso, nowKstIso } from "$lib/server/core/time";
 import { ACTIVITY_TYPES } from "$lib/server/data/schemas";
 import { formText, fieldIssues } from "$lib/domain/form-data";
@@ -112,17 +113,32 @@ export const actions = {
         });
       }
       const { title, type, start, end } = parsed.data;
-      await updateActivity(id, {
-        title,
-        // 비활성화된 종류 칸(스터디 연결 활동)은 보내지지 않는다 — 변경 아님(D-000107)
-        type: type || undefined,
-        date: start
-          ? {
-              start: kstInputToIso(start),
-              end: end ? kstInputToIso(end) : null,
-            }
-          : undefined,
-      });
+      try {
+        await updateActivity(id, {
+          title,
+          // 비활성화된 종류 칸(스터디 연결 활동)은 보내지지 않는다 — 변경 아님(D-000107)
+          type: type || undefined,
+          date: start
+            ? {
+                start: kstInputToIso(start),
+                end: end ? kstInputToIso(end) : null,
+              }
+            : undefined,
+        });
+      } catch (e) {
+        // 거절된 수정은 입력한 값을 돌려준다 — 그 카드를 연 채 다시 채운다(D-000098)
+        if (
+          e instanceof AppError &&
+          (e.code === "VALIDATION_FAILED" || e.code === "CONFLICT")
+        )
+          return fail(e.status, {
+            error: e.code,
+            message: e.userMessage,
+            id,
+            values,
+          });
+        throw e;
+      }
       return { operation: "activityUpdated" };
     });
   },
