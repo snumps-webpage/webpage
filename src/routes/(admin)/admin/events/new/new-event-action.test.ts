@@ -75,6 +75,22 @@ describe("events/new", () => {
     });
   });
 
+  // snumps-webpage/D-000136·139·140
+  it.each(["특위 활동", "임원진 사업"])(
+    "creates a '%s' event with its activity",
+    async (type) => {
+      const thrown = await actions
+        .default(post({ ...valid, type }))
+        .catch((e: unknown) => e);
+
+      expect(isRedirect(thrown)).toBe(true);
+      const [event] = await getTable("events");
+      const [activity] = await getTable("activities");
+      expect(event).toMatchObject({ type });
+      expect(activity).toMatchObject({ type });
+    },
+  );
+
   it.each([
     ["title", { title: "" }],
     ["title", { title: "가".repeat(161) }],

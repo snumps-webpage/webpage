@@ -237,7 +237,7 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용 — `$lib/doma
   "id": "ULID",
   "title": "string",
   "date": { "start": "datetime", "end": "datetime | null" },
-  "type": "세미나 | 스터디 | 회의 | 회식 | 기타", // 닫힌 집합. 'Seminar' 폐기 확정
+  "type": "세미나 | 스터디 | 회의 | 회식 | 특위 활동 | 임원진 사업 | 기타", // 닫힌 집합. 'Seminar' 폐기 확정
   "attendeeIds": ["ULID"],
   "sourceRequestId": "string | null", // §1-6. 승인·회차 생성이 만든 경우 원 신청/회차 근거
 }
@@ -250,7 +250,7 @@ datetime → term 변환은 이 규칙의 단일 유틸만 사용 — `$lib/doma
   "id": "ULID",
   "title": "string",
   "date": { "start": "datetime", "end": "datetime | null" },
-  "type": "세미나 | 스터디 | 회의 | 회식 | 기타", // activities.type과 동일 집합
+  "type": "세미나 | 스터디 | 회의 | 회식 | 특위 활동 | 임원진 사업 | 기타", // activities.type과 동일 집합
   "status": "draft | active | expired | cancelled", // cancelled는 재활성화 불가 (expired만 재활성화 허용)
   "pathId": "string",
   "attendCode": "string",

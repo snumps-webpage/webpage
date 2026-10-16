@@ -5,6 +5,8 @@ export const ACTIVITY_TYPES = [
   "세미나",
   "스터디",
   "회의",
+  "특위 활동",
+  "임원진 사업",
   "기타",
 ] as const;
 
@@ -20,6 +22,9 @@ export const RECORD_ACTIVITY_TYPES = [
   "스터디",
   "회의",
   "회식",
+  // 회칙 제18조의 특위참여·임원진 사업 (snumps-webpage/D-000136·139·140)
+  "특위 활동",
+  "임원진 사업",
   "기타",
 ] as const satisfies readonly ActivityType[];
 

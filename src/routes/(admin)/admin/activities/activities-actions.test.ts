@@ -78,6 +78,18 @@ describe("?/create", () => {
     });
   });
 
+  // snumps-webpage/D-000136·139·140: two storable types, charter 제18조
+  it.each(["특위 활동", "임원진 사업"])(
+    "stores a '%s' activity",
+    async (type) => {
+      const result = await actions.create(post({ ...valid, type }));
+
+      expect(result).toMatchObject({ success: true });
+      const [row] = await getTable("activities");
+      expect(row).toMatchObject({ title: "정기 회의", type });
+    },
+  );
+
   it.each([
     ["title", { title: "   " }],
     ["title", { title: "가".repeat(161) }],

@@ -231,6 +231,21 @@ describe("memberActivity — other records", () => {
     expect(result.recordsByType).toEqual({ 회식: 1, 회의: 1, 기타: 1 });
   });
 
+  // 회칙 제18조의 특위참여·임원진 사업 (snumps-webpage/D-000076·136·139·140)
+  it("counts 특위 활동·임원진 사업 once per attendance", () => {
+    const result = activityOf(me, {
+      ...empty,
+      activities: [
+        activity("a1", "특위 활동", "2026-09-01T19:00:00+09:00", ["m1"]),
+        activity("a2", "특위 활동", "2026-09-02T19:00:00+09:00", ["m1"]),
+        activity("a3", "임원진 사업", "2026-09-03T19:00:00+09:00", ["m1"]),
+        activity("a4", "임원진 사업", "2026-09-04T19:00:00+09:00", ["m9"]),
+      ],
+    });
+    expect(result.records).toBe(3);
+    expect(result.recordsByType).toEqual({ "특위 활동": 2, "임원진 사업": 1 });
+  });
+
   it("never counts a hidden activity but still lists it as attended", () => {
     const result = activityOf(me, {
       ...empty,

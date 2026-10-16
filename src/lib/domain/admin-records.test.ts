@@ -19,6 +19,9 @@ describe("admin record validation", () => {
         end: "",
       }).success;
     expect(activity("회의")).toBe(true);
+    // snumps-webpage/D-000136·139·140
+    expect(activity("특위 활동")).toBe(true);
+    expect(activity("임원진 사업")).toBe(true);
     expect(activity("workshop")).toBe(false);
     // display vocabulary only — activities.type cannot store it
     expect(activity("문제 풀이")).toBe(false);
