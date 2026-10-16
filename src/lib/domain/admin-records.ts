@@ -129,9 +129,17 @@ export const adminActivityRecordSchema = z
   .object(activityRecordFields)
   .superRefine(checkActivityDates);
 
-/** Update leaves the date alone when the editor sends no `start`. */
+/**
+ * Update leaves the date alone when the editor sends no `start`, and the type
+ * alone when it sends none — the type select of a study-linked activity is
+ * disabled, and a disabled select is not submitted (snumps-webpage/D-000107).
+ */
 export const adminActivityRecordUpdateSchema = z
-  .object({ ...activityRecordFields, start: optionalLocalDateTime })
+  .object({
+    ...activityRecordFields,
+    type: z.union([z.literal(""), activityRecordFields.type]),
+    start: optionalLocalDateTime,
+  })
   .superRefine(checkActivityDates);
 
 /** The dinner gallery: a year label ("2026", or "미상" from the migration). */

@@ -88,8 +88,10 @@ export function sessionStudyOf(
 /**
  * Type, title and date are the admin's to edit, with two exceptions: the
  * paired owner's title and date (above), and the type of an activity linked
- * to a study, which stays '스터디' until it is unlinked
- * (snumps-webpage/D-000087). Either refusal writes nothing.
+ * to a study, which may only change TO '스터디' until it is unlinked
+ * (snumps-webpage/D-000087·114). Either refusal writes nothing; when both
+ * apply, the type refusal is the one reported (D-000108). A patch without a
+ * type leaves it as it is.
  */
 export async function updateActivity(
   id: string,
@@ -105,8 +107,8 @@ export async function updateActivity(
     const current = rows[idx];
     if (
       current.studyId !== null &&
-      current.type === "스터디" &&
       patch.type !== undefined &&
+      patch.type !== current.type &&
       patch.type !== "스터디"
     )
       throw new AppError("VALIDATION_FAILED", {

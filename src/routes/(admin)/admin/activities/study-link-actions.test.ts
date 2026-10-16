@@ -117,6 +117,8 @@ beforeEach(async () => {
       activity("a-meeting", "회의", null),
       activity("a-session", "스터디", "s1"),
       activity("a-seminar", "스터디", null),
+      // 연결된 채 종류가 '스터디'가 아닌 활동(D-000114 예시 — prod 0건)
+      activity("a-linked-meeting", "회의", "s1"),
     ],
   });
   await __putRawDoc("table", "events", {
@@ -158,6 +160,7 @@ describe("activity editor load", () => {
       "a-meeting": null,
       "a-session": "s1",
       "a-seminar": null,
+      "a-linked-meeting": null,
     });
   });
 });
@@ -198,6 +201,52 @@ describe("?/update while linked to a study (D-000087)", () => {
       operation: "activityUpdated",
     });
     expect(await typeOf("a-study")).toBe("회의");
+  });
+
+  // D-000114: a linked activity's type may only move TO '스터디'.
+  it("refuses moving a linked '회의' activity to '세미나', writing nothing", async () => {
+    const before = await version();
+    const result = await update("a-linked-meeting", { type: "세미나" });
+    expect(result).toMatchObject({
+      status: 400,
+      data: { error: "VALIDATION_FAILED" },
+    });
+    expect(await version()).toBe(before);
+    expect(await typeOf("a-linked-meeting")).toBe("회의");
+  });
+
+  it("lets a linked '회의' activity move to '스터디'", async () => {
+    const result = await update("a-linked-meeting", { type: "스터디" });
+    expect(result).toMatchObject({
+      success: true,
+      operation: "activityUpdated",
+    });
+    expect(await typeOf("a-linked-meeting")).toBe("스터디");
+  });
+
+  it("keeps an unchanged non-'스터디' type of a linked activity", async () => {
+    const result = await update("a-linked-meeting", {
+      type: "회의",
+      title: "정리 회의",
+    });
+    expect(result).toMatchObject({ success: true });
+    expect(await titleOf("a-linked-meeting")).toBe("정리 회의");
+    expect(await typeOf("a-linked-meeting")).toBe("회의");
+  });
+
+  // D-000107: the editor disables the type select of a linked activity, and a
+  // disabled select is not submitted — a missing type is no change.
+  it("saves the other fields when the form carries no type", async () => {
+    for (const id of ["a-linked", "a-linked-meeting"]) {
+      const before = await typeOf(id);
+      const result = await actions.update(post({ id, title: `${id} 새 제목` }));
+      expect(result).toMatchObject({
+        success: true,
+        operation: "activityUpdated",
+      });
+      expect(await titleOf(id)).toBe(`${id} 새 제목`);
+      expect(await typeOf(id)).toBe(before);
+    }
   });
 
   it("still edits a linked activity's other fields", async () => {

@@ -114,7 +114,8 @@ export const actions = {
       const { title, type, start, end } = parsed.data;
       await updateActivity(id, {
         title,
-        type,
+        // 비활성화된 종류 칸(스터디 연결 활동)은 보내지지 않는다 — 변경 아님(D-000107)
+        type: type || undefined,
         date: start
           ? {
               start: kstInputToIso(start),

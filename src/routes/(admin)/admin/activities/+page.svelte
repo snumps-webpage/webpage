@@ -166,12 +166,18 @@
                   value={activity.title}
                 /></label
               ><label
-                ><span class="paper-label">유형</span><select name="type"
+                ><span class="paper-label">유형</span><select
+                  name="type"
+                  disabled={activity.studyId !== null}
                   >{#each data.activityTypes as type (type)}<option
                       value={type}
                       selected={type === activity.type}>{type}</option
                     >{/each}</select
-                ></label
+                >{#if activity.studyId !== null}<!-- 연결된 활동은 종류를 잠근다 — 비활성 칸은 제출되지 않아 서버가 종류를 그대로 둔다(D-000107) --><small
+                    class="field-note"
+                    >스터디에 연결된 활동은 종류를 바꿀 수 없습니다. 먼저 스터디
+                    연결을 해제해 주세요.</small
+                  >{/if}</label
               ><label
                 ><span class="paper-label">날짜</span><input
                   type="date"
@@ -320,6 +326,9 @@
     margin-top: 0.2rem;
     color: var(--color-danger-text);
     font-size: 0.66rem;
+  }
+  form small.field-note {
+    color: var(--latex-muted);
   }
   .section-title {
     display: flex;

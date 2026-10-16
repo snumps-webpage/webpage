@@ -30,6 +30,29 @@ describe("admin record validation", () => {
     expect(adminActivityRecordUpdateSchema.safeParse(input).success).toBe(true);
   });
 
+  // snumps-webpage/D-000107: a disabled type select is not submitted — the
+  // update leaves the type alone, the create still needs one
+  it("lets an update leave the type out but not name an unknown one", () => {
+    const input = (type: string) => ({
+      title: "회의",
+      type,
+      start: "",
+      end: "",
+    });
+    expect(adminActivityRecordUpdateSchema.safeParse(input("")).success).toBe(
+      true,
+    );
+    expect(
+      adminActivityRecordUpdateSchema.safeParse(input("workshop")).success,
+    ).toBe(false);
+    expect(
+      adminActivityRecordSchema.safeParse({
+        ...input(""),
+        start: "2026-08-28T19:00",
+      }).success,
+    ).toBe(false);
+  });
+
   // Audit LC03-1: activity dates had no order rule, so a range ending before
   // it starts was stored — and copied onto any session connected to it.
   it.each([
