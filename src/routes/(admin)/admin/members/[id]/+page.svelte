@@ -381,6 +381,8 @@
             <span
               >{item.title}
               {#if item.hidden}<span class="hidden-flag">공개 면 숨김</span
+                >{/if}{#if item.upcoming}<!-- 아직 열리지 않은 활동 — 기록 수에 들지 않는다(D-000113) --><span
+                  class="upcoming-flag">예정</span
                 >{/if}</span
             >
             <span class="meta"
@@ -632,6 +634,14 @@
     padding: 0.2rem 0.35rem;
     background: color-mix(in srgb, var(--latex-rule) 12%, transparent);
     font-size: 0.66rem;
+  }
+  .upcoming-flag {
+    margin-left: 0.35rem;
+    padding: 0.08rem 0.3rem;
+    border: 1px solid var(--latex-rule);
+    color: var(--latex-muted);
+    font-size: 0.58rem;
+    white-space: nowrap;
   }
   .hidden-flag {
     margin-left: 0.35rem;

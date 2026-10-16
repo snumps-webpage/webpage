@@ -261,6 +261,22 @@ describe("memberActivity — other records", () => {
 });
 
 describe("memberActivity — activities that have not started (D-000090)", () => {
+  // D-000113·116: the list marks what has not started yet (start >= now),
+  // the same rule that keeps it out of the records
+  it("marks an attended activity that has not started as upcoming", () => {
+    const result = activityOf(me, {
+      ...empty,
+      activities: [
+        activity("a-past", "회식", "2026-10-16T11:59:00+09:00", ["m1"]),
+        activity("a-now", "회식", NOW.toISOString(), ["m1"]),
+        activity("a-next", "회식", FUTURE, ["m1"]),
+      ],
+    });
+    expect(
+      Object.fromEntries(result.attended.map((a) => [a.id, a.upcoming])),
+    ).toEqual({ "a-past": false, "a-now": true, "a-next": true });
+  });
+
   it("does not count a future seminar, attended or presented, but still lists the attended one", () => {
     const result = activityOf(me, {
       ...empty,
@@ -392,6 +408,7 @@ describe("memberActivity — one person, two ids", () => {
         type: "세미나",
         start: "2026-09-01T19:00:00+09:00",
         end: "2026-09-01T21:00:00+09:00",
+        upcoming: false,
       },
     ]);
   });

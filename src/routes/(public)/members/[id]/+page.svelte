@@ -137,7 +137,12 @@
       <ul class="record-list">
         {#each activity.attended as item (item.id)}
           <li>
-            <span class="record-title">{item.title}</span>
+            <span class="record-title"
+              >{item.title}
+              {#if item.upcoming}<!-- 아직 열리지 않은 활동 — 기록 수에 들지 않는다(D-000113) --><span
+                  class="upcoming-flag">예정</span
+                >{/if}</span
+            >
             <span
               >{item.type} ·
               <time datetime={item.start}>{dateLabel(item.start)}</time></span
@@ -256,6 +261,14 @@
     font-family: var(--font-mono);
     font-size: 0.6rem;
     text-align: right;
+  }
+  .upcoming-flag {
+    margin-left: 0.35rem;
+    padding: 0.08rem 0.3rem;
+    border: 1px solid var(--latex-rule);
+    color: var(--latex-muted);
+    font-size: 0.58rem;
+    white-space: nowrap;
   }
   .empty {
     margin: 0;

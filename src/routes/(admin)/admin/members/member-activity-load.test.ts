@@ -234,7 +234,7 @@ describe("admin member detail", () => {
         recordsByType: Record<string, number>;
         hostedSeminars: { id: string; hidden: boolean }[];
         hostedStudies: { id: string; hidden: boolean }[];
-        attended: { id: string; hidden: boolean }[];
+        attended: { id: string; hidden: boolean; upcoming: boolean }[];
       };
     };
     expect(data.standing).toBe("regular");
@@ -269,5 +269,9 @@ describe("admin member detail", () => {
       { id: "a-draft", hidden: true },
       { id: "a-old", hidden: false },
     ]);
+    // D-000113: what has not started yet is marked '예정'
+    expect(
+      data.activity.attended.filter((a) => a.upcoming).map((a) => a.id),
+    ).toEqual(["a-next"]);
   });
 });

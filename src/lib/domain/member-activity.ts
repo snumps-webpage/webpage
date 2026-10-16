@@ -65,16 +65,22 @@ export type ActivityRef = {
   end: string | null;
 };
 
+/**
+ * 참석 목록의 한 줄. `upcoming`: 아직 시작하지 않은 활동(시작 ≥ `now`) — 기록
+ * 수에서 빠지는 바로 그 활동이고, 목록에는 '예정'으로 표시한다(D-000113·116).
+ */
+export type AttendedRef = ActivityRef & { upcoming: boolean };
+
 export type HostedRef = { id: string; title: string; semester: string };
 
 export type MemberActivity = {
   hostedSeminars: HostedRef[];
   hostedStudies: HostedRef[];
   /**
-   * 출석 명단에 있는 활동, 최신순 — 아직 시작하지 않은 활동도 싣는다(기록 수에서만
-   * 뺀다). 숨김 활동을 뺄지는 부르는 쪽이 정한다.
+   * 출석 명단에 있는 활동, 최신순 — 아직 시작하지 않은 활동도 싣되(기록 수에서만
+   * 뺀다) `upcoming`을 단다. 숨김 활동을 뺄지는 부르는 쪽이 정한다.
    */
-  attended: ActivityRef[];
+  attended: AttendedRef[];
   /** 회칙 활동 기록 수(제18~20조). 숨김 활동·아직 시작하지 않은 활동은 세지 않는다. */
   records: number;
   /** 활동 종류별 기록 수 — 스터디 세션 묶음은 '스터디' 1회. */
@@ -141,6 +147,8 @@ export function memberActivity(
   now: Date,
 ): MemberActivity {
   const nowMs = now.getTime();
+  // instant 비교 — 오프셋이 다른 ISO 문자열은 사전식 순서가 틀린다(LA26-1)
+  const started = (a: { start: string }) => Date.parse(a.start) < nowMs;
   const presented = new Set(
     data.seminars
       .filter((s) => s.activityId && touches(s.presenterIds, ids))
@@ -154,8 +162,7 @@ export function memberActivity(
   /** studyId → [진행 세션 수, 참석 세션 수] */
   const sessions = new Map<string, { held: number; attended: number }>();
   for (const a of data.activities) {
-    // instant 비교 — 오프셋이 다른 ISO 문자열은 사전식 순서가 틀린다(LA26-1)
-    if (a.hidden || !(Date.parse(a.start) < nowMs)) continue;
+    if (a.hidden || !started(a)) continue;
     const studyId = sessionStudyOf(a);
     const attended = touches(a.attendeeIds, ids);
     if (studyId) {
@@ -173,7 +180,14 @@ export function memberActivity(
 
   const attended = data.activities
     .filter((a) => touches(a.attendeeIds, ids))
-    .map(({ id, title, type, start, end }) => ({ id, title, type, start, end }))
+    .map(({ id, title, type, start, end }) => ({
+      id,
+      title,
+      type,
+      start,
+      end,
+      upcoming: !started({ start }),
+    }))
     // instant 비교 — 오프셋이 다른 ISO 문자열은 사전식 순서가 틀린다(LA26-1)
     .sort((a, b) => Date.parse(b.start) - Date.parse(a.start));
 

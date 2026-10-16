@@ -68,6 +68,33 @@ describe("public member page", () => {
     });
   });
 
+  // D-000113: the attended list marks what has not started yet
+  it("marks an attended activity that has not started as upcoming", async () => {
+    const at = (days: number) =>
+      new Date(Date.now() + days * 86_400_000).toISOString();
+    await mutate("activities", () =>
+      [
+        ["a-past", at(-3)],
+        ["a-next", at(3)],
+      ].map(([id, start]) => ({
+        id,
+        title: id,
+        date: { start, end: null },
+        type: "회식" as const,
+        attendeeIds: ["m1"],
+        studyId: null,
+        sourceRequestId: null,
+      })),
+    );
+    const data = (await run("m1")) as unknown as {
+      activity: { attended: { id: string; upcoming: boolean }[] };
+    };
+    expect(data.activity.attended).toMatchObject([
+      { id: "a-next", upcoming: true },
+      { id: "a-past", upcoming: false },
+    ]);
+  });
+
   it("moves a rejoined member's legacy id to the current id for good", async () => {
     await expect(run("L1")).rejects.toMatchObject({
       status: 301,
