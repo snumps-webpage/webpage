@@ -197,6 +197,31 @@ describe("memberActivity — study sessions", () => {
     expect(result.records).toBe(2);
   });
 
+  // snumps-webpage/D-000137: a 회식 linked to a study is one 회식 record only
+  it("never counts a linked 회식 as a session, only as one 회식", () => {
+    const dinner = (id: string, sourceRequestId: string | null) =>
+      activity(id, "회식", "2026-09-05T21:00:00+09:00", ["m1"], {
+        studyId: "st1",
+        sourceRequestId,
+      });
+    // 4세션 중 2 참석(과반 아님) — 회식이 세션으로 들어가면 5세션 중 3 참석이 된다
+    const result = activityOf(me, {
+      ...empty,
+      activities: [
+        ...sessions(2, 4),
+        dinner("d1", "st1:2026-09-05T21:00:00+09:00"),
+      ],
+    });
+    expect(result.recordsByType).toEqual({ 회식: 1 });
+    expect(result.records).toBe(1);
+
+    const plain = activityOf(me, {
+      ...empty,
+      activities: [...sessions(2, 4), dinner("d2", null)],
+    });
+    expect(plain.recordsByType).toEqual({ 회식: 1 });
+  });
+
   it("counts a migrated study activity (no session key) once per attendance", () => {
     const result = activityOf(me, {
       ...empty,

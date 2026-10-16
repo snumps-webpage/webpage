@@ -46,11 +46,14 @@ export const load: PageServerLoad = async ({ locals }) => {
   const nameOf = (id: string) => summaries.get(id)?.name ?? "알 수 없음";
   const personOf = (id: string) =>
     summaries.get(id) ?? { id, name: "알 수 없음", department: "" };
-  /** '출석자에서 채우기' 후보 — 연결된 활동의 출석자, 처음 나온 순서로 한 번씩. */
+  /**
+   * '출석자에서 채우기' 후보 — 연결된 '스터디' 종류 활동의 출석자, 처음 나온
+   * 순서로 한 번씩. 연결된 회식의 출석자는 넣지 않는다(D-000137).
+   */
   const attendeesOf = (studyId: string) => [
     ...new Set(
       activities
-        .filter((a) => a.studyId === studyId)
+        .filter((a) => a.studyId === studyId && a.type === "스터디")
         .flatMap((a) => a.attendeeIds),
     ),
   ];

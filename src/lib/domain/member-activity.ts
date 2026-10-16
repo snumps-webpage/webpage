@@ -112,9 +112,10 @@ type DataActivity = MemberActivityData["activities"][number];
 /**
  * 스터디 세션 활동 — flow_create_study_session이 만든 것(`sourceRequestId`가
  * `<studyId>:<date>`). 이주된 스터디 활동은 키가 없어(null 등) 세션이 아니다.
+ * 스터디에 연결된 회식은 키가 어떻든 세션이 아니다 — 회식 1회로만 센다(D-000137).
  */
 function sessionStudyOf(a: DataActivity): string | null {
-  if (!a.studyId || !a.sourceRequestId) return null;
+  if (!a.studyId || !a.sourceRequestId || a.type === "회식") return null;
   return a.sourceRequestId.startsWith(`${a.studyId}:`) ? a.studyId : null;
 }
 
@@ -139,7 +140,8 @@ const touches = (list: readonly string[], ids: ReadonlySet<string>) =>
  * - 세미나: 참석했거나 그 세미나(`seminar.activityId`)의 발표자면 활동 1건당 1회.
  * - 스터디 세션: 스터디별로 묶어 숨김이 아니고 이미 시작한 세션이
  *   `STUDY_MIN_SESSIONS`개 이상이고 그 과반에 참석했으면 그 스터디로 1회.
- * - 그 밖의 활동(이주된 스터디 활동·회식·회의·기타): 참석 1건당 1회.
+ * - 그 밖의 활동(이주된 스터디 활동, 스터디에 연결된 것까지 포함한 회식, 회의·
+ *   특위 활동·임원진 사업·기타): 참석 1건당 1회.
  */
 export function memberActivity(
   ids: ReadonlySet<string>,

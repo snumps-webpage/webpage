@@ -25,7 +25,7 @@ import { actions, load } from "./+page.server";
  * D-000043·057). 관리자는 종료·취소 스터디까지 참가자를 넣고 뺀다. 선택지는
  * 통합 명부 전원(탈퇴자 포함), 재가입 회원은 새 행 하나. 주최자를 뺀 목록은
  * 거부하고 아무것도 쓰지 않는다. '출석자에서 채우기'의 후보는 그 스터디에
- * 연결된 활동의 출석자 합집합이다.
+ * 연결된 '스터디' 종류 활동의 출석자 합집합이다(연결된 회식 제외, D-000137).
  */
 
 const admin = {
@@ -86,11 +86,12 @@ const activity = (
   id: string,
   studyId: string | null,
   attendeeIds: string[],
+  type = "스터디",
 ) => ({
   id,
   title: id,
   date: { start: "2025-03-01T19:00:00+09:00", end: null },
-  type: "스터디",
+  type,
   attendeeIds,
   studyId,
   sourceRequestId: null,
@@ -159,6 +160,8 @@ beforeEach(async () => {
       activity("a2", "s1", ["L1", "w1", "L2"]),
       activity("a3", null, ["m2"]),
       activity("a4", "s2", ["m2"]),
+      // 스터디에 연결된 회식 — 출석자 채우기 후보가 아니다(D-000137)
+      activity("a5", "s1", ["m2"], "회식"),
     ],
   });
 });
@@ -298,7 +301,7 @@ describe("participant editor load", () => {
     ]);
   });
 
-  it("collects the attendees of the study's linked activities, once each", async () => {
+  it("collects the attendees of the study's linked '스터디' activities, once each — not of a linked 회식 (D-000137)", async () => {
     const { records } = await loaded();
     expect(records.find((r) => r.id === "s1")!.attendeeCandidates).toEqual([
       "m1",
