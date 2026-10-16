@@ -343,6 +343,16 @@ describe("?/setStudy on a study-session activity (D-000088)", () => {
     expect(await studyIdOf("a-session")).toBe("s1");
   });
 
+  // D-000109: its own study again changes nothing and is no refusal
+  it("accepts its own study again, writing nothing", async () => {
+    const before = await version();
+    const result = await actions.setStudy(
+      post({ id: "a-session", studyId: "s1" }),
+    );
+    expect(result).toMatchObject({ success: true, operation: "studyLinked" });
+    expect(await version()).toBe(before);
+  });
+
   it("still relinks a migrated activity that no session points at", async () => {
     const result = await actions.setStudy(
       post({ id: "a-linked", studyId: "s2" }),

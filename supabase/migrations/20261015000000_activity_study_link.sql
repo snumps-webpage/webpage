@@ -14,8 +14,10 @@
 --                 creates (otherwise unchanged from
 --                 20260928000000_atomic_flows.sql);
 --              3. flow_set_activity_study links an activity to a study or
---                 unlinks it. Which activity types may be linked is the
---                 caller's rule, not this function's;
+--                 unlinks it; a study-session activity stays with its
+--                 session's study (snumps-webpage/D-000088·099). Which
+--                 activity types may be linked is the caller's rule, not
+--                 this function's;
 --              4. flow_delete_study also refuses while an activity is
 --                 linked to the study (snumps-webpage/D-000059).
 -- Run on   : BOTH prod and dev. Order-independent with the code: the old
@@ -242,25 +244,45 @@ end $$;
 -- given: a call that left it out would otherwise unlink silently. A missing
 -- activity or a named study that does not exist is NOT_FOUND, its detail
 -- naming which ('activity' / 'study') so the admin screen can say it
--- (snumps-webpage/D-000062). The activity's type is not checked here — that
--- rule belongs to the caller.
+-- (snumps-webpage/D-000062). A study-session activity — one an attendance
+-- event with a study records into — stays with that session's study: another
+-- study or unlinking is VALIDATION_FAILED, detail 'session' (D-000088),
+-- checked here under the lock so a session created meanwhile cannot slip
+-- past (D-000099). Sending the value the activity already holds is a no-op
+-- success (D-000109). The activity's type is not checked here — that rule
+-- belongs to the caller.
 --   p = { activityId, studyId | null }  → { touched }
 create or replace function flow_set_activity_study(p jsonb) returns jsonb
 language plpgsql set search_path = public as $$
 declare
-  v_id    text := p ->> 'activityId';
-  v_study text := p ->> 'studyId';
-  v_acts  jsonb;
-  v_act   jsonb;
+  v_id      text := p ->> 'activityId';
+  v_study   text := p ->> 'studyId';
+  v_acts    jsonb;
+  v_act     jsonb;
+  v_session text;
 begin
   perform app_require(p, array['activityId']);
   if not p ? 'studyId' then
     raise exception 'VALIDATION_FAILED' using detail = 'missing-studyId';
   end if;
-  perform app_lock(array['activities', 'studies']);
+  perform app_lock(array['activities', 'events', 'studies']);
   v_acts := app_rows('activities');
   v_act := app_find(v_acts, v_id);
   if v_act is null then raise exception 'NOT_FOUND' using detail = 'activity'; end if;
+  -- the study of the first session event recording into it (as the TS
+  -- sessionStudyOf in services/records-admin.ts)
+  select e ->> 'studyId' into v_session
+    from jsonb_array_elements(app_rows('events')) with ordinality as x(e, n)
+   where e ->> 'activityId' = v_id
+     and jsonb_typeof(e -> 'studyId') = 'string'
+   order by n
+   limit 1;
+  if v_session is not null and v_study is distinct from v_session then
+    raise exception 'VALIDATION_FAILED' using detail = 'session';
+  end if;
+  if (v_act ->> 'studyId') is not distinct from v_study then
+    return jsonb_build_object('touched', '[]'::jsonb);
+  end if;
   if v_study is not null and app_find(app_rows('studies'), v_study) is null then
     raise exception 'NOT_FOUND' using detail = 'study';
   end if;

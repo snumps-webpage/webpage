@@ -73,7 +73,8 @@ function pairedOwner(
  * The study a study-session activity is fixed to: the study of the first
  * session event (an event with a study) that records into it, else null
  * (snumps-webpage/D-000088). Migrated activities no session points at are
- * not fixed.
+ * not fixed. This is the editor's display rule; flow_set_activity_study
+ * applies the same rule itself when it links (D-000099).
  */
 export function sessionStudyOf(
   activityId: string,
@@ -134,42 +135,42 @@ const ACTIVITY_GONE =
 const LINKED_STUDY_GONE =
   "선택한 스터디를 찾을 수 없습니다. 화면을 새로 고친 뒤 다시 골라 주세요.";
 
+const SESSION_FIXED =
+  "스터디 회차 활동은 그 회차의 스터디에 고정되어 있어 연결을 바꾸거나 해제할 수 없습니다.";
+
 /**
  * Links a study-type activity to a study, or unlinks it (`studyId` null) —
- * flow_set_activity_study checks both rows under one lock. Only activities of
+ * flow_set_activity_study checks the rows under one lock. Only activities of
  * type '스터디' may be linked here (snumps-webpage/D-000053); the flow leaves
- * that rule to its caller. A missing activity is NOT_FOUND, a study that does
- * not exist is a bad pick (VALIDATION_FAILED), each with its own message
- * (D-000062). A study-session activity stays with its session's study: any
- * other study, or unlinking, is refused (D-000088). The events are read
- * before the flow's lock, as the type is.
+ * that rule to its caller, read before the lock. A missing activity is
+ * NOT_FOUND, a study that does not exist is a bad pick (VALIDATION_FAILED),
+ * each with its own message (D-000062). A study-session activity stays with
+ * its session's study: any other study, or unlinking, is refused — by the
+ * flow, under its lock (D-000088·099); its own study again is a no-op
+ * success (D-000109).
  */
 export async function setActivityStudy(
   id: string,
   studyId: string | null,
 ): Promise<void> {
-  const [activities, events] = await Promise.all([
-    getTable("activities"),
-    getTable("events"),
-  ]);
-  const activity = activities.find((a) => a.id === id);
+  const activity = (await getTable("activities")).find((a) => a.id === id);
   if (!activity)
     throw new AppError("NOT_FOUND", { userMessage: ACTIVITY_GONE });
   if (activity.type !== "스터디")
     throw new AppError("VALIDATION_FAILED", {
       userMessage: "종류가 '스터디'인 활동만 스터디에 연결할 수 있습니다.",
     });
-  const fixedTo = sessionStudyOf(id, events);
-  if (fixedTo !== null && studyId !== fixedTo)
-    throw new AppError("VALIDATION_FAILED", {
-      userMessage:
-        "스터디 회차 활동은 그 회차의 스터디에 고정되어 있어 연결을 바꾸거나 해제할 수 없습니다.",
-    });
   try {
     await callFlow(
       "flow_set_activity_study",
       { activityId: id, studyId },
-      { messages: { activity: ACTIVITY_GONE, study: LINKED_STUDY_GONE } },
+      {
+        messages: {
+          activity: ACTIVITY_GONE,
+          study: LINKED_STUDY_GONE,
+          session: SESSION_FIXED,
+        },
+      },
     );
   } catch (e) {
     if (e instanceof AppError && e.userMessage === LINKED_STUDY_GONE)

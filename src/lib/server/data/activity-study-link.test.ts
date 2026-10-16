@@ -313,6 +313,80 @@ describe("flow_set_activity_study", () => {
     );
   });
 
+  // snumps-webpage/D-000099·109: a study-session activity stays with its
+  // session's study — checked by the flow under its lock, not by the caller.
+  describe("on a study-session activity", () => {
+    const messages = { session: "회차 고정" };
+    async function seedSession() {
+      const own = await seedStudy();
+      const other = await seedStudy({ title: "대수학" });
+      await put("activities", [
+        activity("a-sess", { studyId: own.id }),
+        activity("a-migrated", { studyId: null }),
+        activity("a-seminar", { studyId: null }),
+      ]);
+      await put("events", [
+        event("e-seminar", "a-seminar", null),
+        event("e-sess", "a-sess", own.id),
+      ]);
+      return { own, other };
+    }
+
+    it.each([
+      [
+        "relinking it to another study",
+        (ids: { other: Study }) => ids.other.id,
+      ],
+      ["unlinking it", () => null],
+    ])("refuses %s with detail 'session', writing nothing", async (_, pick) => {
+      const ids = await seedSession();
+      const before = await version("activities");
+      await expect(
+        callFlow(
+          "flow_set_activity_study",
+          { activityId: "a-sess", studyId: pick(ids) },
+          { messages },
+        ),
+      ).rejects.toSatisfy(
+        (e) =>
+          e instanceof AppError &&
+          e.code === "VALIDATION_FAILED" &&
+          e.userMessage === messages.session,
+      );
+      expect(await version("activities")).toBe(before);
+      expect((await rawRows("activities"))[0]).toHaveProperty(
+        "studyId",
+        ids.own.id,
+      );
+    });
+
+    it("succeeds without a write when sent its own study again", async () => {
+      const { own } = await seedSession();
+      const before = await version("activities");
+      const out = await callFlow("flow_set_activity_study", {
+        activityId: "a-sess",
+        studyId: own.id,
+      });
+      expect(out.touched).toEqual([]);
+      expect(await version("activities")).toBe(before);
+    });
+
+    it("still links a migrated activity, and one with a seminar event", async () => {
+      const { other } = await seedSession();
+      for (const id of ["a-migrated", "a-seminar"])
+        await callFlow("flow_set_activity_study", {
+          activityId: id,
+          studyId: other.id,
+        });
+      const rows = await rawRows("activities");
+      expect(rows.map((r) => [r.id, r.studyId])).toEqual([
+        ["a-sess", expect.any(String)],
+        ["a-migrated", other.id],
+        ["a-seminar", other.id],
+      ]);
+    });
+  });
+
   it.each([
     ["activityId", { studyId: null }],
     ["studyId", { activityId: "a1" }],
