@@ -7,6 +7,7 @@ const send = vi.hoisted(() => ({
   previewBroadcast: vi.fn(),
   sendBroadcastTest: vi.fn(),
   sendBroadcast: vi.fn(),
+  saveDraft: vi.fn(),
 }));
 const store = vi.hoisted(() => ({ recentBroadcasts: vi.fn() }));
 vi.mock("$env/dynamic/private", () => ({ env: testEnv }));
@@ -180,5 +181,77 @@ describe("/admin/mail/broadcast actions", () => {
     expect(send.previewBroadcast).not.toHaveBeenCalled();
     expect(send.sendBroadcastTest).not.toHaveBeenCalled();
     expect(send.sendBroadcast).not.toHaveBeenCalled();
+  });
+});
+
+describe("/admin/mail/broadcast saveDraft action", () => {
+  const form = {
+    s3Key: KEY,
+    subject: "제목",
+    html: "<p>x</p>",
+    removed: "0, 2",
+  };
+
+  it("passes parsed input and the admin email, returns savedAt", async () => {
+    send.saveDraft.mockResolvedValue({
+      ok: true,
+      savedAt: "2026-10-18T00:00:00Z",
+    });
+    const out = await actions.saveDraft(post({ ...form, removed: "0,2" }));
+    expect(send.saveDraft).toHaveBeenCalledWith(
+      KEY,
+      { subject: "제목", html: "<p>x</p>", removedAttachments: [0, 2] },
+      "admin@snu.ac.kr",
+    );
+    expect(out).toMatchObject({
+      operation: "draft-saved",
+      savedAt: "2026-10-18T00:00:00Z",
+    });
+  });
+
+  it("treats an empty removed value as no removals", async () => {
+    send.saveDraft.mockResolvedValue({ ok: true, savedAt: "t" });
+    await actions.saveDraft(post({ ...form, removed: "" }));
+    expect(send.saveDraft.mock.calls[0][1].removedAttachments).toEqual([]);
+  });
+
+  it("maps a service problem to 400", async () => {
+    send.saveDraft.mockResolvedValue({ ok: false, problem: "no-body" });
+    const out = (await actions.saveDraft(
+      post({ ...form, removed: "" }),
+    )) as Failed;
+    expect(out.status).toBe(400);
+    expect(out.data).toEqual({ error: "no-body" });
+  });
+
+  it("rejects a malformed removed list without calling the service", async () => {
+    for (const removed of ["a", "1,,2", "1,-1", "1.5", "1,"]) {
+      const out = (await actions.saveDraft(
+        post({ ...form, removed }),
+      )) as Failed;
+      expect(out.status).toBe(400);
+      expect(out.data).toEqual({ error: "bad-input" });
+    }
+    expect(send.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it("rejects a file in place of a text field without calling the service", async () => {
+    const body = new FormData();
+    body.set("s3Key", KEY);
+    body.set("subject", new File(["x"], "x.txt"));
+    body.set("html", "<p>x</p>");
+    body.set("removed", "");
+    const out = (await actions.saveDraft({
+      request: new Request("http://localhost/admin", { method: "POST", body }),
+      locals: locals(true),
+    } as never)) as Failed;
+    expect(out.data).toEqual({ error: "bad-input" });
+    expect(send.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-admins without calling the service", async () => {
+    const out = (await actions.saveDraft(post(form, false))) as Failed;
+    expect(out.status).toBeGreaterThanOrEqual(400);
+    expect(send.saveDraft).not.toHaveBeenCalled();
   });
 });

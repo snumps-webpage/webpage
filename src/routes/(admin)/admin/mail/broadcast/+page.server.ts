@@ -3,6 +3,7 @@ import type { Config } from "@sveltejs/adapter-vercel";
 import { ensureAdmin, handleAdminAction } from "$lib/server/auth-guards";
 import {
   previewBroadcast,
+  saveDraft,
   sendBroadcast,
   sendBroadcastTest,
 } from "$lib/server/mail/broadcast/send";
@@ -26,6 +27,15 @@ const s3KeyOf = (data: FormData) => {
   return typeof v === "string" ? v.trim() : "";
 };
 
+// 쉼표로 구분한 정수 목록. 빈 문자열은 빈 배열, 형식이 틀리면 null.
+// 범위·중복 검사는 서비스가 한다.
+const parseRemoved = (v: FormDataEntryValue | null): number[] | null => {
+  if (typeof v !== "string") return null;
+  if (v === "") return [];
+  const parts = v.split(",").map((p) => p.trim());
+  return parts.every((p) => /^\d+$/.test(p)) ? parts.map(Number) : null;
+};
+
 type ActionArgs = { request: Request; locals: App.Locals };
 
 export const actions = {
@@ -35,6 +45,26 @@ export const actions = {
       const r = await previewBroadcast(s3Key);
       if (!r.ok) return fail(400, { error: r.problem });
       return { operation: "preview", preview: r.preview };
+    });
+  },
+
+  saveDraft: async ({ request, locals }: ActionArgs) => {
+    const data = await request.formData();
+    const s3Key = s3KeyOf(data);
+    const subject = data.get("subject");
+    const html = data.get("html");
+    const removed = parseRemoved(data.get("removed"));
+    return handleAdminAction(locals, async (session) => {
+      if (typeof subject !== "string" || typeof html !== "string" || !removed) {
+        return fail(400, { error: "bad-input" });
+      }
+      const r = await saveDraft(
+        s3Key,
+        { subject, html, removedAttachments: removed },
+        session.user.email,
+      );
+      if (!r.ok) return fail(400, { error: r.problem });
+      return { operation: "draft-saved", savedAt: r.savedAt };
     });
   },
 
