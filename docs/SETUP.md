@@ -117,3 +117,13 @@ pnpm format      # prettier --write — 저장소 전체가 prettier 형식이�
 ```
 
 CI(`.github/workflows/ci.yml`)는 prettier → eslint → vitest → svelte-check → vite build를 비밀값 없이 실행한다.
+
+## 🔑 Vercel Preview 로그인 우회
+
+Preview 배포에서는 Google OAuth가 Preview 주소를 받지 않으므로, 관리자 화면 확인용으로 `dev_preview` 우회를 켤 수 있다(snumps-webpage/D-000177·182·184).
+
+- 켜지는 조건: `VERCEL_ENV=preview` + Preview 환경 변수 `PREVIEW_LOGIN_BYPASS=on` + 32자 이상 `PREVIEW_LOGIN_KEY`. 운영(`VERCEL_ENV=production`)에서 `PREVIEW_LOGIN_BYPASS`가 있으면 모든 요청이 500으로 거부된다.
+- 등록: `bash scripts/ops/ops-vercel-preview-login.sh` → 키는 리포 루트 `.env.preview-login`(600, git 제외)에만 저장. 등록 뒤 Preview 재배포.
+- 접속: `<Preview 주소>/admin?dev_preview=admin&key=<키>` → 키를 뺀 주소로 303 이동(`Referrer-Policy: no-referrer`), 서명 쿠키 8시간(서버도 만료 확인). `?dev_preview=off`로 끔.
+- 키 교체: `bash scripts/ops/ops-vercel-preview-login.sh --rotate` 후 재배포. 기존 우회 쿠키는 모두 무효가 된다. 키가 노출됐으면 바로 교체한다.
+- 우회 신원은 가상 관리자 `dev-admin@snu.ac.kr`이다. Preview에는 실제 Gmail 토큰이 있으므로 [내게 시험 발송]·전체 발송은 누르지 않는다.
