@@ -105,3 +105,61 @@ export async function dispatchEmail(
     throw new Error("Gmail API failure");
   }
 }
+
+const UPLOAD_SEND_URL =
+  "https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media";
+
+/** Gmail refused the send because a sending quota is exhausted. */
+export class GmailQuotaError extends Error {
+  constructor(reason = "") {
+    super(`Gmail quota exceeded${reason ? `: ${reason}` : ""}`);
+    this.name = "GmailQuotaError";
+  }
+}
+
+/** Gmail refused the send for any other reason. */
+export class GmailSendError extends Error {
+  constructor(
+    public status: number,
+    public reason: string,
+  ) {
+    super(`Gmail send failed (${status}${reason ? `: ${reason}` : ""})`);
+    this.name = "GmailSendError";
+  }
+}
+
+const QUOTA_REASONS = new Set([
+  "rateLimitExceeded",
+  "dailyLimitExceeded",
+  "quotaExceeded",
+  "userRateLimitExceeded",
+]);
+
+/**
+ * Uploads an already-built RFC 822 message untouched (.eml broadcast). Quota
+ * failures are told apart so the caller can stop the run; the response body
+ * is never logged and nothing is retried (D-000110).
+ */
+export async function dispatchRaw(
+  accessToken: string,
+  raw: Buffer,
+): Promise<void> {
+  const res = await fetch(UPLOAD_SEND_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "message/rfc822",
+    },
+    // Buffer is a Uint8Array at runtime; the DOM lib types reject its
+    // ArrayBufferLike backing, so cast instead of copying up to 25 MB.
+    body: raw as Uint8Array<ArrayBuffer>,
+  });
+  if (res.ok) return;
+  const reason = await res.json().then(
+    (j) => j?.error?.errors?.[0]?.reason ?? "",
+    () => "",
+  );
+  if (res.status === 429 || QUOTA_REASONS.has(reason))
+    throw new GmailQuotaError(reason);
+  throw new GmailSendError(res.status, reason);
+}
