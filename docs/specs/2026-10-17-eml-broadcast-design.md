@@ -59,7 +59,7 @@ pnpm dev           # 실제 환경 확인(dev 대상)
 **업로드 목적 `broadcast-eml`**
 
 - `types`: `message/rfc822`, `application/octet-stream`. OS·브라우저에 따라 `.eml` 형식 표기가 달라서임. 서명 URL은 Content-Type을 강제하지 않으므로 실제 검사는 해석 단계에서 함.
-- `maxBytes`: 25_000_000(D-000122). 사전 시험(테스트 전략 0) 결과가 다르면 값을 바꾸기 전에 질문.
+- `maxBytes`: 25_000_000(D-000122, D-000145). 사전 시험에서 24.97MB 메일이 업로드 전송으로 발송됨(로컬 24.7초).
 - 경로: `pending/broadcast-eml/<id>-<slug>.eml`. 기존 일일 maintenance가 7일 지난 `pending/`을 정리함.
 - 발급 권한: `/api/uploads/presign`의 기본 규칙(관리자 전용, `seminar-poster`만 예외)을 그대로 따름. 이 목적은 예외에 넣지 않음.
 
@@ -82,8 +82,9 @@ pnpm dev           # 실제 환경 확인(dev 대상)
 
 **compose.ts**
 
-- `nodemailer/lib/mail-composer`로 조립. `from`은 지정하지 않음(Gmail이 발송 계정으로 채움, 현행과 같음). `replyTo` 미설정(D-000123). `to: "undisclosed-recipients:;"`, `bcc: batch`, `subject`, `html`, `text`, `attachments`(내장 이미지는 `cid` 유지).
-- Bcc 헤더는 raw에 남겨야 Gmail API가 수신자로 씀(`keepBcc: true`). Gmail은 발송 시 Bcc 헤더를 다른 수신자에게 노출하지 않음. 이 동작은 테스트 전략 0·4에서 실제로 확인.
+- `nodemailer/lib/mail-composer`로 조립. `from`은 지정하지 않음(Gmail이 발송 계정으로 채움, 현행과 같음). `replyTo` 미설정(D-000123). `to` 없음, `bcc: batch`, `subject`, `html`, `text`, `attachments`(내장 이미지는 `cid` 유지).
+- `To: undisclosed-recipients:;`는 Gmail API가 400 `Invalid To header`로 거부함. Bcc만 있는 메일은 통과(사전 시험 2차, D-000143, fix `7187e91`).
+- Bcc 헤더는 raw에 남겨야 Gmail API가 수신자로 씀(`keepBcc: true`). 다른 수신자에게 Bcc가 노출되지 않는지는 사전 시험에서 확인하지 못함(발송 계정이 @gmail.com이 아니어서 별칭 시험 불가). 테스트 전략 4에서 서로 다른 두 주소로 확인.
 - 기록용 원 Message-ID는 새 메일 헤더에 넣지 않음. 새 메일은 자체 Message-ID를 가짐.
 
 **client.ts `dispatchRaw`**
@@ -120,7 +121,7 @@ pnpm dev           # 실제 환경 확인(dev 대상)
 | staging 삭제 실패                                   | 로그만 남김. 7일 뒤 maintenance가 정리                                        |
 
 - 발송 횟수 상한 없음(D-000110). 같은 메일 중복만 차단.
-- Vercel 함수 실행 시간 한도는 미확인. 사전 시험에서 25MB × 묶음 수 기준으로 측정하고, 한도에 걸리면 질문.
+- Vercel 함수 실행 시간 한도는 미확인. 25MB 묶음 1개에 로컬 약 25초(사전 시험). 구현 계획에서 공식 한도와 수신 동의 회원 수(읽기 전용, 숫자만)로 `묶음 수 × 25초`를 계산하고, 넘으면 질문(D-000145).
 
 ## 코드 스타일
 
@@ -147,11 +148,11 @@ export async function claimBroadcast(
 
 | 단계                              | 대상                                                   | 방법                                                                                                                                                                                                                   |
 | --------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0 사전 시험(버리는 코드, `.tmp/`) | Gmail API 업로드 전송 한도, Bcc 비노출, 함수 실행 시간 | dev 토큰으로 ~20MB 합성 메일을 관리자 본인에게 발송. 25MB 상한 확정, 실패하면 질문                                                                                                                                     |
+| 0 사전 시험(버리는 코드, `.tmp/`) | Gmail API 업로드 전송 한도, Bcc 비노출, 함수 실행 시간 | 완료(2026-10-17). 발송 계정 자신에게 Bcc만·업로드 전송으로 20MB 18.5초·25MB 24.7초 성공, 서식·cid·첨부 정상 표시(D-000144). `To: undisclosed-recipients:;`는 거부(D-000143). Bcc 비노출은 4단계로 넘김                 |
 | 1 단위(vitest)                    | parse·sanitize·compose                                 | 고정 `.eml`: Gmail 전달본, cid 이미지, 첨부, Message-ID 없음, 깨진 파일 / `script`·`on*`·`javascript:`·`form`·`iframe` 제거, 인라인 스타일·표 유지 / Bcc 헤더, multipart 구조(`mixed`>`related`>`alternative`), 꼬리말 |
 | 2 action                          | `/admin/mail/broadcast`                                | 비관리자 거부, 경로 접두 위반 거부, 크기 상한, 중복 차단, `failed` 재발송 허용, 동시 두 발송 중 하나만 선점, `partial`·`failed` 기록, `GmailQuotaError` 중단. Gmail은 `fetch` mock                                     |
 | 3 데이터                          | `mail-broadcasts` 테이블                               | PGlite에서 빈 문서 읽기·쓰기, `expect-tables-valid` 통과                                                                                                                                                               |
-| 4 실제 환경                       | dev 서버 + 브라우저                                    | 업로드 → 미리보기 → 내게 시험 발송 → Gmail 웹에서 모양 확인(스크린샷), before/after 비교                                                                                                                               |
+| 4 실제 환경                       | dev 서버 + 브라우저                                    | 업로드 → 미리보기 → 내게 시험 발송 → Gmail 웹에서 모양 확인(스크린샷), before/after 비교. 서로 다른 두 주소에 Bcc 발송해 서로 보이지 않는지 확인                                                                       |
 | 전체                              |                                                        | `pnpm test`·`pnpm lint`·`pnpm check` 통과                                                                                                                                                                              |
 
 - coverage 수치 목표는 두지 않음. 위 시나리오를 빠짐없이 덮는 것이 기준.
@@ -171,5 +172,5 @@ export async function claimBroadcast(
 
 ## Open Questions
 
-- 사전 시험 결과에 따라 25MB 상한과 함수 실행 시간 대응을 다시 물음(테스트 전략 0).
+- 함수 실행 시간: 구현 계획에서 Vercel 공식 한도와 수신 동의 회원 수로 계산, 넘으면 질문(D-000145).
 - 관리자 메뉴에서 이 화면으로 가는 진입점: `/admin/mail` 화면 상단 링크로 둘 예정. 위치는 구현 계획 검토 때 확인.
