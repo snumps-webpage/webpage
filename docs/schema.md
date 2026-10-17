@@ -136,4 +136,6 @@ kind, requesterId, status(pending|approved|rejected|withdrawn), closedAs, create
 - `mail-broadcasts` — 외부 메일(.eml) 전체 공지 발송 기록 (`messageId, subject, sentBy, startedAt, finishedAt,
 recipientCount, batchesSent, batchesFailed, status(sending|sent|partial|failed)`). 같은 `messageId`는
   `failed`일 때만 다시 보낼 수 있다. 본문·수신자 주소는 저장하지 않는다 (snumps-webpage/D-000125).
+- `mail-broadcast-drafts` — `.eml` 업로드 한 건마다 하나인 편집 초안 (`s3Key, messageId, subject, removedAttachments,
+savedBy, savedAt`). 본문 HTML은 staging의 `<확장자 뗀 키>/draft.html`에 있다.
 - `role-titles` — 커스텀 임원 직위 (기본 직위는 코드).
