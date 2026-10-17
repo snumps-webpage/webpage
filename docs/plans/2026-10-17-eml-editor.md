@@ -55,7 +55,7 @@
 
 **Interfaces:**
 
-- 제공: `node scripts/measure/editor-preservation.mjs [--html <파일>]` → fixture마다 (a) 무편집 (b) 한 단어 편집 결과를 표로 출력, 기준(표·칸 수 동일, `img src` 보존 100%, `a href` 보존 100%, 정규화 style 보존 ≥ 99%, 화면 픽셀 차이 ≤ 1%) 미달이면 exit 1
+- 제공: `node scripts/measure/editor-preservation.mjs [--html <파일>]` → fixture마다 (a) 무편집 (b) 한 단어 편집 결과를 표로 출력, 기준(표·칸 수 동일, `img src` 보존 100%, `a href` 보존 100%, 정규화 style 보존 ≥ 99%, 화면 픽셀 차이 ≤ 1% — 화면 기준은 (a)에만, (b)는 참고 표시, snumps-webpage/D-000199) 미달이면 exit 1
 
 **Acceptance criteria:**
 

@@ -88,6 +88,21 @@ id뿐이고 이름·이메일·전화번호는 찍지 않는다. 실회원 이�
 대시보드를 렌더하므로, 스냅숏을 다룰 권한이 있는 사람만 돌릴 것. 이 스크립트는 복사본의
 데이터를 **실제로 지운다**(숨겨진 세미나 삭제 검사) — 메모리 서버라 원본과 무관하다.
 
+## 편집기 보존 시험 (`editor-preservation.mjs`)
+
+.eml 발송 편집기(Jodit 4.17.1, `iframe: true`)가 메일 HTML을 망가뜨리지 않는지 본다. 서버는 필요 없다.
+합성 fixture(`editor-fixtures/*.html`, 실제 메일 아님)마다 (a) 무편집 (b) 한 단어 편집 결과를 원본과
+비교한다. 측정은 Python Playwright(`python3`, 사용자 site-packages — 저장소 의존성 아님, `-I` 금지)가 한다.
+
+```
+node scripts/measure/editor-preservation.mjs                      # fixture 3종
+node scripts/measure/editor-preservation.mjs --html <파일>         # 로컬 HTML 추가(저장소에 넣지 말 것)
+node scripts/measure/editor-preservation.mjs --jodit-config '<JSON>'  # 시험 실패 확인용 설정 덮어쓰기
+```
+
+기준(미달이면 exit 1): 표·행·칸 수 동일, `img src` 100%, `a href` 100%, 정규화 style 보존 99% 이상,
+(a)의 화면 픽셀 차이 1% 이하. (b)의 화면 차이는 단어가 줄바꿈을 옮기므로 참고값.
+
 ## 한계
 
 - 메모리 백엔드다 — 다만 PGlite(인프로세스 Postgres)가 운영과 같은 마이그레이션을 적용하므로 `flow_*`
