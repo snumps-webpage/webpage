@@ -27,6 +27,12 @@ export const UPLOAD_PURPOSES = {
   },
   "study-photo": { types: IMAGE_TYPES, maxBytes: 10_000_000 },
   "gallery-photo": { types: IMAGE_TYPES, maxBytes: 10_000_000 },
+  // 전체 메일 발송용 .eml — 관리자 전용, 상한 25 MB (D-000145). 승격하지 않는다:
+  // 발송 때 서버가 staging에서 다시 읽어 해석한다(mail/broadcast/send.ts).
+  "broadcast-eml": {
+    types: ["message/rfc822", "application/octet-stream"],
+    maxBytes: 25_000_000,
+  },
 } as const satisfies Record<string, UploadPurposeSpec>;
 
 export type UploadPurpose = keyof typeof UPLOAD_PURPOSES;

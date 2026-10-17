@@ -116,4 +116,36 @@ describe("POST /api/uploads/presign", () => {
     expect(response.status).toBe(400);
     expect(signed.paths).toEqual([]);
   });
+
+  describe("broadcast-eml", () => {
+    const eml = {
+      purpose: "broadcast-eml",
+      filename: "notice.eml",
+      contentType: "message/rfc822",
+      size: 1024,
+    };
+
+    it("signs an admin .eml under pending/broadcast-eml/", async () => {
+      const response = await call(eml);
+
+      expect(response.status).toBe(200);
+      const { s3Key } = await response.json();
+      expect(s3Key).toMatch(/^pending\/broadcast-eml\//);
+      expect(s3Key).toMatch(/\.eml$/);
+    });
+
+    it("answers 403 to a non-admin and signs nothing", async () => {
+      const response = await call(eml, outsider);
+
+      expect(response.status).toBe(403);
+      expect(signed.paths).toEqual([]);
+    });
+
+    it("refuses 25_000_001 bytes with 400", async () => {
+      const response = await call({ ...eml, size: 25_000_001 });
+
+      expect(response.status).toBe(400);
+      expect(signed.paths).toEqual([]);
+    });
+  });
 });

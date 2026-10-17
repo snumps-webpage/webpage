@@ -1,4 +1,5 @@
 import { env } from "$env/dynamic/private";
+import { uploadSpec } from "$lib/domain/uploads";
 import { newId } from "$lib/server/core/id";
 import type { MailBroadcast } from "$lib/server/data/schemas";
 import { readStaged, removeStaged, stagedInfo } from "$lib/server/data/storage";
@@ -18,7 +19,7 @@ import { claimBroadcast, findBroadcast, finishBroadcast } from "./store";
 /** staging 경로 접두. 이 밖의 키는 거부함(D-000128). */
 export const BROADCAST_PREFIX = "pending/broadcast-eml/";
 /** `.eml` 상한 (D-000145). */
-export const BROADCAST_MAX_BYTES = 25_000_000;
+export const BROADCAST_MAX_BYTES = uploadSpec("broadcast-eml").maxBytes;
 
 export type BroadcastProblem =
   "bad-key" | "missing" | "too-large" | "unreadable" | "no-subject" | "no-body";

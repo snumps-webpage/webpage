@@ -62,4 +62,20 @@ describe("upload purpose table", () => {
       uploadFileProblem("seminar-material", { type: "image/png", size: 1 }),
     ).toBe("type");
   });
+
+  it("accepts a broadcast .eml up to 25 MB (D-000145)", () => {
+    const eml = (type: string, size: number) => ({ type, size });
+    expect(
+      uploadFileProblem("broadcast-eml", eml("message/rfc822", 1)),
+    ).toBeNull();
+    expect(
+      uploadFileProblem("broadcast-eml", eml("message/rfc822", 25_000_000)),
+    ).toBeNull();
+    expect(
+      uploadFileProblem("broadcast-eml", eml("message/rfc822", 25_000_001)),
+    ).toBe("size");
+    expect(uploadFileProblem("broadcast-eml", eml("text/plain", 1))).toBe(
+      "type",
+    );
+  });
 });
