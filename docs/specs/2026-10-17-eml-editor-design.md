@@ -50,12 +50,12 @@ node scripts/measure/editor-preservation.mjs   # 보존 회귀 시험(Task 7에�
 **`saveDraft(s3Key, { subject, html, removedAttachments }, savedBy)`**
 
 1. `loadBroadcast`와 같은 키·크기 검사, 원본 해석(첨부 목록·messageId 필요).
-2. 입력 검사: `subject` trim 후 빈 값이면 `no-subject`, HTML이 정화 후 텍스트·이미지 없이 비면 `no-body`, `removedAttachments`는 원본 첨부 색인 범위 안의 정수 집합(그 밖은 `bad-input`), HTML 바이트가 `PREVIEW_HTML_BUDGET`(3MB) 초과면 `too-large-draft`.
+2. 입력 검사: `subject` trim 후 빈 값이면 `no-subject`, HTML이 정화 후 텍스트·이미지 없이 비면 `no-body`, `removedAttachments`는 원본 첨부 색인 범위 안의 정수 집합이고 초안 본문이 `cid:`로 참조하는 첨부는 뺄 수 없음(그 밖은 `bad-input`, D-000201), 원본에 HTML 파트가 없으면 `bad-input`(D-000202), HTML 바이트가 `PREVIEW_HTML_BUDGET`(3MB) 초과면 `too-large-draft`.
 3. **서명 주소 → cid 되돌리기**: 그 업로드의 미리보기 이미지 목록(`signPreviewImages`와 같은 결정적 규칙: 참조된 cid·SAFE_MIME·image/*·SVG 제외, 원본 첨부 순서)을 다시 계산해, `img src`가 그 업로드의 `…/preview/<n>.<ext>` 경로(쿼리·토큰 무시)를 가리키면 `cid:<그 이미지의 contentId>`로 바꿈. 다른 업로드의 경로나 알 수 없는 주소는 그대로 두고 정화가 판단.
 4. `sanitizeMailHtml`로 정화 → `draft.html` 업로드(`uploadStaged`, upsert) → 행 `mutate` upsert.
 5. 반환: `{ ok: true, savedAt }` 또는 `{ ok: false, problem }`.
 
-**적재(`loadBroadcast`) 변경**: 초안 행이 있으면 제목은 초안 제목, HTML은 `draft.html`(다시 정화), 첨부는 `removedAttachments`를 뺀 것. 텍스트본은 편집 HTML에서 `withFooter`가 새로 만듦(원본 text 파트는 쓰지 않음 — 편집과 어긋나므로). 초안 HTML에서 참조하지 않는 cid 첨부(지운 사진)는 발송본에 넣지 않음.
+**적재(`loadBroadcast`) 변경**: 초안 행이 있으면 제목은 초안 제목, HTML은 `draft.html`(다시 정화), 첨부는 `removedAttachments`를 뺀 것. 텍스트본은 편집 HTML에서 `withFooter`가 새로 만듦(원본 text 파트는 쓰지 않음 — 편집과 어긋나므로). 원본 본문이 참조하던 cid 첨부 중 초안 HTML에서 지운 사진만 발송본에서 뺌. 원본이 참조하지 않던 cid 첨부(Content-ID 붙은 일반 파일)는 일반 첨부로 둠(snumps-webpage/D-000200).
 
 **preview 응답 추가 필드**: `editableHtml`(꼬리말 없는 정화 HTML, 미리보기와 같은 서명 주소 치환, 3MB 초과면 `null` + `editable: false`), `draft`(있으면 `{ subject, removedAttachments, savedAt, savedBy }`).
 

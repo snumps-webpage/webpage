@@ -749,6 +749,49 @@ describe("broadcast send flow", () => {
       expect(await readDraft(KEY)).toBeNull();
     });
 
+    it("keeps a Content-ID file the original body never referenced (D-000200)", async () => {
+      // f0.txt에 Content-ID를 붙인 원본 — 본문은 참조하지 않음
+      const src = new TextDecoder()
+        .decode(emlDraftSrc())
+        .replace(
+          'Content-Disposition: attachment; filename="f0.txt"',
+          'Content-ID: <file0>\r\nContent-Disposition: attachment; filename="f0.txt"',
+        );
+      __stageBytes(KEY, new TextEncoder().encode(src));
+      const p = await previewBroadcast(KEY);
+      if (!p.ok) throw new Error("expected ok");
+      expect(p.preview.attachments.map((a) => a.inBody)).toEqual([
+        true,
+        true,
+        false,
+        false,
+      ]);
+      await saveDraft(KEY, input(), "admin");
+      await sendBroadcastTest(KEY, "me@example.com");
+      const raw = calls[0].body.toString();
+      expect(raw).toContain("f0.txt");
+      expect(raw).not.toContain("img2");
+    });
+
+    it("rejects removing a photo the draft body still uses (D-000201)", async () => {
+      expect(
+        await saveDraft(KEY, input({ removedAttachments: [0] }), "admin"),
+      ).toEqual({ ok: false, problem: "bad-input" });
+      // 본문에서 지운 사진(img2)은 빼기 목록에 있어도 됨
+      expect(
+        (await saveDraft(KEY, input({ removedAttachments: [1] }), "admin")).ok,
+      ).toBe(true);
+    });
+
+    it("rejects a draft for an original without an html part (D-000202)", async () => {
+      __stageBytes(KEY, emlAlt(null, "PlainOnly"));
+      expect(await saveDraft(KEY, input(), "admin")).toEqual({
+        ok: false,
+        problem: "bad-input",
+      });
+      expect(await readDraft(KEY)).toBeNull();
+    });
+
     it("stores removed indexes sorted", async () => {
       await saveDraft(KEY, input({ removedAttachments: [3, 2] }), "admin");
       expect((await readDraft(KEY))?.row.removedAttachments).toEqual([2, 3]);

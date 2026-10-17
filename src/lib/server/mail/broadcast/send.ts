@@ -70,8 +70,16 @@ export interface BroadcastPreview {
   /** 텍스트본이 혼자 예산을 넘어 앞부분만 남겼으면 true */
   textTruncated: boolean;
   text: string;
-  /** 원본 첨부 전부(색인 = `removedAttachments` 기준). 뺀 것은 draft로 판단 */
-  attachments: { filename: string | null; size: number; inline: boolean }[];
+  /**
+   * 원본 첨부 전부(색인 = `removedAttachments` 기준). 뺀 것은 draft로 판단.
+   * `inBody`: 원본 본문 사진 — 빼기 체크 대신 본문에서 지움 (D-000200)
+   */
+  attachments: {
+    filename: string | null;
+    size: number;
+    inline: boolean;
+    inBody: boolean;
+  }[];
   recipientCount: number;
   existing: MailBroadcast | null;
 }
@@ -98,6 +106,11 @@ function cidRef(contentId: string): RegExp {
 }
 const references = (html: string, contentId: string) =>
   cidRef(contentId).test(html);
+/** 원본 본문 사진: 원본 정화본이 `cid:`로 참조하는 첨부. */
+const inBody = (originalHtml: string | null, a: MailAttachment) =>
+  a.contentId !== null &&
+  originalHtml !== null &&
+  references(originalHtml, a.contentId);
 
 // announcements.ts의 siteOrigin()과 같은 규칙 (중복 1곳 허용).
 function siteOrigin(): string {
@@ -170,11 +183,15 @@ async function loadBroadcast(
   // 초안 본문은 저장 때 정화했어도 발송 직전에 다시 정화함. 파일이 없으면 원본.
   const bareHtml = d.html === null ? originalHtml : sanitizeMailHtml(d.html);
   const removed = new Set(d.row.removedAttachments);
+  // 빼는 cid 첨부는 원본 본문 사진 중 초안에서 지운 것만. 원본이 참조하지 않던 cid
+  // 첨부(Content-ID 붙은 일반 파일)는 일반 첨부로 둠 (D-000200)
   const attachments = parsed.attachments.filter(
     (a, i) =>
       !removed.has(i) &&
-      (a.contentId === null ||
-        (bareHtml !== null && references(bareHtml, a.contentId))),
+      !(
+        inBody(originalHtml, a) &&
+        !(bareHtml !== null && references(bareHtml, a.contentId ?? ""))
+      ),
   );
   const body = withFooter(
     { html: bareHtml, text: bareHtml === null ? parsed.text : null },
@@ -303,10 +320,9 @@ export async function previewBroadcast(
     v === null ? 0 : Buffer.byteLength(v, "utf8");
   // 번호는 원본 정화본 기준(초안과 무관). 꼬리말 없는 본문을 한 번만 서명하고
   // 꼬리말은 그 뒤에 붙임(꼬리말에는 cid가 없음).
-  const images = previewImages(
-    parsed,
-    parsed.html === null ? null : sanitizeMailHtml(parsed.html),
-  );
+  const originalHtml =
+    parsed.html === null ? null : sanitizeMailHtml(parsed.html);
+  const images = previewImages(parsed, originalHtml);
   const signedBare =
     bareHtml === null
       ? null
@@ -347,6 +363,7 @@ export async function previewBroadcast(
         filename: a.filename,
         size: a.content.byteLength,
         inline: a.disposition === "inline" || a.contentId !== null,
+        inBody: inBody(originalHtml, a),
       })),
       recipientCount: rcpt.emails.length,
       existing,
@@ -521,7 +538,12 @@ export async function saveDraft(
   if (!r.ok) return r;
   const { parsed } = r;
 
-  if (typeof input.subject !== "string" || typeof input.html !== "string")
+  // HTML 파트가 없는 원본은 편집 대상이 아님(화면도 editable false) (D-000202)
+  if (
+    parsed.html === null ||
+    typeof input.subject !== "string" ||
+    typeof input.html !== "string"
+  )
     return { ok: false, problem: "bad-input" };
   const subject = input.subject.trim();
   if (subject === "") return { ok: false, problem: "no-subject" };
@@ -545,6 +567,14 @@ export async function saveDraft(
   // 정화가 엔티티로 늘린 경우도 막음 — 넘으면 다음 미리보기에서 편집할 수 없게 됨
   if (Buffer.byteLength(clean, "utf8") > PREVIEW_HTML_BUDGET)
     return { ok: false, problem: "too-large-draft" };
+  // 본문이 아직 쓰는 사진은 뺄 수 없음 — 빼면 받는 쪽에서 깨진 사진 (D-000201)
+  if (
+    removed.some((i) => {
+      const cid = parsed.attachments[i].contentId;
+      return cid !== null && references(clean, cid);
+    })
+  )
+    return { ok: false, problem: "bad-input" };
   const visibleText = htmlToText(clean)
     .replace(/[\u00a0\u200b]/g, "")
     .trim();
