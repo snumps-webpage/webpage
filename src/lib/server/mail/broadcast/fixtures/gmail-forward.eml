@@ -1,0 +1,25 @@
+From: Sender <sender@example.com>
+To: list@example.com
+Date: Sat, 17 Oct 2026 09:00:00 +0900
+Subject: =?UTF-8?B?RndkOiBb7ZWZ6rO8XSDslYjrgrQ=?=
+Message-ID: <fwd-1@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset="UTF-8"
+
+전달자 메모입니다.
+
+---------- Forwarded message ---------
+From: Office <office@example.com>
+Date: Fri, 16 Oct 2026 at 10:00
+Subject: [학과] 안내
+To: Staff <staff@example.com>
+
+원본 본문 줄입니다.
+--b1
+Content-Type: text/html; charset="UTF-8"
+
+<div dir="ltr">전달자 메모입니다.<br><br><div class="gmail_quote"><div dir="ltr" class="gmail_attr">---------- Forwarded message ---------<br>From: <strong class="gmail_sendername" dir="auto">Office</strong> <span dir="auto">&lt;<a href="mailto:office@example.com">office@example.com</a>&gt;</span><br>Date: Fri, 16 Oct 2026 at 10:00<br>Subject: [학과] 안내<br>To: Staff &lt;<a href="mailto:staff@example.com">staff@example.com</a>&gt;<br></div><br><br><p>원본 본문 줄입니다.</p></div></div>
+--b1--

@@ -1,0 +1,19 @@
+From: Sender <sender@example.com>
+To: list@example.com
+Date: Sat, 17 Oct 2026 09:00:00 +0900
+Subject: Attach
+Message-ID: <att-1@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="m1"
+
+--m1
+Content-Type: text/plain; charset="UTF-8"
+
+See attached.
+--m1
+Content-Type: application/pdf; name="a.pdf"
+Content-Disposition: attachment; filename="a.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQK
+--m1--
