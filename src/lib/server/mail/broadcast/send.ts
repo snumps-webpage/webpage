@@ -2,7 +2,14 @@ import { env } from "$env/dynamic/private";
 import { uploadSpec } from "$lib/domain/uploads";
 import { newId } from "$lib/server/core/id";
 import type { MailBroadcast } from "$lib/server/data/schemas";
-import { readStaged, removeStaged, stagedInfo } from "$lib/server/data/storage";
+import {
+  createSignedStagedUrl,
+  listStaged,
+  readStaged,
+  removeStaged,
+  stagedInfo,
+  uploadStaged,
+} from "$lib/server/data/storage";
 import { isSingleAddress } from "../address";
 import {
   GmailQuotaError,
@@ -28,6 +35,10 @@ export interface BroadcastPreview {
   messageId: string;
   subject: string;
   html: string | null;
+  /** 치환 뒤 HTML이 PREVIEW_HTML_BUDGET을 넘어 뺐으면 true(텍스트본만 보여 줌) */
+  htmlOmitted: boolean;
+  /** 텍스트본이 혼자 예산을 넘어 앞부분만 남겼으면 true */
+  textTruncated: boolean;
   text: string;
   attachments: { filename: string | null; size: number; inline: boolean }[];
   recipientCount: number;
@@ -55,7 +66,13 @@ async function loadBroadcast(
   | { ok: true; loaded: LoadedBroadcast }
   | { ok: false; problem: BroadcastProblem }
 > {
-  if (!s3Key.startsWith(BROADCAST_PREFIX))
+  // 경로 이탈(`..`)·역슬래시·제어문자는 거부
+  if (
+    !s3Key.startsWith(BROADCAST_PREFIX) ||
+    s3Key.split("/").includes("..") ||
+    // eslint-disable-next-line no-control-regex
+    /[\\\u0000-\u001f\u007f]/.test(s3Key)
+  )
     return { ok: false, problem: "bad-key" };
   const info = await stagedInfo(s3Key);
   if (!info) return { ok: false, problem: "missing" };
@@ -90,22 +107,72 @@ async function recipients(): Promise<{ emails: string[]; skipped: number }> {
 
 const SAFE_MIME = /^[\w.+-]+\/[\w.+-]+$/;
 
-/** 미리보기용: `cid:<id>`를 첨부의 data URI로 바꿈. 발송본에는 쓰지 않음. */
-function inlineCids(html: string, parsed: ParsedMail): string {
+/** 미리보기 이미지 확장자 표. 표에 없는 안전한 형식은 `bin`. */
+const PREVIEW_EXT: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/gif": "gif",
+  "image/webp": "webp",
+};
+/** 미리보기 HTML 상한(UTF-8 바이트). Vercel 응답 한도 4.5MB 아래로 둠(D-000162). */
+export const PREVIEW_HTML_BUDGET = 3_000_000;
+/** 미리보기 이미지 서명 주소 유효 시간(초). */
+export const PREVIEW_IMAGE_TTL = 600;
+
+/** `.eml` 키에서 확장자를 뗀 경로. 미리보기 객체는 그 아래 `/preview/`에 둠. */
+const previewBase = (s3Key: string) => s3Key.replace(/\.[^./]+$/, "");
+
+/**
+ * 미리보기용: 본문이 실제로 참조하는 `cid:<id>` 이미지만 staging에 올려 서명 주소로
+ * 바꿈. 발송본에는 쓰지 않음. 저장·서명 실패는 그 이미지만 `cid:`로 두고 건수만 기록
+ * (경로·파일 이름은 남기지 않음, D-000162).
+ */
+async function signPreviewImages(
+  html: string,
+  parsed: ParsedMail,
+  s3Key: string,
+): Promise<string> {
   let out = html;
+  let failed = 0;
+  let n = 0;
   for (const a of parsed.attachments) {
     if (!a.contentId) continue;
     // 속성 값을 깨뜨릴 수 있는 MIME 형식은 치환하지 않음(cid 유지)
     if (!SAFE_MIME.test(a.mimeType)) continue;
-    const uri = `data:${a.mimeType};base64,${Buffer.from(a.content).toString("base64")}`;
+    // 이미지가 아닌 첨부는 저장·치환하지 않음. SVG도 제외 — 서명 주소를 직접 열면
+    // 그 안의 스크립트가 저장소 도메인에서 실행될 수 있음
+    const mime = a.mimeType.toLowerCase();
+    if (!mime.startsWith("image/") || mime.startsWith("image/svg")) continue;
     // `cid:img1`이 `cid:img10`의 접두로 바뀌지 않게 값 경계까지 맞춤
     const re = new RegExp(
       `cid:${a.contentId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=["'\\s>])`,
       "g",
     );
-    out = out.replace(re, () => uri);
+    if (!re.test(out)) continue;
+    re.lastIndex = 0;
+    n++;
+    const ext = PREVIEW_EXT[a.mimeType.toLowerCase()] ?? "bin";
+    const path = `${previewBase(s3Key)}/preview/${n}.${ext}`;
+    try {
+      await uploadStaged(path, a.content, a.mimeType);
+      const url = await createSignedStagedUrl(path, PREVIEW_IMAGE_TTL);
+      out = out.replace(re, () => url);
+    } catch {
+      failed++;
+    }
   }
+  if (failed > 0)
+    console.error(`[Broadcast] ${failed} preview image(s) left as cid`);
   return out;
+}
+
+/** UTF-8 바이트 상한으로 자름. 잘린 문자 조각은 버려 문자가 깨지지 않게 함. */
+function truncateUtf8(text: string, maxBytes: number): string {
+  const cut = new TextDecoder().decode(
+    Buffer.from(text, "utf8").subarray(0, maxBytes),
+  );
+  return cut.replace(/\uFFFD+$/, "");
 }
 
 /** 미리보기: 제목·정화된 본문·첨부·수신자 수·같은 메일의 기존 기록. */
@@ -122,13 +189,28 @@ export async function previewBroadcast(
     recipients(),
     findBroadcast(parsed.messageId),
   ]);
+  let html =
+    body.html === null
+      ? null
+      : await signPreviewImages(body.html, parsed, s3Key);
+  // 응답 총량(html+text)에 예산 적용: 넘으면 html 생략, 그래도 넘으면 text 자름
+  const bytes = (v: string | null) =>
+    v === null ? 0 : Buffer.byteLength(v, "utf8");
+  let text = body.text;
+  const htmlOmitted =
+    html !== null && bytes(html) + bytes(text) > PREVIEW_HTML_BUDGET;
+  if (htmlOmitted) html = null;
+  const textTruncated = bytes(text) > PREVIEW_HTML_BUDGET;
+  if (textTruncated) text = truncateUtf8(text, PREVIEW_HTML_BUDGET);
   return {
     ok: true,
     preview: {
       messageId: parsed.messageId,
       subject: parsed.subject,
-      html: body.html === null ? null : inlineCids(body.html, parsed),
-      text: body.text,
+      html,
+      htmlOmitted,
+      textTruncated,
+      text,
       attachments: parsed.attachments.map((a) => ({
         filename: a.filename,
         size: a.content.byteLength,
@@ -274,7 +356,16 @@ export async function sendBroadcast(
   }
 
   try {
-    await removeStaged([s3Key]);
+    // .eml과 그 미리보기 이미지(`<키-확장자>/preview/`) 전부
+    const base = `${previewBase(s3Key)}/preview`;
+    let previews: string[] = [];
+    try {
+      previews = (await listStaged(base)).map((f) => `${base}/${f.name}`);
+    } catch (e) {
+      // 목록 실패가 .eml 삭제를 막지 않게 함
+      console.error("[Broadcast] preview listing failed:", describeError(e));
+    }
+    await removeStaged([s3Key, ...previews]);
   } catch (e) {
     console.error("[Broadcast] staged file removal failed:", describeError(e));
   }

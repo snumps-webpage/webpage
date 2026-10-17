@@ -92,6 +92,28 @@ export function __setRemoveFails(v: boolean): void {
   removeFails = v;
 }
 
+/** staging 버킷에 바이트 저장(덮어쓰기). */
+export async function uploadStaged(
+  path: string,
+  bytes: Uint8Array,
+  contentType: string,
+): Promise<void> {
+  objects.set(keyOf(STAGING, path), {
+    bytes: bytes.byteLength,
+    contentType,
+    createdAt: new Date().toISOString(),
+    head: bytes,
+    body: bytes,
+  });
+}
+
+export async function createSignedStagedUrl(
+  path: string,
+  expiresInSeconds: number,
+): Promise<string> {
+  return `https://memory.test/staged/${path}?exp=${expiresInSeconds}`;
+}
+
 export async function removeStaged(paths: string[]): Promise<void> {
   for (const path of paths) objects.delete(keyOf(STAGING, path));
 }

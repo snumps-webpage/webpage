@@ -6,10 +6,18 @@ vi.mock(
   "$lib/server/data/store",
   () => import("$lib/server/data/store-memory"),
 );
-vi.mock(
-  "$lib/server/data/storage",
-  () => import("$lib/server/data/storage-memory"),
-);
+const sign = vi.hoisted(() => ({ failOn: null as string | null }));
+vi.mock("$lib/server/data/storage", async () => {
+  const actual = await import("$lib/server/data/storage-memory");
+  return {
+    ...actual,
+    createSignedStagedUrl: async (path: string, s: number) => {
+      if (sign.failOn && path.includes(sign.failOn))
+        throw new Error("sign failed");
+      return actual.createSignedStagedUrl(path, s);
+    },
+  };
+});
 const override = vi.hoisted(() => ({ emails: null as string[] | null }));
 vi.mock("../dispatch", async (orig) => {
   const actual = await orig<typeof import("../dispatch")>();
@@ -45,6 +53,7 @@ import {
   __reset as resetStorage,
   __stage,
   __stageBytes,
+  listStaged,
 } from "$lib/server/data/storage-memory";
 import { _resetDataLayerForTests } from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
@@ -150,6 +159,74 @@ const gmailError = (status: number, reason: string) => () =>
     status,
   });
 
+/** 여러 내장 이미지를 가진 multipart/related eml. */
+function emlWith(
+  html: string,
+  parts: { cid: string; mime?: string; b64?: string }[],
+): Uint8Array {
+  const img = (p: { cid: string; mime?: string; b64?: string }) =>
+    [
+      "--r1",
+      `Content-Type: ${p.mime ?? "image/png"}`,
+      `Content-ID: <${p.cid}>`,
+      "Content-Disposition: inline",
+      "Content-Transfer-Encoding: base64",
+      "",
+      p.b64 ?? "AAAA",
+    ].join("\r\n");
+  return new TextEncoder().encode(
+    [
+      "Subject: Hello",
+      "Message-ID: <m2@example.com>",
+      "MIME-Version: 1.0",
+      'Content-Type: multipart/related; boundary="r1"',
+      "",
+      "--r1",
+      'Content-Type: text/html; charset="UTF-8"',
+      "",
+      html,
+      ...parts.map(img),
+      "--r1--",
+      "",
+    ].join("\r\n"),
+  );
+}
+/** text/plain 본문을 가진 alternative eml. html이 null이면 text만. */
+function emlAlt(html: string | null, text: string): Uint8Array {
+  return new TextEncoder().encode(
+    html === null
+      ? [
+          "Subject: Hello",
+          "Message-ID: <m4@example.com>",
+          "MIME-Version: 1.0",
+          'Content-Type: text/plain; charset="UTF-8"',
+          "",
+          text,
+          "",
+        ].join("\r\n")
+      : [
+          "Subject: Hello",
+          "Message-ID: <m4@example.com>",
+          "MIME-Version: 1.0",
+          'Content-Type: multipart/alternative; boundary="a1"',
+          "",
+          "--a1",
+          'Content-Type: text/plain; charset="UTF-8"',
+          "",
+          text,
+          "--a1",
+          'Content-Type: text/html; charset="UTF-8"',
+          "",
+          html,
+          "--a1--",
+          "",
+        ].join("\r\n"),
+  );
+}
+const PV = "pending/broadcast-eml/a/preview/";
+const stagedList = async () =>
+  (await listStaged(`${BROADCAST_PREFIX}a/preview`)).map((f) => f.name);
+
 describe("broadcast send flow", () => {
   beforeEach(async () => {
     __reset();
@@ -166,6 +243,7 @@ describe("broadcast send flow", () => {
     token.fail = false;
     override.emails = null;
     finish.fail = false;
+    sign.failOn = null;
     calls = [];
     responses = [];
     stubFetch();
@@ -292,68 +370,177 @@ describe("broadcast send flow", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("replaces cid:img1 and cid:img10 each with its own data URI", async () => {
+  it("signs only referenced images; img1 and img10 each get their own URL", async () => {
     seedMembers(2);
-    const png = (cid: string, b64: string) =>
-      [
-        "--r1",
-        "Content-Type: image/png",
-        `Content-ID: <${cid}>`,
-        "Content-Disposition: inline",
-        "Content-Transfer-Encoding: base64",
-        "",
-        b64,
-      ].join("\r\n");
-    const raw = [
-      "Subject: Hello",
-      "Message-ID: <m2@example.com>",
-      "MIME-Version: 1.0",
-      'Content-Type: multipart/related; boundary="r1"',
-      "",
-      "--r1",
-      'Content-Type: text/html; charset="UTF-8"',
-      "",
-      '<img src="cid:img1"><img src="cid:img10">',
-      png("img1", "AAAA"),
-      png("img10", "BBBB"),
-      "--r1--",
-      "",
-    ].join("\r\n");
-    __stageBytes(KEY, new TextEncoder().encode(raw));
+    __stageBytes(
+      KEY,
+      emlWith('<img src="cid:img1"><img src="cid:img10">', [
+        { cid: "img1", b64: "AAAA" },
+        { cid: "img10", mime: "image/jpeg", b64: "BBBB" },
+        { cid: "unused", b64: "CCCC" },
+      ]),
+    );
     const p = await previewBroadcast(KEY);
     if (!p.ok) throw new Error("expected ok");
-    expect(p.preview.html).toContain('src="data:image/png;base64,AAAA"');
-    expect(p.preview.html).toContain('src="data:image/png;base64,BBBB"');
+    expect(p.preview.htmlOmitted).toBe(false);
+    expect(p.preview.html).toContain(
+      `src="https://memory.test/staged/${PV}1.png?exp=600"`,
+    );
+    expect(p.preview.html).toContain(
+      `src="https://memory.test/staged/${PV}2.jpg?exp=600"`,
+    );
     expect(p.preview.html).not.toContain("cid:");
+    expect(p.preview.html).not.toContain("data:");
+    expect(await stagedList()).toEqual(["1.png", "2.jpg"]);
   });
 
-  it("keeps cid when the attachment mime type is not a plain type", async () => {
+  it("stores nothing for an unreferenced image or an unsafe mime type", async () => {
     seedMembers(2);
-    const raw = [
-      "Subject: Hello",
-      "Message-ID: <m3@example.com>",
-      "MIME-Version: 1.0",
-      'Content-Type: multipart/related; boundary="r1"',
-      "",
-      "--r1",
-      'Content-Type: text/html; charset="UTF-8"',
-      "",
-      '<img src="cid:img1">',
-      "--r1",
-      "Content-Type: image/png<x>",
-      "Content-ID: <img1>",
-      "Content-Disposition: inline",
-      "Content-Transfer-Encoding: base64",
-      "",
-      "AAAA",
-      "--r1--",
-      "",
-    ].join("\r\n");
-    __stageBytes(KEY, new TextEncoder().encode(raw));
+    __stageBytes(
+      KEY,
+      emlWith('<img src="cid:img1">', [
+        { cid: "img1", mime: "image/png<x>" },
+        { cid: "other" },
+      ]),
+    );
     const p = await previewBroadcast(KEY);
     if (!p.ok) throw new Error("expected ok");
     expect(p.preview.html).toContain("cid:img1");
     expect(p.preview.html).not.toContain("data:");
+    expect(await stagedList()).toEqual([]);
+  });
+
+  it("uses the bin extension for a plain mime type outside the table", async () => {
+    seedMembers(2);
+    __stageBytes(
+      KEY,
+      emlWith('<img src="cid:img1">', [{ cid: "img1", mime: "image/x-weird" }]),
+    );
+    const p = await previewBroadcast(KEY);
+    if (!p.ok) throw new Error("expected ok");
+    expect(p.preview.html).toContain(`${PV}1.bin`);
+  });
+
+  it("leaves cid on only the image whose signing failed, without logging names", async () => {
+    seedMembers(2);
+    sign.failOn = "/1.png";
+    __stageBytes(
+      KEY,
+      emlWith('<img src="cid:img1"><img src="cid:img2">', [
+        { cid: "img1" },
+        { cid: "img2" },
+      ]),
+    );
+    const p = await previewBroadcast(KEY);
+    if (!p.ok) throw new Error("expected ok");
+    expect(p.preview.html).toContain('src="cid:img1"');
+    expect(p.preview.html).toContain(`${PV}2.png`);
+    const logged = JSON.stringify(vi.mocked(console.error).mock.calls);
+    expect(logged).toContain("1 preview image(s)");
+    expect(logged).not.toContain("img1");
+  });
+
+  it("omits the html when the substituted html exceeds 3,000,000 bytes", async () => {
+    seedMembers(2);
+    __stageBytes(
+      KEY,
+      emlWith(`<p>${"가".repeat(1_100_000)}</p><img src="cid:img1">`, [
+        { cid: "img1" },
+      ]),
+    );
+    const p = await previewBroadcast(KEY);
+    if (!p.ok) throw new Error("expected ok");
+    expect(p.preview.html).toBeNull();
+    expect(p.preview.htmlOmitted).toBe(true);
+    expect(p.preview.text.length).toBeGreaterThan(0);
+  });
+
+  it("omits the html when html+text exceed the budget together", async () => {
+    seedMembers(2);
+    const big = "a".repeat(2_900_000);
+    __stageBytes(KEY, emlAlt(`<p>${big}</p>`, big));
+    const p = await previewBroadcast(KEY);
+    if (!p.ok) throw new Error("expected ok");
+    expect(p.preview.htmlOmitted).toBe(true);
+    expect(p.preview.html).toBeNull();
+    expect(p.preview.textTruncated).toBe(false);
+  });
+
+  it("truncates a text body over the budget at a character boundary", async () => {
+    seedMembers(2);
+    const big = "가".repeat(1_200_000); // 3.6MB
+    __stageBytes(KEY, emlAlt(null, big));
+    const p = await previewBroadcast(KEY);
+    if (!p.ok) throw new Error("expected ok");
+    expect(p.preview.textTruncated).toBe(true);
+    expect(Buffer.byteLength(p.preview.text, "utf8")).toBeLessThanOrEqual(
+      3_000_000,
+    );
+    expect(p.preview.text).not.toContain("\uFFFD");
+    expect(p.preview.text.startsWith("가")).toBe(true);
+  });
+
+  it("cuts mid-character safely for 4-byte characters", async () => {
+    seedMembers(2);
+    // 4-byte emoji, offset by one ASCII byte so the 3,000,000 cut lands inside one
+    const big = "a" + "😀".repeat(800_000); // 3.2MB
+    __stageBytes(KEY, emlAlt(null, big));
+    const p = await previewBroadcast(KEY);
+    if (!p.ok) throw new Error("expected ok");
+    expect(p.preview.textTruncated).toBe(true);
+    expect(Buffer.byteLength(p.preview.text, "utf8")).toBeLessThanOrEqual(
+      3_000_000,
+    );
+    expect(p.preview.text).not.toContain("�");
+    expect(p.preview.text.endsWith("😀")).toBe(true);
+  });
+
+  it("rejects keys with .. segments, backslashes or control characters", async () => {
+    for (const k of [
+      `${BROADCAST_PREFIX}../x.eml`,
+      `${BROADCAST_PREFIX}a/../../b.eml`,
+      `${BROADCAST_PREFIX}a\\b.eml`,
+      `${BROADCAST_PREFIX}a\nb.eml`,
+    ])
+      expect(await previewBroadcast(k)).toEqual({
+        ok: false,
+        problem: "bad-key",
+      });
+  });
+
+  it("does not store or replace an SVG image (scriptable when opened directly)", async () => {
+    seedMembers(2);
+    __stageBytes(
+      KEY,
+      emlWith('<img src="cid:img1">', [{ cid: "img1", mime: "image/svg+xml" }]),
+    );
+    const p = await previewBroadcast(KEY);
+    if (!p.ok) throw new Error("expected ok");
+    expect(p.preview.html).toContain("cid:img1");
+    expect(await stagedList()).toEqual([]);
+  });
+
+  it("does not store or replace a non-image cid attachment", async () => {
+    seedMembers(2);
+    __stageBytes(
+      KEY,
+      emlWith('<img src="cid:img1">', [{ cid: "img1", mime: "text/html" }]),
+    );
+    const p = await previewBroadcast(KEY);
+    if (!p.ok) throw new Error("expected ok");
+    expect(p.preview.html).toContain("cid:img1");
+    expect(await stagedList()).toEqual([]);
+  });
+
+  it("removes the preview objects together with the eml after sending", async () => {
+    seedMembers(2);
+    const p = await previewBroadcast(KEY);
+    expect(p.ok).toBe(true);
+    expect(await stagedList()).toHaveLength(1);
+    const r = await sendBroadcast(KEY, "admin");
+    expect(r.ok).toBe(true);
+    expect(__exists("staging", KEY)).toBe(false);
+    expect(await stagedList()).toEqual([]);
   });
 
   it("logs and propagates when the result cannot be recorded", async () => {
@@ -366,12 +553,13 @@ describe("broadcast send flow", () => {
     );
   });
 
-  it("preview swaps cid for a data URI", async () => {
+  it("preview swaps cid for a signed staging URL", async () => {
     seedMembers(2);
     const p = await previewBroadcast(KEY);
     if (!p.ok) throw new Error("expected ok");
-    expect(p.preview.html).toContain("data:image/png;base64,");
+    expect(p.preview.html).toContain("https://memory.test/staged/");
     expect(p.preview.html).not.toContain("cid:");
+    expect(p.preview.html).not.toContain("data:");
     expect(p.preview.recipientCount).toBe(2);
     expect(p.preview.subject).toBe("Hello");
     expect(p.preview.attachments[0]).toMatchObject({ inline: true });

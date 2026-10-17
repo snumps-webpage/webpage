@@ -53,6 +53,30 @@ describe("composeBroadcast", () => {
     expect(raw).toMatch(/filename="?a\.pdf"?/);
   });
 
+  it("disposition이 null인 cid 이미지는 inline으로 조립됨(D-000162)", async () => {
+    const raw = (
+      await composeBroadcast(
+        {
+          ...mail,
+          attachments: [{ ...inlineImg, disposition: null }],
+        },
+        ["a@x.com"],
+      )
+    ).toString("utf8");
+    expect(raw).toContain("Content-Disposition: inline");
+    expect(raw).not.toContain("Content-Disposition: attachment");
+  });
+
+  it("cid 없는 일반 첨부(disposition null)는 attachment로 남음", async () => {
+    const raw = (
+      await composeBroadcast(
+        { ...mail, attachments: [{ ...pdf, disposition: null }] },
+        ["a@x.com"],
+      )
+    ).toString("utf8");
+    expect(raw).toContain("Content-Disposition: attachment");
+  });
+
   it("parseEml로 되읽으면 제목·첨부 수가 유지됨", async () => {
     const raw = await composeBroadcast(mail, ["a@x.com"]);
     const parsed = await parseEml(new Uint8Array(raw));

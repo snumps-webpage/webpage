@@ -8,7 +8,10 @@
   import { MANUSCRIPT } from "$lib/constants";
   import { uploadAdminFile } from "$lib/client/api";
   import { uploadFileProblem, uploadLimitMb } from "$lib/domain/uploads";
-  import type { BroadcastPreview } from "$lib/server/mail/broadcast/send";
+  import type {
+    BroadcastPreview,
+    BroadcastProblem,
+  } from "$lib/server/mail/broadcast/send";
   import type { MailBroadcast } from "$lib/server/data/schemas";
 
   let { data } = $props();
@@ -18,7 +21,10 @@
   const accept = ".eml,message/rfc822";
   const limitMb = uploadLimitMb(PURPOSE);
 
-  const PROBLEMS: Record<string, string> = {
+  const PROBLEMS: Record<
+    BroadcastProblem | "duplicate" | "no-recipients" | "send-failed",
+    string
+  > = {
     "bad-key": "업로드 경로가 올바르지 않습니다. 파일을 다시 올려 주세요.",
     missing: "올린 파일을 찾지 못했습니다. 다시 올려 주세요.",
     "too-large": `${limitMb}MB를 넘는 파일은 올릴 수 없습니다.`,
@@ -50,7 +56,8 @@
   let sendResult = $state<{ row: MailBroadcast; skipped: number } | null>(null);
 
   const problemText = (code: unknown) =>
-    PROBLEMS[String(code)] ?? "처리하지 못했습니다.";
+    (PROBLEMS as Record<string, string>)[String(code)] ??
+    "처리하지 못했습니다.";
   const when = (iso: string) => new Date(iso).toLocaleString("ko-KR");
 
   const alreadySent = $derived(
@@ -214,6 +221,18 @@
         {#if preview.html}
           <iframe sandbox="" srcdoc={preview.html} title="미리보기"></iframe>
         {:else}
+          {#if preview.htmlOmitted}
+            <p class="notice" role="status">
+              본문이 커서 미리보기 대신 텍스트로 보여 줍니다. 실제 모양은 [내게
+              시험 발송]으로 확인하세요.
+            </p>
+          {/if}
+          {#if preview.textTruncated}
+            <p class="notice" role="status">
+              본문이 길어 앞부분만 보여 줍니다. 실제 모양은 [내게 시험 발송]으로
+              확인하세요.
+            </p>
+          {/if}
           <pre class="text-preview">{preview.text}</pre>
         {/if}
       </li>
@@ -221,8 +240,8 @@
 
     {#if sendUnknown}
       <p class="error" role="alert">
-        결과 불명 — Gmail 보낸편지함을 확인하세요. 같은 파일은 다시 보낼 수
-        없습니다.
+        결과를 확인하지 못했습니다. 최근 발송 기록이 '진행 중'이면 Gmail
+        보낸편지함을 확인하세요.
       </p>
     {/if}
     {#if existing && alreadySent}

@@ -25,7 +25,8 @@ export async function composeBroadcast(
       contentType: a.mimeType,
       content: Buffer.from(a.content),
       cid: a.contentId ?? undefined,
-      contentDisposition: a.disposition ?? "attachment",
+      // 헤더 없는 cid 이미지는 nodemailer가 inline으로 고르게 비워 둠(D-000162)
+      contentDisposition: a.disposition ?? undefined,
     })),
   });
   const compiled = composer.compile();
