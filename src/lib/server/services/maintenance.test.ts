@@ -24,9 +24,12 @@ import {
   __stage,
   uploadToBackups,
 } from "$lib/server/data/storage-memory";
+import { invalidateCache } from "$lib/server/cache";
+import { _resetDataLayerForTests, getTable } from "$lib/server/data/tables";
 import {
   STAGING_TTL_MS,
   cleanupStaging,
+  removeStaleDrafts,
   runMaintenance,
   runWeeklyBackup,
 } from "./maintenance";
@@ -41,6 +44,7 @@ const dumpPathFor = (now: Date) =>
   `dumps/${now.toISOString().slice(0, 10)}.json`;
 
 beforeEach(() => {
+  _resetDataLayerForTests();
   __resetStore();
   __resetStorage();
   for (const key of Object.keys(testEnv)) delete testEnv[key];
@@ -79,6 +83,65 @@ describe("cleanupStaging", () => {
 
   it("returns 0 on an empty staging area", async () => {
     expect(await cleanupStaging(MONDAY_KST)).toBe(0);
+  });
+});
+
+describe("removeStaleDrafts", () => {
+  const draftRow = (id: string, savedAt: Date) => ({
+    id,
+    s3Key: `pending/mail/${id}.eml`,
+    messageId: `<${id}@x>`,
+    subject: "s",
+    removedAttachments: [],
+    savedBy: "m1",
+    savedAt: savedAt.toISOString(),
+  });
+  const seed = async (rows: unknown[]) => {
+    await __putRawDoc("table", "mail-broadcast-drafts", {
+      schemaVersion: 1,
+      rows,
+    });
+    await invalidateCache("table_mail-broadcast-drafts");
+  };
+  const version = async () =>
+    (
+      await __sql<{ version: number }>(
+        "select version::int as version from app_tables where name = 'mail-broadcast-drafts'",
+      )
+    )[0]?.version;
+
+  it("removes drafts older than 7 days and keeps newer ones", async () => {
+    await seed([
+      draftRow("old", new Date(MONDAY_KST.getTime() - STAGING_TTL_MS - 1000)),
+      draftRow("new", new Date(MONDAY_KST.getTime() - STAGING_TTL_MS + 1000)),
+    ]);
+
+    expect(await removeStaleDrafts(MONDAY_KST)).toBe(1);
+    expect((await getTable("mail-broadcast-drafts")).map((r) => r.id)).toEqual([
+      "new",
+    ]);
+  });
+
+  it("writes nothing when no draft is stale", async () => {
+    await seed([draftRow("new", MONDAY_KST)]);
+    const before = await version();
+
+    expect(await removeStaleDrafts(MONDAY_KST)).toBe(0);
+    expect(await version()).toBe(before);
+  });
+
+  it("is a no-op without a drafts row set", async () => {
+    expect(await removeStaleDrafts(MONDAY_KST)).toBe(0);
+    expect(await version()).toBeUndefined();
+  });
+
+  it("reports draftsRemoved in the maintenance counts", async () => {
+    await seed([draftRow("old", new Date(MONDAY_KST.getTime() - 8 * DAY_MS))]);
+    await __putRawDoc("table", "members", { schemaVersion: 1, rows: [] });
+    const { counts, failures } = await runMaintenance(MONDAY_KST);
+
+    expect(failures).toEqual([]);
+    expect(counts.draftsRemoved).toBe(1);
   });
 });
 
