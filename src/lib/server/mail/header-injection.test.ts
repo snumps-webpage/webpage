@@ -61,6 +61,41 @@ describe("dispatchEmail", () => {
   });
 });
 
+/** The RFC 2822 message the Gmail API received, decoded from `raw`. */
+function sentMessage(): string {
+  const init = (fetchSpy.mock.calls[0] as unknown[])[1] as RequestInit;
+  const { raw } = JSON.parse(String(init.body)) as { raw: string };
+  return Buffer.from(raw, "base64url").toString("utf8");
+}
+
+describe("recipient headers", () => {
+  // The Gmail API answers 400 "Invalid To header" to the empty group
+  // `To: undisclosed-recipients:;` — every all-member send was refused
+  // (live probe 2026-10-17, snumps-webpage/D-000143). A Bcc-only message
+  // carries no To: at all.
+  it("sends a Bcc batch with a Bcc header and no To header", async () => {
+    await dispatchEmail(
+      "token",
+      ["a@snu.ac.kr", "b@snu.ac.kr"],
+      "제목",
+      "본문",
+      {
+        bcc: true,
+      },
+    );
+    const headers = sentMessage().split("\r\n\r\n")[0].split("\r\n");
+    expect(headers).toContain("Bcc: a@snu.ac.kr, b@snu.ac.kr");
+    expect(headers.some((h) => /^To:/i.test(h))).toBe(false);
+  });
+
+  it("sends a direct mail with a To header and no Bcc header", async () => {
+    await dispatchEmail("token", ["a@snu.ac.kr"], "제목", "본문");
+    const headers = sentMessage().split("\r\n\r\n")[0].split("\r\n");
+    expect(headers).toContain("To: a@snu.ac.kr");
+    expect(headers.some((h) => /^Bcc:/i.test(h))).toBe(false);
+  });
+});
+
 describe("admin test send", () => {
   it("refuses an address with a line break before any token is fetched", async () => {
     await expect(

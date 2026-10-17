@@ -66,10 +66,12 @@ export async function dispatchEmail(
 
   // Bcc mode is MANDATORY for any all-member send (API-SPEC §5-7): a To:
   // list would expose every member's address to every other member.
-  // Bcc-only messages get an empty-group To: — some filters score a missing
-  // To: header as spam (review low-15).
+  // Bcc-only messages carry no To: at all. The empty group
+  // `To: undisclosed-recipients:;` (review low-15) is refused by the Gmail
+  // API with 400 "Invalid To header", so every all-member send failed
+  // (live probe 2026-10-17, snumps-webpage/D-000143).
   const recipientHeader = opts?.bcc
-    ? `To: undisclosed-recipients:;\r\nBcc: ${recipients.join(", ")}`
+    ? `Bcc: ${recipients.join(", ")}`
     : `To: ${recipients.join(", ")}`;
   const message = [
     recipientHeader,
