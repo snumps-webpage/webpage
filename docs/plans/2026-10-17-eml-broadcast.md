@@ -185,12 +185,12 @@ export function stripForwardPrefix(subject: string): string
 
 - [ ] `new MailComposer({ bcc, subject, html, text, attachments })`, `compiled = composer.compile()`, `compiled.keepBcc = true`, `await compiled.build()`
 - [ ] raw 헤더에 `Bcc:`(모든 주소), `To:`·`From:`·`Reply-To:` 없음
-- [ ] 내장 이미지는 `cid`·`contentDisposition: "inline"` 유지, 첨부는 `filename` 유지. HTML+내장 이미지+첨부일 때 구조 `multipart/mixed` > `multipart/related` > `multipart/alternative`
+- [ ] 내장 이미지는 `cid`·`contentDisposition: "inline"` 유지, 첨부는 `filename` 유지. HTML+내장 이미지+첨부일 때 구조는 nodemailer 기본 `multipart/mixed` > `multipart/alternative` > (text, `multipart/related`(html, 내장 이미지)), 첨부(구현 중 실측, RFC 유효 — 표시는 Task 10에서 확인)
 - [ ] `bcc`가 비면 throw(호출자 버그)
 
 **의존:** 없음(타입만 Task 2) **크기:** S
 
-- [ ] 실패하는 테스트: compose 결과 문자열에서 헤더 부분 assertion, `Content-Type: multipart/mixed`·`multipart/related`·`multipart/alternative` 순서, `Content-ID: <img1@x>`, `filename="a.pdf"`, 빈 bcc → throw. 결과를 `parseEml`로 되읽어 제목·첨부 수 왕복 확인
+- [ ] 실패하는 테스트: compose 결과 문자열에서 헤더 부분 assertion, `multipart/mixed`·`multipart/alternative`·`multipart/related` 순서(위 구조), `Content-ID: <img1@x>`, `filename=a.pdf`(따옴표 유무 무관), 빈 bcc → throw. 결과를 `parseEml`로 되읽어 제목·첨부 수 왕복 확인
 - [ ] 실패 확인: `npx vitest run src/lib/server/mail/broadcast/compose.test.ts` → FAIL
 - [ ] 최소 구현: 위 시그니처, 첨부 매핑 `{ filename, contentType: mimeType, content: Buffer.from(content), cid: contentId ?? undefined, contentDisposition: disposition ?? "attachment" }`
 - [ ] 통과 확인: 같은 명령 → PASS
