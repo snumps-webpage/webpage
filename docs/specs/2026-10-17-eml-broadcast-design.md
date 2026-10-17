@@ -12,12 +12,12 @@
 - 기존: SvelteKit 2 + Svelte 5, `@sveltejs/adapter-vercel`(nodejs22.x), Supabase(앱 테이블 JSONB 문서 + Storage), Gmail API(`gmail.send` 범위, `ADMIN_REFRESH_TOKEN`), zod, vitest + PGlite.
 - 추가 의존성(D-000124). 버전은 공개 후 2주 이상 지난 것 중 최신, 정확한 버전으로 고정:
 
-| 패키지                 | 버전(안)     | 공개일          | 용도                                                              | 라이선스 |
-| ---------------------- | ------------ | --------------- | ----------------------------------------------------------------- | -------- |
-| `postal-mime`          | 4.0.2        | 2026-09-30      | `.eml` 해석                                                       | MIT-0    |
-| `sanitize-html`        | 2.18.0       | 2026-09-30      | HTML 정화                                                         | MIT      |
-| `@types/sanitize-html` | 2.16.2 (dev) | 2026-10-04 이전 | 타입                                                              | MIT      |
-| `nodemailer`           | 10.0.14      | 2026-10-03      | `lib/mail-composer`로 MIME 조립(전송은 쓰지 않음), 자체 타입 포함 | MIT-0    |
+| 패키지                 | 버전(안)     | 공개일          | 용도                                                                | 라이선스 |
+| ---------------------- | ------------ | --------------- | ------------------------------------------------------------------- | -------- |
+| `postal-mime`          | 4.0.2        | 2026-09-30      | `.eml` 해석                                                         | MIT-0    |
+| `sanitize-html`        | 2.17.5       | 2026-06-10      | HTML 정화. 2.18.0은 Vercel nodejs22.x에서 ERR_REQUIRE_ESM(D-000172) | MIT      |
+| `@types/sanitize-html` | 2.16.2 (dev) | 2026-10-04 이전 | 타입                                                                | MIT      |
+| `nodemailer`           | 10.0.14      | 2026-10-03      | `lib/mail-composer`로 MIME 조립(전송은 쓰지 않음), 자체 타입 포함   | MIT-0    |
 
 - 출처: `pnpm view <패키지> time` 조회(2026-10-17). `@types/sanitize-html` 2.16.2 공개일은 미확인(수정일 2026-10-04만 확인). 구현 시 재조회.
 

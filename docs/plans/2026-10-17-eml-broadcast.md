@@ -2,7 +2,7 @@
 
 **목표:** 관리자가 Gmail "원본 다운로드" `.eml`을 `/admin/mail/broadcast`에 올려 미리보기·시험 발송 뒤 수신 동의 회원 전체에게 Bcc로 재발송.
 **구조:** 메일 계층에 `broadcast/` 모듈(parse·sanitize·compose·store·send)을 더하고, Gmail 업로드 전송 `dispatchRaw`를 `client.ts`에 추가. 업로드는 기존 presign·staging 파이프라인을 새 목적 `broadcast-eml`로 재사용하고, 발송 기록은 앱 테이블 `mail-broadcasts`.
-**기술 스택:** SvelteKit 2·Svelte 5, zod, vitest + store-memory, `postal-mime` 4.0.2, `sanitize-html` 2.18.0(+`@types/sanitize-html` 2.16.2), `nodemailer` 10.0.14(`lib/mail-composer`만).
+**기술 스택:** SvelteKit 2·Svelte 5, zod, vitest + store-memory, `postal-mime` 4.0.2, `sanitize-html` 2.17.5(D-000172 — 처음 계획한 2.18.0은 Vercel nodejs22.x에서 ERR_REQUIRE_ESM)(+`@types/sanitize-html` 2.16.2), `nodemailer` 10.0.14(`lib/mail-composer`만).
 **Spec:** `docs/specs/2026-10-17-eml-broadcast-design.md`
 
 ## 전역 제약
