@@ -52,7 +52,7 @@ pnpm dev           # 실제 환경 확인(dev 대상)
 ### 아키텍처
 
 - 기존 메일 계층에 하위 모듈 `broadcast/`를 추가. 이벤트 디스패처(`emitMailEvent`)는 거치지 않음. 템플릿 렌더링 대상이 아니고 원본 MIME을 그대로 다루기 때문.
-- 재사용: 수신자 해석(`optedInMemberEmails`), 묶음 크기(`BATCH_SIZE` 80), 주소 검사(`isSingleAddress`), 토큰(`getAdminAccessToken`), staging 업로드(`createUploadUrl`·`stagedInfo`·`removeStaged`), 앱 테이블(`getTable`·`mutate`).
+- 재사용: 수신자 해석(`optedInMemberEmails`), 묶음 크기(`BATCH_SIZE` 400, D-000165), 주소 검사(`isSingleAddress`), 토큰(`getAdminAccessToken`), staging 업로드(`createUploadUrl`·`stagedInfo`·`removeStaged`), 앱 테이블(`getTable`·`mutate`).
 
 ### 컴포넌트
 
@@ -103,7 +103,7 @@ pnpm dev           # 실제 환경 확인(dev 대상)
 1. 화면에서 파일 선택. 클라이언트가 크기·확장자를 먼저 확인(편의일 뿐, 검사는 서버가 함) → 기존 `/api/uploads/presign`(`purpose=broadcast-eml`)으로 서명 URL 발급 → 브라우저가 staging에 직접 업로드.
 2. `?/preview`(form action, 입력은 `s3Key`): `pending/broadcast-eml/` 접두 확인 → `stagedInfo`로 크기 ≤ 25MB 확인 → `readStaged` → parse → sanitize. 응답: 제목, 정화된 HTML(화면에서 `<iframe sandbox srcdoc>`로 표시, 스크립트 불가. 미리보기에서만 본문이 참조하는 `cid:` 이미지를 staging `pending/broadcast-eml/<업로드 id>/preview/<번호>.<확장자>`에 서버가 저장하고 Supabase 서명 주소(600초)로 바꿔 보여 줌 — 브라우저가 Supabase에서 직접 받아 Vercel 응답 한도 4.5MB와 무관, 발송본은 `cid` 유지. 미리보기 HTML이 3MB를 넘으면 HTML 대신 텍스트본과 시험 발송 안내(D-000162)), 첨부 목록(이름·크기·내장 여부), 수신자 수, 같은 `messageId`의 기존 기록.
 3. `?/test`: 같은 파일로 조립해 요청한 관리자 본인 주소 1곳에만 발송. 기록은 남기지 않음.
-4. `?/send`: 다시 읽기 → 해석 → 정화(미리보기 결과를 클라이언트에서 받지 않음) → `mutate`로 `sending` 행 선점 → 수신자 해석·주소 검사 → 80명 묶음마다 compose + `dispatchRaw` → 행 갱신(`sent`/`partial`/`failed`, 묶음 수, `finishedAt`) → `removeStaged`(.eml과 그 미리보기 이미지).
+4. `?/send`: 다시 읽기 → 해석 → 정화(미리보기 결과를 클라이언트에서 받지 않음) → `mutate`로 `sending` 행 선점 → 수신자 해석·주소 검사 → 400명 묶음마다 compose + `dispatchRaw` → 행 갱신(`sent`/`partial`/`failed`, 묶음 수, `finishedAt`) → `removeStaged`(.eml과 그 미리보기 이미지).
 5. 화면 하단에 최근 발송 기록 20건 표시.
 
 ### 오류 처리(D-000128)

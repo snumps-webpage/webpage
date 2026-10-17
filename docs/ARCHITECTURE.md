@@ -149,7 +149,7 @@ throw한 오류는 Kit의 치명 오류 경로로 나가 cacheShield를 건너�
 ## ✉️ Mail
 
 `mail/events.ts`의 닫힌 이벤트 카탈로그 → `mail-rules` 테이블(없으면 코드 기본 규칙) →
-`mail-templates`·`mail-variables` 오버라이드로 렌더 → Gmail API 전송(전체 공지는 Bcc 80명 배치).
+`mail-templates`·`mail-variables` 오버라이드로 렌더 → Gmail API 전송(전체 공지는 Bcc 400명 배치, D-000165).
 전송 실패는 상태를 되돌리지 않는다 — 액션은 `mailFailed`로 알린다. 메일은 트랜잭션 안에서 보내지 않는다:
 세미나 공개 흐름이 `announcedAt`을 선점하고, 커밋 뒤 이긴 쪽만 보내며 전송이 실패하면 선점을 푼다.
 

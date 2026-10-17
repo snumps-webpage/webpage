@@ -251,14 +251,14 @@ describe("broadcast send flow", () => {
     __stageBytes(KEY, eml());
   });
 
-  it("sends 170 recipients in 3 batches and removes the staged file", async () => {
-    seedMembers(170);
+  it("sends 900 recipients in 3 batches and removes the staged file", async () => {
+    seedMembers(900);
     const r = await sendBroadcast(KEY, "admin");
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.row.status).toBe("sent");
     expect(r.row.batchesSent).toBe(3);
-    expect(r.row.recipientCount).toBe(170);
+    expect(r.row.recipientCount).toBe(900);
     expect(calls).toHaveLength(3);
     expect(__exists("staging", KEY)).toBe(false);
     // 발송본은 cid 유지
@@ -266,7 +266,7 @@ describe("broadcast send flow", () => {
   });
 
   it("is partial when the second batch fails", async () => {
-    seedMembers(170);
+    seedMembers(900);
     responses = [
       () => new Response("{}", { status: 200 }),
       gmailError(400, "invalidArgument"),
@@ -280,7 +280,7 @@ describe("broadcast send flow", () => {
   });
 
   it("stops on a quota error and records failed", async () => {
-    seedMembers(170);
+    seedMembers(900);
     responses = [gmailError(403, "dailyLimitExceeded")];
     const r = await sendBroadcast(KEY, "admin");
     if (!r.ok) throw new Error("expected ok");
@@ -314,7 +314,7 @@ describe("broadcast send flow", () => {
   });
 
   it("lets only one of two concurrent sends through", async () => {
-    seedMembers(170);
+    seedMembers(900);
     const [a, b] = await Promise.all([
       sendBroadcast(KEY, "admin"),
       sendBroadcast(KEY, "admin"),

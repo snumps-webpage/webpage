@@ -84,8 +84,8 @@ describe("composeBroadcast", () => {
     expect(parsed.attachments).toHaveLength(2);
   });
 
-  it("Bcc 80개가 접힌 줄을 이어 붙여도 순서·값이 그대로이고 To·From·Reply-To 줄이 없음", async () => {
-    const bcc = Array.from({ length: 80 }, (_, i) => `m${i}@example.com`);
+  it("Bcc 400개(dispatch BATCH_SIZE)가 접힌 줄을 이어 붙여도 순서·값이 그대로이고 To·From·Reply-To 줄이 없음", async () => {
+    const bcc = Array.from({ length: 400 }, (_, i) => `m${i}@example.com`);
     const raw = (await composeBroadcast(mail, bcc)).toString("utf8");
     const head = raw.split(/\r?\n\r?\n/)[0].replace(/\r?\n[ \t]+/g, " ");
     const line = head.split(/\r?\n/).find((l) => /^Bcc:/i.test(l));

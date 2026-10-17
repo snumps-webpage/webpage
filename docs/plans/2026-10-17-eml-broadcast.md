@@ -9,7 +9,7 @@
 
 - 의존성은 위 4개를 정확한 버전으로 고정(`pnpm add <pkg>@<ver> --save-exact`). 그 밖의 의존성 추가 금지(spec 경계 Ask first).
 - 모든 전체 발송은 Bcc만, `To` 헤더 없음(D-000143). `From`·`Reply-To` 미설정(D-000123).
-- 묶음 크기는 `dispatch.ts`의 `BATCH_SIZE`(80) 재사용, 수신자는 `optedInMemberEmails` 재사용.
+- 묶음 크기는 `dispatch.ts`의 `BATCH_SIZE`(80, 이후 D-000165로 400) 재사용, 수신자는 `optedInMemberEmails` 재사용.
 - `.eml` 상한 25_000_000 bytes(D-000145).
 - 발송 전 서버가 staging 파일을 다시 읽어 해석·정화. 클라이언트가 보낸 HTML·제목으로 발송하지 않음.
 - 수신자 주소·본문을 기록·로그에 남기지 않음. 자동 재시도 없음. 발송 횟수 상한 없음(D-000110).
@@ -323,7 +323,7 @@ export async function readStaged(path: string): Promise<Uint8Array | null>;
 - [ ] 공통 적재: 접두 `BROADCAST_PREFIX` 아니면 `bad-key`, `stagedInfo` null → `missing`, size > 25MB → `too-large`, `readStaged` → parse(오류 코드를 problem으로) → html이면 `sanitizeMailHtml` → `withFooter(optOutUrl = ${SITE_ORIGIN 또는 기본}/settings/notifications)`
 - [ ] `previewBroadcast`: html은 미리보기용으로 `cid:<id>`를 해당 첨부의 `data:<mime>;base64,…`로 바꿔 반환(발송본은 그대로), `recipientCount` = 주소 검사를 통과한 `optedInMemberEmails` 수, `existing` = `findBroadcast`
 - [ ] `sendBroadcastTest`: `to` 한 주소에만 1통, 기록 없음. `to`가 `isSingleAddress`를 통과하지 못하거나 Gmail 오류면 `{ ok: false, problem: "send-failed" }`(throw하지 않음)
-- [ ] `sendBroadcast`: 수신자 0이면 `no-recipients`(선점 안 함) → `claimBroadcast`(`sending`, ulid id, `startedAt` now) 실패면 `duplicate` + existing → 80명 묶음마다 compose+`dispatchRaw`; 묶음 실패는 계속, `GmailQuotaError`면 남은 묶음 중단 → `status` = 실패 0이면 `sent`, 성공 0이면 `failed`, 그 외 `partial`; `isSingleAddress`를 통과하지 못한 주소는 빼고 그 수를 결과의 `skipped`로 반환(기록·로그에는 수만, spec 오류 처리 표) → `finishBroadcast` → `removeStaged([s3Key])` 실패는 로그만
+- [ ] `sendBroadcast`: 수신자 0이면 `no-recipients`(선점 안 함) → `claimBroadcast`(`sending`, ulid id, `startedAt` now) 실패면 `duplicate` + existing → 묶음(BATCH_SIZE)마다 compose+`dispatchRaw`; 묶음 실패는 계속, `GmailQuotaError`면 남은 묶음 중단 → `status` = 실패 0이면 `sent`, 성공 0이면 `failed`, 그 외 `partial`; `isSingleAddress`를 통과하지 못한 주소는 빼고 그 수를 결과의 `skipped`로 반환(기록·로그에는 수만, spec 오류 처리 표) → `finishBroadcast` → `removeStaged([s3Key])` 실패는 로그만
 - [ ] 토큰 획득 실패는 첫 묶음 전 `failed`로 기록
 - [ ] 로그에 주소·본문 없음(`console.error`는 이벤트명·묶음 번호·Gmail reason만)
 - [ ] `dispatch.ts` export 추가 외 동작 불변(기존 dispatch 테스트 통과)

@@ -15,7 +15,7 @@ import { renderMailTemplate } from "./template-store";
  * false 반환으로 끝난다 (§5-7).
  */
 
-export const BATCH_SIZE = 80; // Gmail 건당 수신자 한도 아래
+export const BATCH_SIZE = 400; // Gmail 메일당 수신자 500명 한도 아래, 보낸편지함 사본을 줄임 (snumps-webpage/D-000165)
 
 export interface MailEventContext {
   /** recipient=party 규칙이 쓸 당사자 주소 (신청 행 등에서 발생 지점이 공급) */

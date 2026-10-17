@@ -9,7 +9,7 @@ import {
 import { recentBroadcasts } from "$lib/server/mail/broadcast/store";
 import type { PageServerLoad } from "./$types";
 
-/** 전체 발송은 80명 묶음을 순차 발송하므로 기본 한도보다 길게 둔다. */
+/** 전체 발송은 400명 묶음을 순차 발송하므로 기본 한도보다 길게 둔다. */
 export const config: Config = { maxDuration: 120 };
 
 /** 전체 메일 발송 화면: 최근 발송 기록 20건. */
