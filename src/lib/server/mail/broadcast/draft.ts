@@ -6,8 +6,8 @@ import {
 } from "$lib/server/data/storage";
 import { getTable, mutate } from "$lib/server/data/tables";
 
-/** `.eml` 키에서 확장자를 뗀 경로 (send.ts의 previewBase와 같은 식). */
-const keyBase = (s3Key: string) => s3Key.replace(/\.[^./]+$/, "");
+/** `.eml` 키에서 확장자를 뗀 경로 (미리보기·초안 객체의 기준 경로). */
+export const keyBase = (s3Key: string) => s3Key.replace(/\.[^./]+$/, "");
 
 /** 초안 id — 확장자 뗀 키의 마지막 부분. */
 export const draftId = (s3Key: string): string =>

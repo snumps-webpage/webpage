@@ -101,7 +101,7 @@ export function sanitizeMailHtml(html: string): string {
 }
 
 /** 정화된 HTML에서 태그를 걷어 텍스트 대체본을 만든다. */
-function htmlToText(html: string): string {
+export function htmlToText(html: string): string {
   // 블록 경계는 태그를 벗기기 전에 줄바꿈으로 바꾼다
   const withBreaks = html.replace(
     /<br\s*\/?>|<\/(?:p|div|li|tr|h[1-6]|blockquote)\s*>/gi,

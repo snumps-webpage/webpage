@@ -1,7 +1,10 @@
 import { env } from "$env/dynamic/private";
 import { uploadSpec } from "$lib/domain/uploads";
 import { newId } from "$lib/server/core/id";
-import type { MailBroadcast } from "$lib/server/data/schemas";
+import type {
+  MailBroadcast,
+  MailBroadcastDraft,
+} from "$lib/server/data/schemas";
 import {
   createSignedStagedUrl,
   listStaged,
@@ -19,8 +22,22 @@ import {
 } from "../client";
 import { BATCH_SIZE, optedInMemberEmails } from "../dispatch";
 import { composeBroadcast } from "./compose";
-import { BroadcastParseError, parseEml, type ParsedMail } from "./parse";
-import { sanitizeMailHtml, withFooter } from "./sanitize";
+import {
+  deleteDraft,
+  draftId,
+  keyBase,
+  readDraft,
+  restoreCids,
+  writeDraft,
+  type PreviewImage,
+} from "./draft";
+import {
+  BroadcastParseError,
+  parseEml,
+  type MailAttachment,
+  type ParsedMail,
+} from "./parse";
+import { htmlToText, sanitizeMailHtml, withFooter } from "./sanitize";
 import { claimBroadcast, findBroadcast, finishBroadcast } from "./store";
 
 /** staging 경로 접두. 이 밖의 키는 거부함(D-000128). */
@@ -31,15 +48,29 @@ export const BROADCAST_MAX_BYTES = uploadSpec("broadcast-eml").maxBytes;
 export type BroadcastProblem =
   "bad-key" | "missing" | "too-large" | "unreadable" | "no-subject" | "no-body";
 
+export type DraftProblem =
+  "no-subject" | "no-body" | "too-large-draft" | "bad-input";
+
 export interface BroadcastPreview {
   messageId: string;
+  /** 초안이 있으면 초안 제목 */
   subject: string;
   html: string | null;
+  /** 꼬리말 없는 편집용 HTML(미리보기와 같은 서명 주소). 예산 초과면 null */
+  editableHtml: string | null;
+  editable: boolean;
+  draft: {
+    subject: string;
+    removedAttachments: number[];
+    savedAt: string;
+    savedBy: string;
+  } | null;
   /** 치환 뒤 HTML이 PREVIEW_HTML_BUDGET을 넘어 뺐으면 true(텍스트본만 보여 줌) */
   htmlOmitted: boolean;
   /** 텍스트본이 혼자 예산을 넘어 앞부분만 남겼으면 true */
   textTruncated: boolean;
   text: string;
+  /** 원본 첨부 전부(색인 = `removedAttachments` 기준). 뺀 것은 draft로 판단 */
   attachments: { filename: string | null; size: number; inline: boolean }[];
   recipientCount: number;
   existing: MailBroadcast | null;
@@ -47,24 +78,37 @@ export interface BroadcastPreview {
 
 interface LoadedBroadcast {
   parsed: ParsedMail;
+  /** 발송 제목(초안이 있으면 초안 제목) */
+  subject: string;
+  /** 발송 첨부(초안의 제거·미참조 cid 반영) */
+  attachments: MailAttachment[];
+  /** 정화됐으나 꼬리말 없는 HTML (`cid:` 유지) */
+  bareHtml: string | null;
   /** 정화 + 꼬리말까지 끝난 발송본 (`cid:` 유지) */
   body: { html: string | null; text: string };
+  draft: MailBroadcastDraft | null;
 }
+
+/** `cid:<id>`를 값 경계까지 맞추는 정규식(`cid:img1`이 `cid:img10`에 걸리지 않게). */
+function cidRef(contentId: string): RegExp {
+  return new RegExp(
+    `cid:${contentId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=["'\\s>])`,
+    "g",
+  );
+}
+const references = (html: string, contentId: string) =>
+  cidRef(contentId).test(html);
 
 // announcements.ts의 siteOrigin()과 같은 규칙 (중복 1곳 허용).
 function siteOrigin(): string {
   return env.SITE_ORIGIN || "https://snumps.vercel.app";
 }
 
-/**
- * 공통 적재: 경로 확인 → 크기 확인 → 다시 읽기 → 해석 → 정화 → 꼬리말.
- * 클라이언트가 준 HTML·제목은 쓰지 않고 항상 staging 파일에서 다시 만든다.
- */
-async function loadBroadcast(
+/** 경로 확인 → 크기 확인 → 다시 읽기 → 해석. 원본 `.eml`만 다룸. */
+async function resolveOriginal(
   s3Key: string,
 ): Promise<
-  | { ok: true; loaded: LoadedBroadcast }
-  | { ok: false; problem: BroadcastProblem }
+  { ok: true; parsed: ParsedMail } | { ok: false; problem: BroadcastProblem }
 > {
   // 경로 이탈(`..`)·역슬래시·제어문자는 거부
   if (
@@ -83,19 +127,70 @@ async function loadBroadcast(
   if (raw.byteLength > BROADCAST_MAX_BYTES)
     return { ok: false, problem: "too-large" };
 
-  let parsed: ParsedMail;
   try {
-    parsed = await parseEml(raw);
+    return { ok: true, parsed: await parseEml(raw) };
   } catch (e) {
     if (e instanceof BroadcastParseError) return { ok: false, problem: e.code };
     throw e;
   }
-  const html = parsed.html === null ? null : sanitizeMailHtml(parsed.html);
-  const body = withFooter(
-    { html, text: parsed.text },
-    `${siteOrigin()}/settings/notifications`,
+}
+
+/**
+ * 공통 적재: 원본 해석 → (초안이 있으면 초안 제목·본문·첨부 반영) → 정화 → 꼬리말.
+ * 클라이언트가 준 HTML·제목은 쓰지 않고 항상 staging 파일에서 다시 만든다.
+ */
+async function loadBroadcast(
+  s3Key: string,
+): Promise<
+  | { ok: true; loaded: LoadedBroadcast }
+  | { ok: false; problem: BroadcastProblem }
+> {
+  const r = await resolveOriginal(s3Key);
+  if (!r.ok) return r;
+  const { parsed } = r;
+  const originalHtml =
+    parsed.html === null ? null : sanitizeMailHtml(parsed.html);
+  const optOut = `${siteOrigin()}/settings/notifications`;
+
+  const d = await readDraft(s3Key);
+  if (!d) {
+    const body = withFooter({ html: originalHtml, text: parsed.text }, optOut);
+    return {
+      ok: true,
+      loaded: {
+        parsed,
+        subject: parsed.subject,
+        attachments: parsed.attachments,
+        bareHtml: originalHtml,
+        body,
+        draft: null,
+      },
+    };
+  }
+  // 초안 본문은 저장 때 정화했어도 발송 직전에 다시 정화함. 파일이 없으면 원본.
+  const bareHtml = d.html === null ? originalHtml : sanitizeMailHtml(d.html);
+  const removed = new Set(d.row.removedAttachments);
+  const attachments = parsed.attachments.filter(
+    (a, i) =>
+      !removed.has(i) &&
+      (a.contentId === null ||
+        (bareHtml !== null && references(bareHtml, a.contentId))),
   );
-  return { ok: true, loaded: { parsed, body } };
+  const body = withFooter(
+    { html: bareHtml, text: bareHtml === null ? parsed.text : null },
+    optOut,
+  );
+  return {
+    ok: true,
+    loaded: {
+      parsed,
+      subject: d.row.subject,
+      attachments,
+      bareHtml,
+      body,
+      draft: d.row,
+    },
+  };
 }
 
 /** 수신 동의 회원 중 주소 검사를 통과한 수신자와 제외 수. */
@@ -120,8 +215,34 @@ export const PREVIEW_HTML_BUDGET = 3_000_000;
 /** 미리보기 이미지 서명 주소 유효 시간(초). */
 export const PREVIEW_IMAGE_TTL = 600;
 
-/** `.eml` 키에서 확장자를 뗀 경로. 미리보기 객체는 그 아래 `/preview/`에 둠. */
-const previewBase = (s3Key: string) => s3Key.replace(/\.[^./]+$/, "");
+/**
+ * 미리보기 이미지 목록: 본문이 참조하는 `cid:` 이미지 중 안전한 이미지 형식만, 원본
+ * 첨부 순서로 번호 1부터. 서명(`signPreviewImages`)과 초안 저장(`saveDraft`)이 같은
+ * 규칙을 씀. `html`은 원본 정화본이어야 번호가 초안과 무관하게 고정됨.
+ */
+export function previewImages(
+  parsed: ParsedMail,
+  html: string | null,
+): PreviewImage[] {
+  const out: PreviewImage[] = [];
+  if (html === null) return out;
+  for (const a of parsed.attachments) {
+    if (!a.contentId) continue;
+    // 속성 값을 깨뜨릴 수 있는 MIME 형식은 치환하지 않음(cid 유지)
+    if (!SAFE_MIME.test(a.mimeType)) continue;
+    // 이미지가 아닌 첨부는 저장·치환하지 않음. SVG도 제외 — 서명 주소를 직접 열면
+    // 그 안의 스크립트가 저장소 도메인에서 실행될 수 있음
+    const mime = a.mimeType.toLowerCase();
+    if (!mime.startsWith("image/") || mime.startsWith("image/svg")) continue;
+    if (!references(html, a.contentId)) continue;
+    out.push({
+      n: out.length + 1,
+      ext: PREVIEW_EXT[mime] ?? "bin",
+      contentId: a.contentId,
+    });
+  }
+  return out;
+}
 
 /**
  * 미리보기용: 본문이 실제로 참조하는 `cid:<id>` 이미지만 staging에 올려 서명 주소로
@@ -131,29 +252,18 @@ const previewBase = (s3Key: string) => s3Key.replace(/\.[^./]+$/, "");
 async function signPreviewImages(
   html: string,
   parsed: ParsedMail,
+  images: PreviewImage[],
   s3Key: string,
 ): Promise<string> {
   let out = html;
   let failed = 0;
-  let n = 0;
-  for (const a of parsed.attachments) {
-    if (!a.contentId) continue;
-    // 속성 값을 깨뜨릴 수 있는 MIME 형식은 치환하지 않음(cid 유지)
-    if (!SAFE_MIME.test(a.mimeType)) continue;
-    // 이미지가 아닌 첨부는 저장·치환하지 않음. SVG도 제외 — 서명 주소를 직접 열면
-    // 그 안의 스크립트가 저장소 도메인에서 실행될 수 있음
-    const mime = a.mimeType.toLowerCase();
-    if (!mime.startsWith("image/") || mime.startsWith("image/svg")) continue;
-    // `cid:img1`이 `cid:img10`의 접두로 바뀌지 않게 값 경계까지 맞춤
-    const re = new RegExp(
-      `cid:${a.contentId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=["'\\s>])`,
-      "g",
-    );
+  for (const img of images) {
+    const re = cidRef(img.contentId);
     if (!re.test(out)) continue;
     re.lastIndex = 0;
-    n++;
-    const ext = PREVIEW_EXT[a.mimeType.toLowerCase()] ?? "bin";
-    const path = `${previewBase(s3Key)}/preview/${n}.${ext}`;
+    const a = parsed.attachments.find((x) => x.contentId === img.contentId);
+    if (!a) continue;
+    const path = `${keyBase(s3Key)}/preview/${img.n}.${img.ext}`;
     try {
       await uploadStaged(path, a.content, a.mimeType);
       const url = await createSignedStagedUrl(path, PREVIEW_IMAGE_TTL);
@@ -184,18 +294,32 @@ export async function previewBroadcast(
 > {
   const r = await loadBroadcast(s3Key);
   if (!r.ok) return r;
-  const { parsed, body } = r.loaded;
+  const { parsed, body, bareHtml, subject, draft } = r.loaded;
   const [rcpt, existing] = await Promise.all([
     recipients(),
     findBroadcast(parsed.messageId),
   ]);
-  let html =
-    body.html === null
-      ? null
-      : await signPreviewImages(body.html, parsed, s3Key);
-  // 응답 총량(html+text)에 예산 적용: 넘으면 html 생략, 그래도 넘으면 text 자름
   const bytes = (v: string | null) =>
     v === null ? 0 : Buffer.byteLength(v, "utf8");
+  // 번호는 원본 정화본 기준(초안과 무관). 꼬리말 없는 본문을 한 번만 서명하고
+  // 꼬리말은 그 뒤에 붙임(꼬리말에는 cid가 없음).
+  const images = previewImages(
+    parsed,
+    parsed.html === null ? null : sanitizeMailHtml(parsed.html),
+  );
+  const signedBare =
+    bareHtml === null
+      ? null
+      : await signPreviewImages(bareHtml, parsed, images, s3Key);
+  const editableHtml =
+    signedBare !== null && bytes(signedBare) <= PREVIEW_HTML_BUDGET
+      ? signedBare
+      : null;
+  let html =
+    signedBare === null || body.html === null
+      ? null
+      : signedBare + body.html.slice((bareHtml ?? "").length);
+  // 응답 총량(html+text)에 예산 적용: 넘으면 html 생략, 그래도 넘으면 text 자름
   let text = body.text;
   const htmlOmitted =
     html !== null && bytes(html) + bytes(text) > PREVIEW_HTML_BUDGET;
@@ -206,8 +330,16 @@ export async function previewBroadcast(
     ok: true,
     preview: {
       messageId: parsed.messageId,
-      subject: parsed.subject,
+      subject,
       html,
+      editableHtml,
+      editable: editableHtml !== null,
+      draft: draft && {
+        subject: draft.subject,
+        removedAttachments: draft.removedAttachments,
+        savedAt: draft.savedAt,
+        savedBy: draft.savedBy,
+      },
       htmlOmitted,
       textTruncated,
       text,
@@ -232,14 +364,14 @@ export async function sendBroadcastTest(
   const r = await loadBroadcast(s3Key);
   if (!r.ok) return r;
   if (!isSingleAddress(to)) return { ok: false, problem: "send-failed" };
-  const { parsed, body } = r.loaded;
+  const { subject, body, attachments } = r.loaded;
   try {
     const raw = await composeBroadcast(
       {
-        subject: parsed.subject,
+        subject,
         html: body.html,
         text: body.text,
-        attachments: parsed.attachments,
+        attachments,
       },
       [to],
     );
@@ -282,7 +414,7 @@ export async function sendBroadcast(
 > {
   const r = await loadBroadcast(s3Key);
   if (!r.ok) return r;
-  const { parsed, body } = r.loaded;
+  const { parsed, subject, body, attachments } = r.loaded;
 
   const { emails, skipped } = await recipients();
   if (emails.length === 0) return { ok: false, problem: "no-recipients" };
@@ -292,7 +424,7 @@ export async function sendBroadcast(
   const row: MailBroadcast = {
     id: newId(),
     messageId: parsed.messageId,
-    subject: parsed.subject,
+    subject,
     sentBy,
     startedAt: new Date().toISOString(),
     finishedAt: null,
@@ -314,10 +446,10 @@ export async function sendBroadcast(
       try {
         const raw = await composeBroadcast(
           {
-            subject: parsed.subject,
+            subject,
             html: body.html,
             text: body.text,
-            attachments: parsed.attachments,
+            attachments,
           },
           batch,
         );
@@ -357,7 +489,7 @@ export async function sendBroadcast(
 
   try {
     // .eml과 그 미리보기 이미지(`<키-확장자>/preview/`) 전부
-    const base = `${previewBase(s3Key)}/preview`;
+    const base = `${keyBase(s3Key)}/preview`;
     let previews: string[] = [];
     try {
       previews = (await listStaged(base)).map((f) => `${base}/${f.name}`);
@@ -369,5 +501,68 @@ export async function sendBroadcast(
   } catch (e) {
     console.error("[Broadcast] staged file removal failed:", describeError(e));
   }
+  await deleteDraft(s3Key); // 실패는 안에서 로그만
   return { ok: true, row: { ...row, ...patch }, skipped };
+}
+
+/**
+ * 초안 저장. 원본을 다시 해석해 입력을 검사하고, 미리보기 서명 주소를 `cid:`로 되돌린
+ * 뒤 정화해서 저장함. 클라이언트 HTML은 정화 없이 쓰지 않음.
+ */
+export async function saveDraft(
+  s3Key: string,
+  input: { subject: string; html: string; removedAttachments: number[] },
+  savedBy: string,
+): Promise<
+  | { ok: true; savedAt: string }
+  | { ok: false; problem: BroadcastProblem | DraftProblem }
+> {
+  const r = await resolveOriginal(s3Key);
+  if (!r.ok) return r;
+  const { parsed } = r;
+
+  if (typeof input.subject !== "string" || typeof input.html !== "string")
+    return { ok: false, problem: "bad-input" };
+  const subject = input.subject.trim();
+  if (subject === "") return { ok: false, problem: "no-subject" };
+  const removed = input.removedAttachments;
+  if (
+    !Array.isArray(removed) ||
+    removed.some(
+      (i) => !Number.isInteger(i) || i < 0 || i >= parsed.attachments.length,
+    ) ||
+    new Set(removed).size !== removed.length
+  )
+    return { ok: false, problem: "bad-input" };
+  if (Buffer.byteLength(input.html, "utf8") > PREVIEW_HTML_BUDGET)
+    return { ok: false, problem: "too-large-draft" };
+
+  const images = previewImages(
+    parsed,
+    parsed.html === null ? null : sanitizeMailHtml(parsed.html),
+  );
+  const clean = sanitizeMailHtml(restoreCids(input.html, s3Key, images));
+  // 정화가 엔티티로 늘린 경우도 막음 — 넘으면 다음 미리보기에서 편집할 수 없게 됨
+  if (Buffer.byteLength(clean, "utf8") > PREVIEW_HTML_BUDGET)
+    return { ok: false, problem: "too-large-draft" };
+  const visibleText = htmlToText(clean)
+    .replace(/[\u00a0\u200b]/g, "")
+    .trim();
+  if (visibleText === "" && !/<img\b/i.test(clean))
+    return { ok: false, problem: "no-body" };
+
+  const savedAt = new Date().toISOString();
+  await writeDraft(
+    {
+      id: draftId(s3Key),
+      s3Key,
+      messageId: parsed.messageId,
+      subject,
+      removedAttachments: [...removed].sort((a, b) => a - b),
+      savedBy,
+      savedAt,
+    },
+    clean,
+  );
+  return { ok: true, savedAt };
 }

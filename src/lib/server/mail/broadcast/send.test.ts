@@ -63,7 +63,11 @@ import {
   previewBroadcast,
   sendBroadcast,
   sendBroadcastTest,
+  previewImages,
+  saveDraft,
 } from "./send";
+import { draftHtmlPath, readDraft } from "./draft";
+import type { ParsedMail } from "./parse";
 
 const KEY = `${BROADCAST_PREFIX}a.eml`;
 
@@ -234,6 +238,7 @@ describe("broadcast send flow", () => {
     _resetDataLayerForTests();
     for (const t of [
       "mail-broadcasts",
+      "mail-broadcast-drafts",
       "members",
       "registrations",
       "private-info",
@@ -580,5 +585,287 @@ describe("broadcast send flow", () => {
     const p = await previewBroadcast(KEY);
     expect(p.ok && p.preview.existing).toBeNull();
     expect(__exists("staging", KEY)).toBe(true);
+  });
+
+  describe("drafts", () => {
+    /** 사진 2장(img1·img2)과 일반 첨부 2개(f0.txt·f1.txt)가 있는 eml. */
+    function emlDraftSrc(): Uint8Array {
+      const img = (cid: string) =>
+        [
+          "--r1",
+          "Content-Type: image/png",
+          `Content-ID: <${cid}>`,
+          "Content-Disposition: inline",
+          "Content-Transfer-Encoding: base64",
+          "",
+          "AAAA",
+        ].join("\r\n");
+      const file = (name: string) =>
+        [
+          "--r1",
+          `Content-Type: text/plain; name="${name}"`,
+          `Content-Disposition: attachment; filename="${name}"`,
+          "Content-Transfer-Encoding: base64",
+          "",
+          "QUJD",
+        ].join("\r\n");
+      return new TextEncoder().encode(
+        [
+          "Subject: Original",
+          "Message-ID: <m9@example.com>",
+          "MIME-Version: 1.0",
+          'Content-Type: multipart/mixed; boundary="r1"',
+          "",
+          "--r1",
+          'Content-Type: text/html; charset="UTF-8"',
+          "",
+          '<p>Orig</p><img src="cid:img1"><img src="cid:img2">',
+          img("img1"),
+          img("img2"),
+          file("f0.txt"),
+          file("f1.txt"),
+          "--r1--",
+          "",
+        ].join("\r\n"),
+      );
+    }
+    const url = (n: number, ext = "png") =>
+      `https://memory.test/staged/${PV}${n}.${ext}?exp=600`;
+    const input = (over: Partial<Parameters<typeof saveDraft>[1]> = {}) => ({
+      subject: "Edited subject",
+      html: `<p>EditedBody</p><img src="${url(1)}">`,
+      removedAttachments: [] as number[],
+      ...over,
+    });
+    const count = (hay: string, needle: string) => hay.split(needle).length - 1;
+    const FOOTER_URL = "https://site.test/settings/notifications";
+
+    beforeEach(() => {
+      seedMembers(2);
+      __stageBytes(KEY, emlDraftSrc());
+    });
+
+    it("sends the draft: no signed urls, cid kept, footer once, dropped photo and removed file left out", async () => {
+      await sendBroadcastTest(KEY, "me@example.com");
+      const baseline = calls[0].body.toString();
+      expect(baseline).toContain("f0.txt");
+      expect(baseline).toContain("img2");
+      const footers = count(baseline, FOOTER_URL);
+      expect(footers).toBeGreaterThan(0);
+
+      const saved = await saveDraft(
+        KEY,
+        input({ removedAttachments: [2] }),
+        "admin",
+      );
+      expect(saved.ok).toBe(true);
+      calls = [];
+      expect(await sendBroadcastTest(KEY, "me@example.com")).toEqual({
+        ok: true,
+      });
+      const raw = calls[0].body.toString();
+      expect(raw).toContain("EditedBody");
+      expect(raw).not.toContain("memory.test");
+      expect(raw).toContain("cid:img1");
+      expect(raw).not.toContain("img2");
+      expect(raw).not.toContain("f0.txt");
+      expect(raw).toContain("f1.txt");
+      expect(count(raw, FOOTER_URL)).toBe(footers);
+      expect(raw).not.toContain("Orig</p>");
+    });
+
+    it("stores a sanitized draft and sends without script", async () => {
+      const r = await saveDraft(
+        KEY,
+        input({ html: "<p>Safe</p><script>alert(1)</script>" }),
+        "admin",
+      );
+      expect(r.ok).toBe(true);
+      const d = await readDraft(KEY);
+      expect(d?.html).toContain("Safe");
+      expect(d?.html).not.toContain("script");
+      expect(d?.html).not.toContain("alert");
+      expect(d?.row).toMatchObject({
+        subject: "Edited subject",
+        savedBy: "admin",
+        messageId: expect.stringContaining("m9@example.com"),
+      });
+      // 저장 뒤 파일이 바뀌어도 발송 직전에 다시 정화함
+      __stageBytes(
+        draftHtmlPath(KEY),
+        new TextEncoder().encode("<p>Late</p><script>evil()</script>"),
+      );
+      await sendBroadcastTest(KEY, "me@example.com");
+      const raw = calls[0].body.toString();
+      expect(raw).toContain("Late");
+      expect(raw).not.toContain("evil");
+    });
+
+    it("rejects an empty subject, an empty body and bad indexes without writing", async () => {
+      const problem = async (over: Parameters<typeof input>[0]) => {
+        const r = await saveDraft(KEY, input(over), "admin");
+        return r.ok ? "ok" : r.problem;
+      };
+      expect(await problem({ subject: "  \t" })).toBe("no-subject");
+      expect(await problem({ html: "<p> &nbsp; </p>" })).toBe("no-body");
+      expect(await problem({ html: "<script>x</script>" })).toBe("no-body");
+      for (const bad of [[-1], [1.5], [4], [99], [0, 0], [Number.NaN]])
+        expect(await problem({ removedAttachments: bad })).toBe("bad-input");
+      expect(await problem({ html: 5 as unknown as string })).toBe("bad-input");
+      expect(await readDraft(KEY)).toBeNull();
+    });
+
+    it("accepts a body made only of an image", async () => {
+      const r = await saveDraft(
+        KEY,
+        input({ html: `<img src="${url(1)}">` }),
+        "admin",
+      );
+      expect(r.ok).toBe(true);
+    });
+
+    it("applies the 3MB budget in UTF-8 bytes", async () => {
+      // 글자 수는 상한 아래지만 바이트는 위
+      const over = `<p>${"한".repeat(1_000_000)}</p>`;
+      expect(over.length).toBeLessThan(3_000_000);
+      expect(await saveDraft(KEY, input({ html: over }), "admin")).toEqual({
+        ok: false,
+        problem: "too-large-draft",
+      });
+      const ok = `<p>${"a".repeat(2_900_000)}</p>`;
+      expect((await saveDraft(KEY, input({ html: ok }), "admin")).ok).toBe(
+        true,
+      );
+    });
+
+    it("rejects a draft that sanitizing grows past the budget", async () => {
+      // `&` 하나가 `&amp;`로 다섯 배가 됨
+      const grows = `<p>${"&".repeat(1_000_000)}</p>`;
+      expect(Buffer.byteLength(grows, "utf8")).toBeLessThan(3_000_000);
+      expect(await saveDraft(KEY, input({ html: grows }), "admin")).toEqual({
+        ok: false,
+        problem: "too-large-draft",
+      });
+      expect(await readDraft(KEY)).toBeNull();
+    });
+
+    it("stores removed indexes sorted", async () => {
+      await saveDraft(KEY, input({ removedAttachments: [3, 2] }), "admin");
+      expect((await readDraft(KEY))?.row.removedAttachments).toEqual([2, 3]);
+    });
+
+    it("builds the text part from the draft html, not the original text part", async () => {
+      __stageBytes(KEY, emlAlt("<p>OrigHtml</p>", "OrigTextPart"));
+      const before = await previewBroadcast(KEY);
+      if (!before.ok) throw new Error("expected ok");
+      expect(before.preview.text).toContain("OrigTextPart");
+      await saveDraft(KEY, input({ html: "<p>EditedBody</p>" }), "admin");
+      const p = await previewBroadcast(KEY);
+      if (!p.ok) throw new Error("expected ok");
+      expect(p.preview.text).toContain("EditedBody");
+      expect(p.preview.text).not.toContain("OrigTextPart");
+      await sendBroadcastTest(KEY, "me@example.com");
+      expect(calls[0].body.toString()).not.toContain("OrigTextPart");
+    });
+
+    it("rejects bad keys and missing files like loadBroadcast", async () => {
+      expect(await saveDraft("other/a.eml", input(), "admin")).toEqual({
+        ok: false,
+        problem: "bad-key",
+      });
+      expect(
+        await saveDraft(`${BROADCAST_PREFIX}none.eml`, input(), "admin"),
+      ).toEqual({ ok: false, problem: "missing" });
+    });
+
+    it("preview shows the draft: subject, bare editable html, footer only in html", async () => {
+      const before = await previewBroadcast(KEY);
+      if (!before.ok) throw new Error("expected ok");
+      expect(before.preview.draft).toBeNull();
+      expect(before.preview.editable).toBe(true);
+      expect(before.preview.editableHtml).not.toContain("SNUMPS 전체 공지");
+      expect(before.preview.attachments).toHaveLength(4);
+
+      await saveDraft(KEY, input({ removedAttachments: [3] }), "kim");
+      const p = await previewBroadcast(KEY);
+      if (!p.ok) throw new Error("expected ok");
+      expect(p.preview.subject).toBe("Edited subject");
+      expect(p.preview.messageId).toBe(before.preview.messageId);
+      expect(p.preview.draft).toMatchObject({
+        subject: "Edited subject",
+        removedAttachments: [3],
+        savedBy: "kim",
+      });
+      expect(p.preview.editableHtml).toContain("EditedBody");
+      expect(p.preview.editableHtml).toContain(url(1));
+      expect(p.preview.editableHtml).not.toContain("SNUMPS 전체 공지");
+      expect(p.preview.html).toContain(p.preview.editableHtml ?? "");
+      expect(p.preview.html).toContain("SNUMPS 전체 공지");
+      expect(p.preview.text).toContain("EditedBody");
+      expect(p.preview.text).not.toContain("Orig");
+    });
+
+    it("marks an over-budget body as not editable", async () => {
+      __stageBytes(KEY, emlWith(`<p>${"a".repeat(3_100_000)}</p>`, []));
+      const p = await previewBroadcast(KEY);
+      if (!p.ok) throw new Error("expected ok");
+      expect(p.preview.editable).toBe(false);
+      expect(p.preview.editableHtml).toBeNull();
+      expect(p.preview.htmlOmitted).toBe(true);
+    });
+
+    it("send records the draft subject, keeps the original message id, then removes the draft", async () => {
+      const p = await previewBroadcast(KEY);
+      if (!p.ok) throw new Error("expected ok");
+      await saveDraft(KEY, input(), "admin");
+      expect(__exists("staging", draftHtmlPath(KEY))).toBe(true);
+      const r = await sendBroadcast(KEY, "admin");
+      if (!r.ok) throw new Error("expected ok");
+      expect(r.row.subject).toBe("Edited subject");
+      expect(r.row.messageId).toBe(p.preview.messageId);
+      expect(await readDraft(KEY)).toBeNull();
+      expect(__exists("staging", draftHtmlPath(KEY))).toBe(false);
+      // 같은 원본을 다시 올려도 원본 Message-ID로 중복 차단
+      __stageBytes(KEY, emlDraftSrc());
+      expect(await sendBroadcast(KEY, "admin")).toMatchObject({
+        ok: false,
+        problem: "duplicate",
+      });
+    });
+  });
+
+  describe("previewImages", () => {
+    const att = (contentId: string | null, mimeType = "image/png") => ({
+      filename: null,
+      mimeType,
+      disposition: null,
+      contentId,
+      content: new Uint8Array(),
+    });
+    const parsed = (attachments: ReturnType<typeof att>[]) =>
+      ({ attachments }) as unknown as ParsedMail;
+
+    it("numbers referenced safe images from 1 in attachment order", () => {
+      const html =
+        '<img src="cid:b"><img src="cid:a"><img src="cid:svg"><img src="cid:pdf"><img src="cid:bad">';
+      expect(
+        previewImages(
+          parsed([
+            att("a", "image/jpeg"),
+            att("unused"),
+            att("svg", "image/svg+xml"),
+            att("pdf", "application/pdf"),
+            att("bad", "image/png<x>"),
+            att(null),
+            att("b", "image/x-weird"),
+          ]),
+          html,
+        ),
+      ).toEqual([
+        { n: 1, ext: "jpg", contentId: "a" },
+        { n: 2, ext: "bin", contentId: "b" },
+      ]);
+      expect(previewImages(parsed([att("a")]), null)).toEqual([]);
+    });
   });
 });
