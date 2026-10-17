@@ -15,7 +15,7 @@ import { renderMailTemplate } from "./template-store";
  * false 반환으로 끝난다 (§5-7).
  */
 
-const BATCH_SIZE = 80; // Gmail 건당 수신자 한도 아래
+export const BATCH_SIZE = 80; // Gmail 건당 수신자 한도 아래
 
 export interface MailEventContext {
   /** recipient=party 규칙이 쓸 당사자 주소 (신청 행 등에서 발생 지점이 공급) */
@@ -68,7 +68,7 @@ async function executiveEmails(): Promise<string[]> {
  * 동문 중 수신에 동의한 사람. 탈퇴 유예 중인 사람과 미등록 비동문은 동의
  * 여부와 무관하게 받지 않는다. 중복 제거.
  */
-async function optedInMemberEmails(): Promise<string[]> {
+export async function optedInMemberEmails(): Promise<string[]> {
   const term = currentTerm();
   const [infos, members, registrations] = await Promise.all([
     getTable("private-info"),

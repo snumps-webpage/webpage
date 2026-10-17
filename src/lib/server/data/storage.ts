@@ -133,6 +133,22 @@ export async function readStagedHead(
 }
 
 /**
+ * 스테이징 객체 전체 바이트 — `.eml` 발송이 서버에서 다시 읽어 해석함(D-000128).
+ * 없으면 null.
+ */
+export async function readStaged(path: string): Promise<Uint8Array | null> {
+  if (isMemoryBackend()) return (await memory()).readStaged(path);
+  const { data, error } = await getSupabase()
+    .storage.from(stagingBucket())
+    .download(path);
+  if (error) {
+    if (isNotFound(error)) return null;
+    throw new Error(`readStaged(${path}) failed: ${error.message}`);
+  }
+  return new Uint8Array(await data.arrayBuffer());
+}
+
+/**
  * Cross-bucket move staging → assets. Supabase does not claim atomicity here
  * (spec §4-2); leftovers from a failed move are the cleanup job's problem.
  */
