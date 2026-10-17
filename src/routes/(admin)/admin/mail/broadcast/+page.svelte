@@ -1,16 +1,18 @@
 <script lang="ts">
-  import { tick } from "svelte";
-  import { enhance } from "$app/forms";
-  import { invalidateAll } from "$app/navigation";
+  import { onDestroy, tick } from "svelte";
+  import { deserialize, enhance } from "$app/forms";
+  import { beforeNavigate, invalidateAll } from "$app/navigation";
   import { v7 as uuidv7 } from "uuid";
   import AdminSectionNav from "$lib/components/admin/AdminSectionNav.svelte";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import { MANUSCRIPT } from "$lib/constants";
   import { uploadAdminFile } from "$lib/client/api";
+  import { mountEmlEditor, type EmlEditor } from "$lib/client/eml-editor";
   import { uploadFileProblem, uploadLimitMb } from "$lib/domain/uploads";
   import type {
     BroadcastPreview,
     BroadcastProblem,
+    DraftProblem,
   } from "$lib/server/mail/broadcast/send";
   import type { MailBroadcast } from "$lib/server/data/schemas";
 
@@ -22,7 +24,12 @@
   const limitMb = uploadLimitMb(PURPOSE);
 
   const PROBLEMS: Record<
-    BroadcastProblem | "duplicate" | "no-recipients" | "send-failed",
+    | BroadcastProblem
+    | DraftProblem
+    | "duplicate"
+    | "no-recipients"
+    | "send-failed"
+    | "save-failed",
     string
   > = {
     "bad-key": "업로드 경로가 올바르지 않습니다. 파일을 다시 올려 주세요.",
@@ -34,6 +41,9 @@
     duplicate: "이미 발송된 메일입니다.",
     "no-recipients": "받을 회원이 없습니다.",
     "send-failed": "시험 발송에 실패했습니다.",
+    "too-large-draft": "본문이 너무 커서 저장할 수 없습니다.",
+    "bad-input": "편집 내용을 읽을 수 없습니다. 다시 시도해 주세요.",
+    "save-failed": "저장하지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
   };
   const STATUS: Record<string, string> = {
     sent: "발송 완료",
@@ -55,6 +65,26 @@
   let duplicateSeen = $state(false);
   let sendResult = $state<{ row: MailBroadcast; skipped: number } | null>(null);
 
+  // 편집 상태
+  let editing = $state(false);
+  let editorHost = $state<HTMLDivElement | null>(null);
+  let editor: EmlEditor | null = null;
+  let mountToken = 0;
+  let loadingEditor = $state(false);
+  let editSubject = $state("");
+  let removed = $state<number[]>([]);
+  let savedAt = $state<string | null>(null);
+  let dirty = $state(false);
+  let changeSeq = 0;
+  let saving = $state(false);
+  // 저장·발송 제출이 끝날 때까지 편집을 막는다(발송 내용 = 화면 내용).
+  let locked = $state(false);
+
+  function setLocked(v: boolean) {
+    locked = v;
+    editor?.setReadOnly(v);
+  }
+
   const problemText = (code: unknown) =>
     (PROBLEMS as Record<string, string>)[String(code)] ??
     "처리하지 못했습니다.";
@@ -67,7 +97,142 @@
     alreadySent || existing?.status === "sending" || duplicateSeen,
   );
 
+  function markChanged() {
+    changeSeq += 1;
+    dirty = true;
+  }
+
+  function destroyEditor() {
+    mountToken += 1;
+    editor?.destroy();
+    editor = null;
+    editing = false;
+    loadingEditor = false;
+    editSubject = "";
+    removed = [];
+    savedAt = null;
+    dirty = false;
+  }
+
+  async function openEditor() {
+    if (!preview || preview.editableHtml === null || editing) return;
+    const token = ++mountToken;
+    const html = preview.editableHtml;
+    const draft = preview.draft;
+    editSubject = draft?.subject ?? preview.subject;
+    removed = draft ? [...draft.removedAttachments] : [];
+    savedAt = draft?.savedAt ?? null;
+    dirty = false;
+    editing = true;
+    loadingEditor = true;
+    errorMessage = null;
+    await tick();
+    try {
+      if (!editorHost) throw new Error("no host");
+      const mounted = await mountEmlEditor(editorHost, html, markChanged);
+      if (token !== mountToken) {
+        mounted.destroy();
+        return;
+      }
+      editor = mounted;
+    } catch {
+      if (token !== mountToken) return;
+      destroyEditor();
+      errorMessage =
+        "편집기를 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.";
+    } finally {
+      if (token === mountToken) loadingEditor = false;
+    }
+  }
+
+  function toggleRemoved(i: number, checked: boolean) {
+    removed = checked
+      ? [...removed, i].sort((a, b) => a - b)
+      : removed.filter((x) => x !== i);
+    markChanged();
+  }
+
+  /** 초안 저장. 성공하면 true. refresh면 미리보기를 다시 요청한다. */
+  async function saveDraft(
+    refresh: boolean,
+    keepLock = false,
+  ): Promise<boolean> {
+    if (!editor || saving) return false;
+    saving = true;
+    setLocked(true);
+    errorMessage = null;
+    const seq = changeSeq;
+    try {
+      const body = new FormData();
+      body.set("s3Key", s3Key);
+      body.set("subject", editSubject);
+      body.set("html", editor.getHtml());
+      body.set("removed", removed.join(","));
+      const response = await fetch("?/saveDraft", {
+        method: "POST",
+        body,
+        headers: { "x-sveltekit-action": "true" },
+      });
+      const result = deserialize(await response.text());
+      if (result.type === "success") {
+        savedAt = String(
+          (result.data as Record<string, unknown> | undefined)?.savedAt ??
+            new Date().toISOString(),
+        );
+        if (seq === changeSeq) dirty = false;
+        if (refresh) previewForm?.requestSubmit();
+        return true;
+      }
+      const code =
+        result.type === "failure"
+          ? (result.data as Record<string, unknown> | undefined)?.error
+          : null;
+      errorMessage =
+        code === "SERVICE_UNAVAILABLE" || code === null || code === undefined
+          ? PROBLEMS["save-failed"]
+          : problemText(code);
+      return false;
+    } catch {
+      errorMessage = PROBLEMS["save-failed"];
+      return false;
+    } finally {
+      saving = false;
+      if (!keepLock) setLocked(false);
+    }
+  }
+
+  /** 시험·전체 발송: 저장하지 않은 변경을 먼저 저장하고, 실패하면 보내지 않는다. */
+  async function submitAfterSave(event: MouseEvent) {
+    const form = (event.currentTarget as HTMLButtonElement).form;
+    if (!form) return;
+    if (editing) {
+      setLocked(true);
+      // 제출이 끝날 때까지(handle 콜백) 잠금 유지. 저장 실패면 바로 푼다.
+      if (dirty && !(await saveDraft(false, true))) {
+        setLocked(false);
+        return;
+      }
+    }
+    form.requestSubmit();
+  }
+
+  beforeNavigate(({ cancel, type }) => {
+    // 새로고침·탭 닫기(leave)는 beforeunload가 처리한다.
+    if (
+      type !== "leave" &&
+      dirty &&
+      !confirm("저장하지 않은 편집 내용이 있습니다. 떠날까요?")
+    )
+      cancel();
+  });
+  onDestroy(() => {
+    mountToken += 1;
+    editor?.destroy();
+    editor = null;
+  });
+
   function reset() {
+    destroyEditor();
     preview = null;
     existing = null;
     errorMessage = null;
@@ -78,6 +243,13 @@
   }
 
   async function onPick() {
+    if (
+      dirty &&
+      !confirm("저장하지 않은 편집 내용이 있습니다. 다른 파일을 열까요?")
+    ) {
+      if (input) input.value = "";
+      return;
+    }
     reset();
     s3Key = "";
     const picked = input?.files?.[0];
@@ -124,12 +296,14 @@
         (!preview || !confirm(`${preview.recipientCount}명에게 발송합니다`))
       ) {
         cancel();
+        setLocked(false);
         return;
       }
       busy = op;
       errorMessage = null;
       return async ({ result }: { result: Result }) => {
         busy = null;
+        if (op !== "preview") setLocked(false);
         const d = result.data ?? {};
         if (result.type === "success") {
           if (op === "preview") {
@@ -162,6 +336,12 @@
     };
 </script>
 
+<svelte:window
+  onbeforeunload={(e) => {
+    if (dirty) e.preventDefault();
+  }}
+/>
+
 <svelte:head><title>외부 메일 전체 공지 · SNUMPS Admin</title></svelte:head>
 
 <article class="paper-document mail-paper">
@@ -185,7 +365,7 @@
       bind:this={input}
       type="file"
       {accept}
-      disabled={uploading || busy !== null}
+      disabled={uploading || busy !== null || locked}
       onchange={onPick}
     />
   </label>
@@ -213,6 +393,8 @@
               <span class="badge"
                 >{a.filename ?? "(이름 없음)"}{a.inline
                   ? " · 본문 포함"
+                  : ""}{preview.draft?.removedAttachments.includes(i)
+                  ? " · 제외"
                   : ""}</span
               >
             {/each}
@@ -237,6 +419,88 @@
         {/if}
       </li>
     </ul>
+
+    {#if preview.editable}
+      {#if !editing}
+        <div class="row-actions">
+          <button
+            class="paper-btn"
+            type="button"
+            disabled={busy !== null || blocked || !!sendResult}
+            onclick={openEditor}>편집</button
+          >
+          {#if preview.draft}
+            <span class="description"
+              >저장된 초안 있음 · 저장됨 {when(preview.draft.savedAt)}</span
+            >
+          {/if}
+        </div>
+      {/if}
+    {:else}
+      <p class="notice" role="status">
+        본문이 커서 편집할 수 없습니다. 원본 그대로 보낼 수 있습니다.
+      </p>
+    {/if}
+
+    {#if editing}
+      <section class="editor-area" aria-label="편집">
+        <label>
+          <span class="paper-label">제목</span>
+          <input
+            type="text"
+            bind:value={editSubject}
+            oninput={markChanged}
+            disabled={locked}
+          />
+        </label>
+        {#if loadingEditor}<p class="scope-note" role="status">
+            편집기 불러오는 중…
+          </p>{/if}
+        <div class="editor-host" bind:this={editorHost}></div>
+        {#if preview.attachments.length > 0}
+          <ul class="attach-list">
+            {#each preview.attachments as a, i (i)}
+              <li>
+                {#if a.inBody}
+                  <span class="badge">본문 사진</span>
+                  {a.filename ?? "(이름 없음)"}
+                  <span class="description">본문에서 지우면 빠집니다</span>
+                {:else}
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={removed.includes(i)}
+                      disabled={locked}
+                      onchange={(e) =>
+                        toggleRemoved(i, e.currentTarget.checked)}
+                    />
+                    빼기 · {a.filename ?? "(이름 없음)"}
+                  </label>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        {/if}
+        <div class="row-actions">
+          <button
+            class="paper-btn primary"
+            type="button"
+            disabled={loadingEditor || saving || busy !== null}
+            onclick={() => saveDraft(true)}
+            >{saving ? "저장 중…" : "저장"}</button
+          >
+          {#if savedAt}
+            <span class="description"
+              >저장됨 {when(savedAt)}{dirty
+                ? " · 저장하지 않은 변경 있음"
+                : ""}</span
+            >
+          {:else if dirty}
+            <span class="description">저장하지 않은 변경 있음</span>
+          {/if}
+        </div>
+      </section>
+    {/if}
 
     {#if sendUnknown}
       <p class="error" role="alert">
@@ -278,7 +542,11 @@
     <div class="row-actions">
       <form method="POST" action="?/test" use:enhance={handle("test")}>
         <input type="hidden" name="s3Key" value={s3Key} />
-        <button class="paper-btn" type="submit" disabled={busy !== null}
+        <button
+          class="paper-btn"
+          type="button"
+          disabled={busy !== null || saving || loadingEditor}
+          onclick={submitAfterSave}
           >{busy === "test" ? "발송 중…" : "내게 시험 발송"}</button
         >
       </form>
@@ -286,9 +554,14 @@
         <input type="hidden" name="s3Key" value={s3Key} />
         <button
           class="paper-btn primary"
-          type="submit"
-          disabled={busy !== null || blocked || sendUnknown || !!sendResult}
-          >{busy === "send" ? "발송 중…" : "전체 발송"}</button
+          type="button"
+          onclick={submitAfterSave}
+          disabled={busy !== null ||
+            saving ||
+            loadingEditor ||
+            blocked ||
+            sendUnknown ||
+            !!sendResult}>{busy === "send" ? "발송 중…" : "전체 발송"}</button
         >
       </form>
     </div>
@@ -397,7 +670,24 @@
     white-space: pre-wrap;
     font-size: 0.78rem;
   }
+  .editor-area {
+    display: grid;
+    gap: 0.7rem;
+    margin-top: 0.8rem;
+    padding: 0.9rem;
+    border: 1px solid var(--latex-rule);
+  }
+  .editor-area input[type="text"] {
+    width: 100%;
+  }
+  .attach-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.8rem;
+  }
   .row-actions {
+    align-items: center;
     display: flex;
     gap: 0.5rem;
     margin-top: 0.8rem;
