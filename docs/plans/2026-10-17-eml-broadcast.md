@@ -450,3 +450,33 @@ export async function readStaged(path: string): Promise<Uint8Array | null>;
 **의존:** 9 **크기:** S
 
 - [ ] `playwright-browser` 스킬로 진행, 결과·스크린샷 경로를 기록
+
+### Task 11: 미리보기 이미지 서명 주소와 최종 검토 수정 (D-000162)
+
+최종 검토(opus)의 Important: 미리보기 응답에 내장 이미지를 `data:` URI로 넣으면 Vercel 함수 응답 한도 4.5MB를 넘어 큰 이미지 메일은 운영에서 미리보기·발송이 막힘. Task 6의 `data:` 치환을 아래로 바꾼다.
+
+**파일:**
+
+- 수정: `src/lib/server/data/storage.ts`, `src/lib/server/data/storage-memory.ts`, `src/lib/server/mail/broadcast/send.ts`, `src/lib/server/mail/broadcast/compose.ts`, `src/routes/(admin)/admin/mail/broadcast/+page.svelte`
+- 테스트: `src/lib/server/mail/broadcast/send.test.ts`, `src/lib/server/mail/broadcast/compose.test.ts`, `src/lib/server/data/storage-memory.test.ts`(있으면)
+
+**Interfaces:**
+
+- 제공(storage): `uploadStaged(path: string, bytes: Uint8Array, contentType: string): Promise<void>`(staging 버킷 `upsert: true`), `createSignedStagedUrl(path: string, expiresInSeconds: number): Promise<string>`. memory 구현은 바이트 저장 + `https://memory.test/staged/<path>?exp=<s>`.
+- 변경(send): `BroadcastPreview`에 `htmlOmitted: boolean` 추가. `PREVIEW_HTML_BUDGET = 3_000_000`, `PREVIEW_IMAGE_TTL = 600`.
+
+**Acceptance criteria:**
+
+- [ ] `previewBroadcast`: 정화된 HTML에서 실제로 참조되는 `cid:<id>`(Task 6의 경계 일치 규칙 유지)만, `SAFE_MIME` 통과 이미지에 한해 `<s3Key에서 확장자를 뗀 경로>/preview/<1부터 번호>.<mime 확장자>`로 `uploadStaged` → `createSignedStagedUrl(path, 600)` → HTML의 그 `cid:`를 서명 주소로 치환. 참조되지 않거나 MIME이 맞지 않는 첨부는 저장하지 않음. `data:` URI 생성 코드는 제거
+- [ ] 치환 후 HTML 길이(UTF-8 바이트)가 3_000_000을 넘으면 `html: null`, `htmlOmitted: true`(텍스트본은 그대로)
+- [ ] `sendBroadcast` 정리: `removeStaged`에 `.eml`과 함께 그 `preview/` 아래 객체 전부(`listStaged`로 조회). 삭제 실패는 로그만
+- [ ] 저장·서명 실패는 미리보기 실패가 아니라 그 이미지만 `cid:` 그대로 둠(로그에 경로·이름 없이 건수만)
+- [ ] compose: `contentDisposition: a.disposition ?? undefined`(헤더가 없는 cid 이미지를 nodemailer가 inline으로 고르게). 테스트: disposition null + contentId 이미지가 raw에서 `Content-Disposition: inline`
+- [ ] 화면: `htmlOmitted`면 iframe 대신 텍스트본 + "본문이 커서 미리보기 대신 텍스트로 보여 줍니다. 실제 모양은 [내게 시험 발송]으로 확인하세요." 안내. `PROBLEMS`를 `Record<BroadcastProblem | "duplicate" | "no-recipients" | "send-failed", string>`로 묶음. send의 `SERVICE_UNAVAILABLE` 문구를 "결과를 확인하지 못했습니다. 최근 발송 기록이 '진행 중'이면 Gmail 보낸편지함을 확인하세요."로(버튼은 새 파일 선택 전까지 비활성 유지)
+- [ ] 기존 send·compose·화면 동작 회귀 없음
+
+**의존:** 1~9 **크기:** M
+
+- [ ] 실패하는 테스트: 참조된 cid만 저장·서명 치환(img1·img10 경계 포함), 미참조·위험 MIME 미저장, 3MB 초과 htmlOmitted, 발송 후 preview 객체까지 삭제, 서명 실패 시 그 이미지만 cid 유지, compose inline 기본값
+- [ ] 실패 확인: `npx vitest run src/lib/server/mail/broadcast/` → FAIL
+- [ ] 최소 구현 → 통과 확인, `pnpm check`·`pnpm lint`·`pnpm build`
