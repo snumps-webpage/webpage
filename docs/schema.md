@@ -133,4 +133,7 @@ kind, requesterId, status(pending|approved|rejected|withdrawn), closedAs, create
   `members-opted-in`은 이번 학기 등록 회원과 동문 중 수신 동의자다 — 탈퇴 유예 중인 회원은 제외.
 - `mail-variables` — 전 템플릿 공용 `{{key}}` 값.
 - `mail-rule-history` — 이벤트별 직전 규칙 세트 (되돌리기 1단계).
+- `mail-broadcasts` — 외부 메일(.eml) 전체 공지 발송 기록 (`messageId, subject, sentBy, startedAt, finishedAt,
+recipientCount, batchesSent, batchesFailed, status(sending|sent|partial|failed)`). 같은 `messageId`는
+  `failed`일 때만 다시 보낼 수 있다. 본문·수신자 주소는 저장하지 않는다 (snumps-webpage/D-000125).
 - `role-titles` — 커스텀 임원 직위 (기본 직위는 코드).

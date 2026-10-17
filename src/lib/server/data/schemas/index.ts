@@ -14,6 +14,7 @@ import { MailTemplateSchema } from "./mail-template";
 import { MailRuleSchema } from "./mail-rule";
 import { MailVariableSchema } from "./mail-variable";
 import { MailRuleHistorySchema } from "./mail-rule-history";
+import { MailBroadcastSchema } from "./mail-broadcast";
 import { RoleTitleSchema } from "./role-title";
 import { ExecutiveProfileSchema } from "./executive-profile";
 
@@ -46,6 +47,8 @@ export const TABLES = {
   "mail-variables": MailVariableSchema,
   // 이벤트별 규칙의 직전 스냅숏 (되돌리기 1단계)
   "mail-rule-history": MailRuleHistorySchema,
+  // 전체 회원 .eml 발송 기록 (중복 발송 차단·감사, 수신자 주소는 저장하지 않음)
+  "mail-broadcasts": MailBroadcastSchema,
   // 임원 직위 옵션 (커스텀 추가분 — 기본 직위는 코드)
   "role-titles": RoleTitleSchema,
   // 역대 회장단 공개 프로필 (본인·관리자가 필드별 공개 방식을 고른다)
@@ -80,5 +83,6 @@ export * from "./mail-template";
 export * from "./mail-rule";
 export * from "./mail-variable";
 export * from "./mail-rule-history";
+export * from "./mail-broadcast";
 export * from "./role-title";
 export * from "./executive-profile";
