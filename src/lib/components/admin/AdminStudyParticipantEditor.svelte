@@ -94,8 +94,8 @@
       </div>
       {#if record.attendeeCandidates.length === 0}
         <p class="hint">
-          이 스터디에 연결된 활동의 출석자가 없습니다. 활동 기록 관리에서
-          스터디를 연결하면 채울 수 있습니다.
+          연결된 스터디 활동의 출석자가 없습니다. 활동 기록 관리에서 스터디를
+          연결하면 채울 수 있습니다.
         </p>
       {/if}
       <div class="picker" role="group" aria-label="참가자 선택">
