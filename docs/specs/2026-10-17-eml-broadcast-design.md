@@ -83,7 +83,7 @@ pnpm dev           # 실제 환경 확인(dev 대상)
 **compose.ts**
 
 - `nodemailer/lib/mail-composer`로 조립. `from`은 지정하지 않음(Gmail이 발송 계정으로 채움, 현행과 같음). `replyTo` 미설정(D-000123). `to` 없음, `bcc: batch`, `subject`, `html`, `text`, `attachments`(내장 이미지는 `cid` 유지).
-- `To: undisclosed-recipients:;`는 Gmail API가 400 `Invalid To header`로 거부함. Bcc만 있는 메일은 통과(사전 시험 2차, D-000143, fix `7187e91`).
+- `To: undisclosed-recipients:;`는 Gmail API가 400 `Invalid To header`로 거부함. Bcc만 있는 메일은 통과(사전 시험 2차, D-000143, hotfix `26bc3c9`, 400명 묶음 Bcc 헤더 접기 D-000225).
 - Bcc 헤더는 raw에 남겨야 Gmail API가 수신자로 씀(`keepBcc: true`). 다른 수신자에게 Bcc가 노출되지 않는지는 사전 시험에서 확인하지 못함(발송 계정이 @gmail.com이 아니어서 별칭 시험 불가). 테스트 전략 4에서 서로 다른 두 주소로 확인.
 - 기록용 원 Message-ID는 새 메일 헤더에 넣지 않음. 새 메일은 자체 Message-ID를 가짐.
 
