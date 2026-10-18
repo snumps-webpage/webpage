@@ -390,11 +390,11 @@
   }}
 />
 
-<svelte:head><title>외부 메일 전체 공지 · SNUMPS Admin</title></svelte:head>
+<svelte:head><title>메일 업로드 · SNUMPS Admin</title></svelte:head>
 
 <article class="paper-document mail-paper">
   <ManuscriptHeader
-    title="외부 메일 전체 공지"
+    title="메일 업로드"
     subtitle="Broadcast an uploaded .eml"
     figure={MANUSCRIPT.FIGURES.ADMIN}
   />

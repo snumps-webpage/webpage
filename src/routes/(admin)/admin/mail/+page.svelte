@@ -55,9 +55,6 @@
   />
   <AdminSectionNav />
   <p class="scope-note">
-    <a href="/admin/mail/broadcast">외부 메일 전체 공지</a>
-  </p>
-  <p class="scope-note">
     <strong>발송 규칙</strong>은 "이벤트가 발생하면 → 어떤 템플릿을 → 누구에게"
     보낼지를 정합니다. 이벤트(발생 시점)와 수신자 종류는 시스템에 고정돼 있고,
     규칙과 문구는 여기서 자유롭게 추가·제거·수정할 수 있습니다. 수정할 때마다
