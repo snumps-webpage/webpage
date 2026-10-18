@@ -108,5 +108,10 @@ export function restoreCids(
   return html.replace(URL_IN_HTML, (url) => restore(url) ?? url);
 }
 
-/** 공백·따옴표·`<>()`·백틱에서 끝나는 `http(s)://` 덩어리. 역추적 없는 선형 정규식. */
-const URL_IN_HTML = /https?:\/\/[^\s"'<>()\x60]+/gi;
+/**
+ * 공백·따옴표·`<>()`·백틱·`,`, 그리고 따옴표·`&nbsp;` 엔티티 앞에서 끝나는
+ * `http(s)://` 덩어리. 쿼리의 `&amp;`는 주소의 일부로 계속 감. 분기가 서로 겹치지
+ * 않아 역추적 없는 선형 정규식 (D-000211).
+ */
+const URL_IN_HTML =
+  /https?:\/\/(?:[^\s"'<>(),&\x60]|&(?!(?:quot|apos|nbsp|#34|#39|#x22|#x27);))+/gi;

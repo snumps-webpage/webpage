@@ -227,6 +227,30 @@ describe("restoreCids", () => {
     expect(performance.now() - t).toBeLessThan(500);
   });
 
+  it("stops a url at a quote entity, so Jodit's rewritten style restores (D-000211)", () => {
+    const u = `https://memory.test/staged/${base}/1.png?exp=600`;
+    for (const q of ["&quot;", "&#34;", "&#39;", "&apos;", "&#x22;", "&#x27;"])
+      expect(
+        restoreCids(
+          `<p style="background: url(${q}${u}${q}); x: y">`,
+          KEY,
+          images,
+        ),
+      ).toBe(`<p style="background: url(${q}cid:cid1@x${q}); x: y">`);
+  });
+
+  it("stops a url before a comma or &nbsp; in text, keeps &amp; inside the query (D-000211)", () => {
+    const u = `https://memory.test/staged/${base}/1.png?exp=600`;
+    expect(restoreCids(`${u},next`, KEY, images)).toBe("cid:cid1@x,next");
+    expect(restoreCids(`${u}&nbsp;x`, KEY, images)).toBe("cid:cid1@x&nbsp;x");
+    const withAmp = `https://p.supabase.co/storage/v1/object/sign/staging/${base}/1.png?token=a&amp;t=b`;
+    expect(restoreCids(`<img src="${withAmp}">`, KEY, images)).toBe(
+      `<img src="cid:cid1@x">`,
+    );
+    const other = `https://x.test/a.png?a=1&amp;b=2`;
+    expect(restoreCids(other, KEY, images)).toBe(other);
+  });
+
   it("does not match a key that merely shares a suffix", () => {
     const html = `<img src="https://memory.test/staged/x${base}/1.png?exp=1">`;
     expect(restoreCids(html, KEY, images)).toBe(html);

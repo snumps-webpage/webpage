@@ -50,8 +50,8 @@ node scripts/measure/editor-preservation.mjs   # 보존 회귀 시험(Task 7에�
 **`saveDraft(s3Key, { subject, html, removedAttachments }, savedBy)`**
 
 1. `loadBroadcast`와 같은 키·크기 검사, 원본 해석(첨부 목록·messageId 필요).
-2. 입력 검사: `subject` trim 후 빈 값이면 `no-subject`, HTML이 정화 후 텍스트·이미지 없이 비면 `no-body`, `removedAttachments`는 원본 첨부 색인 범위 안의 정수 집합이고 초안 본문이 `cid:`로 참조하는 첨부는 뺄 수 없음(그 밖은 `bad-input`, D-000201), 원본에 HTML 파트가 없으면 `bad-input`(D-000202), HTML 바이트가 `PREVIEW_HTML_BUDGET`(3MB) 초과면 `too-large-draft`.
-3. **서명 주소 → cid 되돌리기**: 그 업로드의 미리보기 이미지 목록(`signPreviewImages`와 같은 결정적 규칙: 참조된 cid·SAFE_MIME·image/*·SVG 제외, 원본 첨부 순서)을 다시 계산해, HTML 전체에서 `https?://`로 시작해 공백·따옴표·`<>()`·백틱에서 끝나는 주소 중 그 업로드의 `…/preview/<n>.<ext>` 경로(쿼리·토큰 무시)를 가리키는 것을 `cid:<그 이미지의 contentId>`로 바꿈. `img src`뿐 아니라 style 속성·`<style>`의 `url()`, `href` 등 어느 위치든 같음(`signPreviewImages`가 모든 위치의 `cid:`를 바꾸므로 되돌리기도 같은 범위, snumps-webpage/D-000207). 다른 업로드의 경로나 알 수 없는 주소는 그대로 두고 정화가 판단.
+2. 입력 검사: `subject` trim 후 빈 값이면 `no-subject`, HTML이 정화 후 텍스트·이미지 없이 비면 `no-body`, `removedAttachments`는 원본 첨부 색인 범위 안의 정수 집합이고 초안 본문이 `cid:`로 참조하는 첨부는 뺄 수 없음(`cid:<id>` 뒤 경계는 따옴표·공백·`>`·`)`·따옴표 엔티티이며 미리보기 서명·본문 사진 분류·발송 첨부 판정·이 검사가 같은 규칙을 씀. Jodit이 `url(&quot;cid:…&quot;)`로 다시 써도 참조로 봄, snumps-webpage/D-000211)(그 밖은 `bad-input`, D-000201), 원본에 HTML 파트가 없으면 `bad-input`(D-000202), HTML 바이트가 `PREVIEW_HTML_BUDGET`(3MB) 초과면 `too-large-draft`.
+3. **서명 주소 → cid 되돌리기**: 그 업로드의 미리보기 이미지 목록(`signPreviewImages`와 같은 결정적 규칙: 참조된 cid·SAFE_MIME·image/*·SVG 제외, 원본 첨부 순서)을 다시 계산해, HTML 전체에서 `https?://`로 시작해 공백·따옴표·`<>()`·백틱·`,`, 그리고 따옴표·`&nbsp;` 엔티티(`&quot;` `&#34;` `&#39;` `&apos;` `&#x22;` `&#x27;`) 앞에서 끝나는 주소(쿼리의 `&amp;`는 주소의 일부, snumps-webpage/D-000211) 중 그 업로드의 `…/preview/<n>.<ext>` 경로(쿼리·토큰 무시)를 가리키는 것을 `cid:<그 이미지의 contentId>`로 바꿈. `img src`뿐 아니라 style 속성·`<style>`의 `url()`, `href` 등 어느 위치든 같음(`signPreviewImages`가 모든 위치의 `cid:`를 바꾸므로 되돌리기도 같은 범위, snumps-webpage/D-000207). 다른 업로드의 경로나 알 수 없는 주소는 그대로 두고 정화가 판단.
 4. `sanitizeMailHtml`로 정화 → `draft.html` 업로드(`uploadStaged`, upsert) → 행 `mutate` upsert.
 5. 반환: `{ ok: true, savedAt }` 또는 `{ ok: false, problem }`.
 

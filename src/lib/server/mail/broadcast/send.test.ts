@@ -407,6 +407,30 @@ describe("broadcast send flow", () => {
     expect(await stagedList()).toEqual(["1.png", "2.jpg"]);
   });
 
+  it("signs and classifies a cid in url() without quotes or with quote entities (D-000211)", async () => {
+    seedMembers(2);
+    __stageBytes(
+      KEY,
+      emlWith(
+        '<p style="background:url(cid:img1)">a</p><p style="background: url(&quot;cid:img2&quot;)">b</p><img src="cid:img10">',
+        [{ cid: "img1" }, { cid: "img2" }, { cid: "img10" }],
+      ),
+    );
+    const p = await previewBroadcast(KEY);
+    if (!p.ok) throw new Error("expected ok");
+    const v = shown(p.preview);
+    expect(v).not.toContain("cid:");
+    expect(v).toContain(`url(https://memory.test/staged/${PV}1.png?exp=600)`);
+    expect(v).toContain(
+      `url(&quot;https://memory.test/staged/${PV}2.png?exp=600&quot;)`,
+    );
+    expect(p.preview.attachments.map((a) => a.inBody)).toEqual([
+      true,
+      true,
+      true,
+    ]);
+  });
+
   it("stores nothing for an unreferenced image or an unsafe mime type", async () => {
     seedMembers(2);
     __stageBytes(
@@ -721,6 +745,31 @@ describe("broadcast send flow", () => {
         expect(await problem({ removedAttachments: bad })).toBe("bad-input");
       expect(await problem({ html: 5 as unknown as string })).toBe("bad-input");
       expect(await readDraft(KEY)).toBeNull();
+    });
+
+    it("keeps a photo and the alignment when Jodit rewrites the style with &quot; (D-000211)", async () => {
+      const jodit = `<p style="background: url(&quot;${url(1)}&quot;); text-align: center;">Hi</p>`;
+      const saved = await saveDraft(KEY, input({ html: jodit }), "admin");
+      expect(saved.ok).toBe(true);
+      const d = await readDraft(KEY);
+      expect(d?.html).toContain("cid:img1");
+      expect(d?.html).not.toContain("memory.test");
+      expect(d?.html).toMatch(/text-align:\s*center/);
+      // 사진 첨부가 필터에서 빠지지 않음
+      await sendBroadcastTest(KEY, "me@example.com");
+      const raw = calls[0].body.toString().replace(/=\r\n/g, "");
+      expect(raw).not.toContain("memory.test");
+      expect(raw).toContain("Content-ID: <img1>");
+      // 아직 쓰는 사진은 뺄 수 없음 (D-000201)
+      expect(
+        (
+          await saveDraft(
+            KEY,
+            input({ html: jodit, removedAttachments: [0] }),
+            "admin",
+          )
+        ).ok,
+      ).toBe(false);
     });
 
     it("accepts a body made only of an image", async () => {

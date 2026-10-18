@@ -102,10 +102,16 @@ interface LoadedBroadcast {
   draft: MailBroadcastDraft | null;
 }
 
-/** `cid:<id>`를 값 경계까지 맞추는 정규식(`cid:img1`이 `cid:img10`에 걸리지 않게). */
+/**
+ * `cid:<id>`를 값 경계까지 맞추는 정규식(`cid:img1`이 `cid:img10`에 걸리지 않게).
+ * 경계: 따옴표·공백·`>`·`)` 또는 따옴표 엔티티(`&quot;` `&#34;` `&#39;` `&apos;`
+ * `&#x22;` `&#x27;`). Jodit이 style 속성을 `url(&quot;cid:…&quot;)`로 다시 쓰는 경우를
+ * 참조로 봄. 미리보기 서명·본문 사진 분류·발송 첨부 판정·D-000201 검사가 모두 이
+ * 하나를 씀 (D-000211).
+ */
 function cidRef(contentId: string): RegExp {
   return new RegExp(
-    `cid:${contentId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=["'\\s>])`,
+    `cid:${contentId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=["'\\s>)]|&(?:quot|apos|#34|#39|#[xX]22|#[xX]27);)`,
     "g",
   );
 }
