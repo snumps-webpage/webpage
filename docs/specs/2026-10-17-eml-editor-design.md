@@ -11,7 +11,7 @@
 
 - 기존 스택 그대로(SvelteKit 2·Svelte 5, Supabase staging, Gmail 업로드 전송).
 - 추가 의존성: `jodit` **4.17.1**(MIT, 2026-09-30 공개 — 공개 2주 지난 최신, D-000193). 편집 화면에서만 동적 `import("jodit")`.
-- 근거: `.tmp/eml-editor-spike/report.md`(후보 7개 실측). 실제 메일 기준 Jodit 4.18.3 무편집: 표 칸 17/17, 이미지 3/3, 링크 7/7, style 97.4%(정규화 100%), 화면 차이 0%.
+- 근거: `.tmp/archive/eml-editor/spike/report.md`(후보 7개 실측, 로컬 기록 — 저장소 밖). 실제 메일 기준 Jodit 4.18.3 무편집: 표 칸 17/17, 이미지 3/3, 링크 7/7, style 97.4%(정규화 100%), 화면 차이 0%.
 
 ## 명령
 
