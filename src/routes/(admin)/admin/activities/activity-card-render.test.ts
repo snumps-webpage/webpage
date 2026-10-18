@@ -34,6 +34,7 @@ const data = {
     activity("a-free", "회의", null),
     activity("a-linked-meeting", "회의", "s1"),
     activity("a-session", "스터디", "s1", "s1"),
+    activity("a-session-meeting", "회의", "s1", "s1"),
     activity("a-dinner", "회식", null),
   ],
   members: [],
@@ -87,6 +88,14 @@ describe("activity card type select (D-000138)", () => {
     expect(typeSelect(session)).toContain("disabled");
     expect(session).toContain(SESSION_NOTE);
     expect(session).not.toMatch(LINKED_NOTE);
+  });
+
+  // D-000237: an old session activity no longer typed 스터디 can be moved back
+  it("opens a session activity of another type to its type and 스터디 only", () => {
+    const strayed = typeSelect(card(html(), "a-session-meeting"));
+    expect(strayed).not.toContain("disabled");
+    expect(optionsOf(strayed)).toEqual(["회의", "스터디"]);
+    expect(strayed).toMatch(/<option value="회의"[^>]*selected/);
   });
 
   it("stays editable on an unlinked activity, every type offered", () => {

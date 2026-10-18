@@ -69,6 +69,9 @@
    * 맨 앞에 두어 저장된 대로 보이되, 저장하려면 둘 중 하나를 골라야 한다(서버가 거부).
    */
   function typeChoices(activity: ActivityRow): readonly string[] {
+    // 종류가 '스터디'가 아닌 회차 활동(옛 데이터)은 '스터디'로 되돌릴 수만 있다(D-000237)
+    if (activity.sessionStudyId && activity.type !== "스터디")
+      return [activity.type, "스터디"];
     if (activity.sessionStudyId || activity.studyId === null)
       return data.activityTypes;
     return isStudyLinkType(activity.type)
@@ -204,12 +207,16 @@
               ><label
                 ><span class="paper-label">유형</span><select
                   name="type"
-                  disabled={activity.sessionStudyId !== null}
+                  disabled={activity.sessionStudyId !== null &&
+                    activity.type === "스터디"}
                   >{#each typeChoices(activity) as type (type)}<option
                       value={type}
                       selected={type === shown.type}>{type}</option
                     >{/each}</select
-                >{#if activity.sessionStudyId !== null}<!-- 회차 활동은 종류를 잠근다 — 비활성 칸은 제출되지 않아 서버가 종류를 그대로 둔다(D-000129·138) --><small
+                >{#if activity.sessionStudyId !== null && activity.type !== "스터디"}<small
+                    class="field-note"
+                    >스터디 회차 활동은 종류를 '스터디'로만 되돌릴 수 있습니다.</small
+                  >{:else if activity.sessionStudyId !== null}<!-- 회차 활동은 종류를 잠근다 — 비활성 칸은 제출되지 않아 서버가 종류를 그대로 둔다(D-000129·138) --><small
                     class="field-note"
                     >스터디 회차 활동은 종류를 바꿀 수 없습니다.</small
                   >{:else if activity.studyId !== null}<small class="field-note"
