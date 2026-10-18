@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { onDestroy, tick } from "svelte";
+  import { onDestroy, onMount, tick } from "svelte";
   import { deserialize, enhance } from "$app/forms";
-  import { beforeNavigate, invalidateAll } from "$app/navigation";
+  import { beforeNavigate, invalidateAll, replaceState } from "$app/navigation";
+  import { page } from "$app/state";
   import { v7 as uuidv7 } from "uuid";
   import AdminSectionNav from "$lib/components/admin/AdminSectionNav.svelte";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
@@ -93,6 +94,27 @@
     // 전체 발송 성공 뒤에는 잠금을 풀어도 다시 잠김(D-000216-c).
     editor?.setReadOnly(v || !!sendResult);
   }
+
+  // 올린 파일의 키를 주소 ?key=에 남겨 새로고침 뒤 같은 업로드·초안을 다시 연다(D-000218).
+  // replaceState는 기록을 쌓지 않고 load·beforeNavigate를 일으키지 않는다.
+  function setKeyInUrl(key: string | null) {
+    try {
+      const url = new URL(page.url);
+      if (key) url.searchParams.set("key", key);
+      else url.searchParams.delete("key");
+      if (url.href !== page.url.href) replaceState(url, page.state);
+    } catch {
+      // 라우터가 준비되기 전이면 주소만 못 남기고 화면 동작은 그대로다.
+    }
+  }
+
+  onMount(async () => {
+    const key = page.url.searchParams.get("key");
+    if (!key) return;
+    s3Key = key;
+    await tick();
+    previewForm?.requestSubmit();
+  });
 
   const problemText = (code: unknown) =>
     (PROBLEMS as Record<string, string>)[String(code)] ??
@@ -266,6 +288,7 @@
     }
     reset();
     s3Key = "";
+    setKeyInUrl(null);
     const picked = input?.files?.[0];
     if (!picked) return;
     // 일부 브라우저는 .eml의 type을 비워 둔다.
@@ -286,6 +309,7 @@
     try {
       const uploaded = await uploadAdminFile(file, PURPOSE, uuidv7());
       s3Key = uploaded.s3Key;
+      setKeyInUrl(s3Key);
       // hidden 입력에 값이 반영된 뒤 미리보기를 제출한다.
       await tick();
       previewForm?.requestSubmit();
@@ -331,6 +355,7 @@
               skipped: Number(d.skipped ?? 0),
             };
             setLocked(false);
+            setKeyInUrl(null);
             await invalidateAll();
           }
         } else if (result.type === "failure") {
@@ -340,6 +365,14 @@
             else
               errorMessage = "일시적인 오류입니다. 잠시 뒤 다시 시도해 주세요.";
           } else errorMessage = problemText(d.error);
+          if (
+            op === "preview" &&
+            (d.error === "missing" || d.error === "bad-key")
+          ) {
+            // 키가 무효: 새로고침해도 다시 열 수 없다.
+            s3Key = "";
+            setKeyInUrl(null);
+          }
           if (d.error === "duplicate") {
             duplicateSeen = true;
             if (d.existing) existing = d.existing as MailBroadcast;
