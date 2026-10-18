@@ -157,28 +157,59 @@ describe("restoreCids", () => {
     expect(restoreCids(html, KEY, images)).toBe(html);
   });
 
-  it("touches only img src, not other tags or attributes", () => {
+  it("restores the signed url in any tag or attribute, not only img src (D-000207)", () => {
     const u = `https://memory.test/staged/${base}/1.png?exp=1`;
     const html = `<a href="${u}">l</a><img data-src="${u}" src="${u}">`;
     expect(restoreCids(html, KEY, images)).toBe(
-      `<a href="${u}">l</a><img data-src="${u}" src="cid:cid1@x">`,
+      `<a href="cid:cid1@x">l</a><img data-src="cid:cid1@x" src="cid:cid1@x">`,
     );
   });
 
-  it("reads attributes whole: `>` and ` src=` inside other values do not fool it", () => {
+  it("restores a url() in a style attribute, quoted either way or bare (D-000207)", () => {
+    const u = `https://memory.test/staged/${base}/1.png?exp=1`;
+    expect(
+      restoreCids(
+        `<td style="background-image:url('${u}')"></td><td style='background:url("${u}")'></td><td style="background:url(${u})"></td>`,
+        KEY,
+        images,
+      ),
+    ).toBe(
+      `<td style="background-image:url('cid:cid1@x')"></td><td style='background:url("cid:cid1@x")'></td><td style="background:url(cid:cid1@x)"></td>`,
+    );
+  });
+
+  it("restores a url() in a <style> block and a Supabase signed url in a style (D-000207)", () => {
+    const sb = `https://p.supabase.co/storage/v1/object/sign/staging/${base}/2.jpg?token=eyJ.a.b`;
+    expect(
+      restoreCids(
+        `<style>.b{background:url("${sb}")}</style><div style="background:url('${sb}')"></div>`,
+        KEY,
+        images,
+      ),
+    ).toBe(
+      `<style>.b{background:url("cid:cid2@x")}</style><div style="background:url('cid:cid2@x')"></div>`,
+    );
+  });
+
+  it("leaves another upload's url inside a style alone (D-000207)", () => {
+    const html = `<div style="background:url('https://memory.test/staged/broadcast/2026/other/preview/1.png?exp=1')"></div>`;
+    expect(restoreCids(html, KEY, images)).toBe(html);
+  });
+
+  it("restores a url in an attribute value that merely looks like a src, and past a `>` in another value (D-000207)", () => {
     const u = `https://memory.test/staged/${base}/1.png?exp=1`;
     expect(restoreCids(`<img alt="a>b" src="${u}">`, KEY, images)).toBe(
       `<img alt="a>b" src="cid:cid1@x">`,
     );
     expect(restoreCids(`<img alt=' src="${u}"' src="${u}">`, KEY, images)).toBe(
-      `<img alt=' src="${u}"' src="cid:cid1@x">`,
+      `<img alt=' src="cid:cid1@x"' src="cid:cid1@x">`,
     );
   });
 
-  it("restores an unquoted src and keeps self-closing tags", () => {
+  it("restores an unquoted src (stays unquoted) and keeps self-closing tags", () => {
     const u = `https://memory.test/staged/${base}/2.jpg?exp=1`;
     expect(restoreCids(`<IMG width=10 SRC=${u} />`, KEY, images)).toBe(
-      `<IMG width=10 SRC="cid:cid2@x" />`,
+      `<IMG width=10 SRC=cid:cid2@x />`,
     );
   });
 
@@ -186,6 +217,13 @@ describe("restoreCids", () => {
     const html = "<img   ".repeat(20000);
     const t = performance.now();
     expect(restoreCids(html, KEY, images)).toBe(html);
+    expect(performance.now() - t).toBeLessThan(500);
+  });
+
+  it("stays linear on many unterminated urls", () => {
+    const html = "https://a".repeat(50000);
+    const t = performance.now();
+    restoreCids(html, KEY, images);
     expect(performance.now() - t).toBeLessThan(500);
   });
 

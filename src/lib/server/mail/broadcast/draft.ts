@@ -78,8 +78,10 @@ export interface PreviewImage {
 
 /**
  * 편집기가 돌려준 HTML에서 미리보기 서명 주소(`…/<키-확장자>/preview/<n>.<ext>`)를
- * `cid:<contentId>`로 되돌림. `img`의 `src`만 다루고, pathname 끝으로 판정(쿼리·토큰
- * 무시, 퍼센트 인코딩 해석 후). 다른 업로드·알 수 없는 n·다른 확장자는 그대로.
+ * `cid:<contentId>`로 되돌림. `signPreviewImages`가 `cid:`를 모든 위치(img src, style
+ * 속성·`<style>`의 url(), href 등)에서 바꾸므로 되돌리기도 HTML 전체의 `http(s)://` 주소를
+ * 훑음(D-000207). pathname 끝으로 판정(쿼리·토큰 무시, 퍼센트 인코딩 해석 후).
+ * 다른 업로드·알 수 없는 n·다른 확장자는 그대로.
  */
 export function restoreCids(
   html: string,
@@ -103,35 +105,8 @@ export function restoreCids(
     const cid = byName.get(name);
     return cid === undefined ? null : `cid:${cid}`;
   };
-  // 속성 단위로 읽어 값 안의 `>`·` src=` 문자열에 속지 않음. 첫 `src` 속성만 다룸.
-  return html.replace(IMG_TAG, (tag) => {
-    let seen = false;
-    return tag.replace(
-      IMG_ATTR,
-      (
-        m,
-        lead: string,
-        name: string,
-        dq?: string,
-        sq?: string,
-        bare?: string,
-      ) => {
-        if (seen || name.toLowerCase() !== "src") return m;
-        seen = true;
-        const value = dq ?? sq ?? bare;
-        if (value === undefined) return m;
-        const next = restore(value);
-        if (next === null) return m;
-        const q = sq !== undefined ? "'" : '"';
-        return `${lead}${q}${next}${q}`;
-      },
-    );
-  });
+  return html.replace(URL_IN_HTML, (url) => restore(url) ?? url);
 }
 
-const ATTR = String.raw`\s+[^\s"'<>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'<>\x60]+))?`;
-const IMG_TAG = new RegExp(String.raw`<img(?:${ATTR})*\s*/?>`, "gi");
-const IMG_ATTR = new RegExp(
-  String.raw`(\s+([^\s"'<>/=]+)\s*=\s*)(?:"([^"]*)"|'([^']*)'|([^\s"'<>\x60]+))`,
-  "g",
-);
+/** 공백·따옴표·`<>()`·백틱에서 끝나는 `http(s)://` 덩어리. 역추적 없는 선형 정규식. */
+const URL_IN_HTML = /https?:\/\/[^\s"'<>()\x60]+/gi;

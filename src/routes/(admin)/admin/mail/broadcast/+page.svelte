@@ -56,6 +56,14 @@
   let previewForm = $state<HTMLFormElement | null>(null);
   let s3Key = $state("");
   let preview = $state<BroadcastPreview | null>(null);
+  // 편집 가능하면 응답이 본문과 꼬리말 조각을 따로 줌 (D-000208)
+  const previewDoc = $derived(
+    preview === null
+      ? null
+      : preview.editableHtml !== null
+        ? preview.editableHtml + (preview.footerHtml ?? "")
+        : preview.html,
+  );
   let existing = $state<MailBroadcast | null>(null);
   let uploading = $state(false);
   let busy = $state<"preview" | "test" | "send" | null>(null);
@@ -400,8 +408,8 @@
             {/each}
           </p>
         {/if}
-        {#if preview.html}
-          <iframe sandbox="" srcdoc={preview.html} title="미리보기"></iframe>
+        {#if previewDoc !== null}
+          <iframe sandbox="" srcdoc={previewDoc} title="미리보기"></iframe>
         {:else}
           {#if preview.htmlOmitted}
             <p class="notice" role="status">
@@ -438,7 +446,9 @@
       {/if}
     {:else}
       <p class="notice" role="status">
-        본문이 커서 편집할 수 없습니다. 원본 그대로 보낼 수 있습니다.
+        {preview.notEditableReason === "no-html"
+          ? "HTML 본문이 없는 메일이라 편집할 수 없습니다. 원본 그대로 보낼 수 있습니다."
+          : "본문이 커서 편집할 수 없습니다. 원본 그대로 보낼 수 있습니다."}
       </p>
     {/if}
 

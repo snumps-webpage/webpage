@@ -55,10 +55,15 @@ export interface BroadcastPreview {
   messageId: string;
   /** 초안이 있으면 초안 제목 */
   subject: string;
+  /** 편집 불가일 때만: 꼬리말 포함 미리보기 본문. 편집 가능하면 null (D-000208) */
   html: string | null;
-  /** 꼬리말 없는 편집용 HTML(미리보기와 같은 서명 주소). 예산 초과면 null */
+  /** 꼬리말 없는 편집용 HTML(미리보기와 같은 서명 주소). 편집 불가면 null */
   editableHtml: string | null;
+  /** 편집 가능할 때만: 꼬리말 HTML 조각. 미리보기 = `editableHtml + footerHtml` (D-000208) */
+  footerHtml: string | null;
   editable: boolean;
+  /** 편집 불가 이유: HTML 본문 없음 / 미리보기 예산 초과 (D-000209) */
+  notEditableReason: "no-html" | "too-large" | null;
   draft: {
     subject: string;
     removedAttachments: number[];
@@ -327,16 +332,21 @@ export async function previewBroadcast(
     bareHtml === null
       ? null
       : await signPreviewImages(bareHtml, parsed, images, s3Key);
-  const editableHtml =
-    signedBare !== null && bytes(signedBare) <= PREVIEW_HTML_BUDGET
-      ? signedBare
-      : null;
-  let html =
+  const footerHtml =
     signedBare === null || body.html === null
       ? null
-      : signedBare + body.html.slice((bareHtml ?? "").length);
-  // 응답 총량(html+text)에 예산 적용: 넘으면 html 생략, 그래도 넘으면 text 자름
+      : body.html.slice((bareHtml ?? "").length);
+  // 응답에는 본문을 한 번만 담음(D-000208). 편집 가능하면 본문+꼬리말 조각, 아니면 html.
+  // 실제로 담기는 본문 문자열과 text의 UTF-8 합계에 예산 적용.
   let text = body.text;
+  const editable =
+    signedBare !== null &&
+    footerHtml !== null &&
+    bytes(signedBare) + bytes(footerHtml) + bytes(text) <= PREVIEW_HTML_BUDGET;
+  let html: string | null =
+    editable || signedBare === null || footerHtml === null
+      ? null
+      : signedBare + footerHtml;
   const htmlOmitted =
     html !== null && bytes(html) + bytes(text) > PREVIEW_HTML_BUDGET;
   if (htmlOmitted) html = null;
@@ -348,8 +358,14 @@ export async function previewBroadcast(
       messageId: parsed.messageId,
       subject,
       html,
-      editableHtml,
-      editable: editableHtml !== null,
+      editableHtml: editable ? signedBare : null,
+      footerHtml: editable ? footerHtml : null,
+      editable,
+      notEditableReason: editable
+        ? null
+        : signedBare === null
+          ? "no-html"
+          : "too-large",
       draft: draft && {
         subject: draft.subject,
         removedAttachments: draft.removedAttachments,

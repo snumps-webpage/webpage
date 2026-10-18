@@ -51,23 +51,23 @@ node scripts/measure/editor-preservation.mjs   # 보존 회귀 시험(Task 7에�
 
 1. `loadBroadcast`와 같은 키·크기 검사, 원본 해석(첨부 목록·messageId 필요).
 2. 입력 검사: `subject` trim 후 빈 값이면 `no-subject`, HTML이 정화 후 텍스트·이미지 없이 비면 `no-body`, `removedAttachments`는 원본 첨부 색인 범위 안의 정수 집합이고 초안 본문이 `cid:`로 참조하는 첨부는 뺄 수 없음(그 밖은 `bad-input`, D-000201), 원본에 HTML 파트가 없으면 `bad-input`(D-000202), HTML 바이트가 `PREVIEW_HTML_BUDGET`(3MB) 초과면 `too-large-draft`.
-3. **서명 주소 → cid 되돌리기**: 그 업로드의 미리보기 이미지 목록(`signPreviewImages`와 같은 결정적 규칙: 참조된 cid·SAFE_MIME·image/*·SVG 제외, 원본 첨부 순서)을 다시 계산해, `img src`가 그 업로드의 `…/preview/<n>.<ext>` 경로(쿼리·토큰 무시)를 가리키면 `cid:<그 이미지의 contentId>`로 바꿈. 다른 업로드의 경로나 알 수 없는 주소는 그대로 두고 정화가 판단.
+3. **서명 주소 → cid 되돌리기**: 그 업로드의 미리보기 이미지 목록(`signPreviewImages`와 같은 결정적 규칙: 참조된 cid·SAFE_MIME·image/*·SVG 제외, 원본 첨부 순서)을 다시 계산해, HTML 전체에서 `https?://`로 시작해 공백·따옴표·`<>()`·백틱에서 끝나는 주소 중 그 업로드의 `…/preview/<n>.<ext>` 경로(쿼리·토큰 무시)를 가리키는 것을 `cid:<그 이미지의 contentId>`로 바꿈. `img src`뿐 아니라 style 속성·`<style>`의 `url()`, `href` 등 어느 위치든 같음(`signPreviewImages`가 모든 위치의 `cid:`를 바꾸므로 되돌리기도 같은 범위, snumps-webpage/D-000207). 다른 업로드의 경로나 알 수 없는 주소는 그대로 두고 정화가 판단.
 4. `sanitizeMailHtml`로 정화 → `draft.html` 업로드(`uploadStaged`, upsert) → 행 `mutate` upsert.
 5. 반환: `{ ok: true, savedAt }` 또는 `{ ok: false, problem }`.
 
 **적재(`loadBroadcast`) 변경**: 초안 행이 있으면 제목은 초안 제목, HTML은 `draft.html`(다시 정화), 첨부는 `removedAttachments`를 뺀 것. 텍스트본은 편집 HTML에서 `withFooter`가 새로 만듦(원본 text 파트는 쓰지 않음 — 편집과 어긋나므로). 원본 본문이 참조하던 cid 첨부 중 초안 HTML에서 지운 사진만 발송본에서 뺌. 원본이 참조하지 않던 cid 첨부(Content-ID 붙은 일반 파일)는 일반 첨부로 둠(snumps-webpage/D-000200).
 
-**preview 응답 추가 필드**: `editableHtml`(꼬리말 없는 정화 HTML, 미리보기와 같은 서명 주소 치환, 3MB 초과면 `null` + `editable: false`), `draft`(있으면 `{ subject, removedAttachments, savedAt, savedBy }`).
+**preview 응답 추가 필드**(snumps-webpage/D-000208, D-000209): `editableHtml`(꼬리말 없는 정화 HTML, 미리보기와 같은 서명 주소 치환), `footerHtml`(꼬리말 HTML 조각), `editable`, `notEditableReason`(`"no-html"` | `"too-large"` | `null`), `draft`(있으면 `{ subject, removedAttachments, savedAt, savedBy }`). 본문은 응답에 한 번만 담음: 편집 가능하면 `editableHtml` + `footerHtml`만 주고 `html`은 `null`(화면이 `editableHtml + footerHtml`로 미리보기를 만들며 옛 `html`과 바이트 단위로 같음), 편집 불가면 `html`(꼬리말 포함)만 주고 `editableHtml`·`footerHtml`은 `null`. 3MB 예산은 응답에 실제로 담기는 본문 문자열과 `text`의 UTF-8 합계에 적용하고, 편집용 조합이 넘으면 `editable: false` + `too-large`로 떨어져 기존 `htmlOmitted`·`textTruncated` 규칙을 따름. 원본에 HTML 파트가 없으면 `no-html`.
 
 **중복 차단**: 원본 Message-ID 그대로(D-000191). 고친 메일도 같은 원본이면 한 번만.
 
 ### 화면
 
-- 미리보기 아래 [편집] 버튼 → `src/lib/client/eml-editor.ts`가 `import("jodit")`로 Jodit을 **iframe 모드**로 띄움(메일의 `<style>`이 관리자 화면에 번지지 않게). 내용은 `editableHtml`.
+- 미리보기 아래 [편집] 버튼 → `src/lib/client/eml-editor.ts`가 `import("jodit")`로 Jodit을 **iframe 모드**로 띄움(메일의 `<style>`이 관리자 화면에 번지지 않게). 내용은 `editableHtml`(미리보기 iframe은 `editableHtml + footerHtml`).
 - 제목 입력칸(초안 제목 또는 원본 제목), 첨부 목록 각 행에 '빼기' 체크(내장 이미지는 목록에 '본문 사진'으로 표시, 빼기는 본문에서 지우는 것으로 안내).
 - [저장] → `?/saveDraft`(form: `s3Key`, `subject`, `html`, `removed`) → 성공 시 '저장됨 시각', 미리보기 갱신(`?/preview` 재요청).
 - 변경 뒤 저장하지 않은 상태에서 페이지를 떠나면 `beforeunload` 경고. [내게 시험 발송]·[전체 발송]을 누르면 저장하지 않은 변경을 먼저 저장하고(실패하면 발송 중단) 진행.
-- `editable: false`면 [편집] 대신 "본문이 커서 편집할 수 없습니다. 원본 그대로 보낼 수 있습니다." 안내.
+- `editable: false`면 [편집] 대신 이유별 안내(snumps-webpage/D-000209): `no-html` → "HTML 본문이 없는 메일이라 편집할 수 없습니다. 원본 그대로 보낼 수 있습니다.", `too-large` → "본문이 커서 편집할 수 없습니다. 원본 그대로 보낼 수 있습니다."
 - 문제 코드 문구 추가: `no-subject`(기존), `no-body`(기존), `too-large-draft`: "본문이 너무 커서 저장할 수 없습니다.", `bad-input`: "편집 내용을 읽을 수 없습니다. 다시 시도해 주세요."
 
 ### 오류 처리
@@ -86,7 +86,7 @@ node scripts/measure/editor-preservation.mjs   # 보존 회귀 시험(Task 7에�
 기존 `broadcast/` 모듈 관례(결정 ID 인용 주석, 실패는 결과 값, 로그에 주소·본문·파일 이름 없음).
 
 ```ts
-/** 그 업로드의 미리보기 사진 주소를 cid로 되돌림 — 다른 주소는 손대지 않음 (D-000194). */
+/** 그 업로드의 미리보기 사진 주소를 HTML 전체에서 cid로 되돌림 — 다른 주소는 손대지 않음 (D-000194, D-000207). */
 export function restoreCids(
   html: string,
   base: string,

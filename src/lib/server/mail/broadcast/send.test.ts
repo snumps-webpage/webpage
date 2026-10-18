@@ -67,6 +67,7 @@ import {
   saveDraft,
 } from "./send";
 import { draftHtmlPath, readDraft } from "./draft";
+import { withFooter } from "./sanitize";
 import type { ParsedMail } from "./parse";
 
 const KEY = `${BROADCAST_PREFIX}a.eml`;
@@ -228,6 +229,13 @@ function emlAlt(html: string | null, text: string): Uint8Array {
   );
 }
 const PV = "pending/broadcast-eml/a/preview/";
+/** 화면이 iframe에 넣는 미리보기 문서 (D-000208). */
+const shown = (p: {
+  html: string | null;
+  editableHtml: string | null;
+  footerHtml: string | null;
+}) =>
+  p.editableHtml !== null ? p.editableHtml + (p.footerHtml ?? "") : p.html;
 const stagedList = async () =>
   (await listStaged(`${BROADCAST_PREFIX}a/preview`)).map((f) => f.name);
 
@@ -388,14 +396,14 @@ describe("broadcast send flow", () => {
     const p = await previewBroadcast(KEY);
     if (!p.ok) throw new Error("expected ok");
     expect(p.preview.htmlOmitted).toBe(false);
-    expect(p.preview.html).toContain(
+    expect(shown(p.preview)).toContain(
       `src="https://memory.test/staged/${PV}1.png?exp=600"`,
     );
-    expect(p.preview.html).toContain(
+    expect(shown(p.preview)).toContain(
       `src="https://memory.test/staged/${PV}2.jpg?exp=600"`,
     );
-    expect(p.preview.html).not.toContain("cid:");
-    expect(p.preview.html).not.toContain("data:");
+    expect(shown(p.preview)).not.toContain("cid:");
+    expect(shown(p.preview)).not.toContain("data:");
     expect(await stagedList()).toEqual(["1.png", "2.jpg"]);
   });
 
@@ -410,8 +418,8 @@ describe("broadcast send flow", () => {
     );
     const p = await previewBroadcast(KEY);
     if (!p.ok) throw new Error("expected ok");
-    expect(p.preview.html).toContain("cid:img1");
-    expect(p.preview.html).not.toContain("data:");
+    expect(shown(p.preview)).toContain("cid:img1");
+    expect(shown(p.preview)).not.toContain("data:");
     expect(await stagedList()).toEqual([]);
   });
 
@@ -423,7 +431,7 @@ describe("broadcast send flow", () => {
     );
     const p = await previewBroadcast(KEY);
     if (!p.ok) throw new Error("expected ok");
-    expect(p.preview.html).toContain(`${PV}1.bin`);
+    expect(shown(p.preview)).toContain(`${PV}1.bin`);
   });
 
   it("leaves cid on only the image whose signing failed, without logging names", async () => {
@@ -438,8 +446,8 @@ describe("broadcast send flow", () => {
     );
     const p = await previewBroadcast(KEY);
     if (!p.ok) throw new Error("expected ok");
-    expect(p.preview.html).toContain('src="cid:img1"');
-    expect(p.preview.html).toContain(`${PV}2.png`);
+    expect(shown(p.preview)).toContain('src="cid:img1"');
+    expect(shown(p.preview)).toContain(`${PV}2.png`);
     const logged = JSON.stringify(vi.mocked(console.error).mock.calls);
     expect(logged).toContain("1 preview image(s)");
     expect(logged).not.toContain("img1");
@@ -521,7 +529,7 @@ describe("broadcast send flow", () => {
     );
     const p = await previewBroadcast(KEY);
     if (!p.ok) throw new Error("expected ok");
-    expect(p.preview.html).toContain("cid:img1");
+    expect(shown(p.preview)).toContain("cid:img1");
     expect(await stagedList()).toEqual([]);
   });
 
@@ -533,7 +541,7 @@ describe("broadcast send flow", () => {
     );
     const p = await previewBroadcast(KEY);
     if (!p.ok) throw new Error("expected ok");
-    expect(p.preview.html).toContain("cid:img1");
+    expect(shown(p.preview)).toContain("cid:img1");
     expect(await stagedList()).toEqual([]);
   });
 
@@ -562,9 +570,9 @@ describe("broadcast send flow", () => {
     seedMembers(2);
     const p = await previewBroadcast(KEY);
     if (!p.ok) throw new Error("expected ok");
-    expect(p.preview.html).toContain("https://memory.test/staged/");
-    expect(p.preview.html).not.toContain("cid:");
-    expect(p.preview.html).not.toContain("data:");
+    expect(shown(p.preview)).toContain("https://memory.test/staged/");
+    expect(shown(p.preview)).not.toContain("cid:");
+    expect(shown(p.preview)).not.toContain("data:");
     expect(p.preview.recipientCount).toBe(2);
     expect(p.preview.subject).toBe("Hello");
     expect(p.preview.attachments[0]).toMatchObject({ inline: true });
@@ -842,8 +850,8 @@ describe("broadcast send flow", () => {
       expect(p.preview.editableHtml).toContain("EditedBody");
       expect(p.preview.editableHtml).toContain(url(1));
       expect(p.preview.editableHtml).not.toContain("SNUMPS 전체 공지");
-      expect(p.preview.html).toContain(p.preview.editableHtml ?? "");
-      expect(p.preview.html).toContain("SNUMPS 전체 공지");
+      expect(p.preview.html).toBeNull();
+      expect(p.preview.footerHtml).toContain("SNUMPS 전체 공지");
       expect(p.preview.text).toContain("EditedBody");
       expect(p.preview.text).not.toContain("Orig");
     });
@@ -854,7 +862,101 @@ describe("broadcast send flow", () => {
       if (!p.ok) throw new Error("expected ok");
       expect(p.preview.editable).toBe(false);
       expect(p.preview.editableHtml).toBeNull();
+      expect(p.preview.footerHtml).toBeNull();
+      expect(p.preview.notEditableReason).toBe("too-large");
       expect(p.preview.htmlOmitted).toBe(true);
+    });
+
+    it("says no-html for a mail without an html part (D-000209)", async () => {
+      __stageBytes(KEY, emlAlt(null, "plain only"));
+      const p = await previewBroadcast(KEY);
+      if (!p.ok) throw new Error("expected ok");
+      expect(p.preview.editable).toBe(false);
+      expect(p.preview.notEditableReason).toBe("no-html");
+      expect(p.preview.html).toBeNull();
+      expect(p.preview.htmlOmitted).toBe(false);
+      expect(p.preview.text).toContain("plain only");
+    });
+
+    it("has no reason when the mail is editable (D-000209)", async () => {
+      const p = await previewBroadcast(KEY);
+      if (!p.ok) throw new Error("expected ok");
+      expect(p.preview.editable).toBe(true);
+      expect(p.preview.notEditableReason).toBeNull();
+    });
+
+    it("sends the body once: editableHtml + footerHtml equals the old footer-included html (D-000208)", async () => {
+      const p = await previewBroadcast(KEY);
+      if (!p.ok) throw new Error("expected ok");
+      const { editableHtml, footerHtml } = p.preview;
+      expect(p.preview.html).toBeNull();
+      expect(editableHtml).not.toBeNull();
+      expect(footerHtml).toContain(FOOTER_URL);
+      // 옛 html = 서명한 본문 + withFooter가 붙인 꼬리말
+      expect(editableHtml! + footerHtml!).toBe(
+        withFooter({ html: editableHtml, text: null }, FOOTER_URL).html,
+      );
+    });
+
+    it("keeps a 2.4MB body editable with the response under 3MB + margin (D-000208)", async () => {
+      __stageBytes(
+        KEY,
+        emlAlt(`<p>${"a".repeat(2_400_000)}</p>`, "short text"),
+      );
+      const p = await previewBroadcast(KEY);
+      if (!p.ok) throw new Error("expected ok");
+      expect(p.preview.editable).toBe(true);
+      expect(p.preview.html).toBeNull();
+      expect(p.preview.editableHtml).not.toBeNull();
+      expect(p.preview.footerHtml).not.toBeNull();
+      expect(JSON.stringify(p.preview).length).toBeLessThan(3_200_000);
+    });
+
+    it("counts editableHtml + footerHtml + text against the budget and falls to the not-editable path (D-000208)", async () => {
+      const big = "a".repeat(2_400_000);
+      __stageBytes(KEY, emlAlt(`<p>${big}</p>`, big));
+      const p = await previewBroadcast(KEY);
+      if (!p.ok) throw new Error("expected ok");
+      expect(p.preview.editable).toBe(false);
+      expect(p.preview.notEditableReason).toBe("too-large");
+      expect(p.preview.editableHtml).toBeNull();
+      expect(p.preview.footerHtml).toBeNull();
+      expect(p.preview.html).toBeNull();
+      expect(p.preview.htmlOmitted).toBe(true);
+      expect(JSON.stringify(p.preview).length).toBeLessThan(3_200_000);
+    });
+
+    it("restores a style-background photo to cid after saving the editable body (D-000207)", async () => {
+      __stageBytes(
+        KEY,
+        emlWith(
+          `<div style="background-image:url('cid:img1')">Hi</div><style>.b{background:url("cid:img1")}</style><p class="b">x</p>`,
+          [{ cid: "img1" }],
+        ),
+      );
+      const p = await previewBroadcast(KEY);
+      if (!p.ok) throw new Error("expected ok");
+      const editable = p.preview.editableHtml;
+      expect(editable).not.toBeNull();
+      expect(editable).toContain("memory.test");
+      expect(
+        (
+          await saveDraft(
+            KEY,
+            { subject: "S", html: editable!, removedAttachments: [] },
+            "admin",
+          )
+        ).ok,
+      ).toBe(true);
+      calls = [];
+      expect(await sendBroadcastTest(KEY, "me@example.com")).toEqual({
+        ok: true,
+      });
+      // quoted-printable 줄 이음(`=\r\n`)을 걷어낸 뒤 확인
+      const raw = calls[0].body.toString().replace(/=\r?\n/g, "");
+      expect(raw).not.toContain("memory.test");
+      expect(raw).toContain("cid:img1");
+      expect(raw).toContain("Content-ID: <img1>");
     });
 
     it("send records the draft subject, keeps the original message id, then removes the draft", async () => {
