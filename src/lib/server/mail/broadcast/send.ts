@@ -325,14 +325,6 @@ async function signPreviewImages(
   return out;
 }
 
-/** UTF-8 바이트 상한으로 자름. 잘린 문자 조각은 버려 문자가 깨지지 않게 함. */
-function truncateUtf8(text: string, maxBytes: number): string {
-  const cut = new TextDecoder().decode(
-    Buffer.from(text, "utf8").subarray(0, maxBytes),
-  );
-  return cut.replace(/\uFFFD+$/, "");
-}
-
 /** 미리보기: 제목·정화된 본문·첨부·수신자 수·같은 메일의 기존 기록. */
 export async function previewBroadcast(
   s3Key: string,
@@ -417,19 +409,41 @@ export async function previewBroadcast(
   const omitted = canShowHtml;
   const plain = assemble(false, null, text, omitted, false);
   if (fits(plain)) return { ok: true, preview: plain };
-  // text가 혼자 상한을 넘음: 들어가는 가장 긴 앞부분을 이분 탐색(측정 약 23회)
-  let lo = 0;
-  let hi = Buffer.byteLength(text, "utf8");
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    if (fits(assemble(false, null, truncateUtf8(text, mid), omitted, true)))
-      lo = mid;
-    else hi = mid - 1;
-  }
+  // text가 혼자 상한을 넘음: 들어가는 가장 긴 앞부분을 한 번 훑어 찾음. 문자열 직렬화는
+  // 문자마다 따로 이스케이프되므로 전송 크기 = 빈 text 응답 + 문자별 비용의 합.
+  const room =
+    PREVIEW_RESPONSE_BUDGET -
+    wireBytes(assemble(false, null, "", omitted, true));
+  let cut = cutToWireBudget(text, room);
+  // 합산 가정이 어긋나도 상한은 지킴(문자 경계에서만 줄임)
+  while (
+    cut > 0 &&
+    !fits(assemble(false, null, text.slice(0, cut), omitted, true))
+  )
+    cut = Math.floor(cut * 0.99);
   return {
     ok: true,
-    preview: assemble(false, null, truncateUtf8(text, lo), omitted, true),
+    preview: assemble(false, null, text.slice(0, cut), omitted, true),
   };
+}
+
+/** 직렬화 비용 합이 `room` 바이트 안에 드는 가장 긴 앞부분의 길이(UTF-16 단위, 문자 경계). */
+function cutToWireBudget(text: string, room: number): number {
+  const empty = wireBytes("");
+  const cost = new Map<string, number>();
+  let used = 0;
+  let i = 0;
+  for (const ch of text) {
+    let c = cost.get(ch);
+    if (c === undefined) {
+      c = wireBytes(ch) - empty;
+      cost.set(ch, c);
+    }
+    if (used + c > room) break;
+    used += c;
+    i += ch.length;
+  }
+  return i;
 }
 
 /** 시험 발송: 한 주소에만 1통, 기록 없음. Gmail 오류는 throw하지 않음. */
