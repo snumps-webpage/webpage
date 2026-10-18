@@ -23,12 +23,15 @@ Google 값이 가짜라 메일은 한 통도 나가지 않는다.
 | `real.mjs`               | 백업 스냅숏을 올려 실데이터로 전 라우트·전 회원 화면 확인 — **개인정보 주의** (아래)                                                                                                                                                                                                                             |
 | `ui-setup.mjs`           | 브라우저 검사용 상태를 만들고 회원 쿠키를 파일로 남긴다                                                                                                                                                                                                                                                          |
 | `ui-cdp.mjs`             | 시스템 Chromium을 DevTools 프로토콜로 조종해 대시보드 버튼 클릭·화면 갱신·콘솔 오류 확인. 세미나 신청 폼이 신청자를 발표자로 고른 채 열리는지도 본다                                                                                                                                                             |
+| `editor-ui.py`           | `.eml` 공지 편집기 화면 실측(Playwright Python) — 아래 절                                                                                                                                                                                                                                                        |
+| `editor-ui-cookie.mjs`   | `editor-ui.py`가 쓰는 위조 관리자 쿠키를 파일로 남김                                                                                                                                                                                                                                                             |
 
 ### 시드 API와 가드
 
 앱은 `DATA_BACKEND=memory`일 때 데이터를 서버 프로세스 메모리에만 둔다 — 밖에서 넣거나
 원본을 볼 길이 없다. 시드 API(`/api/__probe`)가 그 창구다: `reset`(저장소와 **모든 테이블
-캐시**를 비움), `put`/`seed`(문서를 그대로 넣음), `GET`(저장된 원본 읽기).
+캐시**를 비움), `put`/`seed`(문서를 그대로 넣음), `stage`(staging 객체 바이트를 넣음 — 브라우저가
+서명 업로드 주소로 보내는 PUT을 흉내 냄), `GET`(저장된 원본 읽기, `kind=staged&key=<경로>`는 staging 바이트).
 
 운영에 있으면 인증 없이 데이터를 바꾸는 구멍이므로 두 겹으로 막는다.
 
@@ -102,6 +105,23 @@ node scripts/measure/editor-preservation.mjs --jodit-config '<JSON>'  # 시험 �
 
 기준(미달이면 exit 1): 표·행·칸 수 동일, `img src` 100%, `a href` 100%, 정규화 style 보존 99% 이상,
 (a)의 화면 픽셀 차이 1% 이하. (b)의 화면 차이는 단어가 줄바꿈을 옮기므로 참고값.
+
+## 편집기 화면 실측 (`editor-ui.py`)
+
+`.eml` 공지 편집기(`/admin/mail/broadcast`)를 실측 서버에서 브라우저로 끝까지 돌린다. 합성 메일(표·인라인
+style·`cid:` 사진과 style 배경·링크·일반 첨부)을 `$MEASURE_DIR/editor-ui/`에 만들고, 위조 관리자 쿠키
+(`editor-ui-cookie.mjs`)로 들어가, 서명 업로드 PUT과 미리보기 사진 GET(`https://memory.test/…`)을
+Playwright route로 시드 API에 이어 준다.
+
+```bash
+scripts/measure/start.sh                  # 터미널 1
+python3 scripts/measure/editor-ui.py      # 터미널 2 — BASE로 다른 서버 지정
+```
+
+본다: 편집기 로드(iframe·사진), 초기 비변경, 고침·배경 사진 문단 정렬, 사이트 안 이동 경고, 저장·미리보기
+반영, 서버 초안(`cid:` 유지·서명 주소 없음·표·style·정렬), 다시 미리보기, 파일 교체 경고, 발송 전 자동
+저장 중 편집 잠금·해제, 콘솔 오류 0. 가짜 Google이라 시험 발송은 실패가 정상이다. Playwright는 Python
+(사용자 site-packages)이라 `python3 -I`로는 돌지 않는다.
 
 ## 한계
 
