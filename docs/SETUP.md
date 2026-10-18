@@ -127,3 +127,24 @@ Preview 배포에서는 Google OAuth가 Preview 주소를 받지 않으므로, �
 - 접속: `<Preview 주소>/admin?dev_preview=admin&key=<키>` → 키를 뺀 주소로 303 이동(`Referrer-Policy: no-referrer`), 서명 쿠키 8시간(서버도 만료 확인). `?dev_preview=off`로 끔.
 - 키 교체: `bash scripts/ops/ops-vercel-preview-login.sh --rotate` 후 재배포. 기존 우회 쿠키는 모두 무효가 된다. 키가 노출됐으면 바로 교체한다.
 - 우회 신원은 가상 관리자 `dev-admin@snu.ac.kr`이다. Preview에는 실제 Gmail 토큰이 있으므로 [내게 시험 발송]·전체 발송은 누르지 않는다.
+
+## 📨 외부 메일(.eml) 공지가 '진행 중'으로 남았을 때
+
+`/admin/mail/broadcast`의 전체 발송은 함수 시간 상한(120초) 안에서 묶음(400명)마다 Gmail로 보낸다. 25MB에 가까운 메일은 묶음 하나에 수십 초가 걸려, 수신자가 약 1,600명을 넘으면 상한에 걸려 기록이 `sending`(최근 발송 '진행 중')으로 남을 수 있다. 같은 원본(Message-ID)은 `failed`일 때만 다시 보낼 수 있으므로, 남은 기록이 재발송을 막는다(중복 발송 방지, snumps-webpage/D-000110·D-000228).
+
+1. 발송 계정의 Gmail **보낸편지함**에서 그 제목의 메일 수를 센다. 보낸 묶음 수 = 실제로 나간 수(보낸편지함 사본 1통 = 묶음 1개).
+2. 모든 묶음이 나갔으면 그대로 둔다(기록만 '진행 중'으로 보임).
+3. 일부만 나갔고 다시 보내야 하면, Supabase SQL 편집기에서 그 기록만 `failed`로 바꾼 뒤 화면에서 다시 보낸다. **이미 받은 사람도 한 번 더 받는다**(어느 묶음까지 나갔는지 기록하지 않음).
+
+```sql
+update app_tables
+set doc = jsonb_set(doc, '{rows}', (
+      select jsonb_agg(case
+        when r->>'messageId' = '<Message-ID>' and r->>'status' = 'sending'
+        then r || '{"status":"failed"}'::jsonb else r end)
+      from jsonb_array_elements(doc->'rows') r)),
+    version = version + 1   -- 올려야 앱이 캐시 대신 새로 읽는다
+where name = 'mail-broadcasts';
+```
+
+`<Message-ID>`는 화면의 '이미 발송됨' 안내나 위 표의 `messageId` 값(꺾쇠 포함)을 그대로 쓴다.
