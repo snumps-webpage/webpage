@@ -95,13 +95,13 @@
     editor?.setReadOnly(v || !!sendResult);
   }
 
-  // 올린 파일의 키를 주소 ?key=에 남겨 새로고침 뒤 같은 업로드·초안을 다시 연다(D-000218).
+  // 올린 파일의 키를 주소 ?upload=에 남겨 새로고침 뒤 같은 업로드·초안을 다시 연다(D-000218 — `key`는 Preview 로그인 우회가 지우는 이름이라 피함).
   // replaceState는 기록을 쌓지 않고 load·beforeNavigate를 일으키지 않는다.
   function setKeyInUrl(key: string | null) {
     try {
       const url = new URL(page.url);
-      if (key) url.searchParams.set("key", key);
-      else url.searchParams.delete("key");
+      if (key) url.searchParams.set("upload", key);
+      else url.searchParams.delete("upload");
       if (url.href !== page.url.href) replaceState(url, page.state);
     } catch {
       // 라우터가 준비되기 전이면 주소만 못 남기고 화면 동작은 그대로다.
@@ -109,7 +109,7 @@
   }
 
   onMount(async () => {
-    const key = page.url.searchParams.get("key");
+    const key = page.url.searchParams.get("upload");
     if (!key) return;
     s3Key = key;
     await tick();

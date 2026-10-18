@@ -64,7 +64,7 @@ node scripts/measure/editor-preservation.mjs   # 보존 회귀 시험(Task 7에�
 ### 화면
 
 - 미리보기 아래 [편집] 버튼 → `src/lib/client/eml-editor.ts`가 `import("jodit")`로 Jodit을 **iframe 모드**로 띄움(메일의 `<style>`이 관리자 화면에 번지지 않게). 내용은 `editableHtml`(미리보기 iframe은 `editableHtml + footerHtml`).
-- 올린 파일의 키를 주소 `?key=`에 남겨 새로고침 뒤 같은 업로드·초안을 다시 엶(snumps-webpage/D-000218).
+- 올린 파일의 키를 주소 `?upload=`에(`key`는 Preview 로그인 우회가 쓰는 이름이라 피함) 남겨 새로고침 뒤 같은 업로드·초안을 다시 엶(snumps-webpage/D-000218).
 - 제목 입력칸(초안 제목 또는 원본 제목), 첨부 목록 각 행에 '빼기' 체크(내장 이미지는 목록에 '본문 사진'으로 표시, 빼기는 본문에서 지우는 것으로 안내).
 - [저장] → `?/saveDraft`(form: `s3Key`, `subject`, `html`, `removed`) → 성공 시 '저장됨 시각', 미리보기 갱신(`?/preview` 재요청).
 - 변경 뒤 저장하지 않은 상태에서 페이지를 떠나면 `beforeunload` 경고. [내게 시험 발송]·[전체 발송]을 누르면 저장하지 않은 변경을 먼저 저장하고(실패하면 발송 중단) 진행.

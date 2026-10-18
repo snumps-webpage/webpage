@@ -244,10 +244,10 @@ with sync_playwright() as p:
     check("style background restored to cid (D-000207)", "url('cid:logo1')" in dhtml or "url(cid:logo1)" in dhtml or "url(\"cid:logo1\")" in dhtml or "url(&quot;cid:logo1&quot;)" in dhtml, dhtml[dhtml.find("background-image"):dhtml.find("background-image")+60])
 
     # 새로고침 → 주소의 key로 같은 업로드·초안을 다시 엶 (D-000218)
-    check("url keeps ?key= after upload", s3_key in urllib.parse.unquote(page.url), page.url)
+    check("url keeps ?upload= after upload", s3_key in urllib.parse.unquote(page.url), page.url)
     page.reload()
     page.locator('input[type="file"]').wait_for()
-    check("url keeps ?key= after reload", s3_key in urllib.parse.unquote(page.url), page.url)
+    check("url keeps ?upload= after reload", s3_key in urllib.parse.unquote(page.url), page.url)
     expect(page.get_by_text("2. 미리보기")).to_be_visible(timeout=30000)
     expect(page.get_by_text("저장된 초안 있음", exact=False)).to_be_visible(timeout=15000)
     check("preview opens by itself with the saved draft after reload", True)
@@ -261,7 +261,7 @@ with sync_playwright() as p:
     expect(page.get_by_text("2. 미리보기")).to_be_visible(timeout=30000)
     page.wait_for_timeout(1500)
     check("same file re-upload opens as a new mail (no draft)", page.get_by_text("저장된 초안 있음", exact=False).count() == 0)
-    check("re-upload replaces ?key=", s3_key not in urllib.parse.unquote(page.url) and "key=" in page.url, page.url)
+    check("re-upload replaces ?upload=", s3_key not in urllib.parse.unquote(page.url) and "upload=" in page.url, page.url)
 
     # 파일 교체 경고: (방금 새로 연 메일을) 편집 → 고침 → 다른 파일 선택 → 취소하면 그대로
     page.get_by_role("button", name="편집", exact=True).click()
