@@ -48,6 +48,7 @@
     "@supabase/supabase-js": "^2.49.0",
     "@sveltejs/adapter-vercel": "^6.3.4",
     "@sveltejs/kit": "^2.50.2",
+    "devalue": "5.9.1",
     "html-to-image": "^1.11.13",
     "ioredis": "^5.10.1",
     "jodit": "4.17.1",

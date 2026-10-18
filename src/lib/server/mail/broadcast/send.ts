@@ -1,4 +1,5 @@
 import { env } from "$env/dynamic/private";
+import { stringify } from "devalue";
 import { uploadSpec } from "$lib/domain/uploads";
 import { newId } from "$lib/server/core/id";
 import type {
@@ -70,7 +71,7 @@ export interface BroadcastPreview {
     savedAt: string;
     savedBy: string;
   } | null;
-  /** 치환 뒤 HTML이 PREVIEW_HTML_BUDGET을 넘어 뺐으면 true(텍스트본만 보여 줌) */
+  /** 응답이 전송 크기 상한(PREVIEW_RESPONSE_BUDGET)을 넘어 HTML을 뺐으면 true(텍스트본만 보여 줌, D-000212) */
   htmlOmitted: boolean;
   /** 텍스트본이 혼자 예산을 넘어 앞부분만 남겼으면 true */
   textTruncated: boolean;
@@ -238,8 +239,26 @@ const PREVIEW_EXT: Record<string, string> = {
   "image/gif": "gif",
   "image/webp": "webp",
 };
-/** 미리보기 HTML 상한(UTF-8 바이트). Vercel 응답 한도 4.5MB 아래로 둠(D-000162). */
+/** 초안 입력 HTML 상한(UTF-8 바이트, 저장 전·정화 후 각각). 응답 크기 상한은 아래(D-000212). */
 export const PREVIEW_HTML_BUDGET = 3_000_000;
+/**
+ * 미리보기 action 응답 상한(실제 전송 바이트). Vercel 응답 한도 4.5MB 아래로 둠(D-000162).
+ * Kit은 `JSON.stringify({ type, status, data: devalue.stringify(data) })`로 두 번
+ * 직렬화하므로 태그 많은 본문은 3MB가 5MB 넘게 늘어남 — 그래서 본문 바이트가 아니라
+ * 직렬화 결과를 잼(D-000212).
+ */
+export const PREVIEW_RESPONSE_BUDGET = 4_000_000;
+/** Kit action 응답과 같은 직렬화의 UTF-8 바이트(`type`·`status` 약 40바이트는 여유에 포함). */
+const wireBytes = (v: unknown) =>
+  Buffer.byteLength(JSON.stringify({ data: stringify(v) }), "utf8");
+/**
+ * 초안 저장 검사용 가정: 미리보기 서명 주소의 최대 길이(문자). 저장 때는 서명이 없으므로
+ * `cid:` 참조를 이 길이의 자리표시로 바꿔 쟀음. 실제 Supabase 서명 주소(도메인 + 경로 +
+ * JWT 토큰)는 약 400~600자이므로 보수적으로 크게 잡음(D-000212).
+ */
+const SIGNED_URL_MAX_LENGTH = 1024;
+/** 초안 저장 검사의 미리보기 응답 나머지 필드(`existing` 등) 여유 바이트. */
+const SAVE_RESPONSE_SLACK = 20_000;
 /** 미리보기 이미지 서명 주소 유효 시간(초). */
 export const PREVIEW_IMAGE_TTL = 600;
 
@@ -327,8 +346,6 @@ export async function previewBroadcast(
     recipients(),
     findBroadcast(parsed.messageId),
   ]);
-  const bytes = (v: string | null) =>
-    v === null ? 0 : Buffer.byteLength(v, "utf8");
   // 번호는 원본 정화본 기준(초안과 무관). 꼬리말 없는 본문을 한 번만 서명하고
   // 꼬리말은 그 뒤에 붙임(꼬리말에는 cid가 없음).
   const originalHtml =
@@ -342,54 +359,72 @@ export async function previewBroadcast(
     signedBare === null || body.html === null
       ? null
       : body.html.slice((bareHtml ?? "").length);
-  // 응답에는 본문을 한 번만 담음(D-000208). 편집 가능하면 본문+꼬리말 조각, 아니면 html.
-  // 실제로 담기는 본문 문자열과 text의 UTF-8 합계에 예산 적용.
-  let text = body.text;
-  const editable =
-    signedBare !== null &&
-    footerHtml !== null &&
-    bytes(signedBare) + bytes(footerHtml) + bytes(text) <= PREVIEW_HTML_BUDGET;
-  let html: string | null =
-    editable || signedBare === null || footerHtml === null
+  // 응답에는 본문을 한 번만 담음(D-000208). 예산은 실제 전송 크기로 판정함(D-000212):
+  // 후보 응답을 Kit action 응답과 같은 방식으로 직렬화한 UTF-8 바이트가 상한 이하인지.
+  // 순서: 편집 가능 조합 → 편집 불가(html) → html 생략 → text 자름.
+  const base = {
+    messageId: parsed.messageId,
+    subject,
+    draft: draft && {
+      subject: draft.subject,
+      removedAttachments: draft.removedAttachments,
+      savedAt: draft.savedAt,
+      savedBy: draft.savedBy,
+    },
+    attachments: parsed.attachments.map((a) => ({
+      filename: a.filename,
+      size: a.content.byteLength,
+      inline: a.disposition === "inline" || a.contentId !== null,
+      inBody: inBody(originalHtml, a),
+    })),
+    recipientCount: rcpt.emails.length,
+    existing,
+  };
+  const assemble = (
+    editable: boolean,
+    html: string | null,
+    text: string,
+    htmlOmitted: boolean,
+    textTruncated: boolean,
+  ): BroadcastPreview => ({
+    ...base,
+    html,
+    editableHtml: editable ? signedBare : null,
+    footerHtml: editable ? footerHtml : null,
+    editable,
+    notEditableReason: editable
       ? null
-      : signedBare + footerHtml;
-  const htmlOmitted =
-    html !== null && bytes(html) + bytes(text) > PREVIEW_HTML_BUDGET;
-  if (htmlOmitted) html = null;
-  const textTruncated = bytes(text) > PREVIEW_HTML_BUDGET;
-  if (textTruncated) text = truncateUtf8(text, PREVIEW_HTML_BUDGET);
+      : signedBare === null
+        ? "no-html"
+        : "too-large",
+    htmlOmitted,
+    textTruncated,
+    text,
+  });
+  const fits = (p: BroadcastPreview) => wireBytes(p) <= PREVIEW_RESPONSE_BUDGET;
+  const text = body.text;
+  const canShowHtml = signedBare !== null && footerHtml !== null;
+  if (canShowHtml) {
+    const edit = assemble(true, null, text, false, false);
+    if (fits(edit)) return { ok: true, preview: edit };
+    const full = assemble(false, signedBare + footerHtml, text, false, false);
+    if (fits(full)) return { ok: true, preview: full };
+  }
+  const omitted = canShowHtml;
+  const plain = assemble(false, null, text, omitted, false);
+  if (fits(plain)) return { ok: true, preview: plain };
+  // text가 혼자 상한을 넘음: 들어가는 가장 긴 앞부분을 이분 탐색(측정 약 23회)
+  let lo = 0;
+  let hi = Buffer.byteLength(text, "utf8");
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (fits(assemble(false, null, truncateUtf8(text, mid), omitted, true)))
+      lo = mid;
+    else hi = mid - 1;
+  }
   return {
     ok: true,
-    preview: {
-      messageId: parsed.messageId,
-      subject,
-      html,
-      editableHtml: editable ? signedBare : null,
-      footerHtml: editable ? footerHtml : null,
-      editable,
-      notEditableReason: editable
-        ? null
-        : signedBare === null
-          ? "no-html"
-          : "too-large",
-      draft: draft && {
-        subject: draft.subject,
-        removedAttachments: draft.removedAttachments,
-        savedAt: draft.savedAt,
-        savedBy: draft.savedBy,
-      },
-      htmlOmitted,
-      textTruncated,
-      text,
-      attachments: parsed.attachments.map((a) => ({
-        filename: a.filename,
-        size: a.content.byteLength,
-        inline: a.disposition === "inline" || a.contentId !== null,
-        inBody: inBody(originalHtml, a),
-      })),
-      recipientCount: rcpt.emails.length,
-      existing,
-    },
+    preview: assemble(false, null, truncateUtf8(text, lo), omitted, true),
   };
 }
 
@@ -588,6 +623,32 @@ export async function saveDraft(
   const clean = sanitizeMailHtml(restoreCids(input.html, s3Key, images));
   // 정화가 엔티티로 늘린 경우도 막음 — 넘으면 다음 미리보기에서 편집할 수 없게 됨
   if (Buffer.byteLength(clean, "utf8") > PREVIEW_HTML_BUDGET)
+    return { ok: false, problem: "too-large-draft" };
+  // 이 초안으로 만들 편집용 미리보기 응답이 상한을 넘으면 저장 뒤 다시 열 때 편집할 수
+  // 없게 되므로 같은 측정으로 미리 막음. 서명 주소는 최대 길이 자리표시로 근사(D-000212).
+  const approxHtml = images.reduce(
+    (h, img) =>
+      h.replace(cidRef(img.contentId), () => "x".repeat(SIGNED_URL_MAX_LENGTH)),
+    clean,
+  );
+  const wrapped = withFooter(
+    { html: approxHtml, text: null },
+    `${siteOrigin()}/settings/notifications`,
+  );
+  const approxResponse = {
+    subject,
+    editableHtml: approxHtml,
+    footerHtml: (wrapped.html ?? "").slice(approxHtml.length),
+    text: wrapped.text,
+    attachments: parsed.attachments.map((a) => ({
+      filename: a.filename,
+      size: a.content.byteLength,
+      inline: a.disposition === "inline" || a.contentId !== null,
+      inBody: true,
+    })),
+    slack: "x".repeat(SAVE_RESPONSE_SLACK),
+  };
+  if (wireBytes(approxResponse) > PREVIEW_RESPONSE_BUDGET)
     return { ok: false, problem: "too-large-draft" };
   // 본문이 아직 쓰는 사진은 뺄 수 없음 — 빼면 받는 쪽에서 깨진 사진 (D-000201)
   if (

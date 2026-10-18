@@ -50,14 +50,14 @@ node scripts/measure/editor-preservation.mjs   # 보존 회귀 시험(Task 7에�
 **`saveDraft(s3Key, { subject, html, removedAttachments }, savedBy)`**
 
 1. `loadBroadcast`와 같은 키·크기 검사, 원본 해석(첨부 목록·messageId 필요).
-2. 입력 검사: `subject` trim 후 빈 값이면 `no-subject`, HTML이 정화 후 텍스트·이미지 없이 비면 `no-body`, `removedAttachments`는 원본 첨부 색인 범위 안의 정수 집합이고 초안 본문이 `cid:`로 참조하는 첨부는 뺄 수 없음(`cid:<id>` 뒤 경계는 따옴표·공백·`>`·`)`·따옴표 엔티티이며 미리보기 서명·본문 사진 분류·발송 첨부 판정·이 검사가 같은 규칙을 씀. Jodit이 `url(&quot;cid:…&quot;)`로 다시 써도 참조로 봄, snumps-webpage/D-000211)(그 밖은 `bad-input`, D-000201), 원본에 HTML 파트가 없으면 `bad-input`(D-000202), HTML 바이트가 `PREVIEW_HTML_BUDGET`(3MB) 초과면 `too-large-draft`.
+2. 입력 검사: `subject` trim 후 빈 값이면 `no-subject`, HTML이 정화 후 텍스트·이미지 없이 비면 `no-body`, `removedAttachments`는 원본 첨부 색인 범위 안의 정수 집합이고 초안 본문이 `cid:`로 참조하는 첨부는 뺄 수 없음(`cid:<id>` 뒤 경계는 따옴표·공백·`>`·`)`·따옴표 엔티티이며 미리보기 서명·본문 사진 분류·발송 첨부 판정·이 검사가 같은 규칙을 씀. Jodit이 `url(&quot;cid:…&quot;)`로 다시 써도 참조로 봄, snumps-webpage/D-000211)(그 밖은 `bad-input`, D-000201), 원본에 HTML 파트가 없으면 `bad-input`(D-000202), 입력 HTML 바이트(저장 전·정화 후)가 `PREVIEW_HTML_BUDGET`(3MB) 초과면 `too-large-draft`. 이에 더해 이 초안으로 만들 편집용 미리보기 응답이 `PREVIEW_RESPONSE_BUDGET`(4,000,000바이트, 실제 직렬화 기준)을 넘으면 `too-large-draft`(저장 뒤 다시 열면 편집 불가가 되는 불일치 방지). 저장 때는 서명이 없으므로 `cid:` 참조를 서명 주소 최대 길이 가정(1024자) 자리표시로 바꾸고 나머지 필드 여유 20,000바이트를 더해 보수적으로 잼(snumps-webpage/D-000212).
 3. **서명 주소 → cid 되돌리기**: 그 업로드의 미리보기 이미지 목록(`signPreviewImages`와 같은 결정적 규칙: 참조된 cid·SAFE_MIME·image/*·SVG 제외, 원본 첨부 순서)을 다시 계산해, HTML 전체에서 `https?://`로 시작해 공백·따옴표·`<>()`·백틱·`,`, 그리고 따옴표·`&nbsp;` 엔티티(`&quot;` `&#34;` `&#39;` `&apos;` `&#x22;` `&#x27;`) 앞에서 끝나는 주소(쿼리의 `&amp;`는 주소의 일부, snumps-webpage/D-000211) 중 그 업로드의 `…/preview/<n>.<ext>` 경로(쿼리·토큰 무시)를 가리키는 것을 `cid:<그 이미지의 contentId>`로 바꿈. `img src`뿐 아니라 style 속성·`<style>`의 `url()`, `href` 등 어느 위치든 같음(`signPreviewImages`가 모든 위치의 `cid:`를 바꾸므로 되돌리기도 같은 범위, snumps-webpage/D-000207). 다른 업로드의 경로나 알 수 없는 주소는 그대로 두고 정화가 판단.
 4. `sanitizeMailHtml`로 정화 → `draft.html` 업로드(`uploadStaged`, upsert) → 행 `mutate` upsert.
 5. 반환: `{ ok: true, savedAt }` 또는 `{ ok: false, problem }`.
 
 **적재(`loadBroadcast`) 변경**: 초안 행이 있으면 제목은 초안 제목, HTML은 `draft.html`(다시 정화), 첨부는 `removedAttachments`를 뺀 것. 텍스트본은 편집 HTML에서 `withFooter`가 새로 만듦(원본 text 파트는 쓰지 않음 — 편집과 어긋나므로). 원본 본문이 참조하던 cid 첨부 중 초안 HTML에서 지운 사진만 발송본에서 뺌. 원본이 참조하지 않던 cid 첨부(Content-ID 붙은 일반 파일)는 일반 첨부로 둠(snumps-webpage/D-000200).
 
-**preview 응답 추가 필드**(snumps-webpage/D-000208, D-000209): `editableHtml`(꼬리말 없는 정화 HTML, 미리보기와 같은 서명 주소 치환), `footerHtml`(꼬리말 HTML 조각), `editable`, `notEditableReason`(`"no-html"` | `"too-large"` | `null`), `draft`(있으면 `{ subject, removedAttachments, savedAt, savedBy }`). 본문은 응답에 한 번만 담음: 편집 가능하면 `editableHtml` + `footerHtml`만 주고 `html`은 `null`(화면이 `editableHtml + footerHtml`로 미리보기를 만들며 옛 `html`과 바이트 단위로 같음), 편집 불가면 `html`(꼬리말 포함)만 주고 `editableHtml`·`footerHtml`은 `null`. 3MB 예산은 응답에 실제로 담기는 본문 문자열과 `text`의 UTF-8 합계에 적용하고, 편집용 조합이 넘으면 `editable: false` + `too-large`로 떨어져 기존 `htmlOmitted`·`textTruncated` 규칙을 따름. 원본에 HTML 파트가 없으면 `no-html`.
+**preview 응답 추가 필드**(snumps-webpage/D-000208, D-000209): `editableHtml`(꼬리말 없는 정화 HTML, 미리보기와 같은 서명 주소 치환), `footerHtml`(꼬리말 HTML 조각), `editable`, `notEditableReason`(`"no-html"` | `"too-large"` | `null`), `draft`(있으면 `{ subject, removedAttachments, savedAt, savedBy }`). 본문은 응답에 한 번만 담음: 편집 가능하면 `editableHtml` + `footerHtml`만 주고 `html`은 `null`(화면이 `editableHtml + footerHtml`로 미리보기를 만들며 옛 `html`과 바이트 단위로 같음), 편집 불가면 `html`(꼬리말 포함)만 주고 `editableHtml`·`footerHtml`은 `null`. 예산은 본문 바이트가 아니라 실제 전송 크기로 판정함(snumps-webpage/D-000212): SvelteKit action 응답이 `JSON.stringify({ type, status, data: devalue.stringify(data) })`로 두 번 직렬화되어 태그 많은 본문은 크게 부풀므로, 후보 응답을 `JSON.stringify({ data: devalue.stringify(preview) })`한 UTF-8 바이트가 `PREVIEW_RESPONSE_BUDGET`(4,000,000, Vercel 한도 4.5MB 아래) 이하인지 봄. 순서는 편집 가능 조합 → 편집 불가(`html`, `too-large`) → `html` 생략(`htmlOmitted`) → `text` 자름(`textTruncated`, 이분 탐색). `devalue`는 5.9.1 직접 의존성(snumps-webpage/D-000213). 원본에 HTML 파트가 없으면 `no-html`.
 
 **중복 차단**: 원본 Message-ID 그대로(D-000191). 고친 메일도 같은 원본이면 한 번만.
 
@@ -74,7 +74,7 @@ node scripts/measure/editor-preservation.mjs   # 보존 회귀 시험(Task 7에�
 
 | 상황                                         | 처리                                                              |
 | -------------------------------------------- | ----------------------------------------------------------------- |
-| 빈 제목·빈 본문·잘못된 첨부 색인·3MB 초과    | 저장 거부, 코드별 문구, 편집 내용은 화면에 그대로                 |
+| 빈 제목·빈 본문·잘못된 첨부 색인·크기 초과   | 저장 거부, 코드별 문구, 편집 내용은 화면에 그대로                 |
 | 저장 중 서버 오류(SERVICE_UNAVAILABLE)       | "저장하지 못했습니다. 잠시 뒤 다시 시도해 주세요." 편집 내용 유지 |
 | 서명 주소 만료(10분)로 편집기 사진이 안 보임 | 저장·발송은 경로→cid 되돌리기로 정상. 편집을 다시 열면 새 주소    |
 | 편집 HTML에 script 등                        | 저장 때·발송 때 두 번 정화                                        |

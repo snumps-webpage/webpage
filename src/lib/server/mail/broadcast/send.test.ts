@@ -1,3 +1,4 @@
+import { stringify } from "devalue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const testEnv = vi.hoisted(() => ({}) as Record<string, string | undefined>);
@@ -229,6 +230,10 @@ function emlAlt(html: string | null, text: string): Uint8Array {
   );
 }
 const PV = "pending/broadcast-eml/a/preview/";
+/** Kit action 응답과 같은 직렬화의 UTF-8 바이트 (D-000212). */
+const wire = (preview: unknown) =>
+  Buffer.byteLength(JSON.stringify({ data: stringify(preview) }), "utf8");
+const WIRE_LIMIT = 4_000_000;
 /** 화면이 iframe에 넣는 미리보기 문서 (D-000208). */
 const shown = (p: {
   html: string | null;
@@ -505,29 +510,25 @@ describe("broadcast send flow", () => {
 
   it("truncates a text body over the budget at a character boundary", async () => {
     seedMembers(2);
-    const big = "가".repeat(1_200_000); // 3.6MB
+    const big = "가".repeat(1_500_000); // 4.5MB
     __stageBytes(KEY, emlAlt(null, big));
     const p = await previewBroadcast(KEY);
     if (!p.ok) throw new Error("expected ok");
     expect(p.preview.textTruncated).toBe(true);
-    expect(Buffer.byteLength(p.preview.text, "utf8")).toBeLessThanOrEqual(
-      3_000_000,
-    );
+    expect(wire(p.preview)).toBeLessThanOrEqual(WIRE_LIMIT);
     expect(p.preview.text).not.toContain("\uFFFD");
     expect(p.preview.text.startsWith("가")).toBe(true);
   });
 
   it("cuts mid-character safely for 4-byte characters", async () => {
     seedMembers(2);
-    // 4-byte emoji, offset by one ASCII byte so the 3,000,000 cut lands inside one
-    const big = "a" + "😀".repeat(800_000); // 3.2MB
+    // 4-byte emoji, offset by one ASCII byte so the cut lands inside one
+    const big = "a" + "😀".repeat(1_100_000); // 4.4MB
     __stageBytes(KEY, emlAlt(null, big));
     const p = await previewBroadcast(KEY);
     if (!p.ok) throw new Error("expected ok");
     expect(p.preview.textTruncated).toBe(true);
-    expect(Buffer.byteLength(p.preview.text, "utf8")).toBeLessThanOrEqual(
-      3_000_000,
-    );
+    expect(wire(p.preview)).toBeLessThanOrEqual(WIRE_LIMIT);
     expect(p.preview.text).not.toContain("�");
     expect(p.preview.text.endsWith("😀")).toBe(true);
   });
@@ -789,7 +790,7 @@ describe("broadcast send flow", () => {
         ok: false,
         problem: "too-large-draft",
       });
-      const ok = `<p>${"a".repeat(2_900_000)}</p>`;
+      const ok = `<p>${"a".repeat(1_900_000)}</p>`;
       expect((await saveDraft(KEY, input({ html: ok }), "admin")).ok).toBe(
         true,
       );
@@ -947,7 +948,7 @@ describe("broadcast send flow", () => {
       );
     });
 
-    it("keeps a 2.4MB body editable with the response under 3MB + margin (D-000208)", async () => {
+    it("keeps a 2.4MB ASCII body editable with the real response under the limit (D-000212)", async () => {
       __stageBytes(
         KEY,
         emlAlt(`<p>${"a".repeat(2_400_000)}</p>`, "short text"),
@@ -958,10 +959,22 @@ describe("broadcast send flow", () => {
       expect(p.preview.html).toBeNull();
       expect(p.preview.editableHtml).not.toBeNull();
       expect(p.preview.footerHtml).not.toBeNull();
-      expect(JSON.stringify(p.preview).length).toBeLessThan(3_200_000);
+      expect(wire(p.preview)).toBeLessThanOrEqual(WIRE_LIMIT);
     });
 
-    it("counts editableHtml + footerHtml + text against the budget and falls to the not-editable path (D-000208)", async () => {
+    it("measures the serialized response: a tag-heavy 2MB body is not editable and stays under the limit (D-000212)", async () => {
+      const bloat = `<p>${"<b></b>".repeat(290_000)}x</p>`;
+      expect(Buffer.byteLength(bloat, "utf8")).toBeLessThan(3_000_000);
+      __stageBytes(KEY, emlAlt(bloat, "short text"));
+      const p = await previewBroadcast(KEY);
+      if (!p.ok) throw new Error("expected ok");
+      expect(p.preview.editable).toBe(false);
+      expect(p.preview.notEditableReason).toBe("too-large");
+      expect(p.preview.editableHtml).toBeNull();
+      expect(wire(p.preview)).toBeLessThanOrEqual(WIRE_LIMIT);
+    });
+
+    it("counts editableHtml + footerHtml + text against the limit and falls to the not-editable path (D-000212)", async () => {
       const big = "a".repeat(2_400_000);
       __stageBytes(KEY, emlAlt(`<p>${big}</p>`, big));
       const p = await previewBroadcast(KEY);
@@ -972,7 +985,33 @@ describe("broadcast send flow", () => {
       expect(p.preview.footerHtml).toBeNull();
       expect(p.preview.html).toBeNull();
       expect(p.preview.htmlOmitted).toBe(true);
-      expect(JSON.stringify(p.preview).length).toBeLessThan(3_200_000);
+      expect(p.preview.textTruncated).toBe(false);
+      expect(wire(p.preview)).toBeLessThanOrEqual(WIRE_LIMIT);
+    });
+
+    it("truncates the text when a big html and a big text both exceed the limit (D-000212)", async () => {
+      __stageBytes(
+        KEY,
+        emlAlt(`<p>${"a".repeat(2_000_000)}</p>`, "t".repeat(4_500_000)),
+      );
+      const p = await previewBroadcast(KEY);
+      if (!p.ok) throw new Error("expected ok");
+      expect(p.preview.editable).toBe(false);
+      expect(p.preview.htmlOmitted).toBe(true);
+      expect(p.preview.textTruncated).toBe(true);
+      expect(p.preview.html).toBeNull();
+      expect(wire(p.preview)).toBeLessThanOrEqual(WIRE_LIMIT);
+      expect(p.preview.text.length).toBeGreaterThan(3_500_000);
+    });
+
+    it("rejects a tag-heavy draft whose editable preview response would exceed the limit (D-000212)", async () => {
+      const bloat = `<p>${"<b></b>".repeat(290_000)}x</p>`;
+      expect(Buffer.byteLength(bloat, "utf8")).toBeLessThan(3_000_000);
+      expect(await saveDraft(KEY, input({ html: bloat }), "admin")).toEqual({
+        ok: false,
+        problem: "too-large-draft",
+      });
+      expect(await readDraft(KEY)).toBeNull();
     });
 
     it("restores a style-background photo to cid after saving the editable body (D-000207)", async () => {
