@@ -227,6 +227,31 @@ describe("restoreCids", () => {
     expect(performance.now() - t).toBeLessThan(500);
   });
 
+  it("keeps characters glued to the signed url instead of eating them (D-000216-a)", () => {
+    const u = `https://memory.test/staged/${base}/1.png?exp=600`;
+    const sb = `https://p.supabase.co/storage/v1/object/sign/staging/${base}/1.png?token=eyJ.a-b_c.d-e_f`;
+    for (const [tail, want] of [
+      ["입니다", "입니다"],
+      [".", "."],
+      [";", ";"],
+      ["!", "!"],
+      ["#x", "#x"],
+      ["&lt;", "&lt;"],
+    ] as const) {
+      expect(restoreCids(`U ${u}${tail}`, KEY, images)).toBe(
+        `U cid:cid1@x${want}`,
+      );
+      expect(restoreCids(`U ${sb}${tail}`, KEY, images)).toBe(
+        `U cid:cid1@x${want}`,
+      );
+    }
+    const amp = `https://p.supabase.co/storage/v1/object/sign/staging/${base}/1.png?a=1&amp;token=t.k`;
+    expect(restoreCids(`<a href="${amp}">`, KEY, images)).toBe(
+      `<a href="cid:cid1@x">`,
+    );
+    expect(restoreCids(`${amp}입니다`, KEY, images)).toBe(`cid:cid1@x입니다`);
+  });
+
   it("stops a url at a quote entity, so Jodit's rewritten style restores (D-000211)", () => {
     const u = `https://memory.test/staged/${base}/1.png?exp=600`;
     for (const q of ["&quot;", "&#34;", "&#39;", "&apos;", "&#x22;", "&#x27;"])

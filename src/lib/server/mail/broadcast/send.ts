@@ -254,9 +254,10 @@ const wireBytes = (v: unknown) =>
 /**
  * 초안 저장 검사용 가정: 미리보기 서명 주소의 최대 길이(문자). 저장 때는 서명이 없으므로
  * `cid:` 참조를 이 길이의 자리표시로 바꿔 쟀음. 실제 Supabase 서명 주소(도메인 + 경로 +
- * JWT 토큰)는 약 400~600자이므로 보수적으로 크게 잡음(D-000212).
+ * JWT 토큰)는 약 400~600자, 한글 경로를 퍼센트 인코딩하면 최악 약 1000자이므로
+ * 두 배 여유를 둠(D-000212, D-000216-b).
  */
-const SIGNED_URL_MAX_LENGTH = 1024;
+const SIGNED_URL_MAX_LENGTH = 2048;
 /** 초안 저장 검사의 미리보기 응답 나머지 필드(`existing` 등) 여유 바이트. */
 const SAVE_RESPONSE_SLACK = 20_000;
 /** 미리보기 이미지 서명 주소 유효 시간(초). */
@@ -405,8 +406,11 @@ export async function previewBroadcast(
   const text = body.text;
   const canShowHtml = signedBare !== null && footerHtml !== null;
   if (canShowHtml) {
+    // 편집용 본문이 저장 입력 상한(3MB)을 넘으면 saveDraft가 거부하므로 편집 불가(D-000214).
+    const editBodyFits =
+      Buffer.byteLength(signedBare, "utf8") <= PREVIEW_HTML_BUDGET;
     const edit = assemble(true, null, text, false, false);
-    if (fits(edit)) return { ok: true, preview: edit };
+    if (editBodyFits && fits(edit)) return { ok: true, preview: edit };
     const full = assemble(false, signedBare + footerHtml, text, false, false);
     if (fits(full)) return { ok: true, preview: full };
   }

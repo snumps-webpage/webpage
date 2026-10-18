@@ -974,6 +974,17 @@ describe("broadcast send flow", () => {
       expect(wire(p.preview)).toBeLessThanOrEqual(WIRE_LIMIT);
     });
 
+    it("is not editable when the bare body exceeds the 3MB save input limit even if the response fits (D-000214)", async () => {
+      const style = `<style>${"a".repeat(3_300_000)}</style>`;
+      __stageBytes(KEY, emlAlt(`${style}<p>x</p>`, "short text"));
+      const p = await previewBroadcast(KEY);
+      if (!p.ok) throw new Error("expected ok");
+      expect(p.preview.editable).toBe(false);
+      expect(p.preview.notEditableReason).toBe("too-large");
+      expect(p.preview.editableHtml).toBeNull();
+      expect(wire(p.preview)).toBeLessThanOrEqual(WIRE_LIMIT);
+    });
+
     it("counts editableHtml + footerHtml + text against the limit and falls to the not-editable path (D-000212)", async () => {
       const big = "a".repeat(2_400_000);
       __stageBytes(KEY, emlAlt(`<p>${big}</p>`, big));

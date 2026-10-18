@@ -82,6 +82,8 @@ export interface PreviewImage {
  * 속성·`<style>`의 url(), href 등)에서 바꾸므로 되돌리기도 HTML 전체의 `http(s)://` 주소를
  * 훑음(D-000207). pathname 끝으로 판정(쿼리·토큰 무시, 퍼센트 인코딩 해석 후).
  * 다른 업로드·알 수 없는 n·다른 확장자는 그대로.
+ * 바꾸는 범위는 서명 주소의 실제 형태(경로 + 서명 쿼리)까지만이고, 주소에 바로 붙은
+ * 글자(`.` `!` `#frag` `&lt;` 한글 등)는 남김(D-000216-a).
  */
 export function restoreCids(
   html: string,
@@ -90,7 +92,8 @@ export function restoreCids(
 ): string {
   const prefix = `${keyBase(s3Key)}/preview/`;
   const byName = new Map(images.map((i) => [`${i.n}.${i.ext}`, i.contentId]));
-  const restore = (src: string): string | null => {
+  /** 바꿀 `cid:` 참조와, `src`에서 서명 주소가 끝나는 위치. */
+  const restore = (src: string): { cid: string; end: number } | null => {
     let pathname: string;
     try {
       pathname = decodeURIComponent(new URL(src).pathname);
@@ -103,9 +106,21 @@ export function restoreCids(
     if (at > 0 && pathname[at - 1] !== "/") return null;
     const name = pathname.slice(at + prefix.length);
     const cid = byName.get(name);
-    return cid === undefined ? null : `cid:${cid}`;
+    if (cid === undefined) return null;
+    // 경로는 첫 `?`·`#` 앞까지. `?`면 서명 쿼리 토큰까지만 주소로 보고 나머지는 남김.
+    const stop = src.search(/[?#]/);
+    if (stop === -1) return { cid, end: src.length };
+    if (src[stop] === "#") return { cid, end: stop };
+    SIGNED_QUERY.lastIndex = stop + 1;
+    const q = SIGNED_QUERY.exec(src);
+    // JWT·exp 값은 `.`로 끝나지 않으므로 끝의 `.`은 문장 부호로 보고 남김
+    const query = q === null ? "" : q[0].replace(/\.+$/, "");
+    return { cid, end: stop + (query === "" ? 0 : 1 + query.length) };
   };
-  return html.replace(URL_IN_HTML, (url) => restore(url) ?? url);
+  return html.replace(URL_IN_HTML, (url) => {
+    const r = restore(url);
+    return r === null ? url : `cid:${r.cid}${url.slice(r.end)}`;
+  });
 }
 
 /**
@@ -115,3 +130,11 @@ export function restoreCids(
  */
 const URL_IN_HTML =
   /https?:\/\/(?:[^\s"'<>(),&\x60]|&(?!(?:quot|apos|nbsp|#34|#39|#x22|#x27);))+/gi;
+
+/**
+ * 서명 쿼리: `키=값`을 `&amp;`로 이은 것. 문자는 ASCII 토큰 문자(`[A-Za-z0-9._~%-]`)만
+ * (Supabase JWT·메모리 백엔드 `exp`). 키·값 문자 집합에 `=`·`&`가 없어 역추적 없는
+ * 선형 정규식 (D-000216-a).
+ */
+const SIGNED_QUERY =
+  /[\w.~%-]+(?:=[\w.~%-]*)?(?:&amp;[\w.~%-]+(?:=[\w.~%-]*)?)*/y;

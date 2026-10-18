@@ -90,7 +90,8 @@
 
   function setLocked(v: boolean) {
     locked = v;
-    editor?.setReadOnly(v);
+    // 전체 발송 성공 뒤에는 잠금을 풀어도 다시 잠김(D-000216-c).
+    editor?.setReadOnly(v || !!sendResult);
   }
 
   const problemText = (code: unknown) =>
@@ -181,6 +182,11 @@
         body,
         headers: { "x-sveltekit-action": "true" },
       });
+      // 요청이 너무 크면 플랫폼이 JSON이 아닌 응답으로 413을 돌려줌(D-000216-d).
+      if (response.status === 413) {
+        errorMessage = PROBLEMS["too-large-draft"];
+        return false;
+      }
       const result = deserialize(await response.text());
       if (result.type === "success") {
         savedAt = String(
@@ -324,6 +330,7 @@
               row: d.row as MailBroadcast,
               skipped: Number(d.skipped ?? 0),
             };
+            setLocked(false);
             await invalidateAll();
           }
         } else if (result.type === "failure") {
@@ -460,7 +467,7 @@
             type="text"
             bind:value={editSubject}
             oninput={markChanged}
-            disabled={locked}
+            disabled={locked || !!sendResult}
           />
         </label>
         {#if loadingEditor}<p class="scope-note" role="status">
@@ -480,7 +487,7 @@
                     <input
                       type="checkbox"
                       checked={removed.includes(i)}
-                      disabled={locked}
+                      disabled={locked || !!sendResult}
                       onchange={(e) =>
                         toggleRemoved(i, e.currentTarget.checked)}
                     />
@@ -495,7 +502,7 @@
           <button
             class="paper-btn primary"
             type="button"
-            disabled={loadingEditor || saving || busy !== null}
+            disabled={loadingEditor || saving || busy !== null || !!sendResult}
             onclick={() => saveDraft(true)}
             >{saving ? "저장 중…" : "저장"}</button
           >
