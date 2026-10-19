@@ -94,9 +94,12 @@ export type MemberActivityData = {
     activityId: string | null;
     /**
      * 세미나 시작 — 일정(`schedule.startsAt`), 없으면 세미나 활동의 시작. 둘 다
-     * 없으면(일정 없는 이주분) null: 열린 세미나로 본다.
+     * 없으면 null: 게시된 것(일정 없는 이주분)은 열린 세미나, 미게시는 아직
+     * 열리지 않은 세미나로 본다(D-000240·243).
      */
     startsAt: string | null;
+    /** `publicationStatus === "published"` */
+    published: boolean;
   })[];
   studies: readonly (HostedRef & { organizerIds: readonly string[] })[];
   activities: readonly (ActivityRef & {
@@ -201,8 +204,8 @@ export function memberActivity(
   return {
     // 아직 열리지 않은 세미나는 주최로 세지 않는다(D-000240)
     hostedSeminars: hostedBy(
-      data.seminars.filter(
-        (s) => s.startsAt === null || started({ start: s.startsAt }),
+      data.seminars.filter((s) =>
+        s.startsAt === null ? s.published : started({ start: s.startsAt }),
       ),
       (s) => s.presenterIds,
       ids,
@@ -329,6 +332,7 @@ export function memberActivityData(
         startsAt:
           s.schedule?.startsAt ??
           (s.activityId ? (activityStart.get(s.activityId) ?? null) : null),
+        published: s.publicationStatus === "published",
       })),
       studies: shown(tables.studies, hiddenFromPublic.studies).map((s) => ({
         id: s.id,

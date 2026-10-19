@@ -78,6 +78,7 @@ function seminar(
     presenterIds,
     activityId,
     startsAt: null,
+    published: true,
   };
 }
 
@@ -313,8 +314,10 @@ describe("memberActivity — hosted seminars not yet held (D-000240)", () => {
         },
         { ...seminar("s-now", ["m1"], null), startsAt: NOW.toISOString() },
         { ...seminar("s-next", ["m1"], null), startsAt: FUTURE },
-        // 일정이 기록되지 않은 이주 세미나는 열린 것으로 본다
+        // 일정이 기록되지 않은 게시된 이주 세미나는 열린 것으로 본다
         seminar("s-undated", ["m1"], null),
+        // 날짜도 없는 미게시 세미나는 아직 열리지 않았다(D-000243)
+        { ...seminar("s-pending", ["m1"], null), published: false },
       ],
     });
     expect(result.hostedSeminars.map((s) => s.id).sort()).toEqual([
