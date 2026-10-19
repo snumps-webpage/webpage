@@ -148,3 +148,30 @@ where name = 'mail-broadcasts';
 ```
 
 `<Message-ID>`는 화면의 '이미 발송됨' 안내나 위 표의 `messageId` 값(꺾쇠 포함)을 그대로 쓴다.
+
+## ↩️ 이전 배포로 되돌리기 전에: 새 활동 종류
+
+활동 종류 '특위 활동'·'임원진 사업'은 회원 활동 기능과 함께 들어왔다(snumps-webpage/D-000136·139·140). 그 이전 코드는 종류를 5개(세미나·스터디·회의·회식·기타)만 알아서, 새 종류 활동이 하나라도 저장돼 있으면 관리자 '활동 기록 관리' 화면이 오류(500)를 내고 공개 활동 목록이 비어 보인다(실측, D-000242).
+
+이전 배포로 승격을 되돌리기 **전에** Supabase SQL 편집기에서 새 종류 활동이 있는지 본다.
+
+```sql
+select r->>'id' as id, r->>'type' as type
+from app_tables t, jsonb_array_elements(t.doc->'rows') r
+where t.name = 'activities' and r->>'type' in ('특위 활동', '임원진 사업');
+```
+
+있으면 그 활동들의 종류를 '기타'로 바꾼 뒤 되돌린다. 다시 이 기능을 배포하면 관리자 화면에서 원래 종류로 고친다(위 조회 결과의 id를 적어 둔다).
+
+```sql
+update app_tables
+set doc = jsonb_set(doc, '{rows}', (
+      select jsonb_agg(case
+        when r->>'type' in ('특위 활동', '임원진 사업')
+        then r || '{"type":"기타"}'::jsonb else r end)
+      from jsonb_array_elements(doc->'rows') r)),
+    version = version + 1   -- 올려야 앱이 캐시 대신 새로 읽는다
+where name = 'activities';
+```
+
+`events` 표도 같은 종류 칸을 쓰므로, 관리자가 새 종류로 출석 이벤트를 만들었다면 위 두 SQL의 `'activities'`를 `'events'`로 바꿔 한 번 더 실행한다.
