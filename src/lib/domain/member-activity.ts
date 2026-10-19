@@ -92,6 +92,11 @@ export type MemberActivityData = {
     presenterIds: readonly string[];
     /** 세미나의 활동 — 발표자는 이 활동의 기록을 받는다. */
     activityId: string | null;
+    /**
+     * 세미나 시작 — 일정(`schedule.startsAt`), 없으면 세미나 활동의 시작. 둘 다
+     * 없으면(일정 없는 이주분) null: 열린 세미나로 본다.
+     */
+    startsAt: string | null;
   })[];
   studies: readonly (HostedRef & { organizerIds: readonly string[] })[];
   activities: readonly (ActivityRef & {
@@ -194,7 +199,14 @@ export function memberActivity(
     .sort((a, b) => Date.parse(b.start) - Date.parse(a.start));
 
   return {
-    hostedSeminars: hostedBy(data.seminars, (s) => s.presenterIds, ids),
+    // 아직 열리지 않은 세미나는 주최로 세지 않는다(D-000240)
+    hostedSeminars: hostedBy(
+      data.seminars.filter(
+        (s) => s.startsAt === null || started({ start: s.startsAt }),
+      ),
+      (s) => s.presenterIds,
+      ids,
+    ),
     hostedStudies: hostedBy(data.studies, (s) => s.organizerIds, ids),
     attended,
     records: Object.values(recordsByType).reduce((n, c) => n + c, 0),
@@ -250,6 +262,7 @@ export type ActivityTables = {
     presenterIds: readonly string[];
     activityId: string | null;
     publicationStatus: string;
+    schedule: { startsAt: string } | null;
   })[];
   studies: readonly (HostedRef & {
     organizerIds: readonly string[];
@@ -297,6 +310,9 @@ export function memberActivityData(
     ),
     activities: hiddenActivityIdsOf(tables.seminars, tables.events),
   };
+  const activityStart = new Map(
+    tables.activities.map((a) => [a.id, a.date.start]),
+  );
   const shown = <T extends { id: string }>(
     rows: readonly T[],
     hidden: Set<string>,
@@ -310,6 +326,9 @@ export function memberActivityData(
         semester: s.semester,
         presenterIds: s.presenterIds,
         activityId: s.activityId,
+        startsAt:
+          s.schedule?.startsAt ??
+          (s.activityId ? (activityStart.get(s.activityId) ?? null) : null),
       })),
       studies: shown(tables.studies, hiddenFromPublic.studies).map((s) => ({
         id: s.id,

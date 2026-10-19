@@ -4,6 +4,7 @@ import {
   STUDY_MIN_SESSIONS,
   inMemberView,
   memberActivity,
+  memberActivityData,
   memberStanding,
   selectPromotionCandidates,
   type MemberActivityData,
@@ -76,6 +77,7 @@ function seminar(
     semester: "26-2",
     presenterIds,
     activityId,
+    startsAt: null,
   };
 }
 
@@ -297,6 +299,67 @@ describe("memberActivity — other records", () => {
       records: 0,
       recordsByType: {},
     });
+  });
+});
+
+describe("memberActivity — hosted seminars not yet held (D-000240)", () => {
+  it("leaves a seminar that has not started out of the hosted list", () => {
+    const result = activityOf(me, {
+      ...empty,
+      seminars: [
+        {
+          ...seminar("s-held", ["m1"], null),
+          startsAt: "2026-10-01T19:00:00+09:00",
+        },
+        { ...seminar("s-now", ["m1"], null), startsAt: NOW.toISOString() },
+        { ...seminar("s-next", ["m1"], null), startsAt: FUTURE },
+        // 일정이 기록되지 않은 이주 세미나는 열린 것으로 본다
+        seminar("s-undated", ["m1"], null),
+      ],
+    });
+    expect(result.hostedSeminars.map((s) => s.id).sort()).toEqual([
+      "s-held",
+      "s-undated",
+    ]);
+  });
+});
+
+describe("memberActivityData — seminar start", () => {
+  const tables = (schedule: { startsAt: string } | null) => ({
+    seminars: [
+      {
+        id: "s1",
+        title: "세미나",
+        semester: "26-2",
+        presenterIds: ["m1"],
+        activityId: "a1",
+        publicationStatus: "published",
+        schedule,
+      },
+    ],
+    studies: [],
+    activities: [
+      {
+        id: "a1",
+        title: "세미나",
+        type: "세미나",
+        date: { start: "2026-11-01T19:00:00+09:00", end: null },
+        attendeeIds: [],
+        studyId: null,
+        sourceRequestId: null,
+      },
+    ],
+    events: [],
+  });
+
+  it("takes the schedule's start, then the seminar activity's", () => {
+    const start = (schedule: { startsAt: string } | null) =>
+      memberActivityData(tables(schedule), { publicOnly: false }).data
+        .seminars[0].startsAt;
+    expect(start({ startsAt: "2026-10-30T19:00:00+09:00" })).toBe(
+      "2026-10-30T19:00:00+09:00",
+    );
+    expect(start(null)).toBe("2026-11-01T19:00:00+09:00");
   });
 });
 
