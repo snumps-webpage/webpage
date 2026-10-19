@@ -8,6 +8,7 @@ import { json, error, type RequestHandler } from "@sveltejs/kit";
 import { dev } from "$app/environment";
 import { env } from "$env/dynamic/private";
 import * as mem from "$lib/server/data/store-memory";
+import * as stg from "$lib/server/data/storage-memory";
 import { invalidateCache } from "$lib/server/cache";
 import { _resetDataLayerForTests } from "$lib/server/data/tables";
 import { TABLE_NAMES } from "$lib/server/data/schemas";
@@ -22,10 +23,23 @@ function guard(request: Request) {
 export const POST: RequestHandler = async ({ request }) => {
   guard(request);
   const body = (await request.json()) as {
-    op: "seed" | "put" | "reset";
+    op: "seed" | "put" | "reset" | "stage";
     tables?: { name: string; doc: unknown }[];
     queues?: { event_id: string; doc: unknown }[];
+    /** stage: 브라우저가 서명 업로드 주소로 PUT한 것을 흉내 냄 */
+    path?: string;
+    base64?: string;
+    contentType?: string;
   };
+  if (body.op === "stage") {
+    if (!body.path || body.base64 === undefined) throw error(400);
+    stg.__stageBytes(
+      body.path,
+      new Uint8Array(Buffer.from(body.base64, "base64")),
+      body.contentType,
+    );
+    return json({ ok: true });
+  }
   if (body.op === "reset") {
     // 테이블 캐시는 저장소보다 오래 산다 — 전부 지우지 않으면 다음 실행이
     // 로컬 TTL 동안 이전 실행의 행을 읽는다.
@@ -53,8 +67,16 @@ export const POST: RequestHandler = async ({ request }) => {
  */
 export const GET: RequestHandler = async ({ request, url }) => {
   guard(request);
-  const kind = (url.searchParams.get("kind") ?? "table") as "table" | "queue";
   const key = url.searchParams.get("key");
+  // staged: staging 객체 원본 바이트(서명 주소로 받는 것을 흉내 냄)
+  if (url.searchParams.get("kind") === "staged") {
+    const bytes = key ? await stg.readStaged(key) : null;
+    if (!bytes) throw error(404);
+    return new Response(bytes, {
+      headers: { "content-type": "application/octet-stream" },
+    });
+  }
+  const kind = (url.searchParams.get("kind") ?? "table") as "table" | "queue";
   const docs = await mem.__docs(kind);
   if (key) return json(docs.get(key)?.doc ?? null);
   return json([...docs.keys()]);

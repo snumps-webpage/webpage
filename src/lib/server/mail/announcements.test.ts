@@ -147,10 +147,10 @@ describe("seminar announcement (SEM-04 / BE-45)", () => {
 
   it("splits large recipient lists into batches", async () => {
     await seedInfos(
-      Array.from({ length: 170 }, (_, i) => [`m${i}@snu.ac.kr`, true]),
+      Array.from({ length: 900 }, (_, i) => [`m${i}@snu.ac.kr`, true]),
     );
     await sendSeminarAnnouncement({ title: "T", description: "D" });
-    expect(sent.length).toBe(3); // 80 + 80 + 10
+    expect(sent.length).toBe(3); // 400 + 400 + 100
     expect(sent.every((s) => s.bcc)).toBe(true);
   });
 

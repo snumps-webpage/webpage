@@ -48,6 +48,7 @@ const EXTENSIONS: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/webp": "webp",
   "application/pdf": "pdf",
+  "message/rfc822": "eml",
 };
 
 const extensionFor = (contentType: string) =>
@@ -77,6 +78,7 @@ const PREFIXES = lookupTable({
   "seminar-poster": "seminars/posters",
   "study-photo": "studies",
   "gallery-photo": "gallery",
+  "broadcast-eml": "broadcast",
 } as const satisfies Record<UploadPurpose, string>);
 
 export type { UploadPurpose };

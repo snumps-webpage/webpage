@@ -15,6 +15,7 @@ import {
   type CronReport,
 } from "./cron-status";
 import { promoteQualifiedMembers } from "./member-standing";
+import { getTable, mutate } from "$lib/server/data/tables";
 
 /**
  * Maintenance job (SUPABASE-MIGRATION-SPEC §5 잡3, R2-9): staging cleanup,
@@ -76,6 +77,35 @@ export async function cleanupStaging(now: Date = new Date()): Promise<number> {
     .map((f) => f.path);
   await removeStaged(paths);
   return paths.length;
+}
+
+/**
+ * Reap unsent `.eml` broadcast draft rows saved more than STAGING_TTL_MS ago.
+ * The draft files live under pending/ and are reaped by cleanupStaging; this
+ * only drops the rows. Nothing is written when no row is stale. Returns the
+ * removed count.
+ */
+export async function removeStaleDrafts(
+  now: Date = new Date(),
+): Promise<number> {
+  const cutoff = now.getTime() - STAGING_TTL_MS;
+  const isStale = (savedAt: string) => {
+    const saved = Date.parse(savedAt);
+    return Number.isFinite(saved) && saved < cutoff;
+  };
+  if (
+    !(await getTable("mail-broadcast-drafts")).some((r) => isStale(r.savedAt))
+  )
+    return 0;
+
+  let removed = 0;
+  await mutate("mail-broadcast-drafts", (rows) => {
+    // CAS 충돌로 다시 불릴 수 있다 — 매번 새로 센다
+    const kept = rows.filter((r) => !isStale(r.savedAt));
+    removed = rows.length - kept.length;
+    return kept;
+  });
+  return removed;
 }
 
 // B2 missing-env skip is logged once per process, not once per Sunday run.
@@ -266,7 +296,10 @@ export async function runMaintenance(
   await runIsolated(
     report,
     "cleanup",
-    async () => ({ stagedRemoved: await cleanupStaging(now) }),
+    async () => ({
+      stagedRemoved: await cleanupStaging(now),
+      draftsRemoved: await removeStaleDrafts(now),
+    }),
     log,
   );
 

@@ -9,6 +9,8 @@ type StoredObject = {
   contentType: string;
   createdAt: string;
   head?: Uint8Array;
+  /** full bytes (`__stageBytes`) for readStaged */
+  body?: Uint8Array;
   /** body of a text upload (backups) — kept so tests can read a dump back */
   text?: string;
 };
@@ -88,6 +90,28 @@ export async function removeAssets(paths: string[]): Promise<void> {
 /** 버킷 삭제 실패를 흉내 낸다 — 기록 편집이 그것에 발목 잡히지 않는지 본다. */
 export function __setRemoveFails(v: boolean): void {
   removeFails = v;
+}
+
+/** staging 버킷에 바이트 저장(덮어쓰기). */
+export async function uploadStaged(
+  path: string,
+  bytes: Uint8Array,
+  contentType: string,
+): Promise<void> {
+  objects.set(keyOf(STAGING, path), {
+    bytes: bytes.byteLength,
+    contentType,
+    createdAt: new Date().toISOString(),
+    head: bytes,
+    body: bytes,
+  });
+}
+
+export async function createSignedStagedUrl(
+  path: string,
+  expiresInSeconds: number,
+): Promise<string> {
+  return `https://memory.test/staged/${path}?exp=${expiresInSeconds}`;
 }
 
 export async function removeStaged(paths: string[]): Promise<void> {
@@ -181,6 +205,28 @@ export async function readStagedHead(
   const obj = objects.get(keyOf(STAGING, path));
   if (!obj) return null;
   return obj.head ?? new Uint8Array();
+}
+
+/** Full bytes of a staged object, or null when missing. */
+export async function readStaged(path: string): Promise<Uint8Array | null> {
+  const obj = objects.get(keyOf(STAGING, path));
+  if (!obj) return null;
+  return obj.body ?? obj.head ?? new Uint8Array();
+}
+
+/** Stages real bytes: size, head and body all come from them. */
+export function __stageBytes(
+  path: string,
+  bytes: Uint8Array,
+  contentType = "message/rfc822",
+): void {
+  objects.set(keyOf(STAGING, path), {
+    bytes: bytes.byteLength,
+    contentType,
+    createdAt: new Date().toISOString(),
+    head: bytes,
+    body: bytes,
+  });
 }
 
 export function __exists(bucket: string, path: string): boolean {

@@ -1,0 +1,25 @@
+From: Sender <sender@example.com>
+To: list@example.com
+Date: Sat, 17 Oct 2026 09:00:00 +0900
+Subject: =?UTF-8?B?7KCE64usOiBb7ZWZ6rO8XSDqs7Xsp4A=?=
+Message-ID: <fwd-ko-1@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="k1"
+
+--k1
+Content-Type: text/plain; charset="UTF-8"
+
+전달 메모 한국어.
+
+---------- 전달된 메시지 ---------
+보낸사람: 행정실 <office@example.com>
+날짜: 2026년 10월 16일 (금) 오전 10:00
+제목: [학과] 공지
+받는사람: 직원 <staff@example.com>
+
+한국어 원본 본문입니다.
+--k1
+Content-Type: text/html; charset="UTF-8"
+
+<div dir="ltr">전달 메모 한국어.<br><br><div class="gmail_quote gmail_quote_container"><div dir="ltr" class="gmail_attr">---------- 전달된 메시지 ---------<br>보낸사람: <strong class="gmail_sendername" dir="auto">행정실</strong> <span dir="auto">&lt;<a href="mailto:office@example.com">office@example.com</a>&gt;</span><br>날짜: 2026년 10월 16일 (금) 오전 10:00<br>제목: [학과] 공지<br>받는사람: 직원 &lt;<a href="mailto:staff@example.com">staff@example.com</a>&gt;<br></div><br><br><p>한국어 원본 본문입니다.</p></div></div>
+--k1--

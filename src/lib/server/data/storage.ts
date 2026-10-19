@@ -133,6 +133,22 @@ export async function readStagedHead(
 }
 
 /**
+ * 스테이징 객체 전체 바이트 — `.eml` 발송이 서버에서 다시 읽어 해석함(D-000128).
+ * 없으면 null.
+ */
+export async function readStaged(path: string): Promise<Uint8Array | null> {
+  if (isMemoryBackend()) return (await memory()).readStaged(path);
+  const { data, error } = await getSupabase()
+    .storage.from(stagingBucket())
+    .download(path);
+  if (error) {
+    if (isNotFound(error)) return null;
+    throw new Error(`readStaged(${path}) failed: ${error.message}`);
+  }
+  return new Uint8Array(await data.arrayBuffer());
+}
+
+/**
  * Cross-bucket move staging → assets. Supabase does not claim atomicity here
  * (spec §4-2); leftovers from a failed move are the cleanup job's problem.
  */
@@ -213,6 +229,39 @@ export async function removeAssets(paths: string[]): Promise<void> {
     throw new Error(
       `removeAssets(${paths.length} paths) failed: ${error.message}`,
     );
+}
+
+/**
+ * STAGING 버킷에 바이트를 올림(덮어쓰기 허용). 외부 메일 미리보기 이미지처럼
+ * 서버가 만든 임시 객체용 — D-000162.
+ */
+export async function uploadStaged(
+  path: string,
+  bytes: Uint8Array,
+  contentType: string,
+): Promise<void> {
+  if (isMemoryBackend())
+    return (await memory()).uploadStaged(path, bytes, contentType);
+  const { error } = await getSupabase()
+    .storage.from(stagingBucket())
+    .upload(path, bytes, { contentType, upsert: true });
+  if (error) throw new Error(`uploadStaged failed: ${error.message}`);
+}
+
+/** STAGING 버킷 객체의 서명 읽기 주소. 실패는 throw(호출자가 잡음). */
+export async function createSignedStagedUrl(
+  path: string,
+  expiresInSeconds: number,
+): Promise<string> {
+  if (isMemoryBackend())
+    return (await memory()).createSignedStagedUrl(path, expiresInSeconds);
+  const { data, error } = await getSupabase()
+    .storage.from(stagingBucket())
+    .createSignedUrl(path, expiresInSeconds);
+  if (error) throw new Error(`createSignedStagedUrl failed: ${error.message}`);
+  if (!data?.signedUrl)
+    throw new Error("createSignedStagedUrl failed: no url in the response");
+  return data.signedUrl;
 }
 
 export async function removeStaged(paths: string[]): Promise<void> {

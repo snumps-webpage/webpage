@@ -9,7 +9,9 @@ import {
 } from "@sveltejs/kit";
 import { handle as authHandle } from "./auth";
 import {
+  assertPreviewBypassAllowed,
   buildDevPreviewSession,
+  previewLoginResponse,
   resolveDevPreviewRole,
 } from "$lib/server/dev-preview";
 import { decide, needsMemberResolution, zoneOf } from "$lib/server/guards/zone";
@@ -104,7 +106,22 @@ function guardRefusal(event: RequestEvent, status: number, message: string) {
   );
 }
 
+/**
+ * First in the chain, so a production deploy with the preview login flag set
+ * refuses every request — /auth/* included — before anything else runs
+ * (snumps-webpage/D-000177).
+ */
+const previewBypassGuard: Handle = async ({ event, resolve }) => {
+  assertPreviewBypassAllowed();
+  return resolve(event);
+};
+
 const devPreviewHandle: Handle = async ({ event, resolve }) => {
+  // Preview login: key check + signed cookie + redirect without the key
+  // (D-000177·182). Local dev keeps the old query-and-cookie path below.
+  const login = previewLoginResponse(event.url, event.cookies, NO_STORE);
+  if (login) return login;
+
   const devPreviewRole = resolveDevPreviewRole(event.url, event.cookies);
 
   if (devPreviewRole) {
@@ -210,6 +227,7 @@ export const zoneGuard: Handle = async ({ event, resolve }) => {
 };
 
 export const handle = sequence(
+  previewBypassGuard,
   cacheShield,
   authHandle,
   devPreviewHandle,

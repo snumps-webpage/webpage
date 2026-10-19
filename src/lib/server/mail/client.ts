@@ -49,6 +49,27 @@ export async function getAdminAccessToken(): Promise<string> {
 }
 
 /**
+ * An address header folded between addresses (RFC 5322 §2.2.3) so no line
+ * passes 78 characters unless one address alone does — a 400-recipient Bcc
+ * batch (snumps-webpage/D-000165) is about 10KB, far past the 998-character
+ * line limit (§2.1.1, D-000225).
+ */
+export function foldAddressHeader(name: string, addresses: string[]): string {
+  const lines: string[] = [];
+  let line = `${name}:`;
+  addresses.forEach((address, i) => {
+    const piece = ` ${address}${i < addresses.length - 1 ? "," : ""}`;
+    if (line.length + piece.length > 78 && line.trim() !== `${name}:`) {
+      lines.push(line);
+      line = "";
+    }
+    line += piece;
+  });
+  lines.push(line);
+  return lines.join("\r\n");
+}
+
+/**
  * Internal helper to send the actual RFC 2822 email via Gmail API.
  */
 export async function dispatchEmail(
@@ -66,11 +87,14 @@ export async function dispatchEmail(
 
   // Bcc mode is MANDATORY for any all-member send (API-SPEC §5-7): a To:
   // list would expose every member's address to every other member.
-  // Bcc-only messages get an empty-group To: — some filters score a missing
-  // To: header as spam (review low-15).
-  const recipientHeader = opts?.bcc
-    ? `To: undisclosed-recipients:;\r\nBcc: ${recipients.join(", ")}`
-    : `To: ${recipients.join(", ")}`;
+  // Bcc-only messages carry no To: at all. The empty group
+  // `To: undisclosed-recipients:;` (review low-15) is refused by the Gmail
+  // API with 400 "Invalid To header", so every all-member send failed
+  // (live probe 2026-10-17, snumps-webpage/D-000143).
+  const recipientHeader = foldAddressHeader(
+    opts?.bcc ? "Bcc" : "To",
+    recipients,
+  );
   const message = [
     recipientHeader,
     `Subject: =?utf-8?B?${Buffer.from(subject).toString("base64")}?=`,
@@ -102,4 +126,62 @@ export async function dispatchEmail(
     console.error("Google Gmail API Send Error:", JSON.stringify(err, null, 2));
     throw new Error("Gmail API failure");
   }
+}
+
+const UPLOAD_SEND_URL =
+  "https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media";
+
+/** Gmail refused the send because a sending quota is exhausted. */
+export class GmailQuotaError extends Error {
+  constructor(reason = "") {
+    super(`Gmail quota exceeded${reason ? `: ${reason}` : ""}`);
+    this.name = "GmailQuotaError";
+  }
+}
+
+/** Gmail refused the send for any other reason. */
+export class GmailSendError extends Error {
+  constructor(
+    public status: number,
+    public reason: string,
+  ) {
+    super(`Gmail send failed (${status}${reason ? `: ${reason}` : ""})`);
+    this.name = "GmailSendError";
+  }
+}
+
+const QUOTA_REASONS = new Set([
+  "rateLimitExceeded",
+  "dailyLimitExceeded",
+  "quotaExceeded",
+  "userRateLimitExceeded",
+]);
+
+/**
+ * Uploads an already-built RFC 822 message untouched (.eml broadcast). Quota
+ * failures are told apart so the caller can stop the run; the response body
+ * is never logged and nothing is retried (D-000110).
+ */
+export async function dispatchRaw(
+  accessToken: string,
+  raw: Buffer,
+): Promise<void> {
+  const res = await fetch(UPLOAD_SEND_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "message/rfc822",
+    },
+    // Buffer is a Uint8Array at runtime; the DOM lib types reject its
+    // ArrayBufferLike backing, so cast instead of copying up to 25 MB.
+    body: raw as Uint8Array<ArrayBuffer>,
+  });
+  if (res.ok) return;
+  const reason = await res.json().then(
+    (j) => j?.error?.errors?.[0]?.reason ?? "",
+    () => "",
+  );
+  if (res.status === 429 || QUOTA_REASONS.has(reason))
+    throw new GmailQuotaError(reason);
+  throw new GmailSendError(res.status, reason);
 }
