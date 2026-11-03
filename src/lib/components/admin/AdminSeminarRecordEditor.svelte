@@ -33,6 +33,7 @@
   } = $props();
 
   let query = $state("");
+  let posterUploading = $state(false);
   const filtered = $derived.by(() => {
     const normalized = query.trim().toLocaleLowerCase("ko-KR");
     return records.filter(
@@ -144,6 +145,9 @@
       action="?/create"
       class="record-form"
       onformdata={joinPresenterIds}
+      onsubmit={(event) => {
+        if (posterUploading) event.preventDefault();
+      }}
     >
       <div class="field-grid">
         <label class="title-field"
@@ -193,7 +197,7 @@
         >
         <label class="wide"
           ><span class="paper-label">설명</span><textarea
-            name="note"
+            name="description"
             rows="3"
             aria-invalid={!!createIssues.description}
             >{form?.scope === "record-create"
@@ -237,10 +241,13 @@
       <div class="poster-field">
         <span class="paper-label">포스터 (선택 · PNG/JPEG)</span>
         <PosterUploadField
+          bind:uploading={posterUploading}
           label="포스터 파일 (선택 · 최대 {uploadLimitMb('seminar-poster')}MB)"
         />
       </div>
-      <button class="paper-btn primary" type="submit">레코드 생성</button>
+      <button class="paper-btn primary" type="submit" disabled={posterUploading}
+        >레코드 생성</button
+      >
     </form>
   </details>
 
@@ -333,7 +340,7 @@
                 /></label
               ><label class="wide"
                 ><span class="paper-label">설명</span><textarea
-                  name="note"
+                  name="description"
                   rows="3"
                   aria-invalid={!!updateIssues.description}
                   >{shown.description}</textarea

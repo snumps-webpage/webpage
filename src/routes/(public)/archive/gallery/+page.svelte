@@ -41,8 +41,7 @@
   />
   <PublicDirectoryNav items={[...ARCHIVE_NAV]} label="활동 아카이브 탐색" />
   <p class="scope-note">
-    공개 승인된 파생 이미지만 제공합니다. 목록에는 400px 썸네일, 상세 열람에는
-    1200px 표시본을 사용할 계약입니다.
+    공개된 활동 사진입니다. 사진을 누르면 원본을 새 창에서 볼 수 있습니다.
   </p>
   {#if data.dataAvailable}
     <div class="gallery-grid">

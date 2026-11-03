@@ -9,6 +9,7 @@ import { AppError } from "$lib/server/core/errors";
 import { newId, randomToken } from "$lib/server/core/id";
 import {
   copyToBackups,
+  copyStagedToAssets,
   createUploadUrl,
   promoteToAssets,
   readStagedHead,
@@ -133,6 +134,7 @@ export async function promotePendingUpload(
   pendingKey: string,
   purpose: UploadPurpose,
   recordId: string,
+  options?: { preserveStaging?: boolean },
 ): Promise<string> {
   if (!pendingKey.startsWith(`pending/${purpose}/`)) {
     throw new AppError("VALIDATION_FAILED");
@@ -159,7 +161,8 @@ export async function promotePendingUpload(
   const slug = slugifyFilename(filename.slice(filename.indexOf("-") + 1));
   const finalKey = `${PREFIXES[purpose]}/${recordId}/${randomToken(8)}-${slug}.${extensionFor(info.contentType)}`;
 
-  await promoteToAssets(pendingKey, finalKey);
+  if (options?.preserveStaging) await copyStagedToAssets(pendingKey, finalKey);
+  else await promoteToAssets(pendingKey, finalKey);
   try {
     // B3 asset mirror (SUPABASE-MIGRATION-SPEC §7): one copy into the private
     // backups bucket at promotion time — the replacement for S3 versioning.
@@ -179,6 +182,7 @@ export async function promotePendingUpload(
  */
 export async function promoteSeminarPoster(
   pendingKey: string,
+  options?: { preserveStaging?: boolean },
 ): Promise<string> {
   const key = pendingKey.trim();
   if (!key) return "";
@@ -187,5 +191,5 @@ export async function promoteSeminarPoster(
       userMessage: "포스터 업로드 정보가 올바르지 않습니다.",
     });
   }
-  return promotePendingUpload(key, "seminar-poster", newId());
+  return promotePendingUpload(key, "seminar-poster", newId(), options);
 }

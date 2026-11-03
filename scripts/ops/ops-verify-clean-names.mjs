@@ -31,12 +31,20 @@ function scan(value, path, hits) {
 }
 
 let total = 0;
+let incomplete = false;
 for (const name of TABLES) {
-  const { data } = await sb
+  const { data, error } = await sb
     .from("app_tables")
     .select("doc")
     .eq("name", name)
     .maybeSingle();
+  if (error) {
+    console.error(
+      `${name}: 조회 실패 — 검사 미완료 (${error.code ?? "unknown"})`,
+    );
+    incomplete = true;
+    continue;
+  }
   const rows = data?.doc?.rows ?? [];
   const hits = [];
   rows.forEach((r, i) => scan(r, `${name}[${i}]`, hits));
@@ -46,4 +54,11 @@ for (const name of TABLES) {
   total += hits.length;
   for (const h of hits.slice(0, 5)) console.log(`   → ${h}`);
 }
-console.log(total === 0 ? "\n✅ 전체 클린" : `\n⚠️ 총 ${total}건 잔존`);
+if (incomplete) {
+  console.error(
+    "\n검사 미완료 — 조회하지 못한 표가 있어 전체 클린으로 판정하지 않는다.",
+  );
+  process.exitCode = 1;
+} else {
+  console.log(total === 0 ? "\n✅ 전체 클린" : `\n⚠️ 총 ${total}건 잔존`);
+}

@@ -30,13 +30,8 @@ const outArg = process.argv.indexOf("--out");
 const outDir =
   outArg !== -1 ? process.argv[outArg + 1] : path.join(REPO_ROOT, "backups");
 
-/** 받을 테이블과 정렬 키(쪽 사이에 행이 밀리거나 겹치지 않게). 하나라도 못 받으면 저장하지 않는다. */
+/** Required arrays from the atomic snapshot; missing arrays prevent saving. */
 const TABLES = ["app_tables", "app_queues", "audit_log"];
-const ORDER_BY = {
-  app_tables: "name",
-  app_queues: "event_id",
-  audit_log: "id",
-};
 
 const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 const snapshot = {
@@ -46,36 +41,18 @@ const snapshot = {
 };
 const report = [];
 
-/**
- * 한 테이블 전부 — 쪽 단위로. PostgREST는 한 응답을 Max rows(기본 1000)에서 오류 없이
- * 자르므로 한 번의 select("*")로는 audit_log가 조용히 잘린다. 정확한 행 수(count)와
- * 맞지 않으면 실패로 친다.
- */
-const PAGE = 1000;
-async function fetchAll(table) {
-  const rows = [];
-  let total = null;
-  for (let from = 0; ; from += PAGE) {
-    const { data, error, count } = await sb
-      .from(table)
-      .select("*", { count: "exact" })
-      .order(ORDER_BY[table])
-      .range(from, from + PAGE - 1);
-    if (error) return { error };
-    if (total === null) total = count;
-    rows.push(...data);
-    if (data.length < PAGE) break;
-  }
-  if (total !== null && rows.length !== total) {
-    return { error: { code: `행 수 불일치 ${rows.length}/${total}` } };
-  }
-  return { data: rows };
-}
-
+// The SQL function reads all three tables in one statement snapshot. Paging
+// separate SELECTs can mix states across an attendance approval transaction.
+const { data: tables, error: readError } = await sb.rpc(
+  "flow_backup_snapshot",
+  { p: {} },
+);
+if (readError)
+  throw new Error(`스냅샷 조회 실패: ${readError.code ?? "unknown"}`);
 for (const table of TABLES) {
-  const { data, error } = await fetchAll(table);
-  if (error) {
-    report.push({ 테이블: table, 행: "-", 비고: `실패: ${error.code}` });
+  const data = tables?.[table];
+  if (!Array.isArray(data)) {
+    report.push({ 테이블: table, 행: "-", 비고: "실패: 스냅샷 테이블 없음" });
     continue;
   }
   snapshot.tables[table] = data;

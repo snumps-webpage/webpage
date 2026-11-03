@@ -19,9 +19,8 @@
 //
 // 보호: version > 1 인 app_tables 행은 --force 없이 덮어쓰지 않는다 (운영 데이터 보호).
 //
-// ⚠️ 검증 주의: 아래 구조 검사는 API-SPEC §2를 손으로 옮긴 근사치다. 권위 있는 게이트는
-//    앱의 Zod 스키마(src/lib/server/data/schemas/*) — 업로드 전후로 사본에 대해
-//    `pnpm exec vitest run src/lib/server/data` 를 실행해 쓰기 게이트 통과를 확인할 것.
+// 앱의 실제 Zod 스키마로 모든 행을 검증하고 기본값을 저장한 뒤에만 파일·DB에 쓴다.
+// 프로젝트 루트 tsconfig의 $lib alias가 필요하다. 설치·svelte-kit sync 후 tsx로 실행한다.
 
 import { readFileSync } from "node:fs";
 import {
@@ -49,6 +48,10 @@ import {
   OUT_DIR,
 } from "./lib";
 import path from "node:path";
+import {
+  TABLES as STORED_TABLES,
+  envelope,
+} from "../../src/lib/server/data/schemas";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -68,6 +71,11 @@ const TABLE_NAMES = [
   "seminars",
   "gallery-dinner",
 ] as const;
+
+const S9_TARGET: Record<string, string> = {
+  members: "legacy-members",
+  "private-info": "legacy-private-info",
+};
 
 const errors: string[] = [];
 const warnings: string[] = [];
@@ -319,6 +327,7 @@ async function main() {
         propValue(page.properties["출석"]) || [],
         where,
       ),
+      studyId: null,
       sourceRequestId: null,
     });
   }
@@ -440,6 +449,11 @@ async function main() {
       photos: assetKeys(page.properties["활동 사진"], `${where} 활동 사진`),
       // archive seminars were held — the rule migration 20260928000100 applies
       publicationStatus: "published",
+      kind: null,
+      durationMinutes: null,
+      prerequisites: "",
+      announce: true,
+      videos: [],
       activityId: null,
       sourceRequestId: null,
     });
@@ -561,10 +575,34 @@ async function main() {
   // 구조 검증 — API-SPEC §2를 손으로 옮긴 근사치 (권위는 앱 Zod 스키마)
   // -------------------------------------------------------------------------
   structuralValidate(tables, fail);
-  console.warn(
-    "⚠️ 위 구조 검사는 근사치다 — 권위 있는 Zod 게이트는 앱 스키마: " +
-      "`pnpm exec vitest run src/lib/server/data` 를 사본에 대해 실행해 확인할 것.",
-  );
+  for (const name of TABLE_NAMES) {
+    const target = S9_TARGET[name] ?? name;
+    const schema = STORED_TABLES[target as keyof typeof STORED_TABLES];
+    if (!schema) throw new Error(`저장 스키마 없음: ${target}`);
+    const parsed = envelope(schema.strict()).safeParse({
+      schemaVersion: 1,
+      rows: tables[name],
+    });
+    if (!parsed.success) {
+      for (const issue of parsed.error.issues)
+        fail(`${target}.${issue.path.join(".")}: ${issue.message}`);
+    } else {
+      // Materialize only canonical storage defaults, including legacy fields.
+      tables[name] = parsed.data.rows;
+    }
+  }
+
+  if (warnings.length) {
+    console.warn(`\n경고 ${warnings.length}건:`);
+    for (const w of warnings) console.warn(`  - ${w}`);
+  }
+  if (errors.length) {
+    console.error(
+      `\n오류 ${errors.length}건 — 파일·DB에 쓰지 않고 중단합니다:`,
+    );
+    for (const e of errors) console.error(`  - ${e}`);
+    process.exit(1);
+  }
 
   // -------------------------------------------------------------------------
   // 산출물 저장 + 오류 시 업로드 전 중단
@@ -582,16 +620,6 @@ async function main() {
   }
   saveIdMap(idMap);
 
-  if (warnings.length) {
-    console.warn(`\n경고 ${warnings.length}건:`);
-    for (const w of warnings) console.warn(`  - ${w}`);
-  }
-  if (errors.length) {
-    console.error(`\n오류 ${errors.length}건 — 업로드하지 않고 중단합니다:`);
-    for (const e of errors) console.error(`  - ${e}`);
-    process.exit(1);
-  }
-
   // -------------------------------------------------------------------------
   // app_tables UPSERT — version=1 초기화, version>1 행은 --force 없이 보호
   //
@@ -600,10 +628,6 @@ async function main() {
   // 운영 members/private-info는 재가입 승인으로만 채워지는 별개 DB다 —
   // 여기에 쓰면 운영 데이터를 파괴한다 (2026-08-31 실사고, 즉시 교정됨).
   // -------------------------------------------------------------------------
-  const S9_TARGET: Record<string, string> = {
-    members: "legacy-members",
-    "private-info": "legacy-private-info",
-  };
   const uploadTables: Record<string, any[]> = Object.fromEntries(
     Object.entries(tables).map(([name, rows]) => [
       S9_TARGET[name] ?? name,
@@ -631,7 +655,7 @@ async function main() {
     process.exit(1);
   }
 
-  const upserts = Object.entries(tables).map(([name, rows]) => ({
+  const upserts = Object.entries(uploadTables).map(([name, rows]) => ({
     name,
     version: 1, // M-3: version=1 초기화
     doc: { schemaVersion: 1, rows },
@@ -641,7 +665,7 @@ async function main() {
 
   console.log(`\n업로드 완료 (version=1 초기화${force ? ", --force" : ""})`);
   console.table(
-    Object.entries(tables).map(([name, rows]) => ({
+    Object.entries(uploadTables).map(([name, rows]) => ({
       table: name,
       rows: rows.length,
     })),

@@ -128,3 +128,70 @@ describe("what the cache hands out", () => {
     expect(again).toEqual([{ id: "m1", tags: ["a"] }]);
   });
 });
+
+describe("concurrent cache misses", () => {
+  it("shares one in-flight read among simultaneous callers", async () => {
+    let release!: (value: string[]) => void;
+    let calls = 0;
+    const pending = new Promise<string[]>((resolve) => {
+      release = resolve;
+    });
+    const fetcher = () => {
+      calls++;
+      return pending;
+    };
+    const reads = Array.from({ length: 100 }, () =>
+      withCache("table_members", 300_000, fetcher),
+    );
+    await Promise.resolve();
+    const observed = calls;
+    release(["fresh"]);
+    const values = await Promise.all(reads);
+    expect(observed).toBe(1);
+    expect(values.every((rows) => rows === values[0])).toBe(true);
+  });
+
+  it("does not share an obsolete read with callers after invalidation", async () => {
+    let release!: (value: string) => void;
+    const old = withCache(
+      "table_members",
+      300_000,
+      () =>
+        new Promise<string>((r) => {
+          release = r;
+        }),
+    );
+    await Promise.resolve();
+    await invalidateCache("table_members");
+    const fresh = withCache("table_members", 300_000, async () => "fresh");
+    release("stale");
+    expect(await old).toBe("stale");
+    expect(await fresh).toBe("fresh");
+    expect(
+      await withCache("table_members", 300_000, async () => "unexpected"),
+    ).toBe("fresh");
+  });
+
+  it("drops a rejected in-flight read so recovery can retry", async () => {
+    let fail!: (error: Error) => void;
+    let calls = 0;
+    const pending = new Promise<string>((_, reject) => {
+      fail = reject;
+    });
+    const fetcher = () => {
+      calls++;
+      return pending;
+    };
+    const one = withCache("table_members", 300_000, fetcher);
+    const two = withCache("table_members", 300_000, fetcher);
+    const outcome = Promise.allSettled([one, two]);
+    await Promise.resolve();
+    const observed = calls;
+    fail(new Error("synthetic outage"));
+    expect((await outcome).every((r) => r.status === "rejected")).toBe(true);
+    expect(observed).toBe(1);
+    expect(
+      await withCache("table_members", 300_000, async () => "recovered"),
+    ).toBe("recovered");
+  });
+});

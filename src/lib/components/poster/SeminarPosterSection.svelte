@@ -8,6 +8,7 @@
     seminarDescription = "",
     seminarPrerequisites = "",
     selectedSpeakers = [] as MemberPickerItem[],
+    uploading = $bindable(false),
   } = $props();
 
   // 포스터 방식: 자동 생성 미리보기 vs 직접 업로드(PNG/JPEG)
@@ -39,6 +40,7 @@
     <button
       type="button"
       class="paper-btn small"
+      disabled={uploading}
       class:active={posterMode === "auto"}
       aria-pressed={posterMode === "auto"}
       onclick={() => (posterMode = "auto")}>자동 생성</button
@@ -46,6 +48,7 @@
     <button
       type="button"
       class="paper-btn small"
+      disabled={uploading}
       class:active={posterMode === "upload"}
       aria-pressed={posterMode === "upload"}
       onclick={() => (posterMode = "upload")}>직접 업로드 (PNG/JPEG)</button
@@ -54,7 +57,7 @@
 
   {#if posterMode === "upload"}
     <div class="poster-upload-wrap">
-      <PosterUploadField />
+      <PosterUploadField bind:uploading />
       <p class="paper-hint">
         직접 올린 포스터는 승인 후 세미나에 사용됩니다. 자동 생성 포스터 대신
         쓰입니다.

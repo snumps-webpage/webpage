@@ -137,3 +137,11 @@ describe("withFooter", () => {
     expect(out.text).toContain("본문");
   });
 });
+
+it("discards noscript content after an implied ancestor close", () => {
+  const out = sanitizeMailHtml(
+    '<div><noscript></div><img src="https://audit.invalid/beacon.gif"></noscript>',
+  );
+  expect(out).not.toContain("beacon.gif");
+  expect(out).not.toContain("<img");
+});

@@ -7,9 +7,14 @@ vi.mock(
 
 import { __reset } from "$lib/server/data/store-memory";
 import { expectTablesValid } from "$lib/server/data/expect-tables-valid";
-import { _resetDataLayerForTests, getTable } from "$lib/server/data/tables";
+import {
+  _resetDataLayerForTests,
+  getTable,
+  mutate,
+} from "$lib/server/data/tables";
 import { invalidateCache } from "$lib/server/cache";
 import { AppError } from "$lib/server/core/errors";
+import { nowKstIso } from "$lib/server/core/time";
 import {
   approveSeminar,
   submitSeminarRequest,
@@ -36,8 +41,35 @@ const REQUESTER = "m1";
 beforeEach(async () => {
   await __reset();
   _resetDataLayerForTests({ backoffBaseMs: 1 });
-  for (const t of ["seminars", "seminar-requests", "studies", "study-requests"])
+  for (const t of [
+    "seminars",
+    "seminar-requests",
+    "studies",
+    "study-requests",
+    "members",
+  ])
     await invalidateCache(`table_${t}`);
+  // Study approval now appoints only someone on the current operating roster.
+  await mutate("members", () => [
+    {
+      id: REQUESTER,
+      name: "회원",
+      department: "수리과학부",
+      joinedAt: "2024-03-01",
+      status: "regular",
+      statusChangedAt: nowKstIso(),
+      withdrawal: null,
+      isAlumni: true,
+      alumniRevoked: false,
+      alumniRevocationReason: null,
+      roles: [],
+      isAdmin: false,
+      publicContact: null,
+      project: null,
+      legacyMemberId: null,
+      sourceRequestId: null,
+    },
+  ]);
 });
 afterEach(expectTablesValid);
 

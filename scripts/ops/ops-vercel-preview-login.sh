@@ -15,7 +15,6 @@ KEYFILE=.env.preview-login
 
 if [ "${1:-}" = "--rotate" ]; then
   rm -f "$KEYFILE"
-  vercel env rm PREVIEW_LOGIN_KEY preview --yes > /dev/null 2>&1 || true
 fi
 
 if [ ! -f "$KEYFILE" ]; then
@@ -26,14 +25,16 @@ chmod 600 "$KEYFILE"
 key="$(sed -n 's/^PREVIEW_LOGIN_KEY=//p' "$KEYFILE")"
 [ "${#key}" -ge 32 ] || { echo "키가 너무 짧다: $KEYFILE"; exit 1; }
 
-if printf '%s' "$key" | vercel env add PREVIEW_LOGIN_KEY preview "" --sensitive --yes > /dev/null 2>&1; then
+if printf '%s' "$key" | vercel env add PREVIEW_LOGIN_KEY preview "" --sensitive --yes --force > /dev/null 2>&1; then
   echo "set  PREVIEW_LOGIN_KEY (preview, sensitive)"
 else
-  echo "keep PREVIEW_LOGIN_KEY (이미 있음 — 바꾸려면 --rotate)"
+  echo "FAIL PREVIEW_LOGIN_KEY 등록 (권한·연결·CLI 오류 확인)" >&2
+  exit 1
 fi
-if vercel env add PREVIEW_LOGIN_BYPASS preview "" --value on --no-sensitive --yes > /dev/null 2>&1; then
+if vercel env add PREVIEW_LOGIN_BYPASS preview "" --value on --no-sensitive --yes --force > /dev/null 2>&1; then
   echo "set  PREVIEW_LOGIN_BYPASS=on (preview)"
 else
-  echo "keep PREVIEW_LOGIN_BYPASS (이미 있음)"
+  echo "FAIL PREVIEW_LOGIN_BYPASS 등록 (권한·연결·CLI 오류 확인)" >&2
+  exit 1
 fi
 echo "다음: Preview를 다시 배포해야 반영된다."

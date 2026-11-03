@@ -73,21 +73,34 @@ function filled(prop) {
   }
 }
 
-/** 페이지 본문에 글이 있는가 (자식 한 단계까지). */
+/** True/false only after all pages are read; null means unknown. */
 async function hasBody(pageId) {
   try {
-    const res = await api(
-      `https://api.notion.com/v1/blocks/${pageId}/children?page_size=50`,
-    );
-    for (const block of res.results ?? []) {
-      const rich = block[block.type]?.rich_text ?? [];
-      if (rich.some((r) => (r.plain_text ?? "").trim())) return true;
-      if (block.has_children && (await hasBody(block.id))) return true;
-    }
+    let cursor;
+    let unknown = false;
+    do {
+      const qs = new URLSearchParams({ page_size: "100" });
+      if (cursor) qs.set("start_cursor", cursor);
+      const res = await api(
+        `https://api.notion.com/v1/blocks/${pageId}/children?${qs}`,
+      );
+      for (const block of res.results ?? []) {
+        const rich = block[block.type]?.rich_text ?? [];
+        if (rich.some((r) => (r.plain_text ?? "").trim())) return true;
+        if (block.has_children) {
+          const child = await hasBody(block.id);
+          if (child === true) return true;
+          if (child === null) unknown = true;
+        }
+      }
+      if (res.has_more && !res.next_cursor)
+        throw new Error("missing pagination cursor");
+      cursor = res.has_more ? res.next_cursor : undefined;
+    } while (cursor);
+    return unknown ? null : false;
   } catch {
-    /* 접근 불가는 "모름"으로 둔다 */
+    return null;
   }
-  return false;
 }
 
 /**
@@ -151,6 +164,7 @@ for (const [label, envName] of SKIP_NOTION ? [] : DATABASES) {
     console.log(
       `\n## ${label} — 조회 실패: ${e instanceof Error ? e.message : e}`,
     );
+    process.exitCode = 1;
     continue;
   }
 
@@ -196,11 +210,22 @@ for (const [label, envName] of SKIP_NOTION ? [] : DATABASES) {
 
   // 본문은 이주가 한 번도 읽지 않은 영역이다.
   let bodies = 0;
-  for (const row of rows) if (await hasBody(row.id)) bodies += 1;
+  let unknownBodies = 0;
+  for (const row of rows) {
+    const body = await hasBody(row.id);
+    if (body === true) bodies += 1;
+    if (body === null) unknownBodies += 1;
+  }
   if (bodies) {
     console.log(
       `  ⚠ 페이지 본문에 글이 있는 행: ${bodies}/${rows.length} (이주 대상 아님)`,
     );
+  }
+  if (unknownBodies) {
+    console.log(
+      `  페이지 본문 미확인: ${unknownBodies}/${rows.length} — 감사 미완료`,
+    );
+    process.exitCode = 1;
   }
 }
 
@@ -210,6 +235,7 @@ if (sb) {
   const { data, error } = await sb.from("app_tables").select("name, doc");
   if (error) {
     console.log(`\n# 앱 테이블 조회 실패: ${error.message}`);
+    process.exitCode = 1;
   } else {
     console.log("\n# 앱 테이블 대조\n");
     const pairs = {
@@ -284,8 +310,8 @@ if (sb) {
       },
       {
         화면: "회원 상태",
-        지표: "정회원(active)",
-        값: `${members.filter((m) => m.status === "active").length}/${members.length}`,
+        지표: "정회원(regular)",
+        값: `${members.filter((m) => m.status === "regular").length}/${members.length}`,
       },
     ]);
   }

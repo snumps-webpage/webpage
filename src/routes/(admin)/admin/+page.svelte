@@ -6,11 +6,7 @@
   import AdminEventLedger from "$lib/components/admin/AdminEventLedger.svelte";
   import AdminReviewInbox from "$lib/components/admin/AdminReviewInbox.svelte";
   import AdminSectionNav from "$lib/components/admin/AdminSectionNav.svelte";
-  import type {
-    AdminAttendanceQueueItem,
-    AdminDashboardData,
-    AdminEventItem,
-  } from "$lib/domain/admin-dashboard";
+  import type { AdminDashboardData } from "$lib/domain/admin-dashboard";
   import { MANUSCRIPT } from "$lib/constants";
   import { fetchAdminQueue } from "$lib/client/api";
   import { createAdminQueuePoller } from "$lib/client/admin-queue-poller";
@@ -130,16 +126,10 @@
   }
 
   function transitionEvent(
-    eventId: string,
+    _eventId: string,
     operation: "activated" | "expired" | "updated" | "deleted",
-    event?: AdminEventItem,
   ) {
-    if (operation === "deleted")
-      dashboard.events = dashboard.events.filter((item) => item.id !== eventId);
-    else if (event)
-      dashboard.events = dashboard.events.map((item) =>
-        item.id === eventId ? event : item,
-      );
+    // Children await update() first; the reloaded rows are authoritative.
     showSuccess(
       {
         activated: "이벤트를 열었습니다.",
@@ -151,33 +141,9 @@
   }
 
   function resolveAttendance(
-    attendanceId: string,
+    _attendanceId: string,
     operation: "approved" | "rejected" | "updated" | "deleted",
-    record?: AdminAttendanceQueueItem,
   ) {
-    if (operation === "updated" && record) {
-      dashboard.attendanceQueue = dashboard.attendanceQueue.map((item) =>
-        item.id === attendanceId ? record : item,
-      );
-    } else {
-      dashboard.attendanceQueue = dashboard.attendanceQueue.filter(
-        (item) => item.id !== attendanceId,
-      );
-      dashboard.events = dashboard.events.map((event) =>
-        event.id === record?.eventId ||
-        dashboard.attendanceQueue.every((item) => item.eventId !== event.id)
-          ? {
-              ...event,
-              pendingAttendanceCount: dashboard.attendanceQueue.filter(
-                (item) => item.eventId === event.id,
-              ).length,
-              canDelete: dashboard.attendanceQueue.every(
-                (item) => item.eventId !== event.id,
-              ),
-            }
-          : event,
-      );
-    }
     showSuccess(
       {
         approved: "출석을 승인해 활동 이력에 반영했습니다.",

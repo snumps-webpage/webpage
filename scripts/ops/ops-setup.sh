@@ -60,12 +60,22 @@ chmod 600 .env.prod-secrets
 
 # ---- 4) dev 프로젝트에 마이그레이션 적용 ---------------------------------------
 step "link + db push (dev)"
-supabase link --project-ref "$DEV_REF" -p "$DEVPW" 2>&1 | grep -viE "password|new version|recommend" || true
+if ! output=$(supabase link --project-ref "$DEV_REF" -p "$DEVPW" 2>&1); then
+  printf '%s\n' "$output" | grep -viE "password|new version|recommend" || true
+  echo "!! dev link failed — migration was not attempted; local env files were already written" >&2
+  exit 1
+fi
+printf '%s\n' "$output" | grep -viE "password|new version|recommend" || true
+pushed=0
 for i in 1 2 3 4 5; do
-  if supabase db push -p "$DEVPW" --include-all --yes 2>&1 | grep -viE "password|new version|recommend"; then
+  if output=$(supabase db push -p "$DEVPW" --include-all --yes 2>&1); then
+    printf '%s\n' "$output" | grep -viE "password|new version|recommend" || true
+    pushed=1
     break
   fi
-  echo "   retry $i (db may still be provisioning)"; sleep 20
+  printf '%s\n' "$output" | grep -viE "password|new version|recommend" || true
+  if [ "$i" -lt 5 ]; then echo "   retry $i (db may still be provisioning)"; sleep 20; fi
 done
+[ "$pushed" = 1 ] || { echo "!! migrations failed after 5 attempts; local env files were already written" >&2; exit 1; }
 
 step "done"

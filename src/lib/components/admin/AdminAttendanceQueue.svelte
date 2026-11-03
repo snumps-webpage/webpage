@@ -9,7 +9,6 @@
     onResolved: (
       attendanceId: string,
       operation: "approved" | "rejected" | "updated" | "deleted",
-      record?: AdminAttendanceQueueItem,
     ) => void;
     onError: (message: string) => void;
   }
@@ -33,7 +32,7 @@
         processingId = null;
         if (result.type === "success") {
           await update({ reset: false });
-          onResolved(record.id, operation, record);
+          onResolved(record.id, operation);
           if (operation === "updated") editing = null;
         } else {
           const data =

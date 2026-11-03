@@ -95,3 +95,31 @@ describe("member administration domain", () => {
     ).toBe(true);
   });
 });
+
+describe("member joinedAt calendar dates", () => {
+  const input = {
+    name: "Synthetic",
+    department: "Math",
+    projectTitle: "",
+    projectUrl: "",
+  };
+  it.each([
+    "2026-02-30",
+    "2026-02-29",
+    "2026-04-31",
+    "2026-00-01",
+    "2026-13-01",
+  ])("rejects impossible date %s", (joinedAt) => {
+    expect(
+      memberRecordInputSchema.safeParse({ ...input, joinedAt }).success,
+    ).toBe(false);
+  });
+  it.each(["2024-02-29", "2026-02-28", "2026-12-31"])(
+    "preserves real date %s",
+    (joinedAt) => {
+      expect(
+        memberRecordInputSchema.parse({ ...input, joinedAt }).joinedAt,
+      ).toBe(joinedAt);
+    },
+  );
+});

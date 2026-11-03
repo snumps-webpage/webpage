@@ -15,9 +15,11 @@
   const PURPOSE = "seminar-poster";
   const maxMb = uploadLimitMb(PURPOSE);
 
-  let { label = `포스터 파일 (PNG · JPEG, 최대 ${maxMb}MB)` } = $props();
+  let {
+    label = `포스터 파일 (PNG · JPEG, 최대 ${maxMb}MB)`,
+    uploading = $bindable(false),
+  } = $props();
 
-  let uploading = $state(false);
   let uploadError = $state("");
   let uploadedName = $state("");
   let posterPendingKey = $state("");
@@ -26,6 +28,8 @@
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
+    posterPendingKey = "";
+    uploadedName = "";
     uploadError = "";
     // An empty file is left to the server, as before.
     const problem = uploadFileProblem(PURPOSE, file);

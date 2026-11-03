@@ -66,6 +66,7 @@
   let selectedPresenters = $state<MemberPickerItem[]>(startingPresenters);
   let showSearch = $state(false);
   let processing = $state(false);
+  let posterUploading = $state(false);
   let formElement = $state<HTMLFormElement>();
 
   let clearedIssueFields = $state<SeminarRequestField[]>([]);
@@ -130,27 +131,33 @@
     description={successDescription}
     buttonLabel="대시보드로 돌아가기"
   />
-{:else if processing}
-  <div class="processing-container" aria-live="polite">
-    <div class="processing-card">
-      <Skeleton height="320px" borderRadius="0" />
-      <div class="processing-overlay">
-        <div class="spinner" aria-hidden="true"></div>
-        <p>
-          {isEdit
-            ? "수정 원고를 제출하고 있습니다."
-            : "신청 원고를 제출하고 있습니다."}
-        </p>
-        <span class="paper-hint">잠시만 기다려 주세요.</span>
+{:else}
+  {#if processing}
+    <div class="processing-container" aria-live="polite">
+      <div class="processing-card">
+        <Skeleton height="320px" borderRadius="0" />
+        <div class="processing-overlay">
+          <div class="spinner" aria-hidden="true"></div>
+          <p>
+            {isEdit
+              ? "수정 원고를 제출하고 있습니다."
+              : "신청 원고를 제출하고 있습니다."}
+          </p>
+          <span class="paper-hint">잠시만 기다려 주세요.</span>
+        </div>
       </div>
     </div>
-  </div>
-{:else}
+  {/if}
   <form
     bind:this={formElement}
+    hidden={processing}
     method="POST"
     action={isEdit ? "?/update" : undefined}
-    use:enhance={() => {
+    use:enhance={({ cancel }) => {
+      if (posterUploading) {
+        cancel();
+        return;
+      }
       clearedIssueFields = [];
       processing = true;
       return async ({ update }) => {
@@ -412,6 +419,7 @@
           </div>
         </div>
         <SeminarPosterSection
+          bind:uploading={posterUploading}
           seminarTitle={title}
           seminarDescription={description}
           seminarPrerequisites={prerequisites}
@@ -421,7 +429,7 @@
     </ol>
 
     <div class="paper-actions form-actions">
-      <button class="paper-btn primary" disabled={processing}
+      <button class="paper-btn primary" disabled={processing || posterUploading}
         >{submitLabel}</button
       >
       {#if isEdit}<a href="/" class="paper-btn secondary">수정 취소</a>{/if}
@@ -430,6 +438,9 @@
 {/if}
 
 <style>
+  form[hidden] {
+    display: none;
+  }
   .req {
     color: var(--latex-accent);
   }

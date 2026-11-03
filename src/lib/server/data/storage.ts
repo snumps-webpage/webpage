@@ -168,6 +168,19 @@ export async function promoteToAssets(
   }
 }
 
+/** Copy while retaining the retry source until its database reference commits. */
+export async function copyStagedToAssets(
+  stagingPath: string,
+  assetPath: string,
+): Promise<void> {
+  if (isMemoryBackend())
+    return (await memory()).copyStagedToAssets(stagingPath, assetPath);
+  const { error } = await getSupabase()
+    .storage.from(stagingBucket())
+    .copy(stagingPath, assetPath, { destinationBucket: assetsBucket() });
+  if (error) throw new Error(`copyStagedToAssets failed: ${error.message}`);
+}
+
 /** B3 asset mirror (spec §7): copy a promoted asset into the private backups bucket. */
 export async function copyToBackups(
   sourceBucket: "assets",

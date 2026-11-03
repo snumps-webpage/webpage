@@ -329,3 +329,57 @@ describe("load", () => {
     expect((await loadPage()).dashboard.seminars[0].canResendNotice).toBe(true);
   });
 });
+
+describe("public seminar description editing", () => {
+  it("loads the public abstract rather than the internal note", async () => {
+    await actions.create(post(valid));
+    await mutate("seminars", (rows) =>
+      rows.map((row) => ({
+        ...row,
+        description: "공개 소개",
+        note: "내부 비고",
+      })),
+    );
+    const page = (await load({ locals: admin } as never)) as {
+      records: { description: string }[];
+      dashboard: { seminars: { description: string }[] };
+    };
+    expect(page.records[0].description).toBe("공개 소개");
+    expect(page.dashboard.seminars[0].description).toBe("공개 소개");
+  });
+
+  it("updates the public abstract while preserving the internal note", async () => {
+    await actions.create(post(valid));
+    await mutate("seminars", (rows) =>
+      rows.map((row) => ({
+        ...row,
+        description: "기존 소개",
+        note: "내부 비고",
+      })),
+    );
+    const [before] = await getTable("seminars");
+    const { note: _note, ...fields } = valid;
+    const result = await actions.update(
+      post({
+        ...fields,
+        id: before.id,
+        description: "수정한 공개 소개",
+      }),
+    );
+    expect(result).toMatchObject({ success: true });
+    const [after] = await getTable("seminars");
+    expect(after.description).toBe("수정한 공개 소개");
+    expect(after.note).toBe("내부 비고");
+  });
+
+  it("creates a public abstract without storing it as a note", async () => {
+    const { note: _note, ...fields } = valid;
+    const result = await actions.create(
+      post({ ...fields, description: "새 공개 소개" }),
+    );
+    expect(result).toMatchObject({ success: true });
+    const [row] = await getTable("seminars");
+    expect(row.description).toBe("새 공개 소개");
+    expect(row.note).toBe("");
+  });
+});

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# release-prod.sh — chore/code-audit-v2를 운영(prod)에 반영하는 전 과정 (docs/OPERATOR-TODO.md §2-2)
+# release-prod.sh — main을 운영(prod)에 반영하는 전 과정 (docs/OPERATOR-TODO.md §2-2)
 #
 #   bash scripts/ops/release-prod.sh              # 1단계부터, 단계마다 확인을 받는다
 #   bash scripts/ops/release-prod.sh --from 9     # 9단계부터 재개 (중단된 뒤)
@@ -32,7 +32,7 @@
 #   7 배포                 전제 재확인 → 5단계의 빌드로 운영 도메인 승격(vercel promote) → main push
 #   8 배포 확인            운영 도메인이 그 빌드를 가리키는지 vercel inspect로 대조, 첫 화면 200
 #   9 사후 보정            백필 3개 재실행 (6~8 사이 옛 코드가 지운 키를 되살린다)
-#  10 확인 쿼리            흐름 25개·백필/회차 연결 누락 0·권한·버킷 비공개 — 통과 후 10분 뒤 9·10을 한 번 더
+#  10 확인 쿼리            흐름 26개·백필/회차 연결 누락 0·권한·버킷 비공개 — 통과 후 10분 뒤 9·10을 한 번 더
 #  11 공개 스모크          공개 페이지 200, 버킷 상태 (읽기 전용)
 #  12 3-0 복구 미리보기    배포 전 쓰기로 사라진 세미나 복구값이 있는지 (미리보기만)
 #
@@ -74,7 +74,7 @@ readonly PROD_REF="rwlvnttpaqkhpebtebif"
 readonly DEV_REF="gcahkryexewswzvtfltj"
 readonly PROD_URL="https://${PROD_REF}.supabase.co"
 readonly GITHUB_REPO="snumps-webpage/webpage"
-readonly RELEASE_BRANCH="chore/code-audit-v2"
+readonly RELEASE_BRANCH="main"
 readonly PROD_BRANCH="main"
 readonly SITE="https://snumps.vercel.app"
 readonly EXPECTED_MIGRATIONS=(
@@ -87,6 +87,7 @@ readonly EXPECTED_MIGRATIONS=(
   20261015000000
   20261103000000
   20261103000100
+  20261104000000
 )
 readonly BACKFILLS=(
   supabase/migrations/20260928000100_seminar_publication_status.sql
@@ -95,6 +96,8 @@ readonly BACKFILLS=(
   supabase/migrations/20261014000000_seminar_videos.sql
   supabase/migrations/20261015000000_activity_study_link.sql
   supabase/migrations/20261103000100_seminar_series.sql
+  # Older backfill files also replace SQL functions. Restore current guards last.
+  supabase/migrations/20261104000000_audit_integrity.sql
 )
 readonly PUBLIC_PAGES=(/ /about /archive /archive/seminars /archive/studies /archive/projects /login)
 readonly BACKUP_MAX_AGE_SECONDS=$((6 * 3600))
@@ -614,7 +617,7 @@ repair_and_check() {
       const rows = JSON.parse(s);
       if (rows.length !== 1) { console.error("행이 1개가 아니다"); process.exit(2); }
       const r = rows[0];
-      const want = { flow_fns: 25, sem_no_status: 0, sem_bad_fields: 0, sem_no_videos: 0, members_no_reason: 0, act_no_study_key: 0, sem_bad_series: 0, sem_duplicate_session_slots: 0, admin_anon_can_exec: false, admin_authenticated_can_exec: false, anon_can_exec: false, assets_public: false };
+      const want = { flow_fns: 26, sem_no_status: 0, sem_bad_fields: 0, sem_no_videos: 0, members_no_reason: 0, act_no_study_key: 0, sem_bad_series: 0, sem_duplicate_session_slots: 0, admin_anon_can_exec: false, admin_authenticated_can_exec: false, anon_can_exec: false, assets_public: false };
       console.log("결과:", JSON.stringify(r));
       const bad = Object.entries(want).filter(([k, v]) => String(r[k]) !== String(v));
       if (bad.length) { console.error("기대와 다름:", bad.map(([k, v]) => k + "=" + r[k] + " (기대 " + v + ")").join(", ")); process.exit(3); }
@@ -705,8 +708,7 @@ if run_step 1; then
     LINKED_PROD=1
     restore_dev_link
   fi
-  git fetch --quiet origin "$PROD_BRANCH" "$RELEASE_BRANCH" 2> /dev/null ||
-    git fetch --quiet origin "$PROD_BRANCH"
+  git fetch --quiet origin "$PROD_BRANCH"
   git merge-base --is-ancestor "origin/$PROD_BRANCH" HEAD ||
     die "origin/$PROD_BRANCH 가 이 브랜치의 조상이 아니다 — 빨리감기 불가. main의 새 커밋을 먼저 합칠 것."
   say "배포될 커밋: $(git rev-parse --short HEAD) — origin/$PROD_BRANCH 에서 $(git rev-list --count "origin/$PROD_BRANCH..HEAD")개 앞"

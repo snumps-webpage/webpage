@@ -10,7 +10,6 @@
     onTransition: (
       eventId: string,
       operation: "activated" | "expired" | "updated" | "deleted",
-      event?: AdminEventItem,
     ) => void;
     onError: (message: string) => void;
   }
@@ -40,7 +39,7 @@
         processingId = null;
         if (result.type === "success") {
           await update({ reset: false });
-          onTransition(event.id, operation, event);
+          onTransition(event.id, operation);
           if (operation === "updated") editing = null;
         } else {
           const data =

@@ -21,7 +21,12 @@ add() { # add <NAME> <VALUE> <plain|encrypted>
       -X POST "https://api.vercel.com/v10/projects/$PROJECT/env?teamId=$TEAM&upsert=true" \
       -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
       --data-binary @-)"
-  if [ "$code" = "200" ] || [ "$code" = "201" ]; then echo "set  $1"; else echo "FAIL $1 (HTTP $code)"; fi
+  if [ "$code" = "200" ] || [ "$code" = "201" ]; then
+    echo "set  $1"
+  else
+    echo "FAIL $1 (HTTP $code)" >&2
+    return 1
+  fi
 }
 
 add SUPABASE_URL "$SUPABASE_URL" plain

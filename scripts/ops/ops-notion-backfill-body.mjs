@@ -321,6 +321,7 @@ async function main() {
       console.error(
         `  여기서 멈춘다. 적용된 것: ${done}건 (다시 실행하면 빈 칸만 다시 후보로 나온다).`,
       );
+      process.exitCode = 1;
       return;
     }
   }

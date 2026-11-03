@@ -42,6 +42,22 @@
 const keyOf = (title, semester) =>
   JSON.stringify([title.trim(), semester.trim()]);
 
+/** Match migration's date-only KST convention and second precision. @param {string} value */
+function canonicalDate(value) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${value}T00:00:00+09:00`;
+  const instant = new Date(value);
+  if (Number.isNaN(instant.getTime()))
+    throw new Error("해석할 수 없는 활동 날짜");
+  return (
+    new Date(instant.getTime() + 9 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 19) + "+09:00"
+  );
+}
+
+/** @param {string} title @param {string} startsAt */
+const activityKey = (title, startsAt) => keyOf(title, canonicalDate(startsAt));
+
 /**
  * 무엇을 채울지 **계산만** 한다 (I/O 없음 — 그래서 테스트할 수 있다).
  *
@@ -136,7 +152,7 @@ export function planSessionLinks({
   /** @type {Map<string, AppActivity>} */
   const activityByKey = new Map();
   for (const a of appActivities) {
-    activityByKey.set(keyOf(a.title, a.date.start), a);
+    activityByKey.set(activityKey(a.title, a.date.start), a);
   }
 
   /** @type {Map<string, AppSeminar[]>} */
@@ -173,17 +189,19 @@ export function planSessionLinks({
     if (target.schedule) continue;
 
     const sorted = [...notionSeminar.sessions].sort((x, y) =>
-      x.startsAt.localeCompare(y.startsAt),
+      canonicalDate(x.startsAt).localeCompare(canonicalDate(y.startsAt)),
     );
     const first = sorted.find((session) =>
-      activityByKey.has(keyOf(session.title, session.startsAt)),
+      activityByKey.has(activityKey(session.title, session.startsAt)),
     );
     if (!first) {
       unresolved.push({ title, semester, reason: "앱에 활동 없음" });
       continue;
     }
 
-    const activity = activityByKey.get(keyOf(first.title, first.startsAt));
+    const activity = activityByKey.get(
+      activityKey(first.title, first.startsAt),
+    );
     if (!activity) {
       unresolved.push({ title, semester, reason: "앱에 활동 없음" });
       continue;

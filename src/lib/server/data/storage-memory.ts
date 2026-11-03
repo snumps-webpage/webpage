@@ -69,6 +69,15 @@ export async function copyToBackups(
   objects.set(keyOf(BACKUPS, backupPath), obj);
 }
 
+export async function copyStagedToAssets(
+  stagingPath: string,
+  assetPath: string,
+): Promise<void> {
+  const obj = objects.get(keyOf(STAGING, stagingPath));
+  if (!obj) throw new Error("NoSuchKey");
+  objects.set(keyOf(ASSETS, assetPath), obj);
+}
+
 /**
  * 비공개 assets 버킷의 읽기 통로. 없는 객체에는 URL을 내지 않는다 — 실제
  * Supabase도 존재하지 않는 경로에는 서명을 거절한다.

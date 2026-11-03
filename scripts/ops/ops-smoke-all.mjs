@@ -1,10 +1,9 @@
 /**
- * 전 라우트 실측 스모크 — **디스크의 모든 라우트**를 실제 데이터의 id로 훑는다.
+ * 공개·회원·관리자 대표 경로와 표본 id가 있는 동적 경로의 HTTP smoke.
  *
  * `smoke-routes.sh`는 손으로 적은 목록이라 그 뒤에 생긴 라우트(동적 경로,
- * `/media`, 관리자 하위 화면, API)가 빠져 있었다. 여기서는 라우트를 직접
- * 열거하고, 파라미터는 운영 데이터에서 꺼내 채운다 — 빈 값으로 404를 받고
- * "통과"라고 말하지 않기 위해서다.
+ * `/media`, 관리자 하위 화면, API)를 아래 명시적 목록으로 검사한다. 디스크
+ * 라우트 전수 검사나 동적 id 전수 검사는 아니다. 표본 없는 경로는 생략을 보고한다.
  *
  * 검사하는 것:
  *  - 상태 코드가 기대와 같은가
@@ -35,7 +34,8 @@ async function sampleIds() {
   const { requireSupabase } = await import("./lib-env.mjs");
   const sb = await requireSupabase({ optional: true });
   if (!sb) return {};
-  const { data } = await sb.from("app_tables").select("name, doc");
+  const { data, error } = await sb.from("app_tables").select("name, doc");
+  if (error) throw new Error("동적 경로 표본 조회 실패 — smoke 미완료");
   const rowsOf = (name) =>
     (data ?? []).find((t) => t.name === name)?.doc?.rows ?? [];
 
@@ -48,9 +48,11 @@ async function sampleIds() {
   const event = events[0];
 
   return {
-    seminarId: published?.id ?? seminars[0]?.id,
+    seminarId: published?.id,
     studyId: rowsOf("studies")[0]?.id,
     memberId: rowsOf("members")[0]?.id,
+    publicMemberId: rowsOf("members").find((m) => m.status !== "withdrawn")?.id,
+    seriesId: rowsOf("seminar-series")[0]?.id,
     assetKey: withAsset
       ? (withAsset.materials?.[0] ?? withAsset.photos?.[0])
       : undefined,
@@ -104,6 +106,11 @@ const ROUTES = [
   ["/study/apply?dev_preview=member", /^200$/, "회원"],
   ["/seminar/apply?dev_preview=member", /^200$/, "회원"],
   ["/settings/notifications?dev_preview=member", /^200$/, "회원"],
+  [
+    "/settings/executive-profile?dev_preview=member",
+    /^(200|302|303|403|404)$/,
+    "회원·프로필 자격 검사",
+  ],
   ["/settings/withdraw?dev_preview=member", /^200$/, "회원"],
   ["/events/manage?dev_preview=member", /^200$/, "회원"],
   ["/withdraw/pending?dev_preview=member", /^(200|302|303)$/, "회원"],
@@ -118,12 +125,16 @@ const ROUTES = [
   ["/admin/gallery?dev_preview=admin", /^200$/, "관리자"],
   ["/admin/mail?dev_preview=admin", /^200$/, "관리자"],
   ["/admin/executives?dev_preview=admin", /^200$/, "관리자"],
+  ["/admin/executives/profiles?dev_preview=admin", /^200$/, "관리자"],
+  ["/admin/seminar-series?dev_preview=admin", /^200$/, "관리자"],
+  ["/admin/mail/broadcast?dev_preview=admin", /^200$/, "관리자"],
   ["/admin/events/new?dev_preview=admin", /^200$/, "관리자"],
   ["/admin/events/connect?dev_preview=admin", /^200$/, "관리자"],
 
   // --- API (게스트) ---
   // Bearer(CRON_SECRET) 전용 — 인증 없이 부르면 401이 맞다(핑 감시용은 헤더를 붙인다).
   ["/api/health", /^401$/, "API·차단"],
+  ["/api/version", /^200$/, "API·공개"],
   ["/api/admin/applications", /^(401|404)$/, "API·차단"],
   ["/api/admin/seminar-requests", /^(401|404)$/, "API·차단"],
   ["/api/admin/study-requests", /^(401|404)$/, "API·차단"],
@@ -136,6 +147,11 @@ if (ids.seminarId) {
   ROUTES.push([`/archive/seminars/${ids.seminarId}`, /^200$/, "게스트·동적"]);
 }
 if (ids.studyId) {
+  ROUTES.push([
+    `/admin/studies/${ids.studyId}?dev_preview=admin`,
+    /^200$/,
+    "관리자·동적",
+  ]);
   ROUTES.push([
     `/study/${ids.studyId}?dev_preview=member`,
     /^(200|404)$/,
@@ -152,12 +168,35 @@ if (ids.studyId) {
     "회원·동적",
   ]);
 }
+if (ids.publicMemberId) {
+  ROUTES.push([`/members/${ids.publicMemberId}`, /^200$/, "게스트·동적"]);
+}
 if (ids.memberId) {
   ROUTES.push([
     `/admin/members/${ids.memberId}?dev_preview=admin`,
     /^200$/,
     "관리자·동적",
   ]);
+}
+if (ids.seriesId) {
+  ROUTES.push([
+    `/admin/seminar-series/${ids.seriesId}?dev_preview=admin`,
+    /^200$/,
+    "관리자·동적",
+  ]);
+}
+const samples = {
+  seminarId: "/archive/seminars/[id]",
+  studyId: "/study/[id] 및 /admin/studies/[id]",
+  memberId: "/admin/members/[id]",
+  publicMemberId: "/members/[id]",
+  seriesId: "/admin/seminar-series/[id]",
+  requestId: "/seminar/edit/[id]",
+  eventPath: "/events/[id]/[type]",
+  assetKey: "/media/[...key]",
+};
+for (const [key, route] of Object.entries(samples)) {
+  if (!ids[key]) console.log(`생략: ${route} — 표본 없음`);
 }
 if (ids.requestId) {
   // pending이 아니거나 본인 신청이 아니면 홈으로 302 — 승인된 신청이 그렇다.

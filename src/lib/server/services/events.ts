@@ -89,11 +89,16 @@ export async function createEventWithActivity(input: {
 
 /** ADM-05: attach a new attendance session to an existing activity (fields copied). */
 export async function connectActivity(activityId: string): Promise<Event> {
-  const activity = (await getTable("activities")).find(
-    (a) => a.id === activityId,
+  const { event } = await callFlow<FlowResult & { event: Event }>(
+    "flow_connect_activity",
+    {
+      activityId,
+      eventId: newId(),
+      pathId: randomToken(),
+      attendCode: randomToken(),
+    },
   );
-  if (!activity) throw new AppError("NOT_FOUND");
-  return createSessionForActivity(activity, { status: "active" });
+  return event;
 }
 
 async function createSessionForActivity(

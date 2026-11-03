@@ -7,5 +7,10 @@ PUBKEY="$(jq -r '.[] | select(.type=="publishable") | .api_key' .env.keys-dev.js
 if [ -z "$PUBKEY" ] || [ "$PUBKEY" = "null" ]; then
   PUBKEY="$(jq -r '.[] | select(.name=="anon") | .api_key' .env.keys-dev.json | head -1)"
 fi
-export SUPABASE_URL PUBKEY
+SUPABASE_SECRET_KEY="$(jq -r '.[] | select(.type=="secret") | .api_key' .env.keys-dev.json | head -1)"
+if [ -z "$SUPABASE_SECRET_KEY" ] || [ "$SUPABASE_SECRET_KEY" = "null" ]; then
+  echo "INCOMPLETE — dev secret key required for known-resource controls" >&2
+  exit 1
+fi
+export SUPABASE_URL PUBKEY SUPABASE_SECRET_KEY
 node scripts/ops/ops-check-rls.mjs

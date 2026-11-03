@@ -3,7 +3,8 @@ import { forgetUnreferencedAssets } from "./asset-cleanup";
 import { newId } from "$lib/server/core/id";
 import { nowKstIso } from "$lib/server/core/time";
 import { currentTerm } from "$lib/server/core/semester";
-import { mutate } from "$lib/server/data/tables";
+import { getTableFresh, mutate } from "$lib/server/data/tables";
+import { removeStaged } from "$lib/server/data/storage";
 import { callFlow, type FlowResult } from "$lib/server/data/flows";
 import { promoteSeminarPoster } from "$lib/server/services/uploads";
 import {
@@ -21,6 +22,46 @@ function normalizeTiming(value: string): string {
     : "";
 }
 
+/** Keep the uploaded source retryable until the database owns the final asset. */
+async function saveWithPoster<T>(
+  pendingKey: string,
+  save: (posterKey: string) => Promise<T>,
+): Promise<T> {
+  const posterKey = await promoteSeminarPoster(pendingKey, {
+    preserveStaging: true,
+  });
+  let result: T;
+  try {
+    result = await save(posterKey);
+  } catch (error) {
+    // Only a definite rejection proves that this operation will not commit.
+    // After a transport failure the write can STILL be running; even a fresh
+    // read could precede its commit. Retain the final copy in that case.
+    if (
+      error instanceof AppError &&
+      [
+        "NOT_FOUND",
+        "FORBIDDEN",
+        "CONFLICT",
+        "VALIDATION_FAILED",
+        "WRITE_CONFLICT",
+      ].includes(error.code)
+    ) {
+      await forgetUnreferencedAssets([posterKey]);
+    }
+    throw error;
+  }
+  if (posterKey) {
+    try {
+      await removeStaged([pendingKey.trim()]);
+    } catch (error) {
+      // Saving succeeded. The maintenance job can reap this retry source.
+      console.error("[seminar-request] staged poster cleanup failed:", error);
+    }
+  }
+  return result;
+}
+
 export async function submitSeminarRequest(input: {
   title: string;
   description: string;
@@ -34,18 +75,20 @@ export async function submitSeminarRequest(input: {
   requesterId: string;
 }): Promise<SeminarRequest> {
   const { posterPendingKey = "", ...rest } = input;
-  const row: SeminarRequest = {
-    id: newId(),
-    ...rest,
-    preferredTiming: normalizeTiming(input.preferredTiming),
-    posterKey: await promoteSeminarPoster(posterPendingKey),
-    status: "pending",
-    closedAs: null,
-    kind: input.kind ?? null,
-    createdAt: nowKstIso(),
-  };
-  await mutate("seminar-requests", (rows) => [...rows, row]);
-  return row;
+  return saveWithPoster(posterPendingKey, async (posterKey) => {
+    const row: SeminarRequest = {
+      id: newId(),
+      ...rest,
+      preferredTiming: normalizeTiming(input.preferredTiming),
+      posterKey,
+      status: "pending",
+      closedAs: null,
+      kind: input.kind ?? null,
+      createdAt: nowKstIso(),
+    };
+    await mutate("seminar-requests", (rows) => [...rows, row]);
+    return row;
+  });
 }
 
 export async function updateSeminarRequest(
@@ -66,34 +109,39 @@ export async function updateSeminarRequest(
   >,
   posterPendingKey = "",
 ): Promise<void> {
-  // 새 포스터를 올렸으면 승격해 교체 — mutate 밖에서(외부 I/O). 없으면 유지.
-  const promotedPoster = posterPendingKey
-    ? await promoteSeminarPoster(posterPendingKey)
-    : null;
+  // Refuse before external file effects. Recheck inside CAS as well: a
+  // concurrent approval can close a request while its poster is copying.
+  const authorize = (row: SeminarRequest | undefined) => {
+    if (!row) throw new AppError("NOT_FOUND");
+    if (row.requesterId !== actor.memberId && !actor.isAdmin)
+      throw new AppError("FORBIDDEN");
+    if (row.status !== "pending") throw new AppError("CONFLICT");
+  };
+  authorize((await getTableFresh("seminar-requests")).find((r) => r.id === id));
   const cleanPatch =
     patch.preferredTiming !== undefined
       ? { ...patch, preferredTiming: normalizeTiming(patch.preferredTiming) }
       : patch;
   let replacedPoster: string | null = null;
-  await mutate("seminar-requests", (rows) => {
-    const idx = rows.findIndex((r) => r.id === id);
-    if (idx === -1) throw new AppError("NOT_FOUND");
-    const row = rows[idx];
-    if (row.requesterId !== actor.memberId && !actor.isAdmin) {
-      throw new AppError("FORBIDDEN");
-    }
-    if (row.status !== "pending") throw new AppError("CONFLICT");
-    // CAS 재시도마다 다시 센다 — 진 시도의 값이 남으면 엉뚱한 키를 지운다.
-    replacedPoster =
-      promotedPoster !== null && row.posterKey !== promotedPoster
-        ? row.posterKey || null
-        : null;
-    rows[idx] = {
-      ...row,
-      ...cleanPatch,
-      ...(promotedPoster !== null ? { posterKey: promotedPoster } : {}),
-    };
-    return rows;
+  await saveWithPoster(posterPendingKey, async (posterKey) => {
+    const promotedPoster = posterKey || null;
+    await mutate("seminar-requests", (rows) => {
+      const idx = rows.findIndex((r) => r.id === id);
+      if (idx === -1) throw new AppError("NOT_FOUND");
+      const row = rows[idx];
+      authorize(row);
+      // CAS 재시도마다 다시 센다 — 진 시도의 값이 남으면 엉뚱한 키를 지운다.
+      replacedPoster =
+        promotedPoster !== null && row.posterKey !== promotedPoster
+          ? row.posterKey || null
+          : null;
+      rows[idx] = {
+        ...row,
+        ...cleanPatch,
+        ...(promotedPoster !== null ? { posterKey: promotedPoster } : {}),
+      };
+      return rows;
+    });
   });
   // 교체된 포스터는 남겨 두면 용량과 백업만 먹는다. 승인된 세미나가 같은 키를
   // 물려받았다면 forgetAssets가 참조를 보고 건너뛴다.

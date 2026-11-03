@@ -80,7 +80,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         sourceRequestId: s.sourceRequestId ?? "",
         kind: s.kind,
         title: s.title,
-        description: s.note,
+        description: s.description || request?.description || s.note,
         prerequisites: s.prerequisites,
         duration: durationLabel(s.durationMinutes, request?.duration),
         attachmentUrl: request?.attachment || null,
@@ -115,13 +115,13 @@ export const load: PageServerLoad = async ({ locals }) => {
       })),
       generatedAt: nowKstIso(),
     },
-    records: rows.map(({ s, event }) => ({
+    records: rows.map(({ s, request, event }) => ({
       id: s.id,
       sourceRequestId: s.sourceRequestId,
       kind: s.kind,
       title: s.title,
       term: s.semester,
-      description: s.note,
+      description: s.description || request?.description || s.note,
       prerequisites: s.prerequisites,
       durationMinutes: s.durationMinutes,
       preferredTiming: s.preferredTiming,
@@ -160,14 +160,17 @@ const parseIds = (raw: string | null) =>
     : [];
 
 /**
- * The record editor posts `semester`/`note`; the schema names them
- * term/description — the keys the editor renders issues and values under.
+ * The editor posts the public description. Older callers posting `note`
+ * retain their note-only contract; an omitted field is never cleared.
  */
 function parseSeminarRecord(data: FormData) {
   const values = {
     title: formText(data, "title"),
     term: formText(data, "semester"),
-    description: formText(data, "note"),
+    description: formText(
+      data,
+      data.has("description") ? "description" : "note",
+    ),
     externalPresenters: formText(data, "externalPresenters"),
     kind: formText(data, "kind"),
     durationMinutes: formText(data, "durationMinutes"),
@@ -302,7 +305,8 @@ export const actions = {
         {
           title,
           semester: term,
-          note: description,
+          note: data.has("description") ? "" : description,
+          description: data.has("description") ? description : undefined,
           presenterIds: parseIds(data.get("presenterIds") as string),
           externalPresenters,
           kind: fields.kind,
@@ -331,6 +335,7 @@ export const actions = {
           semester: term,
           // 편집기가 보내지 않는 칸은 그대로 둔다 — 빈 값으로 지우지 않는다.
           note: sent(data, "note", description),
+          description: sent(data, "description", description),
           presenterIds: data.get("presenterIds")
             ? parseIds(data.get("presenterIds") as string)
             : undefined,

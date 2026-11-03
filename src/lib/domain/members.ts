@@ -124,10 +124,13 @@ export const memberRecordInputSchema = z
     joinedAt: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, "가입일을 확인해 주세요.")
-      .refine(
-        (value) => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)),
-        "가입일을 확인해 주세요.",
-      ),
+      .refine((value) => {
+        const date = new Date(`${value}T00:00:00Z`);
+        return (
+          Number.isFinite(date.getTime()) &&
+          date.toISOString().slice(0, 10) === value
+        );
+      }, "가입일을 확인해 주세요."),
     projectTitle: z
       .string()
       .trim()

@@ -141,7 +141,45 @@ interface RedisEntry<T> {
  * Wraps a fetcher with a two-tier caching strategy. The value returned is
  * deeply frozen (see deepFreeze).
  */
-export async function withCache<T>(
+const inFlight = new Map<
+  string,
+  {
+    generation: number;
+    ttlMs: number;
+    localTtlMs?: number;
+    promise: Promise<unknown>;
+  }
+>();
+
+export function withCache<T>(
+  key: string,
+  ttlMs: number,
+  fetcher: () => Promise<T>,
+  options?: { skipCache?: boolean; localTtlMs?: number },
+): Promise<T> {
+  if (options?.skipCache) return readCached(key, ttlMs, fetcher, options);
+  const generation = generationOf(key);
+  const current = inFlight.get(key);
+  if (
+    current?.generation === generation &&
+    current.ttlMs === ttlMs &&
+    current.localTtlMs === options?.localTtlMs
+  ) {
+    return current.promise as Promise<T>;
+  }
+  const entry = {
+    generation,
+    ttlMs,
+    localTtlMs: options?.localTtlMs,
+    promise: readCached(key, ttlMs, fetcher, options).finally(() => {
+      if (inFlight.get(key) === entry) inFlight.delete(key);
+    }),
+  };
+  inFlight.set(key, entry);
+  return entry.promise;
+}
+
+async function readCached<T>(
   key: string,
   ttlMs: number,
   fetcher: () => Promise<T>,
@@ -228,6 +266,7 @@ export async function withCache<T>(
  */
 export async function invalidateCache(key: string) {
   generations.set(key, generationOf(key) + 1);
+  inFlight.delete(key);
   localCache.delete(key);
   if (redis) {
     try {

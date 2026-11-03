@@ -163,8 +163,8 @@ const SESSION_FIXED =
 /**
  * Links a '스터디' or '회식' activity to a study, or unlinks it (`studyId`
  * null) — flow_set_activity_study checks the rows under one lock. Only those
- * two types may be linked here (snumps-webpage/D-000135); the flow leaves
- * that rule to its caller, read before the lock. A missing activity is
+ * two types may be linked here (snumps-webpage/D-000135); the flow judges
+ * that rule on the stored activity under the lock. A missing activity is
  * NOT_FOUND, a study that does not exist is a bad pick (VALIDATION_FAILED),
  * each with its own message (D-000062). A study-session activity stays with
  * its session's study: any other study, or unlinking, is refused — by the
@@ -175,14 +175,6 @@ export async function setActivityStudy(
   id: string,
   studyId: string | null,
 ): Promise<void> {
-  const activity = (await getTable("activities")).find((a) => a.id === id);
-  if (!activity)
-    throw new AppError("NOT_FOUND", { userMessage: ACTIVITY_GONE });
-  if (!isStudyLinkType(activity.type))
-    throw new AppError("VALIDATION_FAILED", {
-      userMessage:
-        "종류가 '스터디'나 '회식'인 활동만 스터디에 연결할 수 있습니다.",
-    });
   try {
     await callFlow(
       "flow_set_activity_study",
@@ -192,6 +184,8 @@ export async function setActivityStudy(
           activity: ACTIVITY_GONE,
           study: LINKED_STUDY_GONE,
           session: SESSION_FIXED,
+          "activity-type":
+            "종류가 '스터디'나 '회식'인 활동만 스터디에 연결할 수 있습니다.",
         },
       },
     );
@@ -231,7 +225,10 @@ export async function createSeminar(
     "title" | "semester" | "note" | "presenterIds" | "externalPresenters"
   > &
     Partial<
-      Pick<Seminar, "kind" | "durationMinutes" | "prerequisites" | "videos">
+      Pick<
+        Seminar,
+        "kind" | "durationMinutes" | "prerequisites" | "videos" | "description"
+      >
     >,
   posterPendingKey = "",
 ): Promise<Seminar> {
@@ -240,6 +237,7 @@ export async function createSeminar(
     durationMinutes = null,
     prerequisites = "",
     videos = [],
+    description = "",
   } = input;
   const row: Seminar = {
     id: newId(),
@@ -248,7 +246,7 @@ export async function createSeminar(
     durationMinutes,
     prerequisites,
     videos,
-    description: "",
+    description,
     materials: [],
     photos: [],
     // 이 경로에는 아직 일정 입력 칸이 없다(입력은 title·semester·note·발표자뿐).
@@ -282,6 +280,7 @@ export async function updateSeminar(
       | "title"
       | "semester"
       | "note"
+      | "description"
       | "presenterIds"
       | "externalPresenters"
       | "activityId"

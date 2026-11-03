@@ -1,7 +1,8 @@
 # 데이터 이주 스크립트 (Notion → Supabase)
 
 `docs/spec/SUPABASE-MIGRATION-SPEC.md` T9 / §8 M-1~5 구현.
-전부 로컬에서 `npx tsx`로 실행하는 독립 스크립트다 — src/를 import하지 않는다.
+리포 루트에서 `npx tsx`로 실행한다. `20-export-tables.ts`는 앱의 저장 스키마를 import하므로,
+먼저 dependency 설치와 `pnpm exec svelte-kit sync`를 마쳐 `$lib` alias를 준비한다.
 
 ## 실행 순서
 
@@ -18,8 +19,10 @@ npx tsx scripts/migration/30-verify.ts         # 4. 행 수·dangling 0·자산 
   id는 `out/id-map.json`으로 고정(재실행해도 같은 Notion 레코드는 같은 id).
 - `20`은 app_tables의 `version > 1`(운영 중 쓰기 흔적) 행을 발견하면 중단한다 —
   라이브 데이터를 정말 덮어쓰려면 `--force`.
-- `20`의 구조 검증은 근사치다. 권위 있는 Zod 게이트는 앱 스키마 —
-  `pnpm exec vitest run src/lib/server/data` 로 별도 확인할 것.
+- `20`은 앱의 실제 Zod 저장 스키마로 모든 행을 검증하고 스키마 기본값을 채운다.
+  오류가 있으면 파일 저장과 DB 접근 전에 중단한다.
+- 이주 회원·개인정보는 `legacy-members`·`legacy-private-info`에 저장한다.
+  운영 `members`·`private-info`는 업로드 대상에서 제외한다.
 
 ## 필요한 env
 

@@ -91,11 +91,11 @@
       method="POST"
       action="/wait?/withdrawApplication"
       class="withdraw-form"
-      onsubmit={(event) => {
-        if (!confirm("가입 신청을 철회하고 입력한 개인정보를 삭제할까요?"))
-          event.preventDefault();
-      }}
-      use:enhance={() => {
+      use:enhance={({ cancel }) => {
+        if (!confirm("가입 신청을 철회하고 입력한 개인정보를 삭제할까요?")) {
+          cancel();
+          return;
+        }
         withdrawing = true;
         return async ({ update }) => {
           await update();

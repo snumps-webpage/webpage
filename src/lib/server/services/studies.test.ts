@@ -97,6 +97,7 @@ beforeEach(async () => {
 
 describe("proposal → approval (STU-01 / ADM-16)", () => {
   it("approval creates the study with the requester as organizer AND participant", async () => {
+    await seedMember("m-req");
     const req = await submitStudyRequest({
       title: "위상수학",
       textbook: "Munkres",

@@ -282,12 +282,18 @@
       method="POST"
       action="?/saveAttendance"
       use:enhance={() => {
+        const submittedEventId = management.selectedEvent.id;
         processing = true;
         notice = null;
         return async ({ result }) => {
           processing = false;
           if (result.type === "success") {
             const payload = result.data as PresenterAttendanceOperationResult;
+            if (
+              payload.eventId !== submittedEventId ||
+              management?.selectedEvent.id !== submittedEventId
+            )
+              return;
             replaceSelected(payload.applicantAttendeeIds);
             replaceSaved(payload.applicantAttendeeIds);
             notice = {
