@@ -44,7 +44,7 @@ const data = {
 };
 
 const LINKED_NOTE =
-  /스터디에 연결된 활동은 종류를 '스터디'나 '회식'으로만\s+바꿀\s+수 있습니다/;
+  /스터디에 연결된 활동은 종류를 '스터디'나 '회식'으로만\s+바꿀\s+수\s+있습니다/;
 const SESSION_NOTE = "스터디 회차 활동은 종류를 바꿀 수 없습니다.";
 
 const html = (form: unknown = null) =>

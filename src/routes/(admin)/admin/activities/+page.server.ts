@@ -13,6 +13,7 @@ import {
   setAttendees,
   updateActivity,
 } from "$lib/server/services/records-admin";
+import { groupStudyActivities } from "$lib/domain/admin-activity-groups";
 import { compareSemesters } from "$lib/domain/semester-order";
 import { fail } from "@sveltejs/kit";
 import { AppError } from "$lib/server/core/errors";
@@ -34,27 +35,39 @@ export const load: PageServerLoad = async ({ locals }) => {
     directorySummaryIndex(),
     getTable("studies"),
   ]);
-  return {
-    activities: [...activities].reverse().map((a) => ({
-      ...a,
-      // Referential-integrity hint for the delete row (deleteActivity CONFLICTs).
-      linkedEventIds: events
-        .filter((e) => e.activityId === a.id)
-        .map((e) => e.id),
-      // 스터디 회차 활동은 그 회차의 스터디에 고정 — 연결 선택 칸을 숨긴다(D-000088).
-      sessionStudyId: sessionStudyOf(a.id, events),
-      // 이주된 출석(legacy id)·탈퇴 회원 — 명단에 없어도 체크된 채 보존한다.
-      formerAttendees: formerPeople(a.attendeeIds, members, summaries),
+  const activityRows = [...activities].reverse().map((a) => ({
+    ...a,
+    // Referential-integrity hint for the delete row (deleteActivity CONFLICTs).
+    linkedEventIds: events
+      .filter((e) => e.activityId === a.id)
+      .map((e) => e.id),
+    // 스터디 회차 활동은 그 회차의 스터디에 고정 — 연결 선택 칸을 숨긴다(D-000088).
+    sessionStudyId: sessionStudyOf(a.id, events),
+    // 이주된 출석(legacy id)·탈퇴 회원 — 명단에 없어도 체크된 채 보존한다.
+    formerAttendees: formerPeople(a.attendeeIds, members, summaries),
+  }));
+  const studyOptions = studies
+    .map((s) => ({ id: s.id, title: s.title, semester: s.semester }))
+    .sort(
+      (a, b) =>
+        compareSemesters(b.semester, a.semester) ||
+        a.title.localeCompare(b.title, "ko"),
+    );
+  const grouped = groupStudyActivities(
+    studyOptions.map((s) => ({
+      ...s,
+      participantCount: studies.find((row) => row.id === s.id)!.participantIds
+        .length,
     })),
+    activityRows,
+    events,
+  );
+  return {
+    activities: activityRows,
+    ...grouped,
     members,
     // 스터디 연결 선택지(D-000135) — 최근 학기 먼저, 학기 안에서는 제목순.
-    studies: studies
-      .map((s) => ({ id: s.id, title: s.title, semester: s.semester }))
-      .sort(
-        (a, b) =>
-          compareSemesters(b.semester, a.semester) ||
-          a.title.localeCompare(b.title, "ko"),
-      ),
+    studies: studyOptions,
     activityTypes: [...ACTIVITY_TYPES],
     generatedAt: nowKstIso(),
   };

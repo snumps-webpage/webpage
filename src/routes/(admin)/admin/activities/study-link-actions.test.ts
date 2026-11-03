@@ -149,6 +149,33 @@ describe("activity editor load", () => {
     ]);
   });
 
+  it("includes a study without sessions without changing any stored document", async () => {
+    const before = JSON.stringify([...(await __docs("table"))]);
+    const data = (await load({ locals: admin } as never)) as unknown as {
+      studyGroups: {
+        study: { id: string; participantCount: number };
+        sessions: unknown[];
+        linkedActivities: { id: string }[];
+      }[];
+      ungroupedActivities: { id: string }[];
+    };
+    expect(
+      data.studyGroups.map((g) => [
+        g.study.id,
+        g.study.participantCount,
+        g.sessions.length,
+      ]),
+    ).toEqual([
+      ["s2", 1, 0],
+      ["s1", 1, 1],
+    ]);
+    expect(
+      data.studyGroups[1].linkedActivities.map((a) => a.id).sort(),
+    ).toEqual(["a-linked", "a-linked-dinner", "a-linked-meeting"]);
+    expect(data.ungroupedActivities.map((a) => a.id)).toContain("a-seminar");
+    expect(JSON.stringify([...(await __docs("table"))])).toBe(before);
+  });
+
   it("marks a study-session activity with the study it is fixed to (D-000088)", async () => {
     const data = (await load({ locals: admin } as never)) as {
       activities: { id: string; sessionStudyId: string | null }[];

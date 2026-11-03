@@ -80,6 +80,9 @@ export type SeminarSchedule = z.infer<typeof SeminarScheduleSchema>;
 
 export const SeminarSchema = z.object({
   id: Id,
+  // Missing/null means a legacy standalone record awaiting the idempotent backfill.
+  seriesId: Id.nullish(),
+  sessionNo: z.number().int().positive().nullish(),
   title: z.string().min(1),
   semester: Semester,
   note: z.string(),

@@ -261,6 +261,7 @@
       {@const fileIssues = issuesFor("record-file", record.id)}
       <!-- 수정이 거절되면 그 레코드를 펼친 채로 — 접혀 있으면 칸 옆 오류가 보이지 않는다 -->
       <details
+        id={`seminar-record-${record.id}`}
         class="record-card"
         open={form?.scope === "record-update" && form?.id === record.id}
       >

@@ -267,8 +267,11 @@ export async function createSeminar(
     activityId: null,
     sourceRequestId: null,
   };
-  await mutate("seminars", (rows) => [...rows, row]);
-  return row;
+  const out = await callFlow<FlowResult & { seminar: Seminar }>(
+    "flow_create_standalone_seminar",
+    { seminar: row },
+  );
+  return out.seminar;
 }
 
 export async function updateSeminar(

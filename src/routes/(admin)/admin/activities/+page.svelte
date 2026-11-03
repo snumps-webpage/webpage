@@ -1,4 +1,5 @@
 <script lang="ts">
+  import StudySessionEmpty from "./StudySessionEmpty.svelte";
   import AdminSectionNav from "$lib/components/admin/AdminSectionNav.svelte";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import {
@@ -6,22 +7,30 @@
     STUDY_LINK_TYPES,
     isStudyLinkType,
   } from "$lib/constants";
+  import {
+    filterStudyActivityGroups,
+    matchesActivitySearch,
+  } from "$lib/domain/admin-activity-groups";
   import { pickerChoice } from "$lib/domain/recorded-people";
 
   let { data, form } = $props();
   let query = $state("");
   type ActivityRow = (typeof data.activities)[number];
   const dateOf = (activity: ActivityRow) => activity.date.start.slice(0, 10);
-  const activities = $derived.by(() => {
-    const normalized = query.trim().toLocaleLowerCase("ko-KR");
-    return data.activities.filter(
-      (activity) =>
-        !normalized ||
-        [activity.title, activity.type, dateOf(activity)].some((value) =>
-          value.toLocaleLowerCase("ko-KR").includes(normalized),
-        ),
-    );
-  });
+  const activities = $derived(
+    (data.ungroupedActivities ?? data.activities).filter(
+      (activity: ActivityRow) => matchesActivitySearch(activity, query),
+    ),
+  );
+  const studyGroups = $derived(
+    filterStudyActivityGroups(data.studyGroups ?? [], query),
+  );
+  const eventStatus: Record<string, string> = {
+    draft: "준비",
+    active: "진행",
+    expired: "종료",
+    cancelled: "취소",
+  };
   const today = new Date().toLocaleDateString("en-CA", {
     timeZone: "Asia/Seoul",
   });
@@ -86,6 +95,147 @@
 </script>
 
 <svelte:head><title>활동 기록 관리 · SNUMPS 관리자</title></svelte:head>
+
+{#snippet activityCard(activity: ActivityRow)}
+  {@const shown = shownFor(activity)}
+  <!-- 수정이 거절되면 그 카드를 펼친 채로 — 입력한 값이 다시 채워져 있다(D-000098) -->
+  <details class="record-card" open={refusedId === activity.id}>
+    <summary
+      ><div>
+        <span>{dateOf(activity)} · {activity.type}</span><strong
+          >{activity.title}</strong
+        >
+      </div>
+      <small
+        >{activity.attendeeIds.length}명 참석 · 이벤트 {activity.linkedEventIds
+          .length}개{#if activity.studyId}
+          · 스터디 {linkedStudy(activity)?.title ?? "알 수 없음"}{/if}</small
+      ></summary
+    >
+    <div class="record-body">
+      <form
+        method="POST"
+        action="?/update"
+        class="record-form"
+        onformdata={dateToStart(dateOf(activity))}
+      >
+        <input type="hidden" name="id" value={activity.id} /><label
+          ><span class="paper-label">활동명</span><input
+            name="title"
+            value={shown.title}
+          /></label
+        ><label
+          ><span class="paper-label">유형</span><select
+            name="type"
+            disabled={activity.sessionStudyId !== null &&
+              activity.type === "스터디"}
+            >{#each typeChoices(activity) as type (type)}<option
+                value={type}
+                selected={type === shown.type}>{type}</option
+              >{/each}</select
+          >{#if activity.sessionStudyId !== null && activity.type !== "스터디"}<small
+              class="field-note"
+              >스터디 회차 활동은 종류를 '스터디'로만 되돌릴 수 있습니다.</small
+            >{:else if activity.sessionStudyId !== null}<!-- 회차 활동은 종류를 잠근다 — 비활성 칸은 제출되지 않아 서버가 종류를 그대로 둔다(D-000129·138) --><small
+              class="field-note"
+              >스터디 회차 활동은 종류를 바꿀 수 없습니다.</small
+            >{:else if activity.studyId !== null}<small class="field-note"
+              >스터디에 연결된 활동은 종류를 '스터디'나 '회식'으로만 바꿀 수
+              있습니다. 다른 종류로 바꾸려면 먼저 스터디 연결을 해제해 주세요.</small
+            >{/if}</label
+        ><label
+          ><span class="paper-label">날짜</span><input
+            type="date"
+            name="date"
+            value={shown.date}
+          /></label
+        ><button class="paper-btn" type="submit">기본 정보 수정</button>
+      </form>
+      {#if activity.sessionStudyId}
+        <p class="study-link-fixed">
+          <span class="paper-label">연결 스터디</span>
+          {sessionStudyLabel(activity.sessionStudyId)}
+          <small
+            >스터디 회차 활동은 그 회차의 스터디에 고정되어 있어 연결을 바꾸거나
+            해제할 수 없습니다.</small
+          >
+        </p>
+      {:else if isStudyLinkType(activity.type)}
+        <form method="POST" action="?/setStudy" class="study-link-form">
+          <input type="hidden" name="id" value={activity.id} />
+          <label
+            ><span class="paper-label">연결 스터디</span><select name="studyId"
+              ><option value="" selected={!activity.studyId}>연결 안 함</option
+              >{#if activity.studyId && !linkedStudy(activity)}<option
+                  value={activity.studyId}
+                  selected>알 수 없는 스터디</option
+                >{/if}{#each data.studies as study (study.id)}<option
+                  value={study.id}
+                  selected={study.id === activity.studyId}
+                  >{studyLabel(study)}</option
+                >{/each}</select
+            ></label
+          >
+          <button class="paper-btn" type="submit">스터디 연결 저장</button>
+        </form>
+      {/if}
+      <form
+        method="POST"
+        action="?/setAttendees"
+        class="attendee-form"
+        onsubmit={(event) => {
+          if (!confirm("현재 참석자 명단을 선택한 회원으로 전체 교체할까요?"))
+            event.preventDefault();
+        }}
+      >
+        <input type="hidden" name="id" value={activity.id} />
+        <fieldset>
+          <legend>참석자 전체 교체</legend>
+          <div class="member-picker">
+            {#each activity.formerAttendees as person (person.id)}<label
+                ><input
+                  type="checkbox"
+                  name="attendeeIds"
+                  value={person.id}
+                  checked
+                /><span>{person.name}<small>이전 회원</small></span></label
+              >{/each}
+            {#each data.members as member (member.id)}{@const choice =
+                pickerChoice(member, activity.attendeeIds)}<label
+                ><input
+                  type="checkbox"
+                  name="attendeeIds"
+                  value={choice.value}
+                  checked={choice.checked}
+                /><span>{member.name}<small>{member.department}</small></span
+                ></label
+              >{/each}
+          </div>
+        </fieldset>
+        <button class="paper-btn" type="submit">참석자 교체</button>
+      </form>
+      <form
+        method="POST"
+        action="?/delete"
+        class="delete-row"
+        onsubmit={(event) => {
+          if (!confirm(`'${activity.title}' 활동 기록을 삭제할까요?`))
+            event.preventDefault();
+        }}
+      >
+        <input type="hidden" name="id" value={activity.id} /><span
+          >{activity.linkedEventIds.length
+            ? "연결 이벤트가 있어 현재 삭제 불가"
+            : "삭제 후 복구는 S3 버전 이력에서만 가능"}</span
+        ><button
+          class="paper-btn small"
+          type="submit"
+          disabled={activity.linkedEventIds.length > 0}>기록 삭제</button
+        >
+      </form>
+    </div>
+  </details>
+{/snippet}
 
 <article class="paper-document activity-admin-paper">
   <ManuscriptHeader
@@ -170,161 +320,77 @@
         ><span class="paper-label">검색</span><input
           type="search"
           bind:value={query}
-          placeholder="제목, 유형 또는 날짜"
+          placeholder="스터디명, 학기, 활동명 또는 날짜"
         /></label
       >
     </div>
+    <div class="study-groups record-list">
+      {#each studyGroups as group (group.study.id)}
+        <div class="study-group">
+          <div class="study-group-heading">
+            <div>
+              <span class="paper-label">{group.study.semester} · 스터디</span>
+              <h3>{group.study.title}</h3>
+            </div>
+            <a class="paper-btn small" href={`/admin/studies/${group.study.id}`}
+              >스터디 관리</a
+            >
+          </div>
+          <details
+            open={Boolean(query.trim()) ||
+              group.sessions.some(
+                (session) => session.activity?.id === refusedId,
+              ) ||
+              group.linkedActivities.some(
+                (activity) => activity.id === refusedId,
+              )}
+          >
+            <summary
+              ><span
+                >참가자 {group.study.participantCount}명 · 회차 {data.studyGroups?.find(
+                  (original) => original.study.id === group.study.id,
+                )?.sessions.length ?? group.sessions.length}개</span
+              ><span>회차·연결 활동 펼치기</span></summary
+            >
+            <div class="study-group-body record-list">
+              {#each group.sessions as session (session.event.id)}
+                <div class="session-row">
+                  <p class="session-label">
+                    {session.event.sessionNo
+                      ? `${session.event.sessionNo}회차`
+                      : "회차"} · {eventStatus[session.event.status] ??
+                      session.event.status} · {session.event.date.start.slice(
+                      0,
+                      10,
+                    )}
+                  </p>
+                  {#if session.activity}{@render activityCard(
+                      session.activity,
+                    )}{:else}<p class="empty">
+                      {session.event.title} · 활동 기록을 확인해 주세요.
+                    </p>{/if}
+                </div>
+              {:else}<StudySessionEmpty
+                  totalSessions={data.studyGroups?.find(
+                    (original) => original.study.id === group.study.id,
+                  )?.sessions.length ?? group.sessions.length}
+                />{/each}
+              {#if group.linkedActivities.length}<h4>연결 활동</h4>
+                <p class="scope-note">
+                  회차 이벤트에 연결되지 않은 활동입니다.
+                </p>{/if}
+              {#each group.linkedActivities as activity (activity.id)}{@render activityCard(
+                  activity,
+                )}{/each}
+            </div>
+          </details>
+        </div>
+      {/each}
+    </div>
+    <h3 class="other-activities-title">기타 활동 기록</h3>
     <div class="record-list">
       {#each activities as activity (activity.id)}
-        {@const shown = shownFor(activity)}
-        <!-- 수정이 거절되면 그 카드를 펼친 채로 — 입력한 값이 다시 채워져 있다(D-000098) -->
-        <details class="record-card" open={refusedId === activity.id}>
-          <summary
-            ><div>
-              <span>{dateOf(activity)} · {activity.type}</span><strong
-                >{activity.title}</strong
-              >
-            </div>
-            <small
-              >{activity.attendeeIds.length}명 참석 · 이벤트 {activity
-                .linkedEventIds.length}개{#if activity.studyId}
-                · 스터디 {linkedStudy(activity)?.title ??
-                  "알 수 없음"}{/if}</small
-            ></summary
-          >
-          <div class="record-body">
-            <form
-              method="POST"
-              action="?/update"
-              class="record-form"
-              onformdata={dateToStart(dateOf(activity))}
-            >
-              <input type="hidden" name="id" value={activity.id} /><label
-                ><span class="paper-label">활동명</span><input
-                  name="title"
-                  value={shown.title}
-                /></label
-              ><label
-                ><span class="paper-label">유형</span><select
-                  name="type"
-                  disabled={activity.sessionStudyId !== null &&
-                    activity.type === "스터디"}
-                  >{#each typeChoices(activity) as type (type)}<option
-                      value={type}
-                      selected={type === shown.type}>{type}</option
-                    >{/each}</select
-                >{#if activity.sessionStudyId !== null && activity.type !== "스터디"}<small
-                    class="field-note"
-                    >스터디 회차 활동은 종류를 '스터디'로만 되돌릴 수 있습니다.</small
-                  >{:else if activity.sessionStudyId !== null}<!-- 회차 활동은 종류를 잠근다 — 비활성 칸은 제출되지 않아 서버가 종류를 그대로 둔다(D-000129·138) --><small
-                    class="field-note"
-                    >스터디 회차 활동은 종류를 바꿀 수 없습니다.</small
-                  >{:else if activity.studyId !== null}<small class="field-note"
-                    >스터디에 연결된 활동은 종류를 '스터디'나 '회식'으로만 바꿀
-                    수 있습니다. 다른 종류로 바꾸려면 먼저 스터디 연결을 해제해
-                    주세요.</small
-                  >{/if}</label
-              ><label
-                ><span class="paper-label">날짜</span><input
-                  type="date"
-                  name="date"
-                  value={shown.date}
-                /></label
-              ><button class="paper-btn" type="submit">기본 정보 수정</button>
-            </form>
-            {#if activity.sessionStudyId}
-              <p class="study-link-fixed">
-                <span class="paper-label">연결 스터디</span>
-                {sessionStudyLabel(activity.sessionStudyId)}
-                <small
-                  >스터디 회차 활동은 그 회차의 스터디에 고정되어 있어 연결을
-                  바꾸거나 해제할 수 없습니다.</small
-                >
-              </p>
-            {:else if isStudyLinkType(activity.type)}
-              <form method="POST" action="?/setStudy" class="study-link-form">
-                <input type="hidden" name="id" value={activity.id} />
-                <label
-                  ><span class="paper-label">연결 스터디</span><select
-                    name="studyId"
-                    ><option value="" selected={!activity.studyId}
-                      >연결 안 함</option
-                    >{#if activity.studyId && !linkedStudy(activity)}<option
-                        value={activity.studyId}
-                        selected>알 수 없는 스터디</option
-                      >{/if}{#each data.studies as study (study.id)}<option
-                        value={study.id}
-                        selected={study.id === activity.studyId}
-                        >{studyLabel(study)}</option
-                      >{/each}</select
-                  ></label
-                >
-                <button class="paper-btn" type="submit">스터디 연결 저장</button
-                >
-              </form>
-            {/if}
-            <form
-              method="POST"
-              action="?/setAttendees"
-              class="attendee-form"
-              onsubmit={(event) => {
-                if (
-                  !confirm(
-                    "현재 참석자 명단을 선택한 회원으로 전체 교체할까요?",
-                  )
-                )
-                  event.preventDefault();
-              }}
-            >
-              <input type="hidden" name="id" value={activity.id} />
-              <fieldset>
-                <legend>참석자 전체 교체</legend>
-                <div class="member-picker">
-                  {#each activity.formerAttendees as person (person.id)}<label
-                      ><input
-                        type="checkbox"
-                        name="attendeeIds"
-                        value={person.id}
-                        checked
-                      /><span>{person.name}<small>이전 회원</small></span
-                      ></label
-                    >{/each}
-                  {#each data.members as member (member.id)}{@const choice =
-                      pickerChoice(member, activity.attendeeIds)}<label
-                      ><input
-                        type="checkbox"
-                        name="attendeeIds"
-                        value={choice.value}
-                        checked={choice.checked}
-                      /><span
-                        >{member.name}<small>{member.department}</small></span
-                      ></label
-                    >{/each}
-                </div>
-              </fieldset>
-              <button class="paper-btn" type="submit">참석자 교체</button>
-            </form>
-            <form
-              method="POST"
-              action="?/delete"
-              class="delete-row"
-              onsubmit={(event) => {
-                if (!confirm(`'${activity.title}' 활동 기록을 삭제할까요?`))
-                  event.preventDefault();
-              }}
-            >
-              <input type="hidden" name="id" value={activity.id} /><span
-                >{activity.linkedEventIds.length
-                  ? "연결 이벤트가 있어 현재 삭제 불가"
-                  : "삭제 후 복구는 S3 버전 이력에서만 가능"}</span
-              ><button
-                class="paper-btn small"
-                type="submit"
-                disabled={activity.linkedEventIds.length > 0}>기록 삭제</button
-              >
-            </form>
-          </div>
-        </details>
+        {@render activityCard(activity)}
       {:else}<p class="empty">검색 조건에 맞는 활동이 없습니다.</p>{/each}
     </div>
   </section>
@@ -334,6 +400,39 @@
 </article>
 
 <style>
+  .study-group {
+    border: 1px solid var(--latex-rule);
+  }
+  .study-group-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.7rem;
+    padding: 0.8rem;
+  }
+  .study-group-heading h3 {
+    margin: 0.25rem 0 0;
+    font-size: 1rem;
+  }
+  .study-group-heading a {
+    flex-shrink: 0;
+  }
+  .study-group-body {
+    padding: 0.8rem;
+    border-top: 1px solid var(--latex-rule);
+  }
+  .study-group-body h4 {
+    margin: 0.6rem 0 0;
+  }
+  .session-label {
+    margin: 0 0 0.4rem;
+    font-size: 0.75rem;
+    color: var(--latex-muted);
+  }
+  .other-activities-title {
+    margin: 1.2rem 0 0.7rem;
+    font-size: 1rem;
+  }
   .activity-admin-paper {
     width: min(100%, 1120px);
   }

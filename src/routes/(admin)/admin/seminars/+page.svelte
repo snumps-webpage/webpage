@@ -135,7 +135,9 @@
 
   <div class="page-toolbar">
     <p>승인과 일정 공개를 분리해, 지금 처리해야 할 다음 작업만 보여줍니다.</p>
-    <a href="/admin" class="paper-btn secondary">전체 관리자 화면</a>
+    <a href="/admin/seminar-series" class="paper-btn secondary"
+      >세미나 회차·출석 관리</a
+    >
   </div>
 
   <section class="workflow-summary" aria-label="세미나 운영 현황">

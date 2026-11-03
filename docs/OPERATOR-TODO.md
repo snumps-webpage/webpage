@@ -95,6 +95,10 @@
 
 ## 2-2. 🔴 원자적 흐름 마이그레이션 적용 — **코드 배포 전에** (2026-09-28 추가)
 
+2026-11-03 관리자 회차 관리 구현은 [설계](specs/2026-11-03-admin-study-seminar-management-design.md)와 [구현 계획](plans/2026-11-03-admin-management.md)을 따른다. 새 migration `20261103000000_admin_study_sessions.sql`, `20261103000100_seminar_series.sql`을 release script의 적용 목록에 포함했다. 배포 확인은 flow 25개, 세미나 상위 연결 누락·중복 회차 번호 0건, 새 관리자 함수의 anon/authenticated 실행 불가까지 검사한다. 세미나 상위 연결 migration은 배포 후 백필 재실행에도 포함한다.
+
+사용자는 구현 후 기존 프리뷰 확인까지 마치면 에이전트가 배포하도록 지시했다(D-000257). 사용자 실로그인·프리뷰 확인 전에는 운영 배포하지 않는다. 2026-11-03 조회 시 dev는 INACTIVE였으므로 프리뷰 검증 전에 복구와 migration 상태를 재확인해야 한다.
+
 **왜**: `chore/code-audit-v2`의 코드는 여러 문서를 함께 바꾸는 흐름(세미나 게시·취소·삭제, 출석 결정,
 가입·신청 승인, 탈퇴 등)을 Postgres 함수로 실행한다([ATOMIC-FLOWS.md](./spec/ATOMIC-FLOWS.md)). 함수가
 DB에 없으면 그 기능이 전부 500이 된다. 또 세미나 스키마가 `publicationStatus`를 필수로 바꿨으므로, 보정

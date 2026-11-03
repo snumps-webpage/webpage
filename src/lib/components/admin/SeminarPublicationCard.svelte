@@ -87,7 +87,11 @@
   }
 </script>
 
-<article class="publication-card" data-status={seminar.publicationStatus}>
+<article
+  id={`seminar-${seminar.id}`}
+  class="publication-card"
+  data-status={seminar.publicationStatus}
+>
   <header class="card-heading">
     <div>
       <p class="eyebrow">

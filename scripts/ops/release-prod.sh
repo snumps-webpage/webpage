@@ -32,7 +32,7 @@
 #   7 배포                 전제 재확인 → 5단계의 빌드로 운영 도메인 승격(vercel promote) → main push
 #   8 배포 확인            운영 도메인이 그 빌드를 가리키는지 vercel inspect로 대조, 첫 화면 200
 #   9 사후 보정            백필 3개 재실행 (6~8 사이 옛 코드가 지운 키를 되살린다)
-#  10 확인 쿼리            흐름 20개·백필 누락 0·권한·버킷 비공개 — 통과 후 10분 뒤 9·10을 한 번 더
+#  10 확인 쿼리            흐름 25개·백필/회차 연결 누락 0·권한·버킷 비공개 — 통과 후 10분 뒤 9·10을 한 번 더
 #  11 공개 스모크          공개 페이지 200, 버킷 상태 (읽기 전용)
 #  12 3-0 복구 미리보기    배포 전 쓰기로 사라진 세미나 복구값이 있는지 (미리보기만)
 #
@@ -85,6 +85,8 @@ readonly EXPECTED_MIGRATIONS=(
   20260928000400
   20261014000000
   20261015000000
+  20261103000000
+  20261103000100
 )
 readonly BACKFILLS=(
   supabase/migrations/20260928000100_seminar_publication_status.sql
@@ -92,6 +94,7 @@ readonly BACKFILLS=(
   supabase/migrations/20260928000400_member_revocation_reason.sql
   supabase/migrations/20261014000000_seminar_videos.sql
   supabase/migrations/20261015000000_activity_study_link.sql
+  supabase/migrations/20261103000100_seminar_series.sql
 )
 readonly PUBLIC_PAGES=(/ /about /archive /archive/seminars /archive/studies /archive/projects /login)
 readonly BACKUP_MAX_AGE_SECONDS=$((6 * 3600))
@@ -419,6 +422,30 @@ select
       and not r ? 'alumniRevocationReason') as members_no_reason,
   (select count(*) from app_tables t, jsonb_array_elements(t.doc->'rows') r
     where t.name = 'activities' and not r ? 'studyId') as act_no_study_key,
+  (select count(*) from app_tables t, jsonb_array_elements(t.doc->'rows') r
+    where t.name = 'seminars' and (
+      jsonb_typeof(r->'sessionNo') is distinct from 'number'
+      or not coalesce((r->>'sessionNo') ~ '^[1-9][0-9]*$', false)
+      or not exists (
+        select 1 from app_tables p, jsonb_array_elements(p.doc->'rows') s
+        where p.name = 'seminar-series' and s->>'id' = r->>'seriesId'
+      ))) as sem_bad_series,
+  (select count(*) from (
+    select r->>'seriesId', r->>'sessionNo'
+    from app_tables t, jsonb_array_elements(t.doc->'rows') r
+    where t.name = 'seminars' and r->>'seriesId' is not null
+    group by r->>'seriesId', r->>'sessionNo' having count(*) > 1
+  ) duplicates) as sem_duplicate_session_slots,
+  (select exists (
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname like 'flow_admin_%'
+      and has_function_privilege('anon', p.oid, 'execute')
+  )) as admin_anon_can_exec,
+  (select exists (
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname like 'flow_admin_%'
+      and has_function_privilege('authenticated', p.oid, 'execute')
+  )) as admin_authenticated_can_exec,
   (select has_function_privilege('anon', 'flow_publish_seminar(jsonb)', 'execute')) as anon_can_exec,
   (select public from storage.buckets where id = 'assets') as assets_public;
 SQL
@@ -587,7 +614,7 @@ repair_and_check() {
       const rows = JSON.parse(s);
       if (rows.length !== 1) { console.error("행이 1개가 아니다"); process.exit(2); }
       const r = rows[0];
-      const want = { flow_fns: 20, sem_no_status: 0, sem_bad_fields: 0, sem_no_videos: 0, members_no_reason: 0, act_no_study_key: 0, anon_can_exec: false, assets_public: false };
+      const want = { flow_fns: 25, sem_no_status: 0, sem_bad_fields: 0, sem_no_videos: 0, members_no_reason: 0, act_no_study_key: 0, sem_bad_series: 0, sem_duplicate_session_slots: 0, admin_anon_can_exec: false, admin_authenticated_can_exec: false, anon_can_exec: false, assets_public: false };
       console.log("결과:", JSON.stringify(r));
       const bad = Object.entries(want).filter(([k, v]) => String(r[k]) !== String(v));
       if (bad.length) { console.error("기대와 다름:", bad.map(([k, v]) => k + "=" + r[k] + " (기대 " + v + ")").join(", ")); process.exit(3); }

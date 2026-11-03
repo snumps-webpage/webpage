@@ -206,6 +206,9 @@
           >
         </summary>
         <div class="record-body">
+          <a class="paper-btn" href={`/admin/studies/${record.id}`}
+            >참가자·회차·출석 관리</a
+          >
           <form method="POST" action="?/update" class="record-form">
             <input type="hidden" name="id" value={record.id} />
             <div class="field-grid">
