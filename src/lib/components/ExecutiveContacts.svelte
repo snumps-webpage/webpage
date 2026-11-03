@@ -7,8 +7,12 @@
   let {
     roster,
     variant,
+    loaded,
+    pending = false,
   }: {
     roster: PublicExecutiveRoster | null;
+    loaded: boolean;
+    pending?: boolean;
     variant: "cover" | "footer";
   } = $props();
 
@@ -32,7 +36,17 @@
   }
 </script>
 
-{#if variant === "cover"}
+{#if pending || !loaded}
+  <div
+    class="executive-lookup-status"
+    class:paper-authors={variant === "cover"}
+    class:executive-footer={variant === "footer"}
+    role="status"
+  >
+    {#if pending}운영진 정보를 확인하고 있습니다.
+    {:else}운영진 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.{/if}
+  </div>
+{:else if variant === "cover"}
   <div class="paper-authors" aria-label="SNUMPS 운영진 공개 연락처">
     {#each executives as { title, marker, executive } (title)}
       <div class="author-entry">
@@ -78,6 +92,11 @@
 {/if}
 
 <style>
+  .executive-lookup-status {
+    color: var(--latex-muted);
+    font-size: 0.8rem;
+    line-height: 1.6;
+  }
   .author-contact a {
     color: inherit;
     text-decoration: none;

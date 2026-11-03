@@ -201,9 +201,17 @@
   <div class="footer-content">
     <div class="footer-info">
       <div class="footer-line">
-        {#await page.data.executives then executiveTerms}
+        {#await page.data.executives}
+          <ExecutiveContacts
+            roster={null}
+            variant="footer"
+            loaded={false}
+            pending
+          />
+        {:then executiveTerms}
           <ExecutiveContacts
             roster={toExecutiveRoster(executiveTerms)}
+            loaded={executiveTerms != null}
             variant="footer"
           />
         {/await}

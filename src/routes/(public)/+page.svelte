@@ -84,14 +84,32 @@
         </p>
       </article>
     {:else}
-      {#await page.data.executives then executiveTerms}
-        <GuestLanding executives={toExecutiveRoster(executiveTerms)} />
+      {#await page.data.executives}
+        <GuestLanding
+          executives={null}
+          executivesLoaded={false}
+          executivesPending
+        />
+      {:then executiveTerms}
+        <GuestLanding
+          executives={toExecutiveRoster(executiveTerms)}
+          executivesLoaded={executiveTerms != null}
+        />
       {/await}
     {/if}
   {/await}
 {:else}
-  {#await page.data.executives then executiveTerms}
-    <GuestLanding executives={toExecutiveRoster(executiveTerms)} />
+  {#await page.data.executives}
+    <GuestLanding
+      executives={null}
+      executivesLoaded={false}
+      executivesPending
+    />
+  {:then executiveTerms}
+    <GuestLanding
+      executives={toExecutiveRoster(executiveTerms)}
+      executivesLoaded={executiveTerms != null}
+    />
   {/await}
 {/if}
 

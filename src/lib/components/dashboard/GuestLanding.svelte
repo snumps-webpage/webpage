@@ -6,7 +6,15 @@
   import { MANUSCRIPT } from "$lib/constants";
   import type { PublicExecutiveRoster } from "$lib/domain/members";
 
-  let { executives }: { executives: PublicExecutiveRoster | null } = $props();
+  let {
+    executives,
+    executivesLoaded,
+    executivesPending = false,
+  }: {
+    executives: PublicExecutiveRoster | null;
+    executivesLoaded: boolean;
+    executivesPending?: boolean;
+  } = $props();
 </script>
 
 <article class="guest-paper">
@@ -24,7 +32,12 @@
           </h1>
           <p class="paper-affiliation">SNUMPS</p>
         </div>
-        <ExecutiveContacts roster={executives} variant="cover" />
+        <ExecutiveContacts
+          roster={executives}
+          variant="cover"
+          loaded={executivesLoaded}
+          pending={executivesPending}
+        />
       </div>
       <div class="cover-rule thin"></div>
 
