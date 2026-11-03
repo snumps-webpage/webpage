@@ -26,6 +26,14 @@ Google 값이 가짜라 메일은 한 통도 나가지 않는다.
 | `editor-ui.py`           | `.eml` 공지 편집기 화면 실측(Playwright Python) — 아래 절                                                                                                                                                                                                                                                        |
 | `editor-ui-cookie.mjs`   | `editor-ui.py`가 쓰는 위조 관리자 쿠키를 파일로 남김                                                                                                                                                                                                                                                             |
 
+### 회원 활동 팝업 검사
+
+격리된 memory 서버를 띄운 뒤 `python3 scripts/measure/member-activity-popup.py`를 실행한다.
+`BASE=http://127.0.0.1:포트`로 대상 서버를 바꿀 수 있다. 테스트 서버의 데이터를 합성 회원과
+활동으로 초기화하므로 다른 실측과 동시에 실행하지 않는다. 이름 클릭, 키보드·초점 복원,
+모바일·빈 기록, 로딩·네트워크 실패 후 재시도와 로딩 중 닫기를 검사한다.
+스크린샷은 `.tmp/member-activity-popup-{desktop,mobile}.png`에 남긴다.
+
 ### 시드 API와 가드
 
 앱은 `DATA_BACKEND=memory`일 때 데이터를 서버 프로세스 메모리에만 둔다 — 밖에서 넣거나

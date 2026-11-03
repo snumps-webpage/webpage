@@ -1,4 +1,5 @@
 <script lang="ts">
+  import MemberActivityDialog from "$lib/components/MemberActivityDialog.svelte";
   import ManuscriptHeader from "$lib/components/ManuscriptHeader.svelte";
   import { MANUSCRIPT } from "$lib/constants";
   import {
@@ -12,6 +13,24 @@
 
   let { data } = $props();
   let query = $state("");
+  let selectedMember = $state<{ id: string; name: string } | null>(null);
+
+  function openActivity(
+    event: MouseEvent,
+    member: { id: string; name: string },
+  ) {
+    // Preserve normal links for new tabs, downloads, and JavaScript-free use.
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return;
+    event.preventDefault();
+    selectedMember = member;
+  }
   // 기본은 현재 회원(정회원+준회원) 보기 (snumps-webpage/D-000077)
   let view = $state<MemberView>("current");
 
@@ -117,7 +136,12 @@
             <tr>
               <td>{String(index + 1).padStart(3, "0")}</td>
               <th scope="row"
-                ><a href={`/members/${member.id}`}>{member.name}</a></th
+                ><a
+                  href={`/members/${encodeURIComponent(member.id)}`}
+                  aria-haspopup="dialog"
+                  onclick={(event) => openActivity(event, member)}
+                  >{member.name}</a
+                ></th
               >
               <td>
                 <span
@@ -155,7 +179,12 @@
             <span>{String(index + 1).padStart(3, "0")}</span>
             <div>
               <h2>
-                <a href={`/members/${member.id}`}>{member.name}</a>
+                <a
+                  href={`/members/${encodeURIComponent(member.id)}`}
+                  aria-haspopup="dialog"
+                  onclick={(event) => openActivity(event, member)}
+                  >{member.name}</a
+                >
                 <span
                   class="standing-chip"
                   class:current={inMemberView(member.standing, "current")}
@@ -194,6 +223,15 @@
     </p>
   {/if}
 </article>
+
+{#if selectedMember}
+  {#key selectedMember.id}
+    <MemberActivityDialog
+      member={selectedMember}
+      onClose={() => (selectedMember = null)}
+    />
+  {/key}
+{/if}
 
 <style>
   .public-member-paper {
