@@ -12,7 +12,11 @@ import path from "node:path";
 import { planSessionLinks } from "../../../../scripts/ops/ops-notion-backfill-seminars.mjs";
 import { TABLES, envelope, type TableName } from "./schemas";
 
-const scratch = () => mkdtempSync(path.resolve(".tmp/ops-audit-test-"));
+const scratch = () => {
+  const root = path.resolve(".tmp");
+  mkdirSync(root, { recursive: true });
+  return mkdtempSync(path.join(root, "ops-audit-test-"));
+};
 function moduleRun(scenario: string) {
   const dir = scratch();
   const res = spawnSync(
