@@ -735,7 +735,8 @@ if run_step 2; then
   else
     pnpm install --frozen-lockfile
     ./node_modules/.bin/svelte-kit sync
-    ./node_modules/.bin/vitest run
+    # Bound PGlite/large-mail test concurrency on the release host.
+    ./node_modules/.bin/vitest run --maxWorkers=2
     ./node_modules/.bin/svelte-check --tsconfig ./tsconfig.json --threshold error
     ./node_modules/.bin/eslint .
     ./node_modules/.bin/prettier --check --ignore-unknown .
@@ -776,7 +777,7 @@ if run_step 3; then
     say "프리뷰는 dev DB를 본다. 커밋 $(git rev-parse --short HEAD)의 Vercel 프리뷰 배포에서:"
     say "(프리뷰 없이 가려면 중단하고 SKIP_PREVIEW=1 로 다시)"
     confirm "(1) 빌드 로그에서 pnpm으로 설치됐다 (npm이면 Install Command를 'pnpm install --frozen-lockfile'로)"
-    confirm "(2) 실제 SNU Google 계정으로 로그인이 통과했다 (hd=snu.ac.kr 검사)"
+    confirm "(2) 프리뷰 로그인(실계정 또는 Preview 전용 우회)으로 회원·관리자 화면에 접근했다. 우회 사용 시 실제 SNU OAuth는 운영 배포 직후 확인한다 (D-000259)"
     confirm "(3) 세미나 신청→승인→일정→게시→취소, 체크인→출석 승인을 한 번씩 해 봤고 500이 없었다"
     state_set preview_key "$APP_KEY"
   fi
